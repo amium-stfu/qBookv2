@@ -1,0 +1,148 @@
+﻿<Window
+    x:Class="UiEditor.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:UiEditor.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Width="1280"
+    Height="820"
+    MinWidth="1024"
+    MinHeight="720"
+    Background="{Binding WindowBackground}"
+    Title="UI Editor PoC [Testbook Build]">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="8">
+    <Border Grid.Row="0" Classes="card" Padding="18,14" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
+      <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+
+            <TextBlock FontSize="26" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="UI Editor" />
+            <TextBlock Foreground="{Binding SecondaryTextBrush}" Text="Proof of concept fuer seitenorientierte Avalonia-Oberflaechen" />
+
+        <Border
+            Grid.Column="1"
+            Padding="18,8"
+            CornerRadius="24"
+            Background="{Binding HeaderBadgeBackground}">
+          <TextBlock FontSize="16" FontWeight="Bold" Foreground="{Binding HeaderBadgeForeground}" Text="amium" />
+        </Border>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="150,*,280" Margin="0,8,0,8">
+      <Border Grid.Column="0" Classes="card" Margin="0,0,8,0" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="12">
+            <TextBlock HorizontalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Control Panel" />
+            <ToggleButton Classes="toolbar" IsChecked="{Binding IsEditMode}">
+              <TextBlock HorizontalAlignment="Center" Text="Edit mode" />
+            </ToggleButton>
+            <ToggleButton Classes="toolbar" IsChecked="{Binding IsDarkTheme}">
+              <TextBlock HorizontalAlignment="Center" Text="{Binding ThemeModeText}" />
+            </ToggleButton>
+            <Button Classes="toolbar" Command="{Binding SaveLayoutCommand}" Content="Save JSON" />
+            <Button Classes="toolbar" Command="{Binding LoadLayoutCommand}" Content="Load JSON" />
+            <Button Classes="toolbar" Command="{Binding LoadBookCommand}" Content="Load" />
+            <Button Classes="toolbar" Command="{Binding RebuildBookCommand}" Content="Rebuild" />
+            <Button Classes="toolbar" Click="OpenVsCode_Click" Content="Open VS Code" />
+            <Button Classes="toolbar" Click="OpenLogWindow_Click" Content="Open Log" />
+            <TextBlock FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Layout-Datei" />
+            <SelectableTextBlock TextWrapping="Wrap" Foreground="{Binding SecondaryTextBrush}" Text="{Binding LayoutFilePath}" />
+            <TextBlock TextWrapping="Wrap" Foreground="{Binding SecondaryTextBrush}" Text="Im Editiermodus erscheint das Editpanel direkt im Canvas oben mittig. Dort findest du Raster, Snap und die Ausrichtungsfunktionen." />
+            <TextBlock TextWrapping="Wrap" Foreground="{Binding SecondaryTextBrush}" Text="Tipp: Mehrfachauswahl nur mit gedrueckter Strg-Taste. Strg-Klick erweitert die Auswahl, Strg-Ziehen markiert mehrere Controls." />
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <Border Grid.Column="1" Classes="card" Padding="10" Margin="0,0,8,0" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
+        <controls:PageEditorControl />
+      </Border>
+
+      <Border Grid.Column="2" Classes="card" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
+        <Grid RowDefinitions="Auto,*">
+          <StackPanel Spacing="12">
+            <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Legende" />
+            <ItemsControl ItemsSource="{Binding Pages}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button
+                      HorizontalContentAlignment="Stretch"
+                      Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                      CommandParameter="{Binding .}"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      Padding="0">
+                    <Border
+                        Padding="0"
+                        CornerRadius="8"
+                        Background="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#FFF1C4}">
+                      <Grid ColumnDefinitions="48,*" Margin="0,0,0,4">
+                        <Border
+                            Background="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#F59E0B}"
+                            CornerRadius="8,0,0,8"
+                            MinHeight="52">
+                          <TextBlock
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              FontSize="22"
+                              FontWeight="Bold"
+                              Foreground="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Text="{Binding Index}" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="12,6" VerticalAlignment="Center">
+                          <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=Window}}" Text="{Binding Name}" />
+                          <TextBlock Foreground="{Binding DataContext.SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=Window}}" Text="{Binding ItemSummary}" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <Border Grid.Row="1" Margin="0,12,0,0" Padding="10" CornerRadius="8" Background="{Binding CanvasBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1">
+            <Grid RowDefinitions="Auto,*">
+              <StackPanel Spacing="4">
+                <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Diagnostics" />
+                <TextBlock Foreground="{Binding SecondaryTextBrush}" Text="{Binding MessagesSummary}" />
+                <TextBlock TextWrapping="Wrap" Foreground="{Binding SecondaryTextBrush}" Text="{Binding DataRegistrySummary}" />
+                <TextBlock TextWrapping="Wrap" Foreground="{Binding SecondaryTextBrush}" Text="{Binding EditorDialogChoiceSummary}" />
+              </StackPanel>
+
+              <ScrollViewer Grid.Row="1" Margin="0,10,0,0" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Messages}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Margin="0,0,0,8" Padding="8" CornerRadius="8" Background="{Binding DataContext.CardBackground, RelativeSource={RelativeSource AncestorType=Window}}" BorderBrush="{Binding DataContext.CardBorderBrush, RelativeSource={RelativeSource AncestorType=Window}}" BorderThickness="1">
+                        <StackPanel Spacing="4">
+                          <TextBlock FontWeight="SemiBold" Foreground="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=Window}}" Text="{Binding Summary}" />
+                          <TextBlock TextWrapping="Wrap" Foreground="{Binding DataContext.SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=Window}}" Text="{Binding Message}" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2" Classes="card" Padding="16,10" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="2">
+          <TextBlock VerticalAlignment="Center" Foreground="{Binding SecondaryTextBrush}" Text="{Binding FooterText}" />
+          <TextBlock VerticalAlignment="Center" Foreground="{Binding SecondaryTextBrush}" Text="{Binding StatusText}" />
+        </StackPanel>
+        <TextBlock Grid.Column="1" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Footer" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>
+
+
+
+
+

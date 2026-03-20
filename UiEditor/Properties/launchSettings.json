@@ -1,0 +1,15 @@
+﻿{
+  "profiles": {
+    "UiEditorCurrent": {
+      "commandName": "Executable",
+      "executablePath": "$(ProjectDir)bin\\$(Configuration)\\current\\UiEditor.exe",
+      "workingDirectory": "$(ProjectDir)bin\\$(Configuration)\\current",
+      "nativeDebugging": false
+    },
+    "UiEditor": {
+      "commandName": "Project",
+      "workingDirectory": "$(ProjectDir)bin\\$(Configuration)\\current",
+      "nativeDebugging": false
+    }
+  }
+}

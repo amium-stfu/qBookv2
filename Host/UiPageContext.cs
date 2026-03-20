@@ -1,0 +1,141 @@
+using System;
+using System.Collections.Generic;
+using UiEditor.Items;
+
+namespace UiEditor.Host;
+
+public sealed class UiPageContext : IDisposable
+{
+    private readonly List<AttachedItemLink> _links = [];
+    private readonly string _pagePath;
+
+    public UiPageContext(string pageName, string? bookName = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pageName);
+
+        PageName = pageName.Trim();
+        BookName = string.IsNullOrWhiteSpace(bookName) ? null : bookName.Trim();
+        _pagePath = string.IsNullOrWhiteSpace(BookName) ? PageName : $"{BookName}/{PageName}";
+    }
+
+    public string PageName { get; }
+    public string? BookName { get; }
+
+    public Item Attach(Item source, string? alias = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        var itemName = string.IsNullOrWhiteSpace(alias) ? source.Name : alias.Trim();
+        ArgumentException.ThrowIfNullOrWhiteSpace(itemName);
+
+        var targetPath = $"{_pagePath}/{itemName}";
+        var attached = source.Clone().Repath(targetPath);
+        _links.Add(new AttachedItemLink(source, targetPath));
+        return attached;
+    }
+
+    public void Dispose()
+    {
+        foreach (var link in _links)
+        {
+            link.Dispose();
+        }
+
+        _links.Clear();
+    }
+
+    private sealed class AttachedItemLink : IDisposable
+    {
+        private readonly Item _source;
+        private bool _isSyncingFromSource;
+        private bool _isSyncingFromTarget;
+        private readonly string _targetPath;
+
+        public AttachedItemLink(Item source, string targetPath)
+        {
+            _source = source;
+            _targetPath = targetPath;
+            _source.Changed += OnSourceChanged;
+            HostRegistries.Data.ItemChanged += OnTargetChanged;
+        }
+
+        public void Dispose()
+        {
+            _source.Changed -= OnSourceChanged;
+            HostRegistries.Data.ItemChanged -= OnTargetChanged;
+        }
+
+        private void OnSourceChanged(object? sender, ItemChangedEventArgs e)
+        {
+            if (_isSyncingFromTarget)
+            {
+                return;
+            }
+
+            if (!HostRegistries.Data.TryGet(_targetPath, out var target) || target is null)
+            {
+                return;
+            }
+
+            _isSyncingFromSource = true;
+            try
+            {
+                var parameterName = e.ParameterName;
+                if (string.Equals(parameterName, "Value", StringComparison.Ordinal))
+                {
+                    var valueTimestamp = _source.Params.Has("Value") ? _source.Params["Value"].LastUpdate : (ulong?)null;
+                    HostRegistries.Data.UpdateValue(_targetPath, _source.Value, valueTimestamp);
+                    return;
+                }
+
+                if (_source.Params.Has(parameterName) && target.Params.Has(parameterName))
+                {
+                    var sourceParameter = _source.Params[parameterName];
+                    HostRegistries.Data.UpdateParameter(_targetPath, parameterName, sourceParameter.Value, sourceParameter.LastUpdate);
+                    return;
+                }
+
+                var snapshot = _source.Clone().Repath(_targetPath);
+                HostRegistries.Data.UpsertSnapshot(_targetPath, snapshot, pruneMissingMembers: true);
+            }
+            finally
+            {
+                _isSyncingFromSource = false;
+            }
+        }
+
+        private void OnTargetChanged(object? sender, DataChangedEventArgs e)
+        {
+            if (_isSyncingFromSource || !string.Equals(e.Key, _targetPath, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _isSyncingFromTarget = true;
+            try
+            {
+                if (string.Equals(e.ParameterName, "Value", StringComparison.Ordinal) || e.ChangeKind == DataChangeKind.ValueUpdated)
+                {
+                    _source.Value = e.Item.Value;
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(e.ParameterName) && e.Item.Params.Has(e.ParameterName))
+                {
+                    _source.Params[e.ParameterName].Value = e.Item.Params[e.ParameterName].Value;
+                    return;
+                }
+
+                var snapshot = e.Item.Clone();
+                foreach (var parameterEntry in snapshot.Params.GetDictionary())
+                {
+                    _source.Params[parameterEntry.Key].Value = parameterEntry.Value.Value;
+                }
+            }
+            finally
+            {
+                _isSyncingFromTarget = false;
+            }
+        }
+    }
+}

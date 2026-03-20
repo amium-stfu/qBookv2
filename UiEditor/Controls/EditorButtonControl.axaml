@@ -1,0 +1,41 @@
+<UserControl
+    x:Class="UiEditor.Controls.EditorButtonControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:UiEditor.Controls"
+    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
+  <Border
+      Background="{Binding EffectiveBackgroundBrush}"
+      BorderBrush="{Binding EffectiveBorderBrushValue}"
+      BorderThickness="{Binding EffectiveBorderThickness}"
+      CornerRadius="10"
+      Padding="18,14">
+    <Grid RowDefinitions="Auto,*,Auto">
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+        <TextBlock
+            VerticalAlignment="Center"
+            FontSize="13"
+            FontWeight="Normal"
+            Foreground="{Binding EffectiveMutedForegroundBrush}"
+            Text="{Binding Header}" />
+
+        <Button
+            Grid.Column="1"
+            Classes="toolicon"
+            Width="15"
+            Height="15"
+            Background="{Binding EffectiveBackgroundBrush}"
+            BorderBrush="Transparent"
+            Click="OnSettingsClicked"
+            IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
+            PointerPressed="OnInteractivePointerPressed"
+            ToolTip.Tip="Settings">
+          <svg:Svg Width="12" Height="12" Path="avares://UiEditor/EditorIcons/cog.svg" />
+        </Button>
+      </Grid>
+
+      <TextBlock Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{Binding FontSize}" FontWeight="SemiBold" Foreground="{Binding EffectivePrimaryForegroundBrush}" Text="{Binding Title}" />
+      <TextBlock Grid.Row="2" HorizontalAlignment="Right" FontStyle="Italic" FontSize="13" Foreground="{Binding EffectiveSecondaryForegroundBrush}" Text="{Binding Footer}" />
+    </Grid>
+  </Border>
+</UserControl>

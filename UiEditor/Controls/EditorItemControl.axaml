@@ -1,0 +1,55 @@
+<UserControl
+    x:Name="Root"
+    x:Class="UiEditor.Controls.EditorItemControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:UiEditor.Controls"
+    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
+  <Border
+      Background="{Binding EffectiveBackgroundBrush}"
+      BorderBrush="{Binding EffectiveBorderBrushValue}"
+      BorderThickness="{Binding EffectiveBorderThickness}"
+      CornerRadius="{Binding EffectiveCornerRadius}"
+      Padding="10,4,4,4">
+    <Grid RowDefinitions="Auto,*,Auto">
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Height="{Binding ItemHeaderHeight}" Margin="0,0,0,2">
+        <TextBlock
+            VerticalAlignment="Center"
+            FontSize="{Binding ItemTitleFontSize}"
+            FontWeight="Medium"
+            Foreground="{Binding EffectiveSecondaryForegroundBrush}"
+            Text="{Binding Header}" />
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+          <Button x:Name="SubItemsButton" Classes="toolicon" Width="15" Height="15" Padding="2" Background="{Binding EffectiveBackgroundBrush}" BorderBrush="Transparent" Click="OnSubItemsClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="SubItems">
+            <svg:Svg Width="10" Height="10" Path="avares://UiEditor/EditorIcons/menu.svg" />
+          </Button>
+          <Button Classes="toolicon" Width="15" Height="15" Background="{Binding EffectiveBackgroundBrush}" BorderBrush="Transparent" Click="OnSettingsClicked" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Settings">
+            <svg:Svg Width="12" Height="12" Path="avares://UiEditor/EditorIcons/cog.svg" />
+          </Button>
+        </StackPanel>
+      </Grid>
+
+      <controls:ParameterControl
+          x:Name="ParameterPresenter"
+          Grid.Row="1"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch"
+          Foreground="{Binding EffectivePrimaryForegroundBrush}"
+          PointerPressed="OnParameterPressed"
+          Presentation="{Binding TargetParameterView}"
+          UnitBaselineOffset="{Binding ItemUnitBaselineOffset}"
+          UnitFontSize="{Binding ItemUnitFontSize}"
+          UnitWidth="{Binding ItemUnitWidth}"
+          ValueFontSize="{Binding ItemValueFontSize}" />
+
+      <Grid x:Name="FooterPanel" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+
+      <Popup x:Name="SubItemsPopup" Placement="RightEdgeAlignedTop" PlacementTarget="{Binding #Root}" HorizontalOffset="8" IsLightDismissEnabled="True">
+        <Border MinWidth="180" Padding="12" Background="{Binding CardBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderBrush="{Binding CardBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderThickness="1" CornerRadius="10" PointerPressed="OnInteractivePointerPressed">
+          <TextBlock Foreground="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" Text="SubItems noch nicht implementiert." />
+        </Border>
+      </Popup>
+    </Grid>
+  </Border>
+</UserControl>

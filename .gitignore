@@ -1,0 +1,32 @@
+# Build outputs
+**/bin/
+**/obj/
+artifacts/
+_buildcheck/
+
+# IDE and local workspace files
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Local .NET / NuGet caches
+.dotnet/
+.nuget/
+
+# Local tooling scratch directories
+.tmp-pdbinspect/
+
+# Logs and test results
+*.log
+**/logs/
+TestResults/
+
+# Local backup content
+dev/Testbook.backup/
+
+# Generated runtime plugin copies
+Host/plugins/*
+!Host/plugins/README.md

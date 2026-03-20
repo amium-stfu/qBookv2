@@ -1,0 +1,111 @@
+<UserControl
+    x:Class="UiEditor.Controls.PageEditorControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:UiEditor.Controls"
+    xmlns:models="using:UiEditor.Models"
+    xmlns:viewModels="using:UiEditor.ViewModels"
+    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
+  <Grid RowDefinitions="Auto,*">
+    <Grid ColumnDefinitions="*,Auto" Margin="6,2,6,12">
+      <TextBlock FontSize="28" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="{Binding SelectedPage.Name}" />
+      <Border Grid.Column="1" Padding="10,6" Background="{Binding IsEditMode, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#DBEAFE}" CornerRadius="14">
+        <TextBlock Foreground="{Binding PrimaryTextBrush}" Text="{Binding EditModeText}" />
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="1" Background="{Binding CanvasBackground}" BorderBrush="{Binding CanvasBorderBrush}" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+      <Grid>
+        <Grid x:Name="EditorCanvas" Background="{Binding CanvasBackground}" PointerPressed="OnCanvasPointerPressed" PointerMoved="OnCanvasPointerMoved" PointerReleased="OnCanvasPointerReleased" SizeChanged="OnEditorCanvasSizeChanged">
+          <ItemsControl x:Name="GridLinesItemsControl" IsHitTestVisible="False" ItemsSource="{Binding GridLines}" IsVisible="{Binding ShowGrid}">
+            <ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+              <Style Selector="ItemsControl#GridLinesItemsControl > ContentPresenter">
+                <Setter Property="Canvas.Left" Value="{Binding X}" />
+                <Setter Property="Canvas.Top" Value="{Binding Y}" />
+              </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="viewModels:EditorGridLine">
+                <Border Width="{Binding Width}" Height="{Binding Height}" Background="{Binding DataContext.GridLineBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <ItemsControl x:Name="PageItemsControl" ItemsSource="{Binding SelectedPage.Items}">
+            <ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+              <Style Selector="ItemsControl#PageItemsControl > ContentPresenter">
+                <Setter Property="Canvas.Left" Value="{Binding X}" />
+                <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                <Setter Property="Width" Value="{Binding Width}" />
+                <Setter Property="Height" Value="{Binding Height}" />
+              </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="models:PageItemModel">
+                <Grid Width="{Binding Width}" Height="{Binding Height}" PointerPressed="OnItemPointerPressed">
+                  <controls:EditorButtonControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsButton}" />
+                  <controls:EditorItemControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />
+                  <controls:EditorListControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsListControl}" />
+                  <controls:EditorLogControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsLogControl}" />
+                  <controls:EditorChartControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsChartControl}" />
+                  <Border BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#F59E0B}" BorderThickness="2" CornerRadius="8" IsHitTestVisible="False" />
+                  <Border BorderBrush="{Binding IsMasterSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#2563EB}" BorderThickness="3" CornerRadius="8" IsHitTestVisible="False" />
+                  <Border Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4" Background="#F59E0B" CornerRadius="4" Cursor="BottomRightCorner" IsVisible="{Binding IsMasterSelected}" PointerPressed="OnResizeHandlePointerPressed" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Border IsVisible="{Binding IsEditMode}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="10,8" Background="{Binding EditPanelBackground}" BorderBrush="{Binding EditPanelBorderBrush}" BorderThickness="1" CornerRadius="12" BoxShadow="0 10 24 0 #16000000" ZIndex="40">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <ToggleButton Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" IsChecked="{Binding ShowGrid}" ToolTip.Tip="Raster ein/aus"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/grid.svg" /></ToggleButton>
+              <TextBox Width="54" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="{Binding EditPanelInputBackground}" Foreground="{Binding EditPanelInputForeground}" Text="{Binding GridSize}" ToolTip.Tip="Rasterweite" />
+              <ToggleButton Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" IsChecked="{Binding SnapToEdges}" ToolTip.Tip="Snap to edge"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/snap_to_edge.svg" /></ToggleButton>
+              <Border Width="1" Margin="4,0" Background="{Binding EditPanelBorderBrush}" />
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignLeftCommand}" ToolTip.Tip="Links ausrichten"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_left.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignHorizontalCenterCommand}" ToolTip.Tip="Horizontal zentrieren"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_horizontal_center.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignRightCommand}" ToolTip.Tip="Rechts ausrichten"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_right.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignTopCommand}" ToolTip.Tip="Oben ausrichten"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_top.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignVerticalCenterCommand}" ToolTip.Tip="Vertikal zentrieren"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_vertical_center.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignBottomCommand}" ToolTip.Tip="Unten ausrichten"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_bottom.svg" /></Button>
+              <Border Width="1" Margin="4,0" Background="{Binding EditPanelBorderBrush}" />
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding MatchWidthCommand}" ToolTip.Tip="Gleiche Breite"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/same_width.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding MatchHeightCommand}" ToolTip.Tip="Gleiche Hoehe"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/same_height.svg" /></Button>
+            </StackPanel>
+          </Border>
+
+          <Canvas>
+            <Border IsVisible="{Binding SelectionState.IsSelecting}" Canvas.Left="{Binding SelectionState.X}" Canvas.Top="{Binding SelectionState.Y}" Width="{Binding SelectionState.Width}" Height="{Binding SelectionState.Height}" Background="#33F5A300" BorderBrush="#F5A300" BorderThickness="2" IsHitTestVisible="False" />
+
+            <Border IsVisible="{Binding SelectionState.ShowPicker}" Canvas.Left="{Binding SelectionState.PopupX}" Canvas.Top="{Binding SelectionState.PopupY}" Width="180" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="10" BoxShadow="0 8 24 0 #22000000">
+              <StackPanel Margin="10" Spacing="8">
+                <TextBlock FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Control platzieren" />
+                <Button Classes="toolbar" Click="OnBeginAddButtonClicked" Content="Button" />
+                <Button Classes="toolbar" Click="OnBeginAddItemClicked" Content="Item" />
+                <Button Classes="toolbar" Click="OnBeginAddListControlClicked" Content="ListControl" />
+                <Button Classes="toolbar" Click="OnBeginAddLogControlClicked" Content="LogControl" />
+                <Button Classes="toolbar" Click="OnBeginAddChartControlClicked" Content="ChartControl" />
+                <Button Click="OnCancelSelectionClicked" Content="Abbrechen" />
+              </StackPanel>
+            </Border>
+
+            <Border IsVisible="{Binding SelectionState.ShowListPicker}" Canvas.Left="{Binding SelectionState.ListPopupX}" Canvas.Top="{Binding SelectionState.ListPopupY}" Width="180" Background="{Binding CardBackground}" BorderBrush="#60A5FA" BorderThickness="1" CornerRadius="10" BoxShadow="0 8 24 0 #22000000">
+              <StackPanel Margin="10" Spacing="8">
+                <TextBlock FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="In Liste einfuegen" />
+                <Button Classes="toolbar" Click="OnBeginAddButtonToListClicked" Content="Button" />
+                <Button Classes="toolbar" Click="OnBeginAddItemToListClicked" Content="Item" />
+                <Button Click="OnCancelListSelectionClicked" Content="Abbrechen" />
+              </StackPanel>
+            </Border>
+
+            <controls:EditorPropertyDialog IsVisible="{Binding IsEditorDialogOpen}" Canvas.Left="{Binding EditorDialogX}" Canvas.Top="{Binding EditorDialogY}" ZIndex="200" />
+          </Canvas>
+        </Grid>
+
+        <controls:EditorValueInputControl VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Margin="16" ZIndex="220" />
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

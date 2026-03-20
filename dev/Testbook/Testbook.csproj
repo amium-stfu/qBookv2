@@ -1,0 +1,159 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <AssemblyName>Testbook</AssemblyName>
+    <RootNamespace>QB</RootNamespace>
+    <Nullable>enable</Nullable>
+    <LangVersion>preview</LangVersion>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="GlobalUsing.cs" />
+    <Compile Include="Pages\Page1\Page1.qPage.cs" />
+    <Compile Include="Pages\Page2\Page2.qPage.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Book.json" />
+    <None Include="Pages\Page1\Page.json" />
+    <None Include="Pages\Page2\Page.json" />
+    <None Include="pipes.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="UdlClient">
+      <HintPath>B:\x86.AvaloniaEditor\Host\plugins\UdlClient\UdlClient.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AmiumItem">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\AmiumItem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Base">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Base.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Controls">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Controls.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Desktop">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Desktop.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Dialogs">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Dialogs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Markup">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Markup.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Markup.Xaml">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Markup.Xaml.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Metal">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Metal.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.MicroCom">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.MicroCom.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.OpenGL">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.OpenGL.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Skia">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Skia.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Svg.Skia">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Svg.Skia.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Themes.Fluent">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Themes.Fluent.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Vulkan">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Vulkan.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Avalonia.Win32">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Avalonia.Win32.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ExCSS">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\ExCSS.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="HarfBuzzSharp">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\HarfBuzzSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MicroCom.Runtime">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\MicroCom.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.CodeAnalysis">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Microsoft.CodeAnalysis.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ScottPlot.Avalonia">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\ScottPlot.Avalonia.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ScottPlot">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\ScottPlot.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Serilog">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Serilog.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Serilog.Sinks.Debug">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Serilog.Sinks.Debug.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Serilog.Sinks.File">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Serilog.Sinks.File.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ShimSkiaSharp">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\ShimSkiaSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SkiaSharp">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\SkiaSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Svg.Custom">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Svg.Custom.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Svg.Model">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Svg.Model.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Svg.Skia">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\Svg.Skia.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UiEditor.Contracts">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\UiEditor.Contracts.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UiEditor">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\UiEditor.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UiEditor.Host">
+      <HintPath>B:\x86.AvaloniaEditor\UiEditor\bin\Debug\net9.0-windows\UiEditor.Host.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
