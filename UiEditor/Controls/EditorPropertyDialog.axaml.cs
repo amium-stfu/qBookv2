@@ -8,9 +8,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
-using UiEditor.ViewModels;
+using Amium.UiEditor.ViewModels;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class EditorPropertyDialog : UserControl
 {

@@ -1,4 +1,4 @@
-﻿
+
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -11,7 +11,7 @@ using System.Xml.Serialization;
 using RoslynDocument = Microsoft.CodeAnalysis.Document;
 
 
-namespace UiEditor.Host
+namespace Amium.Host
 {
     [Serializable]
     public class Book

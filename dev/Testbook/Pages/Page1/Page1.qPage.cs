@@ -3,10 +3,10 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using UiEditor.Helpers;
-using UiEditor.Host;
-using UiEditor.Host.Logging;
-using UiEditor.Items;
+using Amium.Helpers;
+using Amium.Host;
+using Amium.Host.Logging;
+using Amium.Items;
 
 namespace DefinitionPage1;
 

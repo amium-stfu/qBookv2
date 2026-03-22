@@ -14,7 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace UiEditor.Host;
+namespace Amium.Host;
 
 public sealed class BookRoslynCompiler
 {

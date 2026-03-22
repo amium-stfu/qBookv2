@@ -3,10 +3,10 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using UiEditor.Models;
-using UiEditor.ViewModels;
+using Amium.UiEditor.Models;
+using Amium.UiEditor.ViewModels;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class PageEditorControl : UserControl
 {

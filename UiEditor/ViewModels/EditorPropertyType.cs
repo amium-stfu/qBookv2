@@ -1,4 +1,4 @@
-namespace UiEditor.ViewModels;
+namespace Amium.UiEditor.ViewModels;
 
 public enum EditorPropertyType
 {

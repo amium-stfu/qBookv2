@@ -1,6 +1,6 @@
 using Avalonia;
 
-namespace UiEditor;
+namespace Amium.UiEditor;
 
 internal sealed class Program
 {

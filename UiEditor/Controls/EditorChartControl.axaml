@@ -1,9 +1,9 @@
 <UserControl
     x:Name="Root"
-    x:Class="UiEditor.Controls.EditorChartControl"
+    x:Class="Amium.UiEditor.Controls.EditorChartControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:UiEditor.Controls"
+    xmlns:controls="using:Amium.UiEditor.Controls"
     xmlns:ScottPlot="clr-namespace:ScottPlot.Avalonia;assembly=ScottPlot.Avalonia"
     xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia"
     Width="{Binding Width}"
@@ -21,7 +21,7 @@
         </Border>
         <Border Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" Background="Transparent" CornerRadius="8" Padding="8,4">
           <Button Classes="toolicon" VerticalAlignment="Center" Background="{Binding DataContext.EditPanelButtonBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderBrush="{Binding DataContext.EditPanelButtonBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" Click="OnSettingsClicked" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Chart Einstellungen">
-            <svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/cog.svg" />
+            <svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" />
           </Button>
         </Border>
       </Grid>

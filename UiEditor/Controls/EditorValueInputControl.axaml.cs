@@ -11,10 +11,10 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using UiEditor.Models;
-using UiEditor.ViewModels;
+using Amium.UiEditor.Models;
+using Amium.UiEditor.ViewModels;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class EditorValueInputControl : UserControl
 {
@@ -233,7 +233,7 @@ public partial class EditorValueInputControl : UserControl
         grid.Children.Clear();
         grid.Columns = columns;
         grid.IsVisible = true;
-        grid.Width = (columns * KeyButtonWidth) + ((columns - 1) * ButtonSpacing);
+        grid.Width = columns * (KeyButtonWidth + ButtonSpacing);
 
         foreach (var label in labels)
         {

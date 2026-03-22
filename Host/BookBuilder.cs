@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 using static Community.CsharpSqlite.Sqlite3;
 
 
-namespace UiEditor.Host
+namespace Amium.Host
 {
 
     public class PageDefinition
@@ -811,8 +811,8 @@ namespace UiEditor.Host
                 includeBlock.AddRange(includeLines);
                 includeBlock.Add("//<IncludeEnd>");
 
-                // Optional: Du kannst entscheiden, wo der Block eingefügt wird.
-                // Hier wird er am Anfang eingefügt.
+                // Optional: Du kannst entscheiden, wo der Block eingefÃ¼gt wird.
+                // Hier wird er am Anfang eingefÃ¼gt.
 
             }
             else

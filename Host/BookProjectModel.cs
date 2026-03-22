@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 
-namespace UiEditor.Host;
+namespace Amium.Host;
 
 public sealed class BookProject
 {

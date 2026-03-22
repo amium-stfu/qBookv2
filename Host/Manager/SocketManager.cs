@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-namespace UiEditor.Host
+namespace Amium.Host
 {
     public interface INetworkConnection : IDisposable
     {
@@ -20,12 +20,12 @@ namespace UiEditor.Host
     {
         public string InstanceName { get; }
         private readonly TcpClient _client;
-        private NetworkStream _stream;
-        private CancellationTokenSource _cts;
-        public bool IsOpen => _client?.Connected ?? false;
+        private NetworkStream? _stream;
+        private readonly CancellationTokenSource _cts;
+        public bool IsOpen => _client.Connected;
 
         // Event für eingehende Daten
-        public event Action<byte[]> DataReceived;
+        public event Action<byte[]>? DataReceived;
 
         public ATcpConnection(string name, TcpClient client)
         {
@@ -49,11 +49,13 @@ namespace UiEditor.Host
         private async Task ReceiveLoop(CancellationToken token)
         {
             var buffer = new byte[4096];
+            var stream = _stream ?? _client.GetStream();
+            _stream = stream;
             try
             {
                 while (!token.IsCancellationRequested && _client.Connected)
                 {
-                    int bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length, token);
+                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
                     if (bytesRead == 0) // Verbindung wurde geschlossen
                         break;
                     var data = new byte[bytesRead];

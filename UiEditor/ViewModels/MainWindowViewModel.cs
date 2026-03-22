@@ -9,19 +9,22 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Nodes;
+using Avalonia.Controls;
+using Avalonia.Layout;
 using Avalonia.Threading;
-using UiEditor.Items;
-using UiEditor.Host;
-using UiEditor.Host.Logging;
-using UiEditor.Models;
-using UiEditor.Persistence;
+using Amium.Items;
+using Amium.Host;
+using Amium.Host.Logging;
+using Amium.UiEditor.Models;
+using Amium.UiEditor.Persistence;
 
-namespace UiEditor.ViewModels;
+namespace Amium.UiEditor.ViewModels;
 
 public sealed class MainWindowViewModel : ObservableObject
 {
     private const string DemoTargetPath = "Demo/Item/Demo 1";
     private static readonly IReadOnlyList<string> ParameterFormatOptions = ["Text", "Numeric", "Hex", "bool", "b4", "b8", "b16"];
+    private static readonly IReadOnlyList<string> AlignmentOptions = ["Left", "Center", "Right"];
 
     private enum EditorDialogMode
     {
@@ -66,6 +69,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private double _editorDialogY;
     private PageItemModel? _activeValueInputItem;
     private bool _isValueInputOpen;
+    private Dock _tabStripPlacement = Dock.Right;
 
     public MainWindowViewModel()
     {
@@ -89,6 +93,7 @@ public sealed class MainWindowViewModel : ObservableObject
         LoadBookCommand = new RelayCommand(LoadBook, CanRunBookAction);
         RebuildBookCommand = new RelayCommand(RebuildBook, CanRunBookAction);
         RefreshLogCommand = new RelayCommand(RefreshLog);
+        SetTabStripPlacementCommand = new RelayCommand<string>(SetTabStripPlacement);
         _bookProjectPath = GetDefaultTestbookPath();
         _loadedBookSummary = "Kein Book geladen";
         _messagesSummary = "Keine Meldungen";
@@ -115,10 +120,25 @@ public sealed class MainWindowViewModel : ObservableObject
     public PageModel SelectedPage
     {
         get => _selectedPage;
-        private set
+        set
         {
+            if (value is null || ReferenceEquals(value, _selectedPage))
+            {
+                return;
+            }
+
+            var previousPage = _selectedPage;
+            if (previousPage is not null)
+            {
+                previousPage.IsSelected = false;
+            }
+
             if (SetProperty(ref _selectedPage, value))
             {
+                _selectedPage.IsSelected = true;
+                ClearItemSelection();
+                CancelSelection();
+                CancelEditorDialog();
                 OnPropertyChanged(nameof(FooterText));
             }
         }
@@ -207,6 +227,12 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(ButtonBackColor));
                 OnPropertyChanged(nameof(ButtonHoverColor));
                 OnPropertyChanged(nameof(ButtonForeColor));
+                OnPropertyChanged(nameof(TabSelectNumerBackColor));
+                OnPropertyChanged(nameof(TabSelectBackColor));
+                OnPropertyChanged(nameof(TabSelectForeColor));
+                OnPropertyChanged(nameof(TabNumerBackColor));
+                OnPropertyChanged(nameof(TabBackColor));
+                OnPropertyChanged(nameof(TabForeColor));
                 OnPropertyChanged(nameof(HeaderBadgeBackground));
                 OnPropertyChanged(nameof(HeaderBadgeForeground));
             }
@@ -229,6 +255,23 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool ShowGridOptions => IsEditMode;
     private ThemePalette CurrentTheme => IsDarkTheme ? ThemePalette.Dark : ThemePalette.Light;
+    public Dock TabStripPlacement
+    {
+        get => _tabStripPlacement;
+        set
+        {
+            if (SetProperty(ref _tabStripPlacement, value))
+            {
+                OnPropertyChanged(nameof(TabHeaderHorizontalAlignment));
+            }
+        }
+    }
+    public HorizontalAlignment TabHeaderHorizontalAlignment => TabStripPlacement switch
+    {
+        Dock.Right => HorizontalAlignment.Left,
+        Dock.Left => HorizontalAlignment.Right,
+        _ => HorizontalAlignment.Stretch
+    };
 
     public string ThemeModeText => IsDarkTheme ? "Dark Theme" : "Light Theme";
     public string WindowBackground => CurrentTheme.WindowBackground;
@@ -252,6 +295,12 @@ public sealed class MainWindowViewModel : ObservableObject
     public string ButtonBackColor => CurrentTheme.ButtonBackColor;
     public string ButtonHoverColor => CurrentTheme.ButtonHoverColor;
     public string ButtonForeColor => CurrentTheme.ButtonForeColor;
+    public string TabSelectNumerBackColor => CurrentTheme.TabSelectNumerBackColor;
+    public string TabSelectBackColor => CurrentTheme.TabSelectBackColor;
+    public string TabSelectForeColor => CurrentTheme.TabSelectForeColor;
+    public string TabNumerBackColor => CurrentTheme.TabNumerBackColor;
+    public string TabBackColor => CurrentTheme.TabBackColor;
+    public string TabForeColor => CurrentTheme.TabForeColor;
     public string HeaderBadgeBackground => CurrentTheme.HeaderBadgeBackground;
     public string HeaderBadgeForeground => CurrentTheme.HeaderBadgeForeground;
     public bool HasMultiSelection => _selectedItems.Count > 1;
@@ -340,6 +389,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public RelayCommand LoadBookCommand { get; }
     public RelayCommand RebuildBookCommand { get; }
     public RelayCommand RefreshLogCommand { get; }
+    public RelayCommand<string> SetTabStripPlacementCommand { get; }
 
     public bool IsEditorDialogOpen
     {
@@ -452,6 +502,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             var result = await Core.LoadAndRunAsync(BookProjectPath);
             BookProjectPath = result.Project.RootDirectory;
+            ApplyBookTabStripPlacement(result.Project.RootDirectory);
             LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
             AddMessage("Load", result.Success ? "Info" : "Error", $"Load {(result.Success ? "erfolgreich" : "fehlgeschlagen")}: {result.Project.ProjectName}", result.Project.RootDirectory);
 
@@ -495,6 +546,7 @@ public sealed class MainWindowViewModel : ObservableObject
         try
         {
             var result = await Core.RebuildAsync(BookProjectPath);
+            ApplyBookTabStripPlacement(result.Project.RootDirectory);
             SetPages(CreatePagesFromBook(result.Project));
             BookProjectPath = result.Project.RootDirectory;
             LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
@@ -548,6 +600,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private PageModel CreatePageFromBook(BookProjectPage page, int index)
     {
         var pageName = string.IsNullOrWhiteSpace(page.Name) ? $"Page{index}" : page.Name;
+        var pageDisplayText = GetPageDisplayText(page) ?? pageName;
 
         if (string.IsNullOrWhiteSpace(page.UiFile) || !File.Exists(page.UiFile))
         {
@@ -555,6 +608,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 Index = index,
                 Name = pageName,
+                DisplayText = pageDisplayText,
                 UiFilePath = page.UiFile
             };
 
@@ -569,6 +623,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 Index = index,
                 Name = pageName,
+                DisplayText = pageDisplayText,
                 UiFilePath = page.UiFile,
                 UiLayoutDefinition = layout
             };
@@ -589,6 +644,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 Index = index,
                 Name = pageName,
+                DisplayText = pageDisplayText,
                 UiFilePath = page.UiFile
             };
             fallbackModel.Items.Add(CreateFallbackItem(page.Name, $"UI-Fehler: {ex.Message}"));
@@ -632,8 +688,8 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             Kind = kind,
             Name = text,
-            Title = text,
-            Header = pageName,
+            BodyCaption = text,
+            ControlCaption = pageName,
             Footer = isButton ? "Aktion" : type,
             X = node.X ?? defaultX,
             Y = node.Y ?? defaultY,
@@ -709,8 +765,8 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             Kind = ControlKind.Item,
             Name = message,
-            Title = message,
-            Header = pageName,
+            BodyCaption = message,
+            ControlCaption = pageName,
             Footer = "Book",
             X = 48,
             Y = 48,
@@ -725,17 +781,12 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public void SelectPage(PageModel? page)
     {
-        if (page is null || ReferenceEquals(page, SelectedPage))
+        if (page is null)
         {
             return;
         }
 
-        SelectedPage.IsSelected = false;
         SelectedPage = page;
-        SelectedPage.IsSelected = true;
-        ClearItemSelection();
-        CancelSelection();
-        CancelEditorDialog();
     }
 
     public void SelectItem(PageItemModel? item)
@@ -1002,6 +1053,39 @@ public sealed class MainWindowViewModel : ObservableObject
         return true;
     }
 
+    public bool DeleteItem(PageItemModel item)
+    {
+        if (item is null)
+        {
+            return false;
+        }
+
+        var ownerList = item.ParentListControl;
+        var removed = ownerList?.IsListControl == true
+            ? ownerList.Items.Remove(item)
+            : SelectedPage.Items.Remove(item);
+
+        if (!removed)
+        {
+            return false;
+        }
+
+        if (ownerList?.IsListControl == true)
+        {
+            ownerList.ApplyListHeightRules();
+            SelectItem(ownerList);
+        }
+        else
+        {
+            ClearItemSelection();
+        }
+
+        CancelEditorDialog();
+        CancelValueInput();
+        StatusText = $"Control gelöscht: {item.Path}";
+        return true;
+    }
+
     public void CancelListPopup()
     {
         _listPopupTarget = null;
@@ -1038,14 +1122,28 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public void SaveLayout()
     {
-        if (!string.IsNullOrWhiteSpace(SelectedPage.UiFilePath))
+        if (Pages.Any(page => !string.IsNullOrWhiteSpace(page.UiFilePath)))
         {
-            SaveSelectedPageUiJson();
+            var savedTargets = new List<string>();
+            if (TrySaveSelectedPageUiJson(out var uiSaveTarget))
+            {
+                savedTargets.Add(uiSaveTarget);
+            }
+
+            if (TrySaveBookManifest(out var bookSaveTarget))
+            {
+                savedTargets.Add(bookSaveTarget);
+            }
+
+            StatusText = savedTargets.Count > 0
+                ? $"Gespeichert: {string.Join(" | ", savedTargets)}"
+                : "Keine speicherbaren Book-Dateien gefunden";
             return;
         }
 
         var document = new LayoutDocument
         {
+            TabStripPlacement = TabStripPlacement.ToString(),
             Pages = Pages.Select(ToDocument).ToList()
         };
 
@@ -1054,13 +1152,13 @@ public sealed class MainWindowViewModel : ObservableObject
         StatusText = $"Layout gespeichert: {LayoutFilePath}";
     }
 
-    private void SaveSelectedPageUiJson()
+    private bool TrySaveSelectedPageUiJson(out string savedTarget)
     {
+        savedTarget = string.Empty;
         var uiFilePath = SelectedPage.UiFilePath;
         if (string.IsNullOrWhiteSpace(uiFilePath))
         {
-            StatusText = "Aktuelle Page hat keine Page.json";
-            return;
+            return false;
         }
 
         var template = SelectedPage.UiLayoutDefinition;
@@ -1080,7 +1178,37 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         File.WriteAllText(uiFilePath, json);
-        StatusText = $"UI gespeichert: {uiFilePath}";
+        savedTarget = $"Page.json: {Path.GetFileName(Path.GetDirectoryName(uiFilePath))}";
+        return true;
+    }
+
+    private bool TrySaveBookManifest(out string savedTarget)
+    {
+        savedTarget = string.Empty;
+        if (!Pages.Any(page => !string.IsNullOrWhiteSpace(page.UiFilePath)))
+        {
+            return false;
+        }
+
+        var bookJsonPath = GetBookManifestPath();
+        if (string.IsNullOrWhiteSpace(bookJsonPath))
+        {
+            return false;
+        }
+
+        var documentObject = LoadJsonObject(bookJsonPath);
+        documentObject["TabStripPlacement"] = TabStripPlacement.ToString();
+
+        var directory = Path.GetDirectoryName(bookJsonPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var json = JsonSerializer.Serialize(documentObject, _jsonOptions);
+        File.WriteAllText(bookJsonPath, json);
+        savedTarget = $"Book.json: {TabStripPlacement}";
+        return true;
     }
 
     private static JsonObject ToUiNodeDocument(BookUiNode? templateNode, IEnumerable<PageItemModel> items, string defaultType)
@@ -1102,9 +1230,40 @@ public sealed class MainWindowViewModel : ObservableObject
         nodeObject["Height"] = item.Height;
         nodeObject["Name"] = item.Name;
         nodeObject["Id"] = item.Id;
-        nodeObject["Header"] = item.Header;
-        nodeObject["Title"] = item.Title;
+        nodeObject["ControlCornerRadius"] = item.ControlCornerRadius;
+        nodeObject["ControlCaption"] = item.ControlCaption;
+        nodeObject["CaptionVisible"] = item.CaptionVisible;
+        nodeObject["ShowCaption"] = item.ShowCaption;
+        nodeObject["HeaderBorderWidth"] = item.HeaderBorderWidth;
+        nodeObject["HeaderCornerRadius"] = item.HeaderCornerRadius;
+        SetOptionalJsonValue(nodeObject, "HeaderForeColor", item.HeaderForeColor);
+        SetOptionalJsonValue(nodeObject, "HeaderBackColor", item.HeaderBackColor);
+        SetOptionalJsonValue(nodeObject, "HeaderBorderColor", item.HeaderBorderColor);
+        nodeObject["BodyCaption"] = item.BodyCaption;
+        nodeObject["BodyCaptionVisible"] = item.BodyCaptionVisible;
+        nodeObject["ShowBodyCaption"] = item.ShowBodyCaption;
+        nodeObject["ShowFooter"] = item.ShowFooter;
+        SetOptionalJsonValue(nodeObject, "BodyForeColor", item.BodyForeColor);
+        SetOptionalJsonValue(nodeObject, "BodyBackColor", item.BodyBackColor);
+        SetOptionalJsonValue(nodeObject, "BodyBorderColor", item.BodyBorderColor);
+        nodeObject["BodyBorderWidth"] = item.BodyBorderWidth;
+        nodeObject["BodyCornerRadius"] = item.BodyCornerRadius;
         nodeObject["Footer"] = item.Footer;
+        SetOptionalJsonValue(nodeObject, "FooterForeColor", item.FooterForeColor);
+        SetOptionalJsonValue(nodeObject, "FooterBackColor", item.FooterBackColor);
+        SetOptionalJsonValue(nodeObject, "FooterBorderColor", item.FooterBorderColor);
+        nodeObject["FooterBorderWidth"] = item.FooterBorderWidth;
+        nodeObject["FooterCornerRadius"] = item.FooterCornerRadius;
+        nodeObject["ToolTipText"] = item.ToolTipText;
+        nodeObject["ButtonText"] = item.ButtonText;
+        SetOptionalJsonValue(nodeObject, "ButtonIcon", item.ButtonIcon);
+        nodeObject["ButtonOnlyIcon"] = item.ButtonOnlyIcon;
+        nodeObject["ButtonIconAlign"] = item.ButtonIconAlign;
+        nodeObject["ButtonTextAlign"] = item.ButtonTextAlign;
+        nodeObject["ButtonCommand"] = item.ButtonCommand;
+        nodeObject["ButtonBodyBackground"] = item.ButtonBodyBackground;
+        nodeObject["ButtonBodyForegroundColor"] = item.ButtonBodyForegroundColor;
+        nodeObject["UseThemeColor"] = item.UseThemeColor;
         SetOptionalJsonValue(nodeObject, "BackgroundColor", item.BackgroundColor);
         SetOptionalJsonValue(nodeObject, "BorderColor", item.BorderColor);
         SetOptionalJsonValue(nodeObject, "ContainerBorder", item.ContainerBorder);
@@ -1129,7 +1288,7 @@ public sealed class MainWindowViewModel : ObservableObject
         nodeObject["ListItemHeight"] = item.ListItemHeight;
         nodeObject["ControlHeight"] = item.ControlHeight;
         nodeObject["ControlBorderWidth"] = item.ControlBorderWidth;
-        nodeObject["ControlCornerRadius"] = item.ControlCornerRadius;
+        SetOptionalJsonValue(nodeObject, "ControlBorderColor", item.ControlBorderColor);
 
         if (item.Items.Count > 0)
         {
@@ -1145,9 +1304,9 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private static string GetUiText(PageItemModel item)
     {
-        if (!string.IsNullOrWhiteSpace(item.Title))
+        if (!string.IsNullOrWhiteSpace(item.BodyCaption))
         {
-            return item.Title;
+            return item.BodyCaption;
         }
 
         if (!string.IsNullOrWhiteSpace(item.Name))
@@ -1169,9 +1328,22 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         item.Name = GetStringProperty(properties, "Name") ?? item.Name;
         item.Id = GetStringProperty(properties, "Id") ?? item.Id;
-        item.Header = GetStringProperty(properties, "Header") ?? item.Header;
-        item.Title = GetStringProperty(properties, "Title") ?? item.Title;
+        item.ControlCaption = GetFirstStringProperty(properties, "ControlCaption", "Header") ?? item.ControlCaption;
+        item.CaptionVisible = GetFirstBoolProperty(properties, "CaptionVisible", "ShowCaption") ?? item.CaptionVisible;
+        item.BodyCaption = GetFirstStringProperty(properties, "BodyCaption", "Title") ?? item.BodyCaption;
+        item.BodyCaptionVisible = GetFirstBoolProperty(properties, "BodyCaptionVisible", "ShowBodyCaption") ?? item.BodyCaptionVisible;
+        item.ShowFooter = GetBoolProperty(properties, "ShowFooter") ?? item.ShowFooter;
         item.Footer = GetStringProperty(properties, "Footer") ?? item.Footer;
+        item.ToolTipText = GetStringProperty(properties, "ToolTipText") ?? item.ToolTipText;
+        item.ButtonText = GetStringProperty(properties, "ButtonText") ?? item.BodyCaption;
+        item.ButtonIcon = GetStringProperty(properties, "ButtonIcon") ?? item.ButtonIcon;
+        item.ButtonOnlyIcon = GetBoolProperty(properties, "ButtonOnlyIcon") ?? item.ButtonOnlyIcon;
+        item.ButtonIconAlign = GetStringProperty(properties, "ButtonIconAlign") ?? item.ButtonIconAlign;
+        item.ButtonTextAlign = GetStringProperty(properties, "ButtonTextAlign") ?? item.ButtonTextAlign;
+        item.ButtonCommand = GetStringProperty(properties, "ButtonCommand") ?? item.ButtonCommand;
+        item.ButtonBodyBackground = GetStringProperty(properties, "ButtonBodyBackground") ?? item.ButtonBodyBackground;
+        item.ButtonBodyForegroundColor = GetStringProperty(properties, "ButtonBodyForegroundColor") ?? item.ButtonBodyForegroundColor;
+        item.UseThemeColor = GetBoolProperty(properties, "UseThemeColor") ?? item.UseThemeColor;
         item.BackgroundColor = GetStringProperty(properties, "BackgroundColor") ?? item.BackgroundColor;
         item.BorderColor = GetStringProperty(properties, "BorderColor") ?? item.BorderColor;
         item.ContainerBorder = GetStringProperty(properties, "ContainerBorder") ?? item.ContainerBorder;
@@ -1183,6 +1355,21 @@ public sealed class MainWindowViewModel : ObservableObject
         item.SecondaryForegroundColor = GetStringProperty(properties, "SecondaryForegroundColor") ?? item.SecondaryForegroundColor;
         item.AccentBackgroundColor = GetStringProperty(properties, "AccentBackgroundColor") ?? item.AccentBackgroundColor;
         item.AccentForegroundColor = GetStringProperty(properties, "AccentForegroundColor") ?? item.AccentForegroundColor;
+        item.HeaderForeColor = GetFirstStringProperty(properties, "HeaderForeColor", "SecondaryForegroundColor") ?? item.HeaderForeColor;
+        item.HeaderBackColor = GetStringProperty(properties, "HeaderBackColor") ?? item.HeaderBackColor;
+        item.HeaderBorderColor = GetStringProperty(properties, "HeaderBorderColor") ?? item.HeaderBorderColor;
+        item.HeaderBorderWidth = GetDoubleProperty(properties, "HeaderBorderWidth") ?? item.HeaderBorderWidth;
+        item.HeaderCornerRadius = GetDoubleProperty(properties, "HeaderCornerRadius") ?? item.HeaderCornerRadius;
+        item.BodyForeColor = GetFirstStringProperty(properties, "BodyForeColor", "PrimaryForegroundColor") ?? item.BodyForeColor;
+        item.BodyBackColor = GetFirstStringProperty(properties, "BodyBackColor", "ContainerBackgroundColor") ?? item.BodyBackColor;
+        item.BodyBorderColor = GetFirstStringProperty(properties, "BodyBorderColor", "ContainerBorder") ?? item.BodyBorderColor;
+        item.BodyBorderWidth = GetFirstDoubleProperty(properties, "BodyBorderWidth", "ContainerBorderWidth") ?? item.BodyBorderWidth;
+        item.BodyCornerRadius = GetFirstDoubleProperty(properties, "BodyCornerRadius", "ControlCornerRadius") ?? item.BodyCornerRadius;
+        item.FooterForeColor = GetStringProperty(properties, "FooterForeColor") ?? item.FooterForeColor;
+        item.FooterBackColor = GetStringProperty(properties, "FooterBackColor") ?? item.FooterBackColor;
+        item.FooterBorderColor = GetStringProperty(properties, "FooterBorderColor") ?? item.FooterBorderColor;
+        item.FooterBorderWidth = GetDoubleProperty(properties, "FooterBorderWidth") ?? item.FooterBorderWidth;
+        item.FooterCornerRadius = GetDoubleProperty(properties, "FooterCornerRadius") ?? item.FooterCornerRadius;
         item.TargetPath = GetStringProperty(properties, "TargetPath") ?? item.TargetPath;
         item.TargetParameterPath = GetStringProperty(properties, "TargetParameterPath") ?? item.TargetParameterPath;
         item.TargetParameterFormat = GetStringProperty(properties, "TargetParameterFormat") ?? item.TargetParameterFormat;
@@ -1196,12 +1383,13 @@ public sealed class MainWindowViewModel : ObservableObject
         item.ListItemHeight = GetDoubleProperty(properties, "ListItemHeight") ?? item.ListItemHeight;
         item.ControlHeight = GetDoubleProperty(properties, "ControlHeight") ?? item.ControlHeight;
         item.ControlBorderWidth = GetDoubleProperty(properties, "ControlBorderWidth") ?? item.ControlBorderWidth;
+        item.ControlBorderColor = GetStringProperty(properties, "ControlBorderColor") ?? item.ControlBorderColor;
         item.ControlCornerRadius = GetDoubleProperty(properties, "ControlCornerRadius") ?? item.ControlCornerRadius;
         item.UiNodeType = GetStringProperty(properties, "Type") ?? fallbackType ?? item.UiNodeType;
 
-        if (string.IsNullOrWhiteSpace(item.Header) && item.IsItem)
+        if (string.IsNullOrWhiteSpace(item.ControlCaption) && item.IsItem)
         {
-            item.Header = pageName;
+            item.ControlCaption = pageName;
         }
     }
 
@@ -1215,6 +1403,20 @@ public sealed class MainWindowViewModel : ObservableObject
         };
     }
 
+    private static string? GetFirstStringProperty(JsonObject properties, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            var value = GetStringProperty(properties, propertyName);
+            if (value is not null)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
     private static double? GetDoubleProperty(JsonObject properties, string propertyName)
     {
         var value = properties[propertyName];
@@ -1224,6 +1426,20 @@ public sealed class MainWindowViewModel : ObservableObject
             JsonValue jsonValue when jsonValue.TryGetValue<string>(out var text) && double.TryParse(text, out var parsed) => parsed,
             _ => null
         };
+    }
+
+    private static double? GetFirstDoubleProperty(JsonObject properties, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            var value = GetDoubleProperty(properties, propertyName);
+            if (value.HasValue)
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private static int? GetIntProperty(JsonObject properties, string propertyName)
@@ -1246,6 +1462,20 @@ public sealed class MainWindowViewModel : ObservableObject
             JsonValue jsonValue when jsonValue.TryGetValue<string>(out var text) && bool.TryParse(text, out var parsed) => parsed,
             _ => null
         };
+    }
+
+    private static bool? GetFirstBoolProperty(JsonObject properties, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            var value = GetBoolProperty(properties, propertyName);
+            if (value.HasValue)
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private static void SetOptionalJsonValue(JsonObject nodeObject, string propertyName, string? value)
@@ -1276,6 +1506,59 @@ public sealed class MainWindowViewModel : ObservableObject
         return source?.DeepClone() as JsonObject ?? new JsonObject();
     }
 
+    private void SetTabStripPlacement(string? placement)
+    {
+        TabStripPlacement = ParseTabStripPlacement(placement);
+    }
+
+    private void ApplyBookTabStripPlacement(string? bookRootDirectory)
+    {
+        var documentObject = LoadJsonObject(GetBookManifestPath(bookRootDirectory));
+        TabStripPlacement = ParseTabStripPlacement(GetStringProperty(documentObject, "TabStripPlacement"));
+    }
+
+    private string? GetBookManifestPath(string? bookRootDirectory = null)
+    {
+        var rootDirectory = string.IsNullOrWhiteSpace(bookRootDirectory) ? BookProjectPath : bookRootDirectory;
+        if (string.IsNullOrWhiteSpace(rootDirectory))
+        {
+            return null;
+        }
+
+        return Path.Combine(rootDirectory, "Book.json");
+    }
+
+    private static JsonObject LoadJsonObject(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return new JsonObject();
+        }
+
+        var json = File.ReadAllText(path);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return new JsonObject();
+        }
+
+        return JsonNode.Parse(json) as JsonObject ?? new JsonObject();
+    }
+
+    private static string? GetPageDisplayText(BookProjectPage page)
+    {
+        var metadata = LoadJsonObject(page.MetadataFile);
+        return GetStringProperty(metadata, "Title")
+            ?? GetStringProperty(metadata, "Text")
+            ?? GetStringProperty(metadata, "Name");
+    }
+
+    private static Dock ParseTabStripPlacement(string? value)
+    {
+        return Enum.TryParse<Dock>(value, true, out var parsed)
+            ? parsed
+            : Dock.Right;
+    }
+
     public void LoadLayout()
     {
         if (!File.Exists(LayoutFilePath))
@@ -1293,6 +1576,7 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
+        TabStripPlacement = ParseTabStripPlacement(document.TabStripPlacement);
         SetPages(document.Pages.Select(ToModel).ToList());
         StatusText = $"Layout geladen: {LayoutFilePath}";
     }
@@ -1304,9 +1588,14 @@ public sealed class MainWindowViewModel : ObservableObject
             ControlKind.Button => new PageItemModel
             {
                 Kind = ControlKind.Button,
-                Header = string.Empty,
-                Title = "Button",
-                Footer = "Ctrl+X",
+                ControlCaption = string.Empty,
+                BodyCaption = "Button",
+                Footer = "Action button",
+                ButtonText = "Button",
+                ButtonTextAlign = "Center",
+                ButtonIconAlign = "Left",
+                ButtonBodyBackground = "Transparent",
+                BodyCornerRadius = 8,
                 X = x,
                 Y = y,
                 Width = Math.Max(width, 140),
@@ -1317,8 +1606,8 @@ public sealed class MainWindowViewModel : ObservableObject
             ControlKind.ListControl => new PageItemModel
             {
                 Kind = ControlKind.ListControl,
-                Header = string.Empty,
-                Title = "ListControl",
+                ControlCaption = string.Empty,
+                BodyCaption = "ListControl",
                 Footer = "Drop controls here",
                 X = x,
                 Y = y,
@@ -1333,8 +1622,8 @@ public sealed class MainWindowViewModel : ObservableObject
             ControlKind.LogControl => new PageItemModel
             {
                 Kind = ControlKind.LogControl,
-                Header = string.Empty,
-                Title = "ProcessLog",
+                ControlCaption = string.Empty,
+                BodyCaption = "ProcessLog",
                 Footer = "Live host log",
                 TargetLog = "Logs/Host",
                 X = x,
@@ -1346,8 +1635,8 @@ public sealed class MainWindowViewModel : ObservableObject
             ControlKind.ChartControl => new PageItemModel
             {
                 Kind = ControlKind.ChartControl,
-                Header = string.Empty,
-                Title = "Chart",
+                ControlCaption = string.Empty,
+                BodyCaption = "Chart",
                 Footer = "Live numeric trend",
                 X = x,
                 Y = y,
@@ -1367,9 +1656,10 @@ public sealed class MainWindowViewModel : ObservableObject
         var item = new PageItemModel
         {
             Kind = ControlKind.Item,
-            Header = "Title",
-            Title = "Value",
+            ControlCaption = "Item",
+            BodyCaption = "Value",
             Footer = "Unit",
+            BodyCornerRadius = 8,
             X = x,
             Y = y,
             Width = Math.Max(width, 150),
@@ -1754,6 +2044,15 @@ public sealed class MainWindowViewModel : ObservableObject
             }
         }
 
+        if (string.Equals(field.Key, "ButtonCommand", StringComparison.Ordinal))
+        {
+            var footerField = FindDialogField("Footer");
+            if (footerField is not null)
+            {
+                footerField.Value = GetCommandDescription(field.Value);
+            }
+        }
+
         EditorDialogError = string.Empty;
     }
 
@@ -1784,49 +2083,90 @@ public sealed class MainWindowViewModel : ObservableObject
 
         var design = new List<EditorDialogBindingDefinition>
         {
-            BindText("BackgroundColor", "BackColor", current => current.BackgroundColor ?? string.Empty, (current, value) => { current.BackgroundColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
-            BindText("TextColor", "TextColor", current => current.TextColor ?? string.Empty, (current, value) => { current.TextColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+            BindDouble("CornerRadius", "CornerRadius", current => current.CornerRadius, (current, value) => current.CornerRadius = value),
             BindDouble("BorderWidth", "BorderWidth", current => current.BorderWidth, (current, value) => current.BorderWidth = value),
-            BindDouble("CornerRadius", "CornerRadius", current => current.CornerRadius, (current, value) => current.CornerRadius = value)
+            BindText("BorderColor", "BorderColor", current => current.BorderColor ?? string.Empty, (current, value) => { current.BorderColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+            BindText("BackgroundColor", "BackColor", current => current.BackgroundColor ?? string.Empty, (current, value) => { current.BackgroundColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+            BindText("ToolTipText", "ToolTip", current => current.ToolTipText, (current, value) => { current.ToolTipText = value; return null; }),
+        };
+
+        var header = new List<EditorDialogBindingDefinition>
+        {
+            BindText("ControlCaption", "Caption", current => current.ControlCaption, (current, value) => { current.ControlCaption = value; return null; }),
+            BindText("HeaderForeColor", "CaptionForeColor", current => current.HeaderForeColor ?? string.Empty, (current, value) => { current.HeaderForeColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+            BindChoice("CaptionVisible", "CaptionVisible", current => current.CaptionVisible ? "True" : "False", (current, value) => { current.CaptionVisible = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" }),
+            BindDouble("HeaderCornerRadius", "CornerRadius", current => current.HeaderCornerRadius, (current, value) => current.HeaderCornerRadius = value),
+            BindDouble("HeaderBorderWidth", "BorderWidth", current => current.HeaderBorderWidth, (current, value) => current.HeaderBorderWidth = value),
+            BindText("HeaderBorderColor", "BorderColor", current => current.HeaderBorderColor ?? string.Empty, (current, value) => { current.HeaderBorderColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+            BindText("HeaderBackColor", "BackColor", current => current.HeaderBackColor ?? string.Empty, (current, value) => { current.HeaderBackColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+        };
+
+        var body = new List<EditorDialogBindingDefinition>
+        {
+            BindText("BodyCaption", "Caption", current => current.BodyCaption, (current, value) => { current.BodyCaption = value; return null; }),
+            BindText("BodyForeColor", "CaptionForeColor", current => current.BodyForeColor ?? string.Empty, (current, value) => { current.BodyForeColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+            BindChoice("BodyCaptionVisible", "CaptionVisible", current => current.BodyCaptionVisible ? "True" : "False", (current, value) => { current.BodyCaptionVisible = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" }),
+            BindDouble("BodyCornerRadius", "CornerRadius", current => current.BodyCornerRadius, (current, value) => current.BodyCornerRadius = value),
+            BindDouble("BodyBorderWidth", "BorderWidth", current => current.BodyBorderWidth, (current, value) => current.BodyBorderWidth = value),
+            BindText("BodyBorderColor", "BorderColor", current => current.BodyBorderColor ?? string.Empty, (current, value) => { current.BodyBorderColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+            BindText("BodyBackColor", "BackColor", current => current.BodyBackColor ?? string.Empty, (current, value) => { current.BodyBackColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+        };
+
+        var footer = new List<EditorDialogBindingDefinition>
+        {
+            BindChoice("ShowFooter", "FooterVisible", current => current.ShowFooter ? "True" : "False", (current, value) => { current.ShowFooter = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" }),
+            BindDouble("FooterCornerRadius", "CornerRadius", current => current.FooterCornerRadius, (current, value) => current.FooterCornerRadius = value),
+            BindDouble("FooterBorderWidth", "BorderWidth", current => current.FooterBorderWidth, (current, value) => current.FooterBorderWidth = value),
+            BindText("FooterBorderColor", "BorderColor", current => current.FooterBorderColor ?? string.Empty, (current, value) => { current.FooterBorderColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+            BindText("FooterBackColor", "BackColor", current => current.FooterBackColor ?? string.Empty, (current, value) => { current.FooterBackColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
+        };
+
+        var commonSpecific = new List<EditorDialogBindingDefinition>
+        {
+            BindText("Footer", "FooterText", current => current.Footer, (current, value) => { current.Footer = value; return null; })
         };
 
         var sections = new List<(string Title, IReadOnlyList<EditorDialogBindingDefinition> Bindings)>
         {
             ("Identity", identity),
-            ("Design", design)
+            ("Design", design),
+            ("Header", header),
+            ("Body", body),
+            ("Footer", footer)
         };
 
         switch (item.Kind)
         {
             case ControlKind.Button:
-                sections.Add(("Content", new List<EditorDialogBindingDefinition>
+                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
-                    BindText("Header", "Header", current => current.Header, (current, value) => { current.Header = value; return null; }),
-                    BindText("Title", "Title", current => current.Title, (current, value) => { current.Title = value; return null; }),
-                    BindText("Footer", "Footer", current => current.Footer, (current, value) => { current.Footer = value; return null; })
+                    BindChoice("ButtonCommand", "Command", current => current.ButtonCommand, (current, value) => { current.ButtonCommand = value; return null; }, _ => GetCommandRegistryOptions()),
+                    BindText("ButtonText", "ButtonText", current => current.ButtonText, (current, value) => { current.ButtonText = value; return null; }),
+                    BindText("ButtonIcon", "Icon", current => current.ButtonIcon, (current, value) => { current.ButtonIcon = value; return null; }),
+                    BindChoice("ButtonOnlyIcon", "OnlyIcon", current => current.ButtonOnlyIcon ? "True" : "False", (current, value) => { current.ButtonOnlyIcon = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindChoice("ButtonIconAlign", "IconAlign", current => current.ButtonIconAlign, (current, value) => { current.ButtonIconAlign = value; return null; }, _ => AlignmentOptions),
+                    BindChoice("ButtonTextAlign", "Align", current => current.ButtonTextAlign, (current, value) => { current.ButtonTextAlign = value; return null; }, _ => AlignmentOptions),
+                    BindText("ButtonBodyBackground", "BodyBackground", current => current.ButtonBodyBackground, (current, value) => { current.ButtonBodyBackground = value; return null; }, EditorPropertyType.Color),
+                    BindText("ButtonBodyForegroundColor", "BodyForeColor", current => current.ButtonBodyForegroundColor, (current, value) => { current.ButtonBodyForegroundColor = value; return null; }, EditorPropertyType.Color),
+                    BindChoice("UseThemeColor", "UseThemeColor", current => current.UseThemeColor ? "True" : "False", (current, value) => { current.UseThemeColor = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" })
                 }));
                 break;
             case ControlKind.Item:
             case ControlKind.Signal:
-                sections.Add(("Specific", new List<EditorDialogBindingDefinition>
+                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
                     BindChoice("TargetPath", "Target", current => current.TargetPath, (current, value) => { current.ApplyTargetSelection(value); return null; }, _ => HostRegistries.Data.GetAllKeys().OrderBy(key => key)),
                     BindChoice("TargetParameterPath", "TargetParameter", current => current.TargetParameterPath, (current, value) => { current.TargetParameterPath = value; return null; }, current => GetTargetParameterOptions(current.TargetPath)),
                     BindChoice("TargetParameterFormatKind", "Format", current => SplitParameterFormat(current.TargetParameterFormat).Kind, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(value, SplitParameterFormat(current.TargetParameterFormat).Parameter); return null; }, _ => ParameterFormatOptions),
                     BindText("TargetParameterFormatParameter", "FormatParameter", current => SplitParameterFormat(current.TargetParameterFormat).Parameter, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(SplitParameterFormat(current.TargetParameterFormat).Kind, value); return null; }, EditorPropertyType.Text, GetFormatParameterToolTip),
-                    BindText("Header", "Title", current => current.Header, (current, value) => { current.Header = value; return null; }),
-                    BindText("Title", "Value Fallback", current => current.Title, (current, value) => { current.Title = value; return null; }),
-                    BindText("Footer", "Unit Fallback", current => current.Footer, (current, value) => { current.Footer = value; return null; }),
                     BindChoice("IsReadOnly", "Readonly", current => current.IsReadOnly ? "True" : "False", (current, value) => { current.IsReadOnly = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindInt("RefreshRateMs", "RefreshRate ms", current => current.RefreshRateMs, (current, value) => current.RefreshRateMs = value)
                 }));
                 break;
             case ControlKind.ChartControl:
-                sections.Add(("Specific", new List<EditorDialogBindingDefinition>
+                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
                     BindChartSeriesList("ChartSeriesDefinitions", "Series", current => current.ChartSeriesDefinitions, (current, value) => { current.ChartSeriesDefinitions = value; return null; }, GetChartSeriesToolTip),
-                    BindText("Title", "Title", current => current.Title, (current, value) => { current.Title = value; return null; }),
-                    BindText("Footer", "Footer", current => current.Footer, (current, value) => { current.Footer = value; return null; }),
                     BindText("ContainerBorder", "ContainerBorder", current => current.ContainerBorder ?? string.Empty, (current, value) => { current.ContainerBorder = EmptyToNull(value); return null; }, EditorPropertyType.Color),
                     BindText("ContainerBackgroundColor", "ContainerBg", current => current.ContainerBackgroundColor ?? string.Empty, (current, value) => { current.ContainerBackgroundColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
                     BindDouble("ContainerBorderWidth", "ContainerBorderWidth", current => current.ContainerBorderWidth, (current, value) => current.ContainerBorderWidth = value),
@@ -1836,24 +2176,21 @@ public sealed class MainWindowViewModel : ObservableObject
                 }));
                 break;
             case ControlKind.ListControl:
-                sections.Add(("Specific", new List<EditorDialogBindingDefinition>
+                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
-                    BindText("Title", "Title", current => current.Title, (current, value) => { current.Title = value; return null; }),
-                    BindText("Footer", "Footer", current => current.Footer, (current, value) => { current.Footer = value; return null; }),
                     BindText("ContainerBorder", "ContainerBorder", current => current.ContainerBorder ?? string.Empty, (current, value) => { current.ContainerBorder = EmptyToNull(value); return null; }, EditorPropertyType.Color),
                     BindText("ContainerBackgroundColor", "ContainerBg", current => current.ContainerBackgroundColor ?? string.Empty, (current, value) => { current.ContainerBackgroundColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
                     BindDouble("ContainerBorderWidth", "ContainerBorderWidth", current => current.ContainerBorderWidth, (current, value) => current.ContainerBorderWidth = value),
                     BindDouble("ControlHeight", "ControlHeight", current => current.ControlHeight, (current, value) => current.ControlHeight = value),
                     BindDouble("ControlBorderWidth", "ControlBorderWidth", current => current.ControlBorderWidth, (current, value) => current.ControlBorderWidth = value),
+                    BindText("ControlBorderColor", "ControlBorderColor", current => current.ControlBorderColor ?? string.Empty, (current, value) => { current.ControlBorderColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
                     BindDouble("ControlCornerRadius", "ControlCornerRadius", current => current.ControlCornerRadius, (current, value) => current.ControlCornerRadius = value)
                 }));
                 break;
             case ControlKind.LogControl:
-                sections.Add(("Specific", new List<EditorDialogBindingDefinition>
+                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
                     BindChoice("TargetLog", "TargetLog", current => current.TargetLog, (current, value) => { current.TargetLog = value; return null; }, _ => GetProcessLogTargetOptions()),
-                    BindText("Title", "Title", current => current.Title, (current, value) => { current.Title = value; return null; }),
-                    BindText("Footer", "Footer", current => current.Footer, (current, value) => { current.Footer = value; return null; }),
                     BindText("ContainerBorder", "ContainerBorder", current => current.ContainerBorder ?? string.Empty, (current, value) => { current.ContainerBorder = EmptyToNull(value); return null; }, EditorPropertyType.Color),
                     BindText("ContainerBackgroundColor", "ContainerBg", current => current.ContainerBackgroundColor ?? string.Empty, (current, value) => { current.ContainerBackgroundColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
                     BindDouble("ContainerBorderWidth", "ContainerBorderWidth", current => current.ContainerBorderWidth, (current, value) => current.ContainerBorderWidth = value)
@@ -2113,9 +2450,41 @@ public sealed class MainWindowViewModel : ObservableObject
             Kind = item.Kind,
             Name = item.Name,
             Id = item.Id,
+            ControlCaption = item.ControlCaption,
+            ShowCaption = item.ShowCaption,
+            CaptionVisible = item.CaptionVisible,
+            BodyCaption = item.BodyCaption,
+            ShowBodyCaption = item.ShowBodyCaption,
+            BodyCaptionVisible = item.BodyCaptionVisible,
+            ShowFooter = item.ShowFooter,
             Header = item.Header,
             Title = item.Title,
             Footer = item.Footer,
+            HeaderForeColor = item.HeaderForeColor,
+            HeaderBackColor = item.HeaderBackColor,
+            HeaderBorderColor = item.HeaderBorderColor,
+            HeaderBorderWidth = item.HeaderBorderWidth,
+            HeaderCornerRadius = item.HeaderCornerRadius,
+            BodyForeColor = item.BodyForeColor,
+            BodyBackColor = item.BodyBackColor,
+            BodyBorderColor = item.BodyBorderColor,
+            BodyBorderWidth = item.BodyBorderWidth,
+            BodyCornerRadius = item.BodyCornerRadius,
+            FooterForeColor = item.FooterForeColor,
+            FooterBackColor = item.FooterBackColor,
+            FooterBorderColor = item.FooterBorderColor,
+            FooterBorderWidth = item.FooterBorderWidth,
+            FooterCornerRadius = item.FooterCornerRadius,
+            ToolTipText = item.ToolTipText,
+            ButtonText = item.ButtonText,
+            ButtonIcon = item.ButtonIcon,
+            ButtonOnlyIcon = item.ButtonOnlyIcon,
+            ButtonIconAlign = item.ButtonIconAlign,
+            ButtonTextAlign = item.ButtonTextAlign,
+            ButtonCommand = item.ButtonCommand,
+            ButtonBodyBackground = item.ButtonBodyBackground,
+            ButtonBodyForegroundColor = item.ButtonBodyForegroundColor,
+            UseThemeColor = item.UseThemeColor,
             BackgroundColor = item.BackgroundColor,
             BorderColor = item.BorderColor,
             ContainerBorder = item.ContainerBorder,
@@ -2140,6 +2509,7 @@ public sealed class MainWindowViewModel : ObservableObject
             ListItemHeight = item.ListItemHeight,
             ControlHeight = item.ControlHeight,
             ControlBorderWidth = item.ControlBorderWidth,
+            ControlBorderColor = item.ControlBorderColor,
             ControlCornerRadius = item.ControlCornerRadius,
             X = item.X,
             Y = item.Y,
@@ -2167,9 +2537,39 @@ public sealed class MainWindowViewModel : ObservableObject
             Kind = item.Kind == ControlKind.Signal ? ControlKind.Item : item.Kind,
             Name = item.Name,
             Id = item.Id,
-            Header = item.Header,
-            Title = item.Title,
+            ControlCaption = string.IsNullOrWhiteSpace(item.ControlCaption) ? item.Header : item.ControlCaption,
+            ShowCaption = item.ShowCaption,
+            CaptionVisible = item.ShowCaption,
+            BodyCaption = string.IsNullOrWhiteSpace(item.BodyCaption) ? item.Title : item.BodyCaption,
+            ShowBodyCaption = item.ShowBodyCaption,
+            BodyCaptionVisible = item.ShowBodyCaption,
+            ShowFooter = item.ShowFooter,
             Footer = item.Footer,
+            HeaderForeColor = item.HeaderForeColor,
+            HeaderBackColor = item.HeaderBackColor,
+            HeaderBorderColor = item.HeaderBorderColor,
+            HeaderBorderWidth = item.HeaderBorderWidth,
+            HeaderCornerRadius = item.HeaderCornerRadius,
+            BodyForeColor = item.BodyForeColor,
+            BodyBackColor = item.BodyBackColor,
+            BodyBorderColor = item.BodyBorderColor,
+            BodyBorderWidth = item.BodyBorderWidth,
+            BodyCornerRadius = item.BodyCornerRadius,
+            FooterForeColor = item.FooterForeColor,
+            FooterBackColor = item.FooterBackColor,
+            FooterBorderColor = item.FooterBorderColor,
+            FooterBorderWidth = item.FooterBorderWidth,
+            FooterCornerRadius = item.FooterCornerRadius,
+            ToolTipText = item.ToolTipText,
+            ButtonText = item.ButtonText,
+            ButtonIcon = item.ButtonIcon,
+            ButtonOnlyIcon = item.ButtonOnlyIcon,
+            ButtonIconAlign = item.ButtonIconAlign,
+            ButtonTextAlign = item.ButtonTextAlign,
+            ButtonCommand = item.ButtonCommand,
+            ButtonBodyBackground = item.ButtonBodyBackground,
+            ButtonBodyForegroundColor = item.ButtonBodyForegroundColor,
+            UseThemeColor = item.UseThemeColor,
             BackgroundColor = item.BackgroundColor,
             BorderColor = item.BorderColor,
             ContainerBorder = item.ContainerBorder,
@@ -2193,6 +2593,7 @@ public sealed class MainWindowViewModel : ObservableObject
             IsAutoHeight = item.IsAutoHeight,
             ListItemHeight = item.ControlHeight > 0 ? item.ControlHeight : item.ListItemHeight,
             ControlBorderWidth = item.ControlBorderWidth,
+            ControlBorderColor = item.ControlBorderColor,
             ControlCornerRadius = item.ControlCornerRadius,
             X = item.X,
             Y = item.Y,
@@ -2362,6 +2763,27 @@ public sealed class MainWindowViewModel : ObservableObject
             .ToArray();
     }
 
+    private static IEnumerable<string> GetCommandRegistryOptions()
+    {
+        return HostRegistries.Commands.GetAll()
+            .Select(command => command.Name)
+            .Prepend(string.Empty)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string GetCommandDescription(string? commandName)
+    {
+        if (string.IsNullOrWhiteSpace(commandName))
+        {
+            return string.Empty;
+        }
+
+        return HostRegistries.Commands.TryGet(commandName, out var command) && command is not null
+            ? command.Description ?? string.Empty
+            : string.Empty;
+    }
+
     private static IEnumerable<string> GetTargetParameterOptions(string targetPath)
     {
         if (string.IsNullOrWhiteSpace(targetPath))
@@ -2501,6 +2923,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void ApplyRunningUi(BookProject project)
     {
+        ApplyBookTabStripPlacement(project.RootDirectory);
         SetPages(CreatePagesFromBook(project));
         BookProjectPath = project.RootDirectory;
         LoadedBookSummary = $"{project.ProjectName} | Pages: {project.Pages.Count} | C#: {project.SourceFiles.Count} | UI: {project.UiFiles.Count}";
@@ -2517,11 +2940,11 @@ public sealed class MainWindowViewModel : ObservableObject
                 Name = "Page1",
                 Items =
                 {
-                    new PageItemModel { Kind = ControlKind.Item, Name = "Item1", Header = "M1", Title = "udef", Footer = "Out: 45%     Set: 34.25", TargetPath = DemoTargetPath, TargetParameterPath = "Value", X = 60, Y = 40, Width = 220, Height = 92 },
-                    new PageItemModel { Kind = ControlKind.Item, Name = "Item2", Header = "Signal", Title = "udef", Footer = "Status", TargetPath = DemoTargetPath, TargetParameterPath = "Value", X = 470, Y = 45, Width = 220, Height = 88 },
-                    new PageItemModel { Kind = ControlKind.Item, Name = "Item3", Header = "FID_234", Title = "Value", Footer = "Unit", TargetPath = DemoTargetPath, TargetParameterPath = "Value", X = 730, Y = 45, Width = 260, Height = 110 },
-                    new PageItemModel { Kind = ControlKind.Button, Name = "Button1", Header = string.Empty, Title = "Button", Footer = "Ctrl+X", X = 45, Y = 480, Width = 300, Height = 72 },
-                    new PageItemModel { Kind = ControlKind.Button, Name = "Button2", Header = string.Empty, Title = "Button", Footer = "Ctrl+X", X = 435, Y = 475, Width = 320, Height = 96 }
+                    new PageItemModel { Kind = ControlKind.Item, Name = "Item1", ControlCaption = "M1", BodyCaption = "udef", Footer = "Out: 45%     Set: 34.25", TargetPath = DemoTargetPath, TargetParameterPath = "Value", BodyCornerRadius = 8, X = 60, Y = 40, Width = 220, Height = 92 },
+                    new PageItemModel { Kind = ControlKind.Item, Name = "Item2", ControlCaption = "Signal", BodyCaption = "udef", Footer = "Status", TargetPath = DemoTargetPath, TargetParameterPath = "Value", BodyCornerRadius = 8, X = 470, Y = 45, Width = 220, Height = 88 },
+                    new PageItemModel { Kind = ControlKind.Item, Name = "Item3", ControlCaption = "FID_234", BodyCaption = "Value", Footer = "Unit", TargetPath = DemoTargetPath, TargetParameterPath = "Value", BodyCornerRadius = 8, X = 730, Y = 45, Width = 260, Height = 110 },
+                    new PageItemModel { Kind = ControlKind.Button, Name = "Button1", ControlCaption = string.Empty, BodyCaption = "Button", Footer = "Ctrl+X", BodyCornerRadius = 8, X = 45, Y = 480, Width = 300, Height = 72 },
+                    new PageItemModel { Kind = ControlKind.Button, Name = "Button2", ControlCaption = string.Empty, BodyCaption = "Button", Footer = "Ctrl+X", BodyCornerRadius = 8, X = 435, Y = 475, Width = 320, Height = 96 }
                 }
             },
             new PageModel
@@ -2530,8 +2953,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 Name = "Page2",
                 Items =
                 {
-                    new PageItemModel { Kind = ControlKind.Item, Name = "Item1", Header = "Sensor", Title = "online", Footer = "Value: 12.7", TargetPath = DemoTargetPath, TargetParameterPath = "Value", X = 90, Y = 80, Width = 250, Height = 96 },
-                    new PageItemModel { Kind = ControlKind.Button, Name = "Button1", Header = string.Empty, Title = "Start", Footer = "Ctrl+S", X = 390, Y = 360, Width = 290, Height = 88 }
+                    new PageItemModel { Kind = ControlKind.Item, Name = "Item1", ControlCaption = "Sensor", BodyCaption = "online", Footer = "Value: 12.7", TargetPath = DemoTargetPath, TargetParameterPath = "Value", BodyCornerRadius = 8, X = 90, Y = 80, Width = 250, Height = 96 },
+                    new PageItemModel { Kind = ControlKind.Button, Name = "Button1", ControlCaption = string.Empty, BodyCaption = "Start", Footer = "Ctrl+S", BodyCornerRadius = 8, X = 390, Y = 360, Width = 290, Height = 88 }
                 }
             }
         ];

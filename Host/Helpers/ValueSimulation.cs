@@ -6,9 +6,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using static System.Net.Mime.MediaTypeNames;
-using UiEditor.Host;
+using Amium.Host;
 
-namespace UiEditor.Helpers
+namespace Amium.Helpers
 {
     public class TrendSignal
     {
@@ -217,7 +217,7 @@ namespace UiEditor.Helpers
             }
         }
 
-        // Update-Periode (ms) f�r den Simulations-Task
+        // Update-Periode (ms) fï¿½r den Simulations-Task
         public int UpdateRateMs { get; set; } = 100;
 
         // Rauschparameter
@@ -239,10 +239,10 @@ namespace UiEditor.Helpers
         // Aktueller Noise-Wert
         public float Noise { get; private set; } = 0f;
 
-        // Peak-Injektion (einmalig addiert beim n�chsten Sample)
+        // Peak-Injektion (einmalig addiert beim nï¿½chsten Sample)
         private int _noisePeak = 0;
 
-        // Z�hler f�r diskrete Noise-Erneuerung
+        // Zï¿½hler fï¿½r diskrete Noise-Erneuerung
         private int _noiseCounter = 0;
 
         // Task / Timing
@@ -251,7 +251,7 @@ namespace UiEditor.Helpers
         private readonly Stopwatch _sw = new();
         private float _lastTime;
 
-        // Letzte g�ltige Value zur Robustheit
+        // Letzte gï¿½ltige Value zur Robustheit
         private float _lastGoodValue = 0f;
 
         public float TauValue
@@ -305,7 +305,7 @@ namespace UiEditor.Helpers
                 float dt = now - _lastTime;
                 _lastTime = now;
 
-                if (dt < 0f || dt > 5f) dt = 0f; // Schutz gegen Spr�nge
+                if (dt < 0f || dt > 5f) dt = 0f; // Schutz gegen Sprï¿½nge
 
                 lock (_lock)
                 {
@@ -322,7 +322,7 @@ namespace UiEditor.Helpers
         public float Set { get; set; } = 0.0f;
         private void StepDynamics(float dt)
         {
-            // Eingaben pr�fen
+            // Eingaben prï¿½fen
             float set = Set;
             float tau;
             lock (_lock) tau = _tau;
@@ -331,8 +331,8 @@ namespace UiEditor.Helpers
             if (float.IsNaN(set) || float.IsInfinity(set))
                 set = _lastGoodValue;
 
-            // 1. Ordnung Low-Pass Ann�herung
-            // alpha in (0..1), f�r kleine dt/tau � dt / tau
+            // 1. Ordnung Low-Pass Annï¿½herung
+            // alpha in (0..1), fï¿½r kleine dt/tau ï¿½ dt / tau
             double alphaD = 1.0 - Math.Exp(- (double)dt / (double)tau);
             float alpha = (float)alphaD;
             if (alpha < 0f) alpha = 0f;

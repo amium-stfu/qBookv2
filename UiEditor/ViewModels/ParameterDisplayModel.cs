@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Avalonia.Media;
-using UiEditor.Items;
+using Amium.Items;
 
-namespace UiEditor.ViewModels;
+namespace Amium.UiEditor.ViewModels;
 
 public sealed class ParameterDisplayModel
 {
@@ -106,8 +106,8 @@ public sealed class ParameterDisplayModel
 
         return
         [
-            CreateChoice(trueLabel, boolValue),
-            CreateChoice(falseLabel, !boolValue)
+            CreateChoice(trueLabel, boolValue, 1),
+            CreateChoice(falseLabel, !boolValue, 0)
         ];
     }
 

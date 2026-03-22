@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>Amium.UiEditor</AssemblyName>
+    <RootNamespace>Amium.UiEditor</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

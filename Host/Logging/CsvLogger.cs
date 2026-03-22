@@ -7,8 +7,9 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Amium.Host;
 
-namespace UiEditor.Host.Logging;
+namespace Amium.Host.Logging;
 
 public sealed class CsvLogger
 {
@@ -38,15 +39,15 @@ public sealed class CsvLogger
 
     private DateTime _start;
     private CancellationTokenSource? _cts;
-    private Task? _loggingTask;
-    private Task? _writingTask;
+    private ATask? _loggingTask;
+    private ATask? _writingTask;
     private StreamWriter? _writer;
     
 
     public string Filename { get; set; } = "default.csv";
     public string Separator { get; set; } = ";";
     public string DecimalSeparator { get; set; } = ".";
-    public string Directory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "UiEditorLogs");
+    public string Directory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "AmiumLogs");
     public int Interval { get; set; } = 1000;
     public bool Running { get; private set; }
     public TimeSpan TimeRelative { get; private set; }
@@ -115,7 +116,9 @@ public sealed class CsvLogger
 
         try
         {
-            await Task.WhenAll(_loggingTask ?? Task.CompletedTask, _writingTask ?? Task.CompletedTask).ConfigureAwait(false);
+            await Task.WhenAll(
+                _loggingTask?.AwaitAsync() ?? Task.CompletedTask,
+                _writingTask?.AwaitAsync() ?? Task.CompletedTask).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -200,8 +203,13 @@ public sealed class CsvLogger
         _start = DateTime.Now;
         Running = true;
 
-        _loggingTask = Task.Run(() => RunLogger(_cts.Token));
-        _writingTask = Task.Run(() => WriteLogsToFileAsync(_cts.Token));
+        var token = _cts.Token;
+        _loggingTask = new ATask($"{Name}.Logger", _ =>
+        {
+            RunLogger(token);
+            return Task.CompletedTask;
+        });
+        _writingTask = new ATask($"{Name}.Writer", _ => WriteLogsToFileAsync(token));
         Core.LogInfo($"[CsvLogger] Started '{Name}' file={FullPath} interval={Interval}ms");
     }
 

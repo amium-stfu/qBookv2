@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using UiEditor.Items;
+using Amium.Items;
 
-namespace UiEditor.Host;
+namespace Amium.Host;
 
 public sealed class UiPageContext : IDisposable
 {
@@ -32,6 +32,15 @@ public sealed class UiPageContext : IDisposable
         var attached = source.Clone().Repath(targetPath);
         _links.Add(new AttachedItemLink(source, targetPath));
         return attached;
+    }
+
+    public HostCommand AttachCommand(string name, Action action, string? description = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(action);
+
+        var commandPath = $"{_pagePath}/Commands/{name.Trim()}";
+        return new HostCommand(commandPath, _ => action(), description: description);
     }
 
     public void Dispose()

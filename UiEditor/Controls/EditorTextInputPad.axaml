@@ -1,6 +1,6 @@
 <UserControl
     x:Name="Root"
-    x:Class="UiEditor.Controls.EditorTextInputPad"
+    x:Class="Amium.UiEditor.Controls.EditorTextInputPad"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Grid ColumnDefinitions="Auto,20,Auto,20,Auto" HorizontalAlignment="Center">

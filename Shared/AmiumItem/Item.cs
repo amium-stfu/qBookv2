@@ -2,7 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
-namespace UiEditor.Items
+namespace Amium.Items
 {
     public sealed class ItemChangedEventArgs : EventArgs
     {

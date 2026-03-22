@@ -9,9 +9,9 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
-using UiEditor.ViewModels;
+using Amium.UiEditor.ViewModels;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class EditorNumericInputPad : UserControl
 {
@@ -69,7 +69,7 @@ public partial class EditorNumericInputPad : UserControl
             actionPanel.Children.Add(CreateButton(label, true));
         }
 
-        PreferredWidth = (3 * KeyButtonWidth) + (2 * ButtonSpacing) + 16 + ActionButtonWidth;
+        PreferredWidth = (3 * (KeyButtonWidth + ButtonSpacing)) + 16 + ActionButtonWidth;
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)

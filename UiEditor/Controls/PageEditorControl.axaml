@@ -1,20 +1,13 @@
 <UserControl
-    x:Class="UiEditor.Controls.PageEditorControl"
+    x:Class="Amium.UiEditor.Controls.PageEditorControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:UiEditor.Controls"
-    xmlns:models="using:UiEditor.Models"
-    xmlns:viewModels="using:UiEditor.ViewModels"
+    xmlns:controls="using:Amium.UiEditor.Controls"
+    xmlns:models="using:Amium.UiEditor.Models"
+    xmlns:viewModels="using:Amium.UiEditor.ViewModels"
     xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
-  <Grid RowDefinitions="Auto,*">
-    <Grid ColumnDefinitions="*,Auto" Margin="6,2,6,12">
-      <TextBlock FontSize="28" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="{Binding SelectedPage.Name}" />
-      <Border Grid.Column="1" Padding="10,6" Background="{Binding IsEditMode, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#DBEAFE}" CornerRadius="14">
-        <TextBlock Foreground="{Binding PrimaryTextBrush}" Text="{Binding EditModeText}" />
-      </Border>
-    </Grid>
-
-    <Border Grid.Row="1" Background="{Binding CanvasBackground}" BorderBrush="{Binding CanvasBorderBrush}" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+  <Grid>
+    <Border Background="{Binding CanvasBackground}" BorderBrush="{Binding CanvasBorderBrush}" BorderThickness="1" CornerRadius="0" ClipToBounds="True">
       <Grid>
         <Grid x:Name="EditorCanvas" Background="{Binding CanvasBackground}" PointerPressed="OnCanvasPointerPressed" PointerMoved="OnCanvasPointerMoved" PointerReleased="OnCanvasPointerReleased" SizeChanged="OnEditorCanvasSizeChanged">
           <ItemsControl x:Name="GridLinesItemsControl" IsHitTestVisible="False" ItemsSource="{Binding GridLines}" IsVisible="{Binding ShowGrid}">
@@ -44,7 +37,7 @@
             </ItemsControl.Styles>
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="models:PageItemModel">
-                <Grid Width="{Binding Width}" Height="{Binding Height}" PointerPressed="OnItemPointerPressed">
+                <Grid Width="{Binding Width}" Height="{Binding Height}" PointerPressed="OnItemPointerPressed" ToolTip.Tip="{Binding EffectiveToolTipText}">
                   <controls:EditorButtonControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsButton}" />
                   <controls:EditorItemControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />
                   <controls:EditorListControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsListControl}" />
@@ -60,19 +53,19 @@
 
           <Border IsVisible="{Binding IsEditMode}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="10,8" Background="{Binding EditPanelBackground}" BorderBrush="{Binding EditPanelBorderBrush}" BorderThickness="1" CornerRadius="12" BoxShadow="0 10 24 0 #16000000" ZIndex="40">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ToggleButton Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" IsChecked="{Binding ShowGrid}" ToolTip.Tip="Raster ein/aus"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/grid.svg" /></ToggleButton>
+              <ToggleButton Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" IsChecked="{Binding ShowGrid}" ToolTip.Tip="Raster ein/aus"><svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/grid.svg" /></ToggleButton>
               <TextBox Width="54" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="{Binding EditPanelInputBackground}" Foreground="{Binding EditPanelInputForeground}" Text="{Binding GridSize}" ToolTip.Tip="Rasterweite" />
-              <ToggleButton Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" IsChecked="{Binding SnapToEdges}" ToolTip.Tip="Snap to edge"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/snap_to_edge.svg" /></ToggleButton>
+              <ToggleButton Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" IsChecked="{Binding SnapToEdges}" ToolTip.Tip="Snap to edge"><svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/snap_to_edge.svg" /></ToggleButton>
               <Border Width="1" Margin="4,0" Background="{Binding EditPanelBorderBrush}" />
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignLeftCommand}" ToolTip.Tip="Links ausrichten"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_left.svg" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignHorizontalCenterCommand}" ToolTip.Tip="Horizontal zentrieren"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_horizontal_center.svg" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignRightCommand}" ToolTip.Tip="Rechts ausrichten"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_right.svg" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignTopCommand}" ToolTip.Tip="Oben ausrichten"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_top.svg" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignVerticalCenterCommand}" ToolTip.Tip="Vertikal zentrieren"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_vertical_center.svg" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignBottomCommand}" ToolTip.Tip="Unten ausrichten"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/align_bottom.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignLeftCommand}" ToolTip.Tip="Links ausrichten"><svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/align_left.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignHorizontalCenterCommand}" ToolTip.Tip="Horizontal zentrieren"><svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/align_horizontal_center.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignRightCommand}" ToolTip.Tip="Rechts ausrichten"><svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/align_right.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignTopCommand}" ToolTip.Tip="Oben ausrichten"><svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/align_top.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignVerticalCenterCommand}" ToolTip.Tip="Vertikal zentrieren"><svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/align_vertical_center.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignBottomCommand}" ToolTip.Tip="Unten ausrichten"><svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/align_bottom.svg" /></Button>
               <Border Width="1" Margin="4,0" Background="{Binding EditPanelBorderBrush}" />
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding MatchWidthCommand}" ToolTip.Tip="Gleiche Breite"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/same_width.svg" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding MatchHeightCommand}" ToolTip.Tip="Gleiche Hoehe"><svg:Svg Width="16" Height="16" Path="avares://UiEditor/EditorIcons/same_height.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding MatchWidthCommand}" ToolTip.Tip="Gleiche Breite"><svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/same_width.svg" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding MatchHeightCommand}" ToolTip.Tip="Gleiche Hoehe"><svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/same_height.svg" /></Button>
             </StackPanel>
           </Border>
 

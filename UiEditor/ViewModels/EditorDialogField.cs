@@ -3,10 +3,10 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
-using UiEditor.Host;
-using UiEditor.Items;
+using Amium.Host;
+using Amium.Items;
 
-namespace UiEditor.ViewModels;
+namespace Amium.UiEditor.ViewModels;
 
 public sealed class EditorDialogField : ObservableObject
 {

@@ -1,6 +1,6 @@
 using System;
 
-namespace UiEditor.Items;
+namespace Amium.Items;
 
 public static class ItemPathExtensions
 {

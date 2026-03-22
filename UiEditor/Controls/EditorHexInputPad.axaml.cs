@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class EditorHexInputPad : UserControl
 {

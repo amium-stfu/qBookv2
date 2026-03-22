@@ -1,18 +1,18 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace UiEditor.Host
+namespace Amium.Host
 {
     public abstract class ATimerBase : IDisposable
     {
-        public string InstanceName { get; init; }
+        public string InstanceName { get; init; } = string.Empty;
         public int IntervalMs { get; init; }
         public bool IsRunning { get; protected set; }
-        public event Action Tick;
+        public event Action? Tick;
 
         protected void RaiseTick() => Tick?.Invoke();
 
@@ -23,7 +23,7 @@ namespace UiEditor.Host
 
     public class ATimer : ATimerBase
     {
-        private System.Threading.Timer _timer;
+        private System.Threading.Timer? _timer;
 
         public ATimer(string name, int intervalMs)
         {
@@ -146,7 +146,7 @@ namespace UiEditor.Host
         private readonly int interval;
         private bool isRunning;
 
-        public event Action Tick;
+        public event Action? Tick;
 
         public HighPrecisionTimer(int intervalMs)
         {

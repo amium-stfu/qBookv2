@@ -1,9 +1,9 @@
 <UserControl
     x:Name="Root"
-    x:Class="UiEditor.Controls.EditorPropertyDialog"
+    x:Class="Amium.UiEditor.Controls.EditorPropertyDialog"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:viewModels="using:UiEditor.ViewModels">
+    xmlns:viewModels="using:Amium.UiEditor.ViewModels">
   <UserControl.Styles>
     <Style Selector="TextBox.dialog-field">
       <Setter Property="BorderThickness" Value="1" />

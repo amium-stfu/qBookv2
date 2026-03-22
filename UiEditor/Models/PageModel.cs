@@ -1,9 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
-using UiEditor.Host;
-using UiEditor.ViewModels;
+using Amium.Host;
+using Amium.UiEditor.ViewModels;
 
-namespace UiEditor.Models;
+namespace Amium.UiEditor.Models;
 
 public sealed class PageModel : ObservableObject
 {
@@ -18,6 +18,8 @@ public sealed class PageModel : ObservableObject
 
     public string Name { get; init; } = string.Empty;
 
+    public string DisplayText { get; init; } = string.Empty;
+
     public string? UiFilePath { get; init; }
 
     public BookUiPageLayout? UiLayoutDefinition { get; init; }
@@ -31,10 +33,15 @@ public sealed class PageModel : ObservableObject
         {
             if (SetProperty(ref _isSelected, value))
             {
+                OnPropertyChanged(nameof(IsNotSelected));
                 OnPropertyChanged(nameof(ItemSummary));
             }
         }
     }
+
+    public bool IsNotSelected => !_isSelected;
+
+    public string TabTitle => string.IsNullOrWhiteSpace(DisplayText) ? Name : DisplayText;
 
     public string ItemSummary => $"{Items.Count} Controls";
 

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace UiEditor.ViewModels;
+namespace Amium.UiEditor.ViewModels;
 
 public abstract class ObservableObject : INotifyPropertyChanged
 {

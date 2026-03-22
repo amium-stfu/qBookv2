@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-namespace UiEditor.Host
+namespace Amium.Host
 {
     public sealed class RuntimeResourceScope : IDisposable
     {

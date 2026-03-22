@@ -5,28 +5,24 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.VisualTree;
-using UiEditor.Models;
-using UiEditor.ViewModels;
+using Amium.UiEditor.Models;
+using Amium.UiEditor.ViewModels;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
-public partial class EditorItemControl : UserControl
+public partial class EditorItemControl : EditorTemplateControl
 {
     public EditorItemControl()
     {
         InitializeComponent();
-        this.FindControl<ParameterControl>("ParameterPresenter")!.BitChoiceClicked += OnBitChoiceClicked;
+        var parameterPresenter = this.FindControl<ParameterControl>("ParameterPresenter")!;
+        parameterPresenter.BitChoiceClicked += OnBitChoiceClicked;
+        parameterPresenter.BoolChoiceClicked += OnBoolChoiceClicked;
     }
-
-    private PageItemModel? Item => DataContext as PageItemModel;
-
-    private MainWindowViewModel? ViewModel
-        => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
 
     private void OnInteractivePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        e.Handled = true;
+        HandleInteractivePointerPressed(e);
     }
 
     private void OnParameterPressed(object? sender, PointerPressedEventArgs e)
@@ -62,6 +58,16 @@ public partial class EditorItemControl : UserControl
         _ = Item.TryToggleTargetBit(e.BitIndex, out _);
     }
 
+    private void OnBoolChoiceClicked(object? sender, BoolChoiceClickedEventArgs e)
+    {
+        if (Item is null || ViewModel?.IsEditMode == true)
+        {
+            return;
+        }
+
+        _ = Item.TryUpdateTargetParameterValue(e.Value, out _);
+    }
+
     private void OnSubItemsClicked(object? sender, RoutedEventArgs e)
     {
         if (this.FindControl<Popup>("SubItemsPopup") is { } popup)
@@ -74,13 +80,6 @@ public partial class EditorItemControl : UserControl
 
     private void OnSettingsClicked(object? sender, RoutedEventArgs e)
     {
-        if (Item is null || ViewModel is null || this.GetVisualAncestors().OfType<PageEditorControl>().FirstOrDefault() is not { } editor)
-        {
-            return;
-        }
-
-        var anchor = this.TranslatePoint(new Point(Bounds.Width + 8, 0), editor) ?? new Point(24, 24);
-        ViewModel.OpenItemEditor(Item, anchor.X, anchor.Y);
-        e.Handled = true;
+        HandleSettingsClicked(e);
     }
 }

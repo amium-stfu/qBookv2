@@ -4,9 +4,11 @@ using Serilog.Events;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
+using System.IO;
 
-namespace UiEditor.Host.Logging;
+namespace Amium.Host.Logging;
 
 public sealed class ProcessLog
 {
@@ -19,6 +21,7 @@ public sealed class ProcessLog
     private bool _showError = true;
     private bool _showFatal = true;
     private bool _pause;
+    private string? _logDirectory;
 
     private const int MaxBufferedRows = 1000;
 
@@ -92,9 +95,12 @@ public sealed class ProcessLog
         }
     }
 
+    public string? LogDirectory => _logDirectory;
+
     public void InitializeLog(string directory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        SetLogDirectory(directory);
 
         var logFilePath = System.IO.Path.Combine(directory, "process-.log");
         _log = new LoggerConfiguration()
@@ -107,6 +113,28 @@ public sealed class ProcessLog
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
             .WriteTo.Sink(new ProcessLogSink(this))
             .CreateLogger();
+    }
+
+    public void SetLogDirectory(string directory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        _logDirectory = directory;
+    }
+
+    public void OpenLogDirectory()
+    {
+        if (string.IsNullOrWhiteSpace(_logDirectory))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(_logDirectory);
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            Arguments = _logDirectory,
+            UseShellExecute = true
+        });
     }
 
     public void Error(string message, Exception ex) => Log.Error(ex, message);

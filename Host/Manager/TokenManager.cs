@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-namespace UiEditor.Host
+namespace Amium.Host
 {
     public static class TokenManager
     {
@@ -23,13 +23,13 @@ namespace UiEditor.Host
             return cts;
         }
 
-        // Registriert einen neuen TokenSource, gibt den Token zurück
+        // Registriert einen neuen TokenSource, gibt den Token zurÃ¼ck
         public static CancellationToken CreateToken()
         {
             return CreateSource().Token;
         }
 
-        // Optional: Gibt alle TokenSources zurück (für gezieltes Canceln)
+        // Optional: Gibt alle TokenSources zurÃ¼ck (fÃ¼r gezieltes Canceln)
         public static IReadOnlyList<CancellationTokenSource> Sources
         {
             get => RuntimeResourceScope.Current.TokenSourcesSnapshot();

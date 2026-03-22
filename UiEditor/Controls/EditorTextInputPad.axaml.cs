@@ -5,9 +5,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
-using UiEditor.ViewModels;
+using Amium.UiEditor.ViewModels;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class EditorTextInputPad : UserControl
 {
@@ -90,7 +90,7 @@ public partial class EditorTextInputPad : UserControl
 
     private void BuildLayout()
     {
-        AddRow(this.FindControl<StackPanel>("SpecialRow")!, new[] { "!", "\"", "§", "$", "%", "&", "/", "(", ")", "=", "?" });
+        AddRow(this.FindControl<StackPanel>("SpecialRow")!, new[] { "!", "\"", "Â§", "$", "%", "&", "/", "(", ")", "=", "?" });
         AddLetterRow(this.FindControl<StackPanel>("QwertzRow")!, new[] { "q", "w", "e", "r", "t", "z", "u", "i", "o", "p" });
         AddLetterRow(this.FindControl<StackPanel>("HomeRow")!, new[] { "a", "s", "d", "f", "g", "h", "j", "k", "l" });
         AddShiftRow();
@@ -121,7 +121,7 @@ public partial class EditorTextInputPad : UserControl
         row.Children.Add(CreateButton("Space", " ", SpaceButtonWidth, KeyButtonHeight));
         row.Children.Add(CreateButton("+", "+", KeyButtonWidth, KeyButtonHeight));
         row.Children.Add(CreateButton("-", "-", KeyButtonWidth, KeyButtonHeight));
-        row.Children.Add(CreateButton("°", "°", KeyButtonWidth, KeyButtonHeight));
+        row.Children.Add(CreateButton("Â°", "Â°", KeyButtonWidth, KeyButtonHeight));
     }
 
     private void AddRow(StackPanel row, IReadOnlyList<string> labels)

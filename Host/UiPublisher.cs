@@ -1,8 +1,8 @@
 using System;
-using UiEditor.Host.Logging;
-using UiEditor.Items;
+using Amium.Host.Logging;
+using Amium.Items;
 
-namespace UiEditor.Host;
+namespace Amium.Host;
 
 public static class UiPublisher
 {

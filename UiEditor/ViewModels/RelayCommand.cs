@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Input;
 
-namespace UiEditor.ViewModels;
+namespace Amium.UiEditor.ViewModels;
 
 public sealed class RelayCommand : ICommand
 {

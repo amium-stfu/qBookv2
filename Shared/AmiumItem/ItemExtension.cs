@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace UiEditor.Items
+namespace Amium.Items
 {
     public static class ItemExtension
     {

@@ -1,25 +1,48 @@
 using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using UiEditor.Host;
-using UiEditor.Host.Logging;
-using UiEditor.Models;
-using UiEditor.ViewModels;
+using Amium.Host;
+using Amium.Host.Logging;
+using Amium.UiEditor.Models;
+using Amium.UiEditor.ViewModels;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class EditorLogControl : UserControl
 {
+    public static readonly StyledProperty<bool> ShowSettingsButtonProperty =
+        AvaloniaProperty.Register<EditorLogControl, bool>(nameof(ShowSettingsButton), true);
+
+    private static readonly IBrush ActiveButtonBackground = new SolidColorBrush(Color.Parse("#916afd"));
+    private static readonly IBrush ActiveButtonBorderBrush = new SolidColorBrush(Color.Parse("#916afd"));
+    private static readonly IBrush ActiveButtonForeground = Brushes.White;
+    private static readonly IBrush InactiveButtonBackground = new SolidColorBrush(Color.Parse("#F3F4F6"));
+    private static readonly IBrush InactiveButtonBorderBrush = new SolidColorBrush(Color.Parse("#C7CDD8"));
+    private static readonly IBrush InactiveButtonForeground = new SolidColorBrush(Color.Parse("#111827"));
+
     private ListBox? _logListBox;
     private ScrollViewer? _scrollViewer;
     private ProcessLog? _processLog;
     private PageItemModel? _observedLogItem;
+    private MainWindowViewModel? _observedViewModel;
+    private Button? _debugButton;
+    private Button? _infoButton;
+    private Button? _warningButton;
+    private Button? _errorButton;
+    private Button? _fatalButton;
+    private Button? _pauseButton;
+    private Button? _openFolderButton;
+    private Button? _settingsButton;
+    private global::Avalonia.Svg.Skia.Svg? _pauseIcon;
 
     public EditorLogControl()
     {
@@ -30,7 +53,13 @@ public partial class EditorLogControl : UserControl
         DataContextChanged += OnDataContextChanged;
     }
 
-    public ObservableCollection<string> LogEntries { get; }
+    public ObservableCollection<LogDisplayEntry> LogEntries { get; }
+
+    public bool ShowSettingsButton
+    {
+        get => GetValue(ShowSettingsButtonProperty);
+        set => SetValue(ShowSettingsButtonProperty, value);
+    }
 
     private PageItemModel? LogItem => DataContext as PageItemModel;
 
@@ -54,29 +83,63 @@ public partial class EditorLogControl : UserControl
         e.Handled = true;
     }
 
+    private async void OnLogListBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.C || !e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            return;
+        }
+
+        await CopySelectedEntriesToClipboardAsync();
+        e.Handled = true;
+    }
+
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
         _logListBox = this.FindControl<ListBox>("LogListBox");
+        _debugButton = this.FindControl<Button>("DebugButton");
+        _infoButton = this.FindControl<Button>("InfoButton");
+        _warningButton = this.FindControl<Button>("WarningButton");
+        _errorButton = this.FindControl<Button>("ErrorButton");
+        _fatalButton = this.FindControl<Button>("FatalButton");
+        _pauseButton = this.FindControl<Button>("PauseButton");
+        _openFolderButton = this.FindControl<Button>("OpenFolderButton");
+        _settingsButton = this.FindControl<Button>("SettingsButton");
+        _pauseIcon = this.FindControl<global::Avalonia.Svg.Skia.Svg>("PauseIcon");
+        HookObservedViewModel();
         HookObservedLogItem();
         ResolveProcessLog();
         ReloadEntries();
         ResolveScrollViewer();
         Dispatcher.UIThread.Post(ResolveScrollViewer, DispatcherPriority.Loaded);
+        Dispatcher.UIThread.Post(UpdateFilterButtons, DispatcherPriority.Loaded);
     }
 
     private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
+        UnhookObservedViewModel();
         UnhookObservedLogItem();
         UnhookProcessLog();
+        _debugButton = null;
+        _infoButton = null;
+        _warningButton = null;
+        _errorButton = null;
+        _fatalButton = null;
+        _pauseButton = null;
+        _openFolderButton = null;
+        _settingsButton = null;
+        _pauseIcon = null;
         _scrollViewer = null;
         _logListBox = null;
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
+        HookObservedViewModel();
         HookObservedLogItem();
         ResolveProcessLog();
         ReloadEntries();
+        UpdateFilterButtons();
     }
 
     private void ResolveProcessLog()
@@ -94,6 +157,8 @@ public partial class EditorLogControl : UserControl
             _processLog.EntryAdded += OnLogEntryAdded;
             _processLog.DisplaySettingsChanged += OnDisplaySettingsChanged;
         }
+
+        UpdateFilterButtons();
     }
 
     private void HookObservedLogItem()
@@ -111,6 +176,21 @@ public partial class EditorLogControl : UserControl
         }
     }
 
+    private void HookObservedViewModel()
+    {
+        if (ReferenceEquals(_observedViewModel, ViewModel))
+        {
+            return;
+        }
+
+        UnhookObservedViewModel();
+        _observedViewModel = ViewModel;
+        if (_observedViewModel is not null)
+        {
+            _observedViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+    }
+
     private void UnhookObservedLogItem()
     {
         if (_observedLogItem is null)
@@ -120,6 +200,17 @@ public partial class EditorLogControl : UserControl
 
         _observedLogItem.PropertyChanged -= OnLogItemPropertyChanged;
         _observedLogItem = null;
+    }
+
+    private void UnhookObservedViewModel()
+    {
+        if (_observedViewModel is null)
+        {
+            return;
+        }
+
+        _observedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _observedViewModel = null;
     }
 
     private void UnhookProcessLog()
@@ -136,25 +227,131 @@ public partial class EditorLogControl : UserControl
 
     private void OnLogItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(PageItemModel.TargetLog))
+        if (e.PropertyName == nameof(PageItemModel.TargetLog))
         {
+            ResolveProcessLog();
+            ReloadEntries();
+            UpdateFilterButtons();
             return;
         }
 
-        ResolveProcessLog();
-        ReloadEntries();
+        if (e.PropertyName is nameof(PageItemModel.EffectiveBackground)
+            or nameof(PageItemModel.EffectiveBorderBrush)
+            or nameof(PageItemModel.EffectivePrimaryForeground)
+            or nameof(PageItemModel.EffectiveSecondaryForeground)
+            or nameof(PageItemModel.EffectiveMutedForeground)
+            or nameof(PageItemModel.EffectiveContainerBackground)
+            or nameof(PageItemModel.EffectiveContainerBorderBrush))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                RefreshEntryColors();
+                UpdateFilterButtons();
+            });
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MainWindowViewModel.IsDarkTheme)
+            or nameof(MainWindowViewModel.IsEditMode)
+            or nameof(MainWindowViewModel.EditPanelButtonBackground)
+            or nameof(MainWindowViewModel.EditPanelButtonBorderBrush))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                RefreshEntryColors();
+                UpdateFilterButtons();
+            });
+        }
     }
 
     private void OnDisplaySettingsChanged()
     {
-        Dispatcher.UIThread.Post(ReloadEntries);
+        Dispatcher.UIThread.Post(() =>
+        {
+            UpdateFilterButtons();
+            ReloadEntries();
+        });
+    }
+
+    private void OnDebugFilterClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_processLog is null)
+        {
+            return;
+        }
+
+        _processLog.ShowDebug = !_processLog.ShowDebug;
+        e.Handled = true;
+    }
+
+    private void OnInfoFilterClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_processLog is null)
+        {
+            return;
+        }
+
+        _processLog.ShowInfo = !_processLog.ShowInfo;
+        e.Handled = true;
+    }
+
+    private void OnWarningFilterClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_processLog is null)
+        {
+            return;
+        }
+
+        _processLog.ShowWarning = !_processLog.ShowWarning;
+        e.Handled = true;
+    }
+
+    private void OnErrorFilterClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_processLog is null)
+        {
+            return;
+        }
+
+        _processLog.ShowError = !_processLog.ShowError;
+        e.Handled = true;
+    }
+
+    private void OnFatalFilterClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_processLog is null)
+        {
+            return;
+        }
+
+        _processLog.ShowFatal = !_processLog.ShowFatal;
+        e.Handled = true;
+    }
+
+    private void OnPauseClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_processLog is null)
+        {
+            return;
+        }
+
+        _processLog.Pause = !_processLog.Pause;
+        e.Handled = true;
+    }
+
+    private void OnOpenFolderClicked(object? sender, RoutedEventArgs e)
+    {
+        _processLog?.OpenLogDirectory();
+        e.Handled = true;
     }
 
     private void OnLogEntryAdded(ProcessLogEntry entry)
     {
         Dispatcher.UIThread.Post(() =>
         {
-            LogEntries.Add(FormatEntry(entry));
+            LogEntries.Add(CreateDisplayEntry(entry));
             ScrollToEnd();
         });
     }
@@ -164,10 +361,134 @@ public partial class EditorLogControl : UserControl
         LogEntries.Clear();
         foreach (var entry in _processLog?.GetEntries() ?? [])
         {
-            LogEntries.Add(FormatEntry(entry));
+            LogEntries.Add(CreateDisplayEntry(entry));
         }
 
         ScrollToEnd();
+    }
+
+    private void UpdateFilterButtons()
+    {
+        SetFilterButtonState(_debugButton, _processLog?.ShowDebug ?? true);
+        SetFilterButtonState(_infoButton, _processLog?.ShowInfo ?? true);
+        SetFilterButtonState(_warningButton, _processLog?.ShowWarning ?? true);
+        SetFilterButtonState(_errorButton, _processLog?.ShowError ?? true);
+        SetFilterButtonState(_fatalButton, _processLog?.ShowFatal ?? true);
+        UpdatePauseButton();
+        UpdateChromeButtons();
+        UpdateSettingsButtonVisibility();
+    }
+
+    private static void SetFilterButtonState(Button? button, bool isActive)
+    {
+        if (button is null)
+        {
+            return;
+        }
+
+        button.Background = isActive ? ActiveButtonBackground : InactiveButtonBackground;
+        button.BorderBrush = isActive ? ActiveButtonBorderBrush : InactiveButtonBorderBrush;
+        button.Foreground = isActive ? ActiveButtonForeground : InactiveButtonForeground;
+        button.Opacity = isActive ? 1 : 0.55;
+    }
+
+    private void UpdatePauseButton()
+    {
+        if (_pauseButton is null || _pauseIcon is null)
+        {
+            return;
+        }
+
+        var isPaused = _processLog?.Pause ?? false;
+        ApplyThemeButtonState(_pauseButton);
+        _pauseButton.Opacity = 1;
+        _pauseIcon.Path = isPaused
+            ? "avares://Amium.UiEditor/EditorIcons/play.svg"
+            : "avares://Amium.UiEditor/EditorIcons/pause.svg";
+    }
+
+    private void UpdateChromeButtons()
+    {
+        ApplyThemeButtonState(_openFolderButton);
+        ApplyThemeButtonState(_settingsButton);
+    }
+
+    private void UpdateSettingsButtonVisibility()
+    {
+        if (_settingsButton is null)
+        {
+            return;
+        }
+
+        _settingsButton.IsVisible = ShowSettingsButton && (ViewModel?.IsEditMode ?? false);
+    }
+
+    private void ApplyThemeButtonState(Button? button)
+    {
+        if (button is null)
+        {
+            return;
+        }
+
+        button.Background = GetThemeButtonBackground();
+        button.BorderBrush = GetThemeButtonBorderBrush();
+        button.Foreground = InactiveButtonForeground;
+    }
+
+    private IBrush GetThemeButtonBackground()
+    {
+        return TryParseThemeBrush(ViewModel?.EditPanelButtonBackground) ?? InactiveButtonBackground;
+    }
+
+    private IBrush GetThemeButtonBorderBrush()
+    {
+        return TryParseThemeBrush(ViewModel?.EditPanelButtonBorderBrush) ?? InactiveButtonBorderBrush;
+    }
+
+    private static IBrush? TryParseThemeBrush(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Brush.Parse(value);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void RefreshEntryColors()
+    {
+        foreach (var entry in LogEntries)
+        {
+            entry.Foreground = GetLogForeground(entry.Level);
+        }
+    }
+
+    private LogDisplayEntry CreateDisplayEntry(ProcessLogEntry entry)
+    {
+        return new LogDisplayEntry(FormatEntry(entry), entry.Level, GetLogForeground(entry.Level));
+    }
+
+    private IBrush GetLogForeground(string level)
+    {
+        var theme = ViewModel?.IsDarkTheme == true ? ThemePalette.Dark : ThemePalette.Light;
+        var color = level switch
+        {
+            "Debug" => theme.LogDebugForeground,
+            "Information" => theme.LogInfoForeground,
+            "Warning" => theme.LogWarningForeground,
+            "Error" => theme.LogErrorForeground,
+            "Fatal" => theme.LogFatalForeground,
+            _ => LogItem?.EffectiveSecondaryForeground ?? theme.LogInfoForeground
+        };
+
+        return TryParseThemeBrush(color) ?? InactiveButtonForeground;
     }
 
     private void ResolveScrollViewer()
@@ -184,6 +505,31 @@ public partial class EditorLogControl : UserControl
     private void ScrollToEnd()
     {
         _scrollViewer?.ScrollToEnd();
+    }
+
+    private async Task CopySelectedEntriesToClipboardAsync()
+    {
+        if (_logListBox?.SelectedItems is not { Count: > 0 } selectedItems)
+        {
+            return;
+        }
+
+        var text = string.Join(Environment.NewLine, selectedItems
+            .OfType<LogDisplayEntry>()
+            .Select(entry => entry.Text));
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard is null)
+        {
+            return;
+        }
+
+        await clipboard.SetTextAsync(text);
     }
 
     private static ProcessLog? ResolveProcessLogFromTarget(string? targetLog)
@@ -236,4 +582,37 @@ public partial class EditorLogControl : UserControl
 
         return $"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Level}] {entry.Message}{Environment.NewLine}{entry.Exception}";
     }
+}
+
+public sealed class LogDisplayEntry : INotifyPropertyChanged
+{
+    private IBrush _foreground;
+
+    public LogDisplayEntry(string text, string level, IBrush foreground)
+    {
+        Text = text;
+        Level = level;
+        _foreground = foreground;
+    }
+
+    public string Text { get; }
+
+    public string Level { get; }
+
+    public IBrush Foreground
+    {
+        get => _foreground;
+        set
+        {
+            if (ReferenceEquals(_foreground, value))
+            {
+                return;
+            }
+
+            _foreground = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Foreground)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }

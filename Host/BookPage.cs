@@ -1,7 +1,7 @@
 using System;
-using UiEditor.Items;
+using Amium.Items;
 
-namespace UiEditor.Host;
+namespace Amium.Host;
 
 public abstract class BookPage : IDisposable
 {
@@ -30,6 +30,16 @@ public abstract class BookPage : IDisposable
     /// <returns>The attached item instance bound to the current page context.</returns>
     protected Item Attach(Item source, string? alias = null)
         => _context.Attach(source, alias);
+
+    /// <summary>
+    /// Creates a page-scoped command using the convention &lt;Page&gt;/Commands/&lt;name&gt; and returns it for explicit publishing.
+    /// </summary>
+    /// <param name="name">The page-local command name.</param>
+    /// <param name="action">The command callback.</param>
+    /// <param name="description">An optional description for editor selection and documentation.</param>
+    /// <returns>A host command with the generated page-scoped command path.</returns>
+    protected HostCommand AttachCommand(string name, Action action, string? description = null)
+        => _context.AttachCommand(name, action, description);
 
     /// <summary>
     /// Initializes the page and invokes the initialization hook exactly once.

@@ -1,4 +1,4 @@
-namespace UiEditor.ViewModels;
+namespace Amium.UiEditor.ViewModels;
 
 public sealed record ThemePalette(
     string WindowBackground,
@@ -22,13 +22,24 @@ public sealed record ThemePalette(
     string ButtonBackColor,
     string ButtonHoverColor,
     string ButtonForeColor,
+    string TabSelectNumerBackColor,
+    string TabSelectBackColor,
+    string TabSelectForeColor,
+    string TabNumerBackColor,
+    string TabBackColor,
+    string TabForeColor,
     string HeaderBadgeBackground,
-    string HeaderBadgeForeground)
+    string HeaderBadgeForeground,
+    string LogDebugForeground,
+    string LogInfoForeground,
+    string LogWarningForeground,
+    string LogErrorForeground,
+    string LogFatalForeground)
 {
     public static ThemePalette Light { get; } = new(
         WindowBackground: "#F4F5F7",
         DialogBackground: "#d6d6e7",
-        CardBackground: "#f3f3f3",
+        CardBackground: "#e7e7e7",
         CardBorderBrush: "#D5D9E0",
         PrimaryTextBrush: "#111827",
         SecondaryTextBrush: "#5E6777",
@@ -47,8 +58,19 @@ public sealed record ThemePalette(
         ButtonBackColor: "#cfdbe7",
         ButtonHoverColor: "#E2E8F0",
         ButtonForeColor: "#111827",
+        TabSelectNumerBackColor: "#F59E0B",
+        TabSelectBackColor: "#FFF1C4",
+        TabSelectForeColor: "#000000",
+        TabNumerBackColor: "#aaaaaa",
+        TabBackColor: "#e7e7e7",
+        TabForeColor: "#111827",
         HeaderBadgeBackground: "#FFFFFF",
-        HeaderBadgeForeground: "#FFFFFF");
+        HeaderBadgeForeground: "#FFFFFF",
+        LogDebugForeground: "#2563EB",
+        LogInfoForeground: "#111827",
+        LogWarningForeground: "#B45309",
+        LogErrorForeground: "#B91C1C",
+        LogFatalForeground: "#7C2D12");
 
     public static ThemePalette Dark { get; } = new(
         WindowBackground: "#0B0B0C",
@@ -72,6 +94,17 @@ public sealed record ThemePalette(
         ButtonBackColor: "#374151",
         ButtonHoverColor: "#4B5563",
         ButtonForeColor: "#F9FAFB",
+        TabSelectNumerBackColor: "#F59E0B",
+        TabSelectBackColor: "#F3E6B3",
+        TabSelectForeColor: "#000000",
+        TabNumerBackColor: "#4B5563",
+        TabBackColor: "#111827",
+        TabForeColor: "#F3F4F6",
         HeaderBadgeBackground: "#F9FAFB",
-        HeaderBadgeForeground: "#111827");
+        HeaderBadgeForeground: "#111827",
+        LogDebugForeground: "#60A5FA",
+        LogInfoForeground: "#F9FAFB",
+        LogWarningForeground: "#FBBF24",
+        LogErrorForeground: "#F87171",
+        LogFatalForeground: "#FB923C");
 }

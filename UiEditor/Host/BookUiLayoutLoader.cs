@@ -4,7 +4,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace UiEditor.Host;
+namespace Amium.Host;
 
 public sealed class BookUiPageLayout
 {

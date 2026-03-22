@@ -1,5 +1,5 @@
 <UserControl
-    x:Class="UiEditor.Controls.EditorNumericInputPad"
+    x:Class="Amium.UiEditor.Controls.EditorNumericInputPad"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Grid ColumnDefinitions="Auto,Auto">

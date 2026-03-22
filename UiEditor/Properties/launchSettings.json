@@ -1,12 +1,12 @@
-﻿{
+{
   "profiles": {
-    "UiEditorCurrent": {
+    "AmiumUiEditorCurrent": {
       "commandName": "Executable",
-      "executablePath": "$(ProjectDir)bin\\$(Configuration)\\current\\UiEditor.exe",
+      "executablePath": "$(ProjectDir)bin\\$(Configuration)\\current\\Amium.UiEditor.exe",
       "workingDirectory": "$(ProjectDir)bin\\$(Configuration)\\current",
       "nativeDebugging": false
     },
-    "UiEditor": {
+    "Amium.UiEditor": {
       "commandName": "Project",
       "workingDirectory": "$(ProjectDir)bin\\$(Configuration)\\current",
       "nativeDebugging": false

@@ -3,5 +3,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Amium.Contracts</AssemblyName>
+    <RootNamespace>Amium.Contracts</RootNamespace>
   </PropertyGroup>
 </Project>

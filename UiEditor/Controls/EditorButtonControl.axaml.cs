@@ -1,41 +1,53 @@
 using System;
-using System.Linq;
-using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.VisualTree;
-using UiEditor.Models;
-using UiEditor.ViewModels;
+using Amium.Host;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
-public partial class EditorButtonControl : UserControl
+public partial class EditorButtonControl : EditorTemplateControl
 {
     public EditorButtonControl()
     {
         InitializeComponent();
     }
 
-    private PageItemModel? Item => DataContext as PageItemModel;
-
-    private MainWindowViewModel? ViewModel
-        => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
-
     private void OnInteractivePointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        HandleInteractivePointerPressed(e);
+    }
+
+    private void OnButtonReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton != MouseButton.Left || Item is null)
+        {
+            return;
+        }
+
+        var viewModel = ViewModel;
+        if (viewModel?.IsEditMode == true)
+        {
+            return;
+        }
+
+        var commandName = Item.EffectiveButtonCommand;
+        if (string.IsNullOrWhiteSpace(commandName))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (!HostRegistries.Commands.Execute(commandName))
+        {
+            e.Handled = true;
+            return;
+        }
+
         e.Handled = true;
     }
 
     private void OnSettingsClicked(object? sender, RoutedEventArgs e)
     {
-        if (Item is null || ViewModel is null || this.GetVisualAncestors().OfType<PageEditorControl>().FirstOrDefault() is not { } editor)
-        {
-            return;
-        }
-
-        var anchor = this.TranslatePoint(new Point(Bounds.Width + 8, 0), editor) ?? new Point(24, 24);
-        ViewModel.OpenItemEditor(Item, anchor.X, anchor.Y);
-        e.Handled = true;
+        HandleSettingsClicked(e);
     }
 }

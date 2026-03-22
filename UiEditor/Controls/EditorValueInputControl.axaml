@@ -1,9 +1,9 @@
 <UserControl
     x:Name="Root"
-    x:Class="UiEditor.Controls.EditorValueInputControl"
+    x:Class="Amium.UiEditor.Controls.EditorValueInputControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:UiEditor.Controls">
+    xmlns:controls="using:Amium.UiEditor.Controls">
   <UserControl.Styles>
     <Style Selector="TextBox.input-field">
       <Setter Property="BorderThickness" Value="1" />
@@ -110,8 +110,8 @@
           TextChanged="OnInputTextChanged"
           PointerPressed="OnInteractivePointerPressed" />
 
-      <Grid Grid.Row="2" ColumnDefinitions="*">
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" MaxHeight="380">
+      <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto">
+        <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" MaxHeight="380">
           <StackPanel Spacing="12" HorizontalAlignment="Stretch">
             <UniformGrid x:Name="InputButtonGrid" Columns="4" HorizontalAlignment="Center" IsVisible="False" />
             <Grid x:Name="HexInputGrid" HorizontalAlignment="Center" IsVisible="False" />
@@ -122,7 +122,7 @@
           </StackPanel>
         </ScrollViewer>
 
-        <StackPanel x:Name="ActionButtonPanel" IsVisible="False" Margin="16,0,0,0" Orientation="Vertical" Spacing="12" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <StackPanel x:Name="ActionButtonPanel" Grid.Column="1" IsVisible="False" Margin="16,0,0,0" Orientation="Vertical" Spacing="12" HorizontalAlignment="Right" VerticalAlignment="Top" />
       </Grid>
     </Grid>
   </Border>

@@ -12,12 +12,12 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ScottPlot;
 using ScottPlot.Avalonia;
-using UiEditor.Host;
-using UiEditor.Items;
-using UiEditor.Models;
-using UiEditor.ViewModels;
+using Amium.Host;
+using Amium.Items;
+using Amium.UiEditor.Models;
+using Amium.UiEditor.ViewModels;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class EditorChartControl : UserControl
 {

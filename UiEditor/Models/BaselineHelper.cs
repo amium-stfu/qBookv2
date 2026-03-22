@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 
-namespace UiEditor.Models;
+namespace Amium.UiEditor.Models;
 
 public static class BaselineHelper
 {
@@ -18,6 +18,9 @@ public static class BaselineHelper
 
     public static double GetDescentFromLayout(string sampleText, Typeface typeface, double fontSize)
         => GetTextMetrics(sampleText, typeface, fontSize).Descent;
+
+    public static double GetTextHeightFromLayout(string sampleText, Typeface typeface, double fontSize)
+        => GetTextMetrics(sampleText, typeface, fontSize).Height;
 
     private static TextMetrics GetTextMetrics(string sampleText, Typeface typeface, double fontSize)
     {

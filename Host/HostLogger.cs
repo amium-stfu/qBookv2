@@ -2,9 +2,9 @@ using Serilog;
 using Serilog.Events;
 using System;
 using System.IO;
-using UiEditor.Host.Logging;
+using Amium.Host.Logging;
 
-namespace UiEditor.Host;
+namespace Amium.Host;
 
 public static class HostLogger
 {
@@ -27,11 +27,12 @@ public static class HostLogger
         }
 
         Directory.CreateDirectory(LogDirectory);
+        ProcessLog.SetLogDirectory(LogDirectory);
 
         Log = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-            .Enrich.WithProperty("App", "UiEditor")
+            .Enrich.WithProperty("App", "Amium.UiEditor")
             .WriteTo.Debug(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
             .WriteTo.Sink(new ProcessLogSink(ProcessLog))
             .WriteTo.File(

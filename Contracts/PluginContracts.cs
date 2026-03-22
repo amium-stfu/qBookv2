@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace UiEditor.Contracts;
+namespace Amium.Contracts;
 
 public sealed class PluginDescriptor
 {

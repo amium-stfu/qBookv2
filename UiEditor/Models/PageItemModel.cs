@@ -2,13 +2,15 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text.Json.Nodes;
 using Avalonia;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using UiEditor.Items;
-using UiEditor.Host;
-using UiEditor.ViewModels;
+using Amium.Items;
+using Amium.Host;
+using Amium.UiEditor.ViewModels;
+using System.Diagnostics;
 
-namespace UiEditor.Models;
+namespace Amium.UiEditor.Models;
 
 public enum ControlKind
 {
@@ -61,17 +63,46 @@ public sealed class PageItemModel : ObservableObject
     private string _header = string.Empty;
     private string _title = string.Empty;
     private string _footer = string.Empty;
+    private bool _showCaption = true;
+    private bool _showBodyCaption = true;
+    private bool _showFooter = true;
+    private string _toolTipText = string.Empty;
+    private string _buttonText = string.Empty;
+    private string _buttonIcon = string.Empty;
+    private bool _buttonOnlyIcon;
+    private string _buttonIconAlign = "Left";
+    private string _buttonTextAlign = "Center";
+    private string _buttonCommand = string.Empty;
+    private string _buttonBodyBackground = "Transparent";
+    private string _buttonBodyForegroundColor = string.Empty;
+    private bool _useThemeColor = true;
     private string? _backgroundColor;
     private string? _borderColor;
     private string? _containerBorder;
     private string? _containerBackgroundColor;
     private double _containerBorderWidth;
     private double _controlBorderWidth;
+    private string? _controlBorderColor;
     private double _controlCornerRadius;
     private string? _primaryForegroundColor;
     private string? _secondaryForegroundColor;
     private string? _accentBackgroundColor;
     private string? _accentForegroundColor;
+    private string? _headerForeColor;
+    private string? _headerBackColor;
+    private string? _headerBorderColor;
+    private double _headerBorderWidth;
+    private double _headerCornerRadius = 6;
+    private string? _bodyForeColor;
+    private string? _bodyBackColor;
+    private string? _bodyBorderColor;
+    private double _bodyBorderWidth;
+    private double _bodyCornerRadius;
+    private string? _footerForeColor;
+    private string? _footerBackColor;
+    private string? _footerBorderColor;
+    private double _footerBorderWidth;
+    private double _footerCornerRadius = 6;
     private string _targetPath = string.Empty;
     private string _targetParameterPath = string.Empty;
     private string _targetParameterFormat = string.Empty;
@@ -90,6 +121,15 @@ public sealed class PageItemModel : ObservableObject
     private string _effectiveMutedForeground = LightMutedForeground;
     private string _effectiveAccentBackground = LightAccentBackground;
     private string _effectiveAccentForeground = LightAccentForeground;
+    private string _effectiveHeaderForeground = LightSecondaryForeground;
+    private string _effectiveHeaderBackground = "Transparent";
+    private string _effectiveHeaderBorder = LightBorder;
+    private string _effectiveBodyForeground = LightPrimaryForeground;
+    private string _effectiveBodyBackground = "Transparent";
+    private string _effectiveBodyBorder = LightBorder;
+    private string _effectiveFooterForeground = LightMutedForeground;
+    private string _effectiveFooterBackground = "Transparent";
+    private string _effectiveFooterBorder = LightBorder;
     private DispatcherTimer? _pendingRefreshTimer;
     private DateTimeOffset _lastTargetRefreshUtc = DateTimeOffset.MinValue;
     private bool _hasPendingTargetRefresh;
@@ -148,7 +188,11 @@ public sealed class PageItemModel : ObservableObject
             if (SetProperty(ref _header, value) && Target is null)
             {
                 RaisePropertyChanged(nameof(TargetParameterView));
+                RaisePropertyChanged(nameof(ItemBodyPresentation));
             }
+
+            RaisePropertyChanged(nameof(ControlCaption));
+            RaisePropertyChanged(nameof(ShowControlCaption));
         }
     }
 
@@ -157,10 +201,25 @@ public sealed class PageItemModel : ObservableObject
         get => _title;
         set
         {
-            if (SetProperty(ref _title, value) && Target is null)
+            if (SetProperty(ref _title, value))
             {
-                RaisePropertyChanged(nameof(DisplayValue));
-                RaisePropertyChanged(nameof(TargetParameterView));
+                if (Target is null)
+                {
+                    RaisePropertyChanged(nameof(DisplayValue));
+                    RaisePropertyChanged(nameof(TargetParameterView));
+                    RaisePropertyChanged(nameof(ItemBodyPresentation));
+                    RaisePropertyChanged(nameof(ItemValueFontSize));
+                }
+
+                RaisePropertyChanged(nameof(EffectiveButtonText));
+                RaisePropertyChanged(nameof(ShowButtonText));
+                RaisePropertyChanged(nameof(BodyCaption));
+                RaisePropertyChanged(nameof(ShowBodyCaption));
+                RaisePropertyChanged(nameof(ItemBodyHeight));
+                RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
+                RaisePropertyChanged(nameof(AvailableBodyHeight));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
             }
         }
     }
@@ -170,12 +229,226 @@ public sealed class PageItemModel : ObservableObject
         get => _footer;
         set
         {
-            if (SetProperty(ref _footer, value) && Target is null)
+            if (SetProperty(ref _footer, value))
             {
-                RaisePropertyChanged(nameof(DisplayUnit));
-                RaisePropertyChanged(nameof(TargetParameterView));
-                RaisePropertyChanged(nameof(ItemUnitWidth));
-                RaisePropertyChanged(nameof(CanOpenValueEditor));
+                if (Target is null)
+                {
+                    RaisePropertyChanged(nameof(DisplayUnit));
+                    RaisePropertyChanged(nameof(TargetParameterView));
+                    RaisePropertyChanged(nameof(ItemBodyPresentation));
+                    RaisePropertyChanged(nameof(ItemUnitWidth));
+                    RaisePropertyChanged(nameof(ItemValueFontSize));
+                    RaisePropertyChanged(nameof(CanOpenValueEditor));
+                }
+
+                RaisePropertyChanged(nameof(ShowButtonFooter));
+                RaisePropertyChanged(nameof(ShowItemFooterPanel));
+                RaisePropertyChanged(nameof(ItemBodyHeight));
+                RaisePropertyChanged(nameof(AvailableBodyHeight));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
+                RaisePropertyChanged(nameof(ButtonAvailableBodyHeight));
+                RaisePropertyChanged(nameof(ButtonBodyFontSize));
+                RaisePropertyChanged(nameof(ButtonIconSize));
+            }
+        }
+    }
+
+    public bool BodyCaptionVisible
+    {
+        get => _showBodyCaption && !string.IsNullOrWhiteSpace(BodyCaption);
+        set
+        {
+            if (SetProperty(ref _showBodyCaption, value))
+            {
+                RaisePropertyChanged(nameof(ShowBodyCaption));
+                RaisePropertyChanged(nameof(ItemBodyHeight));
+                RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
+                RaisePropertyChanged(nameof(AvailableBodyHeight));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemValueFontSize));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
+            }
+        }
+    }
+
+    public bool ShowBodyCaption
+    {
+        get => BodyCaptionVisible;
+        set => BodyCaptionVisible = value;
+    }
+
+    public bool CaptionVisible
+    {
+        get => _showCaption;
+        set
+        {
+            if (SetProperty(ref _showCaption, value))
+            {
+                RaisePropertyChanged(nameof(ShowCaption));
+                RaisePropertyChanged(nameof(ShowControlCaption));
+                RaisePropertyChanged(nameof(ItemHeaderHeight));
+                RaisePropertyChanged(nameof(ItemBodyHeight));
+                RaisePropertyChanged(nameof(AvailableBodyHeight));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemValueFontSize));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
+                RaisePropertyChanged(nameof(ButtonAvailableBodyHeight));
+                RaisePropertyChanged(nameof(ButtonBodyFontSize));
+                RaisePropertyChanged(nameof(ButtonIconSize));
+            }
+        }
+    }
+
+    public bool ShowCaption
+    {
+        get => CaptionVisible;
+        set => CaptionVisible = value;
+    }
+
+    public bool ShowFooter
+    {
+        get => _showFooter;
+        set
+        {
+            if (SetProperty(ref _showFooter, value))
+            {
+                RaisePropertyChanged(nameof(ShowButtonFooter));
+                RaisePropertyChanged(nameof(ShowItemFooterPanel));
+                RaisePropertyChanged(nameof(ItemBodyHeight));
+                RaisePropertyChanged(nameof(AvailableBodyHeight));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemValueFontSize));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
+                RaisePropertyChanged(nameof(ButtonAvailableBodyHeight));
+                RaisePropertyChanged(nameof(ButtonBodyFontSize));
+                RaisePropertyChanged(nameof(ButtonIconSize));
+            }
+        }
+    }
+
+    public string ToolTipText
+    {
+        get => _toolTipText;
+        set
+        {
+            if (SetProperty(ref _toolTipText, value ?? string.Empty))
+            {
+                RaisePropertyChanged(nameof(EffectiveToolTipText));
+            }
+        }
+    }
+
+    public string ButtonText
+    {
+        get => _buttonText;
+        set
+        {
+            if (SetProperty(ref _buttonText, value ?? string.Empty))
+            {
+                RaisePropertyChanged(nameof(EffectiveButtonText));
+                RaisePropertyChanged(nameof(ShowButtonText));
+            }
+        }
+    }
+
+    public string ButtonIcon
+    {
+        get => _buttonIcon;
+        set
+        {
+            if (SetProperty(ref _buttonIcon, value ?? string.Empty))
+            {
+                RaisePropertyChanged(nameof(HasButtonIcon));
+                RaisePropertyChanged(nameof(ShowButtonIcon));
+            }
+        }
+    }
+
+    public bool ButtonOnlyIcon
+    {
+        get => _buttonOnlyIcon;
+        set
+        {
+            if (SetProperty(ref _buttonOnlyIcon, value))
+            {
+                RaisePropertyChanged(nameof(ShowButtonText));
+                RaisePropertyChanged(nameof(ShowButtonIcon));
+            }
+        }
+    }
+
+    public string ButtonIconAlign
+    {
+        get => _buttonIconAlign;
+        set
+        {
+            if (SetProperty(ref _buttonIconAlign, NormalizeAlignment(value, "Left")))
+            {
+                RaisePropertyChanged(nameof(ButtonIconHorizontalAlignment));
+            }
+        }
+    }
+
+    public string ButtonTextAlign
+    {
+        get => _buttonTextAlign;
+        set
+        {
+            if (SetProperty(ref _buttonTextAlign, NormalizeAlignment(value, "Center")))
+            {
+                RaisePropertyChanged(nameof(ButtonTextHorizontalAlignment));
+            }
+        }
+    }
+
+    public string ButtonCommand
+    {
+        get => _buttonCommand;
+        set
+        {
+            if (SetProperty(ref _buttonCommand, value ?? string.Empty))
+            {
+                RaisePropertyChanged(nameof(EffectiveButtonCommand));
+            }
+        }
+    }
+
+    public string ButtonBodyBackground
+    {
+        get => _buttonBodyBackground;
+        set
+        {
+            if (SetProperty(ref _buttonBodyBackground, string.IsNullOrWhiteSpace(value) ? "Transparent" : value.Trim()))
+            {
+                RaisePropertyChanged(nameof(EffectiveButtonBodyBackground));
+                RaisePropertyChanged(nameof(EffectiveButtonBodyBackgroundBrush));
+            }
+        }
+    }
+
+    public string ButtonBodyForegroundColor
+    {
+        get => _buttonBodyForegroundColor;
+        set
+        {
+            if (SetProperty(ref _buttonBodyForegroundColor, value ?? string.Empty))
+            {
+                RaisePropertyChanged(nameof(EffectiveButtonBodyForeground));
+                RaisePropertyChanged(nameof(EffectiveButtonBodyForegroundBrush));
+                RaisePropertyChanged(nameof(ButtonIconCss));
+            }
+        }
+    }
+
+    public bool UseThemeColor
+    {
+        get => _useThemeColor;
+        set
+        {
+            if (SetProperty(ref _useThemeColor, value))
+            {
+                RaisePropertyChanged(nameof(ButtonIconCss));
             }
         }
     }
@@ -389,13 +662,48 @@ public sealed class PageItemModel : ObservableObject
     public double ControlBorderWidth
     {
         get => _controlBorderWidth;
-        set => SetProperty(ref _controlBorderWidth, System.Math.Clamp(value, 0, 12));
+        set
+        {
+            var normalized = System.Math.Clamp(value, 0, 12);
+            if (SetProperty(ref _controlBorderWidth, normalized) && IsListControl)
+            {
+                foreach (var item in Items)
+                {
+                    item.BorderWidth = normalized;
+                }
+            }
+        }
+    }
+
+    public string? ControlBorderColor
+    {
+        get => _controlBorderColor;
+        set
+        {
+            if (SetProperty(ref _controlBorderColor, value) && IsListControl)
+            {
+                foreach (var item in Items)
+                {
+                    item.BorderColor = value;
+                }
+            }
+        }
     }
 
     public double ControlCornerRadius
     {
         get => _controlCornerRadius;
-        set => SetProperty(ref _controlCornerRadius, System.Math.Clamp(value, 0, 48));
+        set
+        {
+            var normalized = System.Math.Clamp(value, 0, 48);
+            if (SetProperty(ref _controlCornerRadius, normalized) && IsListControl)
+            {
+                foreach (var item in Items)
+                {
+                    item.CornerRadius = normalized;
+                }
+            }
+        }
     }
 
     public string? PrimaryForegroundColor
@@ -446,15 +754,204 @@ public sealed class PageItemModel : ObservableObject
         }
     }
 
+    public string? HeaderForeColor
+    {
+        get => _headerForeColor;
+        set
+        {
+            if (SetProperty(ref _headerForeColor, value))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
+    }
+
+    public string? HeaderBackColor
+    {
+        get => _headerBackColor;
+        set
+        {
+            if (SetProperty(ref _headerBackColor, value))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
+    }
+
+    public string? HeaderBorderColor
+    {
+        get => _headerBorderColor;
+        set
+        {
+            if (SetProperty(ref _headerBorderColor, value))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
+    }
+
+    public double HeaderBorderWidth
+    {
+        get => _headerBorderWidth;
+        set
+        {
+            var normalized = System.Math.Clamp(value, 0, 12);
+            if (SetProperty(ref _headerBorderWidth, normalized))
+            {
+                RaisePropertyChanged(nameof(EffectiveHeaderBorderThickness));
+            }
+        }
+    }
+
+    public double HeaderCornerRadius
+    {
+        get => _headerCornerRadius;
+        set
+        {
+            var normalized = System.Math.Clamp(value, 0, 48);
+            if (SetProperty(ref _headerCornerRadius, normalized))
+            {
+                RaisePropertyChanged(nameof(EffectiveHeaderCornerRadius));
+            }
+        }
+    }
+
+    public string? BodyForeColor
+    {
+        get => _bodyForeColor;
+        set
+        {
+            if (SetProperty(ref _bodyForeColor, value))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
+    }
+
+    public string? BodyBackColor
+    {
+        get => _bodyBackColor;
+        set
+        {
+            if (SetProperty(ref _bodyBackColor, value))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
+    }
+
+    public string? BodyBorderColor
+    {
+        get => _bodyBorderColor;
+        set
+        {
+            if (SetProperty(ref _bodyBorderColor, value))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
+    }
+
+    public double BodyBorderWidth
+    {
+        get => _bodyBorderWidth;
+        set
+        {
+            var normalized = System.Math.Clamp(value, 0, 12);
+            if (SetProperty(ref _bodyBorderWidth, normalized))
+            {
+                RaisePropertyChanged(nameof(EffectiveBodyBorderThickness));
+            }
+        }
+    }
+
+    public double BodyCornerRadius
+    {
+        get => _bodyCornerRadius;
+        set
+        {
+            var normalized = System.Math.Clamp(value, 0, 48);
+            if (SetProperty(ref _bodyCornerRadius, normalized))
+            {
+                RaisePropertyChanged(nameof(EffectiveBodyCornerRadius));
+            }
+        }
+    }
+
+    public string? FooterForeColor
+    {
+        get => _footerForeColor;
+        set
+        {
+            if (SetProperty(ref _footerForeColor, value))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
+    }
+
+    public string? FooterBackColor
+    {
+        get => _footerBackColor;
+        set
+        {
+            if (SetProperty(ref _footerBackColor, value))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
+    }
+
+    public string? FooterBorderColor
+    {
+        get => _footerBorderColor;
+        set
+        {
+            if (SetProperty(ref _footerBorderColor, value))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
+    }
+
+    public double FooterBorderWidth
+    {
+        get => _footerBorderWidth;
+        set
+        {
+            var normalized = System.Math.Clamp(value, 0, 12);
+            if (SetProperty(ref _footerBorderWidth, normalized))
+            {
+                RaisePropertyChanged(nameof(EffectiveFooterBorderThickness));
+            }
+        }
+    }
+
+    public double FooterCornerRadius
+    {
+        get => _footerCornerRadius;
+        set
+        {
+            var normalized = System.Math.Clamp(value, 0, 48);
+            if (SetProperty(ref _footerCornerRadius, normalized))
+            {
+                RaisePropertyChanged(nameof(EffectiveFooterCornerRadius));
+            }
+        }
+    }
+
     public string? TextColor
     {
-        get => PrimaryForegroundColor;
+        get => BodyForeColor ?? PrimaryForegroundColor;
         set
         {
             var changed = false;
             changed |= SetProperty(ref _primaryForegroundColor, value, nameof(PrimaryForegroundColor));
             changed |= SetProperty(ref _secondaryForegroundColor, value, nameof(SecondaryForegroundColor));
             changed |= SetProperty(ref _accentForegroundColor, value, nameof(AccentForegroundColor));
+            changed |= SetProperty(ref _headerForeColor, value, nameof(HeaderForeColor));
+            changed |= SetProperty(ref _bodyForeColor, value, nameof(BodyForeColor));
+            changed |= SetProperty(ref _footerForeColor, value, nameof(FooterForeColor));
             if (changed)
             {
                 ApplyTheme(_isDarkThemeApplied);
@@ -469,6 +966,13 @@ public sealed class PageItemModel : ObservableObject
         {
             if (SetProperty(ref _targetPath, value))
             {
+                RaisePropertyChanged(nameof(ShowBodyCaption));
+                RaisePropertyChanged(nameof(ItemBodyHeight));
+                RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
+                RaisePropertyChanged(nameof(AvailableBodyHeight));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemValueFontSize));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
                 ResolveTarget();
             }
         }
@@ -482,7 +986,12 @@ public sealed class PageItemModel : ObservableObject
             if (SetProperty(ref _targetParameterPath, value))
             {
                 RaisePropertyChanged(nameof(TargetParameterView));
+                RaisePropertyChanged(nameof(ItemBodyPresentation));
+                RaisePropertyChanged(nameof(ShowItemFooterPanel));
                 RaisePropertyChanged(nameof(ItemUnitWidth));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemValueFontSize));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
                 RaisePropertyChanged(nameof(CanOpenValueEditor));
             }
         }
@@ -496,7 +1005,12 @@ public sealed class PageItemModel : ObservableObject
             if (SetProperty(ref _targetParameterFormat, value))
             {
                 RaisePropertyChanged(nameof(TargetParameterView));
+                RaisePropertyChanged(nameof(ItemBodyPresentation));
+                RaisePropertyChanged(nameof(ShowItemFooterPanel));
                 RaisePropertyChanged(nameof(ItemUnitWidth));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemValueFontSize));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
                 RaisePropertyChanged(nameof(CanOpenValueEditor));
             }
         }
@@ -542,7 +1056,16 @@ public sealed class PageItemModel : ObservableObject
                 RaisePropertyChanged(nameof(DisplayValue));
                 RaisePropertyChanged(nameof(DisplayUnit));
                 RaisePropertyChanged(nameof(TargetParameterView));
+                RaisePropertyChanged(nameof(ItemBodyPresentation));
+                RaisePropertyChanged(nameof(ShowBodyCaption));
+                RaisePropertyChanged(nameof(ShowItemFooterPanel));
+                RaisePropertyChanged(nameof(ItemBodyHeight));
+                RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
+                RaisePropertyChanged(nameof(AvailableBodyHeight));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
                 RaisePropertyChanged(nameof(ItemUnitWidth));
+                RaisePropertyChanged(nameof(ItemValueFontSize));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
                 RaisePropertyChanged(nameof(CanOpenValueEditor));
             }
         }
@@ -633,6 +1156,90 @@ public sealed class PageItemModel : ObservableObject
 
     public IBrush EffectiveAccentForegroundBrush => ParseBrush(EffectiveAccentForeground);
 
+    public string EffectiveHeaderForeground
+    {
+        get => _effectiveHeaderForeground;
+        private set => SetProperty(ref _effectiveHeaderForeground, value);
+    }
+
+    public IBrush EffectiveHeaderForegroundBrush => ParseBrush(EffectiveHeaderForeground);
+
+    public string EffectiveHeaderBackground
+    {
+        get => _effectiveHeaderBackground;
+        private set => SetProperty(ref _effectiveHeaderBackground, value);
+    }
+
+    public IBrush EffectiveHeaderBackgroundBrush => ParseBrush(EffectiveHeaderBackground);
+
+    public string EffectiveHeaderBorder
+    {
+        get => _effectiveHeaderBorder;
+        private set => SetProperty(ref _effectiveHeaderBorder, value);
+    }
+
+    public IBrush EffectiveHeaderBorderBrush => ParseBrush(EffectiveHeaderBorder);
+
+    public Thickness EffectiveHeaderBorderThickness => new(HeaderBorderWidth);
+
+    public CornerRadius EffectiveHeaderCornerRadius => new(HeaderCornerRadius);
+
+    public string EffectiveBodyForeground
+    {
+        get => _effectiveBodyForeground;
+        private set => SetProperty(ref _effectiveBodyForeground, value);
+    }
+
+    public IBrush EffectiveBodyForegroundBrush => ParseBrush(EffectiveBodyForeground);
+
+    public string EffectiveBodyBackground
+    {
+        get => _effectiveBodyBackground;
+        private set => SetProperty(ref _effectiveBodyBackground, value);
+    }
+
+    public IBrush EffectiveBodyBackgroundBrush => ParseBrush(EffectiveBodyBackground);
+
+    public string EffectiveBodyBorder
+    {
+        get => _effectiveBodyBorder;
+        private set => SetProperty(ref _effectiveBodyBorder, value);
+    }
+
+    public IBrush EffectiveBodyBorderBrush => ParseBrush(EffectiveBodyBorder);
+
+    public Thickness EffectiveBodyBorderThickness => new(BodyBorderWidth);
+
+    public CornerRadius EffectiveBodyCornerRadius => new(BodyCornerRadius);
+
+    public string EffectiveFooterForeground
+    {
+        get => _effectiveFooterForeground;
+        private set => SetProperty(ref _effectiveFooterForeground, value);
+    }
+
+    public IBrush EffectiveFooterForegroundBrush => ParseBrush(EffectiveFooterForeground);
+
+    public string EffectiveFooterBackground
+    {
+        get => _effectiveFooterBackground;
+        private set => SetProperty(ref _effectiveFooterBackground, value);
+    }
+
+    public IBrush EffectiveFooterBackgroundBrush => ParseBrush(EffectiveFooterBackground);
+
+    public string EffectiveFooterBorder
+    {
+        get => _effectiveFooterBorder;
+        private set => SetProperty(ref _effectiveFooterBorder, value);
+    }
+
+    public IBrush EffectiveFooterBorderBrush => ParseBrush(EffectiveFooterBorder);
+
+    public Thickness EffectiveFooterBorderThickness => new(FooterBorderWidth);
+
+    public CornerRadius EffectiveFooterCornerRadius => new(FooterCornerRadius);
+
     public Thickness EffectiveBorderThickness => new(BorderWidth);
 
     public CornerRadius EffectiveCornerRadius => new(CornerRadius);
@@ -661,15 +1268,168 @@ public sealed class PageItemModel : ObservableObject
 
     public double ItemTitleFontSize => Height * 0.18;
 
+    public string ControlCaption
+    {
+        get => Header;
+        set => Header = value;
+    }
+
+    public bool ShowControlCaption => CaptionVisible && !string.IsNullOrWhiteSpace(ControlCaption);
+
+    public string BodyCaption
+    {
+        get => Title;
+        set => Title = value;
+    }
+
+    public ParameterDisplayModel ItemBodyPresentation => BuildTargetParameterView(string.Empty, DisplayValue);
+
+    public bool ShowItemFooterPanel => IsItem && ShowFooter && !string.IsNullOrWhiteSpace(Footer);
+
+    public double ItemControlCaptionFontSize => System.Math.Clamp(Height * 0.13, 10, 18);
+
+    public double ItemBodyCaptionFontSize => System.Math.Clamp(Height * 0.09, 8, 14);
+
+    public double ItemFooterFontSize => System.Math.Clamp(Height * 0.09, 8, 13);
+
+    public string EffectiveButtonText => !string.IsNullOrWhiteSpace(ButtonText) ? ButtonText : Title;
+
+    public bool HasButtonIcon => !string.IsNullOrWhiteSpace(ButtonIcon);
+
+    public bool ShowButtonText => !ButtonOnlyIcon && !string.IsNullOrWhiteSpace(EffectiveButtonText);
+
+    public bool ShowButtonIcon => ButtonOnlyIcon || HasButtonIcon;
+
+    public string EffectiveButtonCommand => ButtonCommand;
+
+    public string? EffectiveToolTipText => string.IsNullOrWhiteSpace(ToolTipText) ? null : ToolTipText;
+
+    public string EffectiveButtonBodyBackground
+        => string.IsNullOrWhiteSpace(ButtonBodyBackground) || string.Equals(ButtonBodyBackground.Trim(), "Transparent", StringComparison.OrdinalIgnoreCase)
+            ? EffectiveBodyBackground
+            : ButtonBodyBackground;
+
+    public IBrush EffectiveButtonBodyBackgroundBrush => ParseBrush(EffectiveButtonBodyBackground);
+
+    public string EffectiveButtonBodyForeground => string.IsNullOrWhiteSpace(ButtonBodyForegroundColor) ? EffectiveBodyForeground : ButtonBodyForegroundColor;
+
+    public IBrush EffectiveButtonBodyForegroundBrush => ParseBrush(EffectiveButtonBodyForeground);
+
+    public string ButtonIconCss => UseThemeColor ? $"path {{ fill: {EffectiveButtonBodyForeground}; }}" : string.Empty;
+
+    public bool ShowButtonFooter => ShowFooter && !string.IsNullOrWhiteSpace(Footer);
+
+    public HorizontalAlignment ButtonTextHorizontalAlignment => ParseHorizontalAlignment(ButtonTextAlign, HorizontalAlignment.Center);
+
+    public HorizontalAlignment ButtonIconHorizontalAlignment => ParseHorizontalAlignment(ButtonIconAlign, HorizontalAlignment.Left);
+
+    public double ButtonOverlayTopInset => ShowControlCaption ? 0 : 24;
+
+    public double ButtonAvailableBodyHeight
+    {
+        get
+        {
+            var captionHeight = ShowControlCaption ? ItemHeaderHeight : 0;
+            var footerHeight = ShowButtonFooter ? ItemFooterFontSize + 2 : 0;
+            var bodyCaptionHeight = ShowBodyCaption ? ItemBodyCaptionFontSize * 2.5 : 0;
+            var bodyChromeHeight = 12;
+            var availableHeight = Height - 8 - captionHeight - footerHeight - bodyCaptionHeight - bodyChromeHeight;
+            return System.Math.Max(availableHeight, 12);
+        }
+    }
+
+    public double ButtonBodyFontSize
+    {
+        get
+        {
+            var maxSize = ButtonAvailableBodyHeight;
+            var minSize = System.Math.Min(12, maxSize);
+            return System.Math.Clamp(ButtonAvailableBodyHeight * 0.60, minSize, maxSize);
+        }
+    }
+
+    public double ButtonIconSize
+    {
+        get
+        {
+            var maxSize = ButtonAvailableBodyHeight;
+            var minSize = System.Math.Min(14, maxSize);
+            return System.Math.Clamp(ButtonAvailableBodyHeight * 0.62, minSize, maxSize);
+        }
+    }
+
     public double ControlHeight
     {
         get => ListItemHeight;
         set => ListItemHeight = value;
     }
 
-    public double ItemValueFontSize => Height * 0.5;
+    public double ItemBodyHeight
+    {
+        get
+        {
+            var footerHeight = ShowItemFooterPanel ? ItemFooterFontSize + 8 : 0;
+            var baseBodyHeight = Height - ItemHeaderHeight - ItemBodyCaptionHeight - footerHeight - 8;
+            return System.Math.Max(baseBodyHeight, 18);
+        }
+    }
 
-    public double ItemUnitFontSize => Height * 0.3;
+    public double ItemBodyCaptionHeight => BodyCaptionVisible ? ItemBodyCaptionFontSize + 3 : 0;
+
+    public double AvailableBodyHeight
+    {
+        get
+        {
+            return System.Math.Max(ItemBodyHeight, 18);
+        }
+    }
+
+    public double ItemChoiceButtonHeight
+    {
+        get
+        {
+            if (TargetParameterView.Definition.Kind is not (ParameterVisualKind.Bool or ParameterVisualKind.Bits))
+            {
+                return 0;
+            }
+
+            return System.Math.Max(AvailableBodyHeight - 40, 16);
+        }
+    }
+
+    public double AvailableValueWidth
+    {
+        get
+        {
+            var reservedUnitWidth = TargetParameterView.ShowUnit ? ItemUnitWidth + 8 : 0;
+            return System.Math.Max(Width - reservedUnitWidth - 16, 24);
+        }
+    }
+
+    public int ValueCharacterCount
+        => System.Math.Max((TargetParameterView.ValueText ?? string.Empty).Length, 1);
+
+    public int UnitCharacterCount
+        => System.Math.Max((TargetParameterView.UnitText ?? string.Empty).Length, 1);
+
+    public double ItemValueFontSize
+    {
+        get
+        {
+            if (TargetParameterView.Definition.Kind is ParameterVisualKind.Bool or ParameterVisualKind.Bits)
+            {
+                var maxSize = System.Math.Max(ItemChoiceButtonHeight - 6, 9);
+                var minSize = System.Math.Min(9, maxSize);
+                return System.Math.Clamp(ItemChoiceButtonHeight * 0.34, minSize, maxSize);
+            }
+
+            var maxTextSize = System.Math.Max(AvailableBodyHeight, 11);
+            var minTextSize = System.Math.Min(11, maxTextSize);
+            return System.Math.Clamp(AvailableBodyHeight, minTextSize, maxTextSize);
+        }
+    }
+
+    public double ItemUnitFontSize => System.Math.Clamp(ItemValueFontSize * 0.42, 9, ItemValueFontSize);
 
     public double ItemUnitBaselineOffset
     {
@@ -691,9 +1451,21 @@ public sealed class PageItemModel : ObservableObject
 
     public double ItemBottomSpacing => 0;
 
-    public double ItemHeaderHeight => Height * 0.15;
+    public double ItemHeaderHeight => ShowControlCaption ? System.Math.Max(Height * 0.12, 16) : 0;
 
-    public double ItemUnitWidth => TargetParameterView.ShowUnit ? System.Math.Max(Width * 0.30, 1) : 0;
+    public double ItemUnitWidth
+    {
+        get
+        {
+            if (!TargetParameterView.ShowUnit)
+            {
+                return 0;
+            }
+
+            var estimatedWidth = ItemUnitFontSize * (UnitCharacterCount * 0.72) + 10;
+            return System.Math.Max(estimatedWidth, 24);
+        }
+    }
 
     public string DisplayValue => Target?.Value?.ToString() ?? Title;
 
@@ -802,6 +1574,13 @@ public sealed class PageItemModel : ObservableObject
             {
                 RaisePropertyChanged(nameof(FontSize));
                 RaisePropertyChanged(nameof(ItemTitleFontSize));
+                RaisePropertyChanged(nameof(ItemControlCaptionFontSize));
+                RaisePropertyChanged(nameof(ItemBodyCaptionFontSize));
+                RaisePropertyChanged(nameof(ItemFooterFontSize));
+                RaisePropertyChanged(nameof(ItemBodyHeight));
+                RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
+                RaisePropertyChanged(nameof(AvailableBodyHeight));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
                 RaisePropertyChanged(nameof(ItemValueFontSize));
                 RaisePropertyChanged(nameof(ItemUnitBaselineOffset));
                 RaisePropertyChanged(nameof(ItemUnitFontSize));
@@ -809,6 +1588,9 @@ public sealed class PageItemModel : ObservableObject
                 RaisePropertyChanged(nameof(ItemHeaderHeight));
                 RaisePropertyChanged(nameof(ItemUnitWidth));
                 RaisePropertyChanged(nameof(CanOpenValueEditor));
+                RaisePropertyChanged(nameof(ButtonAvailableBodyHeight));
+                RaisePropertyChanged(nameof(ButtonBodyFontSize));
+                RaisePropertyChanged(nameof(ButtonIconSize));
 
                 if (ParentListControl?.IsListControl == true && ParentListControl.IsAutoHeight && !ParentListControl._isApplyingListHeight)
                 {
@@ -832,6 +1614,19 @@ public sealed class PageItemModel : ObservableObject
         EffectiveMutedForeground = isDarkTheme ? DarkMutedForeground : LightMutedForeground;
         EffectiveAccentBackground = string.IsNullOrWhiteSpace(AccentBackgroundColor) ? (isDarkTheme ? DarkAccentBackground : LightAccentBackground) : AccentBackgroundColor!;
         EffectiveAccentForeground = string.IsNullOrWhiteSpace(AccentForegroundColor) ? (isDarkTheme ? DarkAccentForeground : LightAccentForeground) : AccentForegroundColor!;
+        EffectiveHeaderForeground = string.IsNullOrWhiteSpace(HeaderForeColor) ? EffectiveSecondaryForeground : HeaderForeColor!;
+        EffectiveHeaderBackground = string.IsNullOrWhiteSpace(HeaderBackColor) ? "Transparent" : HeaderBackColor!;
+        EffectiveHeaderBorder = string.IsNullOrWhiteSpace(HeaderBorderColor) ? EffectiveBorderBrush : HeaderBorderColor!;
+        EffectiveBodyForeground = string.IsNullOrWhiteSpace(BodyForeColor) ? EffectivePrimaryForeground : BodyForeColor!;
+        EffectiveBodyBackground = string.IsNullOrWhiteSpace(BodyBackColor)
+            ? (string.IsNullOrWhiteSpace(ContainerBackgroundColor) ? "Transparent" : ContainerBackgroundColor!)
+            : BodyBackColor!;
+        EffectiveBodyBorder = string.IsNullOrWhiteSpace(BodyBorderColor)
+            ? (string.IsNullOrWhiteSpace(ContainerBorder) ? EffectiveBorderBrush : ContainerBorder!)
+            : BodyBorderColor!;
+        EffectiveFooterForeground = string.IsNullOrWhiteSpace(FooterForeColor) ? EffectiveMutedForeground : FooterForeColor!;
+        EffectiveFooterBackground = string.IsNullOrWhiteSpace(FooterBackColor) ? "Transparent" : FooterBackColor!;
+        EffectiveFooterBorder = string.IsNullOrWhiteSpace(FooterBorderColor) ? EffectiveBorderBrush : FooterBorderColor!;
         RaisePropertyChanged(nameof(EffectiveBackgroundBrush));
         RaisePropertyChanged(nameof(EffectiveInnerBackgroundBrush));
         RaisePropertyChanged(nameof(EffectiveBorderBrushValue));
@@ -840,10 +1635,21 @@ public sealed class PageItemModel : ObservableObject
         RaisePropertyChanged(nameof(EffectiveMutedForegroundBrush));
         RaisePropertyChanged(nameof(EffectiveAccentBackgroundBrush));
         RaisePropertyChanged(nameof(EffectiveAccentForegroundBrush));
+        RaisePropertyChanged(nameof(EffectiveHeaderForegroundBrush));
+        RaisePropertyChanged(nameof(EffectiveHeaderBackgroundBrush));
+        RaisePropertyChanged(nameof(EffectiveHeaderBorderBrush));
+        RaisePropertyChanged(nameof(EffectiveBodyForegroundBrush));
+        RaisePropertyChanged(nameof(EffectiveBodyBackgroundBrush));
+        RaisePropertyChanged(nameof(EffectiveBodyBorderBrush));
+        RaisePropertyChanged(nameof(EffectiveFooterForegroundBrush));
+        RaisePropertyChanged(nameof(EffectiveFooterBackgroundBrush));
+        RaisePropertyChanged(nameof(EffectiveFooterBorderBrush));
         RaisePropertyChanged(nameof(EffectiveContainerBorderBrush));
         RaisePropertyChanged(nameof(EffectiveContainerBorderBrushValue));
         RaisePropertyChanged(nameof(EffectiveContainerBackground));
         RaisePropertyChanged(nameof(EffectiveContainerBackgroundBrush));
+        RaisePropertyChanged(nameof(EffectiveButtonBodyBackgroundBrush));
+        RaisePropertyChanged(nameof(EffectiveButtonBodyForegroundBrush));
     }
 
     public void ResolveTarget()
@@ -901,8 +1707,14 @@ public sealed class PageItemModel : ObservableObject
         RaisePropertyChanged(nameof(TargetPath));
         Target = selectedItem;
         EnsureTargetParameterSelection(selectedItem);
-        Header = selectedItem.Name ?? Header;
-        Title = selectedItem.Value?.ToString() ?? string.Empty;
+        var targetText = selectedItem.Params.Has("Text")
+            ? selectedItem.Params["Text"].Value?.ToString() ?? string.Empty
+            : string.Empty;
+
+        ControlCaption = !string.IsNullOrWhiteSpace(targetText)
+            ? targetText
+            : selectedItem.Name ?? ControlCaption;
+
         Footer = selectedItem.Params.Has("Unit") ? selectedItem.Params["Unit"].Value?.ToString() ?? string.Empty : string.Empty;
         RaisePropertyChanged(nameof(TargetParameterView));
         CancelPendingTargetRefresh();
@@ -914,7 +1726,16 @@ public sealed class PageItemModel : ObservableObject
         RaisePropertyChanged(nameof(DisplayValue));
         RaisePropertyChanged(nameof(DisplayUnit));
         RaisePropertyChanged(nameof(TargetParameterView));
+        RaisePropertyChanged(nameof(ItemBodyPresentation));
+        RaisePropertyChanged(nameof(ShowBodyCaption));
+        RaisePropertyChanged(nameof(ShowItemFooterPanel));
+        RaisePropertyChanged(nameof(ItemBodyHeight));
+        RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
+        RaisePropertyChanged(nameof(AvailableBodyHeight));
+        RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
         RaisePropertyChanged(nameof(ItemUnitWidth));
+        RaisePropertyChanged(nameof(ItemValueFontSize));
+        RaisePropertyChanged(nameof(ItemUnitFontSize));
         RaisePropertyChanged(nameof(CanOpenValueEditor));
     }
 
@@ -1011,6 +1832,7 @@ public sealed class PageItemModel : ObservableObject
 
         item.Width = ChildContentWidth;
         item.BorderWidth = ControlBorderWidth;
+        item.BorderColor = ControlBorderColor;
         item.CornerRadius = ControlCornerRadius;
         if (IsAutoHeight)
         {
@@ -1260,13 +2082,42 @@ public sealed class PageItemModel : ObservableObject
             : $"Logs/{normalized}";
     }
 
+    private static string NormalizeAlignment(string? value, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "left" => "Left",
+            "right" => "Right",
+            "center" => "Center",
+            _ => fallback
+        };
+    }
+
+    private static HorizontalAlignment ParseHorizontalAlignment(string? value, HorizontalAlignment fallback)
+    {
+        return NormalizeAlignment(value, fallback.ToString()) switch
+        {
+            "Left" => HorizontalAlignment.Left,
+            "Right" => HorizontalAlignment.Right,
+            _ => HorizontalAlignment.Center
+        };
+    }
+
     private ParameterDisplayModel BuildTargetParameterView()
+        => BuildTargetParameterView(null, Title);
+
+    private ParameterDisplayModel BuildTargetParameterView(string? labelOverride, string fallbackText)
     {
         var parameter = ResolveTargetParameter();
         var isValueParameter = parameter is not null && string.Equals(parameter.Name, "Value", StringComparison.OrdinalIgnoreCase);
-        var label = isValueParameter && Target?.Params.Has("Text") == true
+        var label = labelOverride ?? (isValueParameter && Target?.Params.Has("Text") == true
             ? Target.Params["Text"].Value?.ToString() ?? string.Empty
-            : (parameter?.Name ?? Header);
+            : (parameter?.Name ?? Header));
         var format = !string.IsNullOrWhiteSpace(TargetParameterFormat)
             ? TargetParameterFormat
             : isValueParameter && Target?.Params.Has("Format") == true
@@ -1276,7 +2127,7 @@ public sealed class PageItemModel : ObservableObject
             ? Target.Params["Unit"].Value?.ToString() ?? string.Empty
             : Footer;
 
-        return new ParameterDisplayModel(parameter, label, format, unitText, Title);
+        return new ParameterDisplayModel(parameter, label, format, unitText, fallbackText);
     }
 
     private Parameter? ResolveTargetParameter()

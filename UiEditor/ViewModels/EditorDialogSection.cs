@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 
-namespace UiEditor.ViewModels;
+namespace Amium.UiEditor.ViewModels;
 
 public sealed class EditorDialogSection
 {

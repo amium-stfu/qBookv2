@@ -1,10 +1,10 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using UiEditor.Host;
-using UiEditor.ViewModels;
+using Amium.Host;
+using Amium.UiEditor.ViewModels;
 
-namespace UiEditor;
+namespace Amium.UiEditor;
 
 public partial class App : Application
 {

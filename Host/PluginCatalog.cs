@@ -4,9 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
-using UiEditor.Contracts;
+using Amium.Contracts;
 
-namespace UiEditor.Host;
+namespace Amium.Host;
 
 public sealed class LoadedPlugin
 {

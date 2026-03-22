@@ -1,10 +1,12 @@
 using System.Collections.Generic;
-using UiEditor.Models;
+using Amium.UiEditor.Models;
 
-namespace UiEditor.Persistence;
+namespace Amium.UiEditor.Persistence;
 
 public sealed class LayoutDocument
 {
+    public string TabStripPlacement { get; init; } = "Right";
+
     public List<PageDocument> Pages { get; init; } = [];
 }
 
@@ -25,11 +27,75 @@ public sealed class PageItemDocument
 
     public string Id { get; init; } = string.Empty;
 
+    public string ControlCaption { get; init; } = string.Empty;
+
+    public bool CaptionVisible { get; init; } = true;
+
+    public bool ShowCaption { get; init; } = true;
+
+    public string BodyCaption { get; init; } = string.Empty;
+
+    public bool BodyCaptionVisible { get; init; } = true;
+
+    public bool ShowBodyCaption { get; init; } = true;
+
+    public bool ShowFooter { get; init; } = true;
+
     public string Header { get; init; } = string.Empty;
 
     public string Title { get; init; } = string.Empty;
 
     public string Footer { get; init; } = string.Empty;
+
+    public string? HeaderForeColor { get; init; }
+
+    public string? HeaderBackColor { get; init; }
+
+    public string? HeaderBorderColor { get; init; }
+
+    public double HeaderBorderWidth { get; init; }
+
+    public double HeaderCornerRadius { get; init; } = 6;
+
+    public string? BodyForeColor { get; init; }
+
+    public string? BodyBackColor { get; init; }
+
+    public string? BodyBorderColor { get; init; }
+
+    public double BodyBorderWidth { get; init; }
+
+    public double BodyCornerRadius { get; init; }
+
+    public string? FooterForeColor { get; init; }
+
+    public string? FooterBackColor { get; init; }
+
+    public string? FooterBorderColor { get; init; }
+
+    public double FooterBorderWidth { get; init; }
+
+    public double FooterCornerRadius { get; init; } = 6;
+
+    public string ToolTipText { get; init; } = string.Empty;
+
+    public string ButtonText { get; init; } = string.Empty;
+
+    public string ButtonIcon { get; init; } = string.Empty;
+
+    public bool ButtonOnlyIcon { get; init; }
+
+    public string ButtonIconAlign { get; init; } = "Left";
+
+    public string ButtonTextAlign { get; init; } = "Center";
+
+    public string ButtonCommand { get; init; } = string.Empty;
+
+    public string ButtonBodyBackground { get; init; } = "Transparent";
+
+    public string ButtonBodyForegroundColor { get; init; } = string.Empty;
+
+    public bool UseThemeColor { get; init; } = true;
 
     public string? BackgroundColor { get; init; }
 
@@ -78,6 +144,8 @@ public sealed class PageItemDocument
     public double ControlHeight { get; init; } = 72;
 
     public double ControlBorderWidth { get; init; } = 0;
+
+    public string? ControlBorderColor { get; init; }
 
     public double ControlCornerRadius { get; init; } = 0;
 

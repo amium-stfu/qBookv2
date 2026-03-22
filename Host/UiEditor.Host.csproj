@@ -3,8 +3,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>UiEditor.Host</AssemblyName>
-    <RootNamespace>UiEditor.Host</RootNamespace>
+    <AssemblyName>Amium.Host</AssemblyName>
+    <RootNamespace>Amium.Host</RootNamespace>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 

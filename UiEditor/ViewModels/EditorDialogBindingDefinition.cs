@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using UiEditor.Items;
-using UiEditor.Models;
+using Amium.Items;
+using Amium.UiEditor.Models;
 
-namespace UiEditor.ViewModels;
+namespace Amium.UiEditor.ViewModels;
 
 public sealed class EditorDialogBindingDefinition
 {

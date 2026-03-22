@@ -5,9 +5,9 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
-using UiEditor.Items;
+using Amium.Items;
 
-namespace UiEditor.Host;
+namespace Amium.Host;
 
 public enum DataChangeKind
 {

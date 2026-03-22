@@ -1,9 +1,9 @@
 <UserControl
     x:Name="Root"
-    x:Class="UiEditor.Controls.ParameterControl"
+    x:Class="Amium.UiEditor.Controls.ParameterControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:viewModels="using:UiEditor.ViewModels">
+    xmlns:viewModels="using:Amium.UiEditor.ViewModels">
   <Grid DataContext="{Binding #Root}" RowDefinitions="Auto,*">
     <TextBlock
         Grid.Row="0"
@@ -18,10 +18,14 @@
     <Grid Grid.Row="1">
       <Grid IsVisible="{Binding Presentation.IsText}">
         <Grid ColumnDefinitions="*,Auto" HorizontalAlignment="Stretch" VerticalAlignment="Bottom">
-          <TextBlock VerticalAlignment="Bottom" FontFamily="Calibri" TextTrimming="CharacterEllipsis" FontSize="{Binding ValueFontSize}" FontWeight="Bold" Foreground="{Binding Foreground}" Text="{Binding Presentation.ValueText}" />
-          <TextBlock Grid.Column="1" IsVisible="{Binding Presentation.ShowUnit}" MaxWidth="{Binding UnitWidth}" Margin="4,0,10,0" HorizontalAlignment="Left" VerticalAlignment="Bottom" FontFamily="Calibri" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{Binding UnitFontSize}" FontStyle="Italic" FontWeight="Normal" Foreground="{Binding Foreground}" Text="{Binding Presentation.UnitText}">
+          <TextBlock VerticalAlignment="Bottom" FontFamily="Calibri" TextTrimming="CharacterEllipsis" FontSize="{Binding ResolvedValueFontSize}" FontWeight="Bold" Foreground="{Binding Foreground}" Text="{Binding Presentation.ValueText}">
             <TextBlock.RenderTransform>
-              <TranslateTransform Y="{Binding UnitBaselineOffset}" />
+              <TranslateTransform Y="{Binding ValueVerticalOffset}" />
+            </TextBlock.RenderTransform>
+          </TextBlock>
+          <TextBlock Grid.Column="1" IsVisible="{Binding Presentation.ShowUnit}" MaxWidth="{Binding UnitWidth}" Margin="4,0,6,0" HorizontalAlignment="Left" VerticalAlignment="Bottom" FontFamily="Calibri" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{Binding ResolvedUnitFontSize}" FontStyle="Italic" FontWeight="Normal" Foreground="{Binding Foreground}" Text="{Binding Presentation.UnitText}">
+            <TextBlock.RenderTransform>
+              <TranslateTransform Y="{Binding ResolvedUnitBaselineOffset}" />
             </TextBlock.RenderTransform>
           </TextBlock>
         </Grid>
@@ -41,9 +45,9 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate DataType="viewModels:ParameterChoiceState">
-              <Border MinWidth="72" Padding="12,8" Background="{Binding Background}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="8">
-                <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{Binding Foreground}" Text="{Binding Label}" />
-              </Border>
+              <Button MinWidth="72" MinHeight="{Binding ChoiceHeight, ElementName=Root}" Padding="10,4" Background="{Binding Background}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="8" Click="OnBoolChoiceClicked" Tag="{Binding Index}">
+                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontSize="{Binding ChoiceFontSize, ElementName=Root}" FontWeight="SemiBold" Foreground="{Binding Foreground}" Text="{Binding Label}" />
+              </Button>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
@@ -57,8 +61,8 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate DataType="viewModels:ParameterChoiceState">
-            <Button HorizontalAlignment="Stretch" Margin="0,0,6,6" Padding="10,6" Background="{Binding Background}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="8" Click="OnBitChoiceClicked" Tag="{Binding Index}">
-              <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{Binding Foreground}" Text="{Binding Label}" />
+            <Button HorizontalAlignment="Stretch" MinHeight="{Binding ChoiceHeight, ElementName=Root}" Margin="0,0,6,6" Padding="8,3" Background="{Binding Background}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="8" Click="OnBitChoiceClicked" Tag="{Binding Index}">
+              <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontSize="{Binding ChoiceFontSize, ElementName=Root}" FontWeight="SemiBold" Foreground="{Binding Foreground}" Text="{Binding Label}" />
             </Button>
           </DataTemplate>
         </ItemsControl.ItemTemplate>

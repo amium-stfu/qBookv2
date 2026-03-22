@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Specialized;
-using System.Diagnostics;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -8,12 +7,11 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using UiEditor.Models;
-using UiEditor.ViewModels;
+using Amium.UiEditor.Models;
 
-namespace UiEditor.Controls;
+namespace Amium.UiEditor.Controls;
 
-public partial class EditorListControl : UserControl
+public partial class EditorListControl : EditorTemplateControl
 {
     private Border? _viewportBorder;
     private ListBox? _itemListBox;
@@ -28,10 +26,7 @@ public partial class EditorListControl : UserControl
         DataContextChanged += OnDataContextChanged;
     }
 
-    private PageItemModel? ListItem => DataContext as PageItemModel;
-
-    private MainWindowViewModel? ViewModel
-        => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
+    private PageItemModel? ListItem => Item;
 
     private void OnChildItemPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -47,19 +42,12 @@ public partial class EditorListControl : UserControl
 
     private void OnSettingsClicked(object? sender, RoutedEventArgs e)
     {
-        if (ListItem is null || ViewModel is null || this.GetVisualAncestors().OfType<PageEditorControl>().FirstOrDefault() is not { } editor)
-        {
-            return;
-        }
-
-        var anchor = this.TranslatePoint(new Point(Bounds.Width + 8, 0), editor) ?? new Point(24, 24);
-        ViewModel.OpenItemEditor(ListItem, anchor.X, anchor.Y);
-        e.Handled = true;
+        HandleSettingsClicked(e);
     }
 
     private void OnInteractivePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        e.Handled = true;
+        HandleInteractivePointerPressed(e);
     }
 
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)

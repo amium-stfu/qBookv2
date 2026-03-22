@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace UiEditor.Host;
+namespace Amium.Host;
 
 
 public enum CoreState

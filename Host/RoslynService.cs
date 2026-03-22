@@ -1,4 +1,4 @@
-﻿
+
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Classification;
@@ -27,12 +27,12 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using static UiEditor.Host.RoslynService;
+using static Amium.Host.RoslynService;
 using AccessibilityCode = Microsoft.CodeAnalysis.Accessibility;
 using RoslynDocument = Microsoft.CodeAnalysis.Document;
 using System.Data;
 
-namespace UiEditor.Host
+namespace Amium.Host
 {
     public class CodeDocument
     {
