@@ -1,4 +1,5 @@
 using System;
+using Amium.Host.Logging;
 using Amium.Items;
 
 namespace Amium.Host;
@@ -32,14 +33,75 @@ public abstract class BookPage : IDisposable
         => _context.Attach(source, alias);
 
     /// <summary>
-    /// Creates a page-scoped command using the convention &lt;Page&gt;/Commands/&lt;name&gt; and returns it for explicit publishing.
+    /// Creates a page-scoped command using the convention &lt;Page&gt;/Commands/&lt;name&gt;.
     /// </summary>
     /// <param name="name">The page-local command name.</param>
     /// <param name="action">The command callback.</param>
     /// <param name="description">An optional description for editor selection and documentation.</param>
     /// <returns>A host command with the generated page-scoped command path.</returns>
+    protected HostCommand CreateCommand(string name, Action action, string? description = null)
+        => _context.CreateCommand(name, action, description);
+
+    /// <summary>
+    /// Creates a page-scoped command using the legacy attach naming.
+    /// </summary>
     protected HostCommand AttachCommand(string name, Action action, string? description = null)
-        => _context.AttachCommand(name, action, description);
+        => CreateCommand(name, action, description);
+
+    /// <summary>
+    /// Publishes an item to the UI. Raw source items are attached to this page automatically, while already page-bound items are published as-is.
+    /// </summary>
+    protected Item PublishItem(Item item, string? alias = null, bool pruneMissingMembers = false)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        var pageItem = IsPageScoped(item.Path) && string.IsNullOrWhiteSpace(alias)
+            ? item
+            : Attach(item, alias);
+
+        return UiPublisher.Publish(pageItem, pruneMissingMembers);
+    }
+
+    /// <summary>
+    /// Publishes a page-scoped command to the command registry.
+    /// </summary>
+    protected HostCommand PublishCommand(string name, Action action, string? description = null)
+    {
+        var command = CreateCommand(name, action, description);
+        UiPublisher.Publish(command);
+        return command;
+    }
+
+    /// <summary>
+    /// Publishes an already created command.
+    /// </summary>
+    protected HostCommand PublishCommand(HostCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        UiPublisher.Publish(command);
+        return command;
+    }
+
+    /// <summary>
+    /// Publishes a process log below the current page using the convention &lt;Page&gt;/Logs/&lt;name&gt;.
+    /// </summary>
+    protected Item PublishProcessLog(string name, ProcessLog log, string? title = null, bool pruneMissingMembers = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(log);
+
+        return UiPublisher.Publish(BuildPagePath($"Logs/{name}"), log, title, pruneMissingMembers);
+    }
+
+    /// <summary>
+    /// Publishes a camera source to the camera registry.
+    /// </summary>
+    protected ICameraFrameSource PublishCamera(ICameraFrameSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        UiPublisher.Publish(source);
+        return source;
+    }
 
     /// <summary>
     /// Initializes the page and invokes the initialization hook exactly once.
@@ -111,6 +173,28 @@ public abstract class BookPage : IDisposable
     protected abstract void OnInitialize();
     protected abstract void OnRun();
     protected abstract void OnDestroy();
+
+    protected string BuildPagePath(string relativePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
+        return $"{_context.PagePath}/{NormalizePath(relativePath)}";
+    }
+
+    private bool IsPageScoped(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var normalizedPath = NormalizePath(path);
+        var normalizedPagePath = NormalizePath(_context.PagePath);
+        return string.Equals(normalizedPath, normalizedPagePath, StringComparison.Ordinal)
+            || normalizedPath.StartsWith($"{normalizedPagePath}/", StringComparison.Ordinal);
+    }
+
+    private static string NormalizePath(string value)
+        => value.Replace('\\', '/').Trim('/');
 
     private void ThrowIfDisposed()
     {

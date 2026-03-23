@@ -43,31 +43,31 @@ public class qPage : BookPage
     {
         if (_floatAttached is not null)
         {
-            UiPublisher.Publish(_floatAttached);
+            PublishItem(_floatAttached);
         }
 
         if (_textAttached is not null)
         {
-            UiPublisher.Publish(_textAttached);
+            PublishItem(_textAttached);
         }
 
         if (_boolAttached is not null)
         {
-            UiPublisher.Publish(_boolAttached);
+            PublishItem(_boolAttached);
         }
 
         if (_bitsAttached is not null)
         {
-            UiPublisher.Publish(_bitsAttached);
+            PublishItem(_bitsAttached);
         }
     }
 
     private void PublishCommands()
     {
-        UiPublisher.Publish(AttachCommand("Pulse", ExecutePulse, "Set demo values to active"));
-        UiPublisher.Publish(AttachCommand("Reset", ExecuteReset, "Reset demo values"));
-        UiPublisher.Publish(AttachCommand("Toggle", ExecuteToggle, "Toggle bool and bits"));
-        UiPublisher.Publish(AttachCommand("Standby", ExecuteStandby, "Set demo values to standby"));
+        PublishCommand("Pulse", ExecutePulse, "Set demo values to active");
+        PublishCommand("Reset", ExecuteReset, "Reset demo values");
+        PublishCommand("Toggle", ExecuteToggle, "Toggle bool and bits");
+        PublishCommand("Standby", ExecuteStandby, "Set demo values to standby");
     }
 
     private void ExecutePulse()

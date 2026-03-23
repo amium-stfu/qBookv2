@@ -48,35 +48,35 @@ public class qPage : BookPage
     {
         if (_numericAttached is not null)
         {
-            UiPublisher.Publish(_numericAttached);
+            PublishItem(_numericAttached);
         }
 
         if (_integerAttached is not null)
         {
-            UiPublisher.Publish(_integerAttached);
+            PublishItem(_integerAttached);
         }
 
         if (_hexAttached is not null)
         {
-            UiPublisher.Publish(_hexAttached);
+            PublishItem(_hexAttached);
         }
 
         if (_bitmaskAttached is not null)
         {
-            UiPublisher.Publish(_bitmaskAttached);
+            PublishItem(_bitmaskAttached);
         }
 
         if (_readOnlyAttached is not null)
         {
-            UiPublisher.Publish(_readOnlyAttached);
+            PublishItem(_readOnlyAttached);
         }
     }
 
     private void PublishButtonCommands()
     {
-        UiPublisher.Publish(CreateStartCommand());
-        UiPublisher.Publish(CreateResetCounterCommand());
-        UiPublisher.Publish(CreateStopCommand());
+        PublishCommand(CreateStartCommand());
+        PublishCommand(CreateResetCounterCommand());
+        PublishCommand(CreateStopCommand());
     }
 
     // Raises the temperature, updates the hex register and enables status bits.

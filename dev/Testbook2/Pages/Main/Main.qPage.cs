@@ -36,19 +36,19 @@ public class qPage : BookPage
     {
         if (_temperatureAttached is not null)
         {
-            UiPublisher.Publish(_temperatureAttached);
+            PublishItem(_temperatureAttached);
         }
 
         if (_registerAttached is not null)
         {
-            UiPublisher.Publish(_registerAttached);
+            PublishItem(_registerAttached);
         }
     }
 
     private void PublishCommands()
     {
-        UiPublisher.Publish(AttachCommand("Boost", ExecuteBoostCommand, "Increase the demo values"));
-        UiPublisher.Publish(AttachCommand("Reset", ExecuteResetCommand, "Reset the demo values"));
+        PublishCommand("Boost", ExecuteBoostCommand, "Increase the demo values");
+        PublishCommand("Reset", ExecuteResetCommand, "Reset the demo values");
     }
 
     private void ExecuteBoostCommand()

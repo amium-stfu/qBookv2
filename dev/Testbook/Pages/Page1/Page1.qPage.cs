@@ -13,7 +13,6 @@ namespace DefinitionPage1;
 public class qPage : BookPage
 {
     private const string DemoProcessLogName = "Page1Demo";
-    private const string DemoProcessLogPath = "Logs/Page1Demo";
     public string Title { get; private set; } = "Page1";
 
     public static Item DemoSinus = CreateDemoItem("AThread Sinus", "Page1/Sinus", "sin", 0f);
@@ -79,7 +78,7 @@ public class qPage : BookPage
     {
         if (_demoProcessLog is not null)
         {
-            UiPublisher.Publish(DemoProcessLogPath, _demoProcessLog, DemoProcessLogName);
+            PublishProcessLog(DemoProcessLogName, _demoProcessLog, DemoProcessLogName);
             return;
         }
 
@@ -88,7 +87,7 @@ public class qPage : BookPage
 
         _demoProcessLog = new ProcessLog();
         _demoProcessLog.InitializeLog(logDirectory);
-        UiPublisher.Publish(DemoProcessLogPath, _demoProcessLog, DemoProcessLogName);
+        PublishProcessLog(DemoProcessLogName, _demoProcessLog, DemoProcessLogName);
         _demoProcessLog.Info($"[{DemoProcessLogName}] ProcessLog initialized at {logDirectory}");
     }
 
@@ -110,7 +109,7 @@ public class qPage : BookPage
         UiPublisher.Publish(DemoTimerHp);
         if (_demoCanBusS1 is not null)
         {
-            UiPublisher.Publish(_demoCanBusS1);
+            PublishItem(_demoCanBusS1);
         }
         Core.LogInfo("[Page1] Demo snapshots registered");
         _demoProcessLog?.Info("[Page1Demo] Demo snapshots registered");

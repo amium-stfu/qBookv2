@@ -63,15 +63,15 @@ public class qPage : BookPage
 
     private void PublishCommands()
     {
-        UiPublisher.Publish(AttachCommand("Start", ExecuteStart, "Start all simulations"));
-        UiPublisher.Publish(AttachCommand("Stop", ExecuteStop, "Stop all simulations"));
-        UiPublisher.Publish(AttachCommand("SetpointUp", ExecuteSetpointUp, "Increase setpoint"));
-        UiPublisher.Publish(AttachCommand("SetpointDown", ExecuteSetpointDown, "Decrease setpoint"));
-        UiPublisher.Publish(AttachCommand("TauFast", ExecuteTauFast, "Reduce tau for faster dynamics"));
-        UiPublisher.Publish(AttachCommand("TauSlow", ExecuteTauSlow, "Increase tau for slower dynamics"));
-        UiPublisher.Publish(AttachCommand("NoiseUp", ExecuteNoiseUp, "Increase noise amplitude"));
-        UiPublisher.Publish(AttachCommand("NoiseDown", ExecuteNoiseDown, "Decrease noise amplitude"));
-        UiPublisher.Publish(AttachCommand("Peak", ExecutePeak, "Inject random peak"));
+        PublishCommand("Start", ExecuteStart, "Start all simulations");
+        PublishCommand("Stop", ExecuteStop, "Stop all simulations");
+        PublishCommand("SetpointUp", ExecuteSetpointUp, "Increase setpoint");
+        PublishCommand("SetpointDown", ExecuteSetpointDown, "Decrease setpoint");
+        PublishCommand("TauFast", ExecuteTauFast, "Reduce tau for faster dynamics");
+        PublishCommand("TauSlow", ExecuteTauSlow, "Increase tau for slower dynamics");
+        PublishCommand("NoiseUp", ExecuteNoiseUp, "Increase noise amplitude");
+        PublishCommand("NoiseDown", ExecuteNoiseDown, "Decrease noise amplitude");
+        PublishCommand("Peak", ExecutePeak, "Inject random peak");
     }
 
     private void ExecuteStart()
@@ -194,12 +194,12 @@ public class qPage : BookPage
     {
         if (_trendAttached is not null)
         {
-            UiPublisher.Publish(_trendAttached);
+            PublishItem(_trendAttached);
         }
 
         if (_readAttached is not null)
         {
-            UiPublisher.Publish(_readAttached);
+            PublishItem(_readAttached);
         }
     }
 

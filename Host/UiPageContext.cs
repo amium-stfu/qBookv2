@@ -20,6 +20,7 @@ public sealed class UiPageContext : IDisposable
 
     public string PageName { get; }
     public string? BookName { get; }
+    public string PagePath => _pagePath;
 
     public Item Attach(Item source, string? alias = null)
     {
@@ -29,12 +30,21 @@ public sealed class UiPageContext : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(itemName);
 
         var targetPath = $"{_pagePath}/{itemName}";
+
+        foreach (var link in _links)
+        {
+            if (link.Matches(source, targetPath))
+            {
+                return link.AttachedItem;
+            }
+        }
+
         var attached = source.Clone().Repath(targetPath);
-        _links.Add(new AttachedItemLink(source, targetPath));
+        _links.Add(new AttachedItemLink(source, attached, targetPath));
         return attached;
     }
 
-    public HostCommand AttachCommand(string name, Action action, string? description = null)
+    public HostCommand CreateCommand(string name, Action action, string? description = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(action);
@@ -42,6 +52,9 @@ public sealed class UiPageContext : IDisposable
         var commandPath = $"{_pagePath}/Commands/{name.Trim()}";
         return new HostCommand(commandPath, _ => action(), description: description);
     }
+
+    public HostCommand AttachCommand(string name, Action action, string? description = null)
+        => CreateCommand(name, action, description);
 
     public void Dispose()
     {
@@ -55,18 +68,26 @@ public sealed class UiPageContext : IDisposable
 
     private sealed class AttachedItemLink : IDisposable
     {
+        private readonly Item _attachedItem;
         private readonly Item _source;
         private bool _isSyncingFromSource;
         private bool _isSyncingFromTarget;
         private readonly string _targetPath;
 
-        public AttachedItemLink(Item source, string targetPath)
+        public AttachedItemLink(Item source, Item attachedItem, string targetPath)
         {
             _source = source;
+            _attachedItem = attachedItem;
             _targetPath = targetPath;
             _source.Changed += OnSourceChanged;
             HostRegistries.Data.ItemChanged += OnTargetChanged;
         }
+
+        public Item AttachedItem => _attachedItem;
+
+        public bool Matches(Item source, string targetPath)
+            => ReferenceEquals(_source, source)
+                && string.Equals(_targetPath, targetPath, StringComparison.Ordinal);
 
         public void Dispose()
         {
