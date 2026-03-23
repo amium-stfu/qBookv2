@@ -361,6 +361,8 @@ public sealed class PageItemModel : ObservableObject
             {
                 RaisePropertyChanged(nameof(HasButtonIcon));
                 RaisePropertyChanged(nameof(ShowButtonIcon));
+                RaisePropertyChanged(nameof(EffectiveButtonIconPath));
+                RaisePropertyChanged(nameof(ShowButtonText));
             }
         }
     }
@@ -374,6 +376,7 @@ public sealed class PageItemModel : ObservableObject
             {
                 RaisePropertyChanged(nameof(ShowButtonText));
                 RaisePropertyChanged(nameof(ShowButtonIcon));
+                RaisePropertyChanged(nameof(EffectiveButtonIconPath));
             }
         }
     }
@@ -1296,9 +1299,11 @@ public sealed class PageItemModel : ObservableObject
 
     public bool HasButtonIcon => !string.IsNullOrWhiteSpace(ButtonIcon);
 
-    public bool ShowButtonText => !ButtonOnlyIcon && !string.IsNullOrWhiteSpace(EffectiveButtonText);
+    public bool ShowButtonText => (!ButtonOnlyIcon || !HasButtonIcon) && !string.IsNullOrWhiteSpace(EffectiveButtonText);
 
-    public bool ShowButtonIcon => ButtonOnlyIcon || HasButtonIcon;
+    public bool ShowButtonIcon => HasButtonIcon;
+
+    public string EffectiveButtonIconPath => HasButtonIcon ? ButtonIcon : "avares://Amium.UiEditor/EditorIcons/clear.svg";
 
     public string EffectiveButtonCommand => ButtonCommand;
 
@@ -2196,8 +2201,8 @@ public sealed class PageItemModel : ObservableObject
         {
             return rawValue switch
             {
-                string text => Enum.Parse(effectiveType, text, ignoreCase: true),
-                _ => Enum.ToObject(effectiveType, Convert.ToInt64(rawValue, CultureInfo.InvariantCulture))
+                string text when Enum.TryParse(effectiveType, text, ignoreCase: true, out var parsedEnum) => parsedEnum,
+                _ => TryConvertEnumNumeric(rawValue, effectiveType)
             };
         }
 
@@ -2210,66 +2215,95 @@ public sealed class PageItemModel : ObservableObject
 
             if (effectiveType == typeof(bool))
             {
-                return bool.Parse(textValue);
+                if (bool.TryParse(textValue, out var boolResult))
+                {
+                    return boolResult;
+                }
+
+                if (long.TryParse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numericBool))
+                {
+                    return numericBool != 0;
+                }
+
+                return rawValue;
             }
 
             if (effectiveType == typeof(byte))
             {
-                return byte.Parse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture);
+                return byte.TryParse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
 
             if (effectiveType == typeof(sbyte))
             {
-                return sbyte.Parse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture);
+                return sbyte.TryParse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
 
             if (effectiveType == typeof(short))
             {
-                return short.Parse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture);
+                return short.TryParse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
 
             if (effectiveType == typeof(ushort))
             {
-                return ushort.Parse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture);
+                return ushort.TryParse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
 
             if (effectiveType == typeof(int))
             {
-                return int.Parse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture);
+                return int.TryParse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
 
             if (effectiveType == typeof(uint))
             {
-                return uint.Parse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture);
+                return uint.TryParse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
 
             if (effectiveType == typeof(long))
             {
-                return long.Parse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture);
+                return long.TryParse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
 
             if (effectiveType == typeof(ulong))
             {
-                return ulong.Parse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture);
+                return ulong.TryParse(textValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
 
             if (effectiveType == typeof(float))
             {
-                return float.Parse(textValue, NumberStyles.Float | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
+                return float.TryParse(textValue, NumberStyles.Float | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
 
             if (effectiveType == typeof(double))
             {
-                return double.Parse(textValue, NumberStyles.Float | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
+                return double.TryParse(textValue, NumberStyles.Float | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
 
             if (effectiveType == typeof(decimal))
             {
-                return decimal.Parse(textValue, NumberStyles.Float | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
+                return decimal.TryParse(textValue, NumberStyles.Float | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var parsed) ? parsed : rawValue;
             }
         }
 
-        return Convert.ChangeType(rawValue, effectiveType, CultureInfo.InvariantCulture);
+        try
+        {
+            return Convert.ChangeType(rawValue, effectiveType, CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return rawValue;
+        }
+    }
+
+    private static object? TryConvertEnumNumeric(object rawValue, Type enumType)
+    {
+        try
+        {
+            return Enum.ToObject(enumType, Convert.ToInt64(rawValue, CultureInfo.InvariantCulture));
+        }
+        catch
+        {
+            return rawValue;
+        }
     }
 
     private static IBrush ParseBrush(string? value)

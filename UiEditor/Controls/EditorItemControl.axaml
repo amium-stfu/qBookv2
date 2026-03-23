@@ -8,8 +8,8 @@
     <Grid>
       <Button x:Name="SubItemsButton" Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnSubItemsClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="SubItems">
         <Grid>
-          <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/menu.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}}" />
-          <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/menu.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+          <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/menu.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}, FallbackValue=True, TargetNullValue=True}" />
+          <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/menu.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}" />
         </Grid>
       </Button>
       <Popup x:Name="SubItemsPopup" Placement="RightEdgeAlignedTop" PlacementTarget="{Binding #SubItemsButton}" HorizontalOffset="8" IsLightDismissEnabled="True">

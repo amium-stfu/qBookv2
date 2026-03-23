@@ -20,7 +20,7 @@
           <Button Classes="toolicon" Click="OnClearClicked" Content="Clear" />
         </Border>
         <Border Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" Background="Transparent" CornerRadius="8" Padding="8,4">
-          <Button Classes="toolicon" VerticalAlignment="Center" Background="{Binding DataContext.EditPanelButtonBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderBrush="{Binding DataContext.EditPanelButtonBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" Click="OnSettingsClicked" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Chart Einstellungen">
+          <Button Classes="toolicon" VerticalAlignment="Center" Background="{Binding DataContext.EditPanelButtonBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=#F8FAFC, TargetNullValue=#F8FAFC}" BorderBrush="{Binding DataContext.EditPanelButtonBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=#CBD5E1, TargetNullValue=#CBD5E1}" Click="OnSettingsClicked" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Chart Einstellungen">
             <svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" />
           </Button>
         </Border>

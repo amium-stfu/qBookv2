@@ -20,7 +20,7 @@
             </ItemsControl.Styles>
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="viewModels:EditorGridLine">
-                <Border Width="{Binding Width}" Height="{Binding Height}" Background="{Binding DataContext.GridLineBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+                <Border Width="{Binding Width}" Height="{Binding Height}" Background="{Binding DataContext.GridLineBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=#E9EEF5, TargetNullValue=#E9EEF5}" />
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>

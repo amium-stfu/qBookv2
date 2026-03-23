@@ -23,16 +23,16 @@
 
           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
             <ContentPresenter Content="{Binding HeaderActionsContent, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
-            <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnSettingsClicked" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Settings">
+            <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnSettingsClicked" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Settings">
               <Grid>
-                <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}}" />
-                <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+                <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}, FallbackValue=True, TargetNullValue=True}" />
+                <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}" />
               </Grid>
             </Button>
-            <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnDeleteClicked" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Löschen">
+            <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnDeleteClicked" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Löschen">
               <Grid>
-                <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/remove.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}}" />
-                <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/remove.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+                <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/remove.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}, FallbackValue=True, TargetNullValue=True}" />
+                <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/remove.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}" />
               </Grid>
             </Button>
           </StackPanel>
@@ -87,12 +87,12 @@
             BorderBrush="Transparent"
             CornerRadius="0"
             Click="OnSettingsClicked"
-            IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
+            IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}"
             PointerPressed="OnInteractivePointerPressed"
             ToolTip.Tip="Settings">
           <Grid>
-            <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}}" />
-            <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+            <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}, FallbackValue=True, TargetNullValue=True}" />
+            <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}" />
           </Grid>
         </Button>
         <Button
@@ -107,12 +107,12 @@
             BorderBrush="Transparent"
             CornerRadius="0"
             Click="OnDeleteClicked"
-            IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
+            IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}"
             PointerPressed="OnInteractivePointerPressed"
             ToolTip.Tip="Löschen">
           <Grid>
-            <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/remove.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}}" />
-            <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/remove.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+            <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/remove.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}, FallbackValue=True, TargetNullValue=True}" />
+            <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/remove.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}" />
           </Grid>
         </Button>
       </StackPanel>

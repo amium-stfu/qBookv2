@@ -1,0 +1,5 @@
+{
+  "ProjectName": "DemoBook",
+  "TargetFramework": "net9.0-windows",
+  "TabStripPlacement": "Right"
+}

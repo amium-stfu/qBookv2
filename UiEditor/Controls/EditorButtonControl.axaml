@@ -21,7 +21,7 @@
             HorizontalAlignment="{Binding ButtonIconHorizontalAlignment}"
             VerticalAlignment="Center"
             IsVisible="{Binding ShowButtonIcon}"
-            Path="{Binding ButtonIcon}" />
+          Path="{Binding EffectiveButtonIconPath}" />
         <TextBlock
             HorizontalAlignment="{Binding ButtonTextHorizontalAlignment}"
             VerticalAlignment="Center"
