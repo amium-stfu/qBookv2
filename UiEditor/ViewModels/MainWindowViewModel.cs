@@ -263,6 +263,8 @@ public sealed class MainWindowViewModel : ObservableObject
             if (SetProperty(ref _tabStripPlacement, value))
             {
                 OnPropertyChanged(nameof(TabHeaderHorizontalAlignment));
+                OnPropertyChanged(nameof(IsTopTabStripPlacement));
+                OnPropertyChanged(nameof(IsRightTabStripPlacement));
             }
         }
     }
@@ -272,6 +274,10 @@ public sealed class MainWindowViewModel : ObservableObject
         Dock.Left => HorizontalAlignment.Right,
         _ => HorizontalAlignment.Stretch
     };
+
+    public bool IsTopTabStripPlacement => TabStripPlacement == Dock.Top;
+
+    public bool IsRightTabStripPlacement => TabStripPlacement == Dock.Right;
 
     public string ThemeModeText => IsDarkTheme ? "Dark Theme" : "Light Theme";
     public string WindowBackground => CurrentTheme.WindowBackground;
@@ -2711,7 +2717,7 @@ public sealed class MainWindowViewModel : ObservableObject
         => GetFormatParameterToolTip(SplitParameterFormat(item.TargetParameterFormat).Kind);
 
     private static string GetChartSeriesToolTip(PageItemModel item)
-        => "Eine Serie pro Zeile: TargetPath|Y1 bis TargetPath|Y4. Immer Value numerisch, X ist DateTime. Beispiel\nPage1/Sinus/AThread Sinus|Y1\nPage1/Task/ATask Counter|Y2";
+        => "Eine Serie pro Zeile: TargetPath|Y1 bis TargetPath|Y4 oder optional mit Stil TargetPath|Y1|Step. Immer Value numerisch, X ist DateTime. Beispiel\nPage1/Sinus/AThread Sinus|Y1\nPage1/Task/ATask Counter|Y2|Step";
 
     private static string GetFormatParameterToolTip(string? kind)
     {
@@ -2937,25 +2943,7 @@ public sealed class MainWindowViewModel : ObservableObject
             new PageModel
             {
                 Index = 1,
-                Name = "Page1",
-                Items =
-                {
-                    new PageItemModel { Kind = ControlKind.Item, Name = "Item1", ControlCaption = "M1", BodyCaption = "udef", Footer = "Out: 45%     Set: 34.25", TargetPath = DemoTargetPath, TargetParameterPath = "Value", BodyCornerRadius = 8, X = 60, Y = 40, Width = 220, Height = 92 },
-                    new PageItemModel { Kind = ControlKind.Item, Name = "Item2", ControlCaption = "Signal", BodyCaption = "udef", Footer = "Status", TargetPath = DemoTargetPath, TargetParameterPath = "Value", BodyCornerRadius = 8, X = 470, Y = 45, Width = 220, Height = 88 },
-                    new PageItemModel { Kind = ControlKind.Item, Name = "Item3", ControlCaption = "FID_234", BodyCaption = "Value", Footer = "Unit", TargetPath = DemoTargetPath, TargetParameterPath = "Value", BodyCornerRadius = 8, X = 730, Y = 45, Width = 260, Height = 110 },
-                    new PageItemModel { Kind = ControlKind.Button, Name = "Button1", ControlCaption = string.Empty, BodyCaption = "Button", Footer = "Ctrl+X", BodyCornerRadius = 8, X = 45, Y = 480, Width = 300, Height = 72 },
-                    new PageItemModel { Kind = ControlKind.Button, Name = "Button2", ControlCaption = string.Empty, BodyCaption = "Button", Footer = "Ctrl+X", BodyCornerRadius = 8, X = 435, Y = 475, Width = 320, Height = 96 }
-                }
-            },
-            new PageModel
-            {
-                Index = 2,
-                Name = "Page2",
-                Items =
-                {
-                    new PageItemModel { Kind = ControlKind.Item, Name = "Item1", ControlCaption = "Sensor", BodyCaption = "online", Footer = "Value: 12.7", TargetPath = DemoTargetPath, TargetParameterPath = "Value", BodyCornerRadius = 8, X = 90, Y = 80, Width = 250, Height = 96 },
-                    new PageItemModel { Kind = ControlKind.Button, Name = "Button1", ControlCaption = string.Empty, BodyCaption = "Start", Footer = "Ctrl+S", BodyCornerRadius = 8, X = 390, Y = 360, Width = 290, Height = 88 }
-                }
+                Name = "Page1"
             }
         ];
     }

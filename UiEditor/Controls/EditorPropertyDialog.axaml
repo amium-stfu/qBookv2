@@ -9,71 +9,72 @@
   <UserControl.Styles>
     <Style Selector="TextBox.dialog-field">
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.CardBorderBrush, ElementName=Root, FallbackValue=#D5D9E0, TargetNullValue=#D5D9E0}" />
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}" />
-      <Setter Property="Foreground" Value="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" />
-      <Setter Property="CaretBrush" Value="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" />
-      <Setter Property="SelectionBrush" Value="{Binding DataContext.ParameterHoverColor, ElementName=Root, FallbackValue=#BDBDBD, TargetNullValue=#BDBDBD}" />
-      <Setter Property="SelectionForegroundBrush" Value="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" />
+      <Setter Property="BorderBrush" Value="{Binding CardBorderBrush, ElementName=Root}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="CaretBrush" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="SelectionBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+      <Setter Property="SelectionForegroundBrush" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
     </Style>
     <Style Selector="TextBox.dialog-field:pointerover">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}" />
-      <Setter Property="Foreground" Value="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.ParameterHoverColor, ElementName=Root, FallbackValue=#BDBDBD, TargetNullValue=#BDBDBD}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
     </Style>
     <Style Selector="TextBox.dialog-field:focus">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}" />
-      <Setter Property="Foreground" Value="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" />
-      <Setter Property="CaretBrush" Value="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.ParameterHoverColor, ElementName=Root, FallbackValue=#BDBDBD, TargetNullValue=#BDBDBD}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="CaretBrush" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
     </Style>
     <Style Selector="ComboBox.dialog-field">
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.CardBorderBrush, ElementName=Root, FallbackValue=#D5D9E0, TargetNullValue=#D5D9E0}" />
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}" />
-      <Setter Property="Foreground" Value="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" />
+      <Setter Property="BorderBrush" Value="{Binding CardBorderBrush, ElementName=Root}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
     </Style>
     <Style Selector="ComboBox.dialog-field:pointerover">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}" />
-      <Setter Property="Foreground" Value="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.ParameterHoverColor, ElementName=Root, FallbackValue=#BDBDBD, TargetNullValue=#BDBDBD}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
     </Style>
     <Style Selector="ComboBox.dialog-field:focus">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}" />
-      <Setter Property="Foreground" Value="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.ParameterHoverColor, ElementName=Root, FallbackValue=#BDBDBD, TargetNullValue=#BDBDBD}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
     </Style>
     <Style Selector="TextBox.dialog-field /template/ Border">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.CardBorderBrush, ElementName=Root, FallbackValue=#D5D9E0, TargetNullValue=#D5D9E0}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding CardBorderBrush, ElementName=Root}" />
     </Style>
     <Style Selector="TextBox.dialog-field:pointerover /template/ Border">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.ParameterHoverColor, ElementName=Root, FallbackValue=#BDBDBD, TargetNullValue=#BDBDBD}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
     </Style>
     <Style Selector="TextBox.dialog-field:focus /template/ Border">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.ParameterHoverColor, ElementName=Root, FallbackValue=#BDBDBD, TargetNullValue=#BDBDBD}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
     </Style>
     <Style Selector="TextBox.dialog-field /template/ ScrollViewer">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root}" />
-      <Setter Property="Foreground" Value="{Binding DataContext.ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
     </Style>
     <Style Selector="ComboBox.dialog-field /template/ Border">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.CardBorderBrush, ElementName=Root}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding CardBorderBrush, ElementName=Root}" />
     </Style>
     <Style Selector="ComboBox.dialog-field:pointerover /template/ Border">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.ParameterHoverColor, ElementName=Root}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
     </Style>
     <Style Selector="ComboBox.dialog-field:focus /template/ Border">
-      <Setter Property="Background" Value="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.ParameterHoverColor, ElementName=Root}" />
-    </Style>    <Style Selector="Button.dialog-button">
-      <Setter Property="Background" Value="{Binding DataContext.EditPanelButtonBackground, ElementName=Root, FallbackValue=#F8FAFC, TargetNullValue=#F8FAFC}" />
-      <Setter Property="BorderBrush" Value="{Binding DataContext.EditPanelButtonBorderBrush, ElementName=Root, FallbackValue=#CBD5E1, TargetNullValue=#CBD5E1}" />
-      <Setter Property="Foreground" Value="{Binding DataContext.PrimaryTextBrush, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="Background" Value="{Binding EditPanelButtonBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding EditPanelButtonBorderBrush, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding PrimaryTextBrush, ElementName=Root}" />
     </Style>
   </UserControl.Styles>
   <Border
@@ -94,19 +95,19 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="viewModels:EditorDialogSection">
                 <StackPanel Margin="0,4,0,0" Spacing="8">
-                  <TextBlock FontWeight="SemiBold" Foreground="{Binding DataContext.PrimaryTextBrush, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" Text="{Binding Title}" />
+                  <TextBlock FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding Title}" />
                   <ItemsControl ItemsSource="{Binding Fields}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="viewModels:EditorDialogField">
                         <Grid ColumnDefinitions="130,*,Auto,Auto" Margin="0,0,0,6">
-                          <TextBlock VerticalAlignment="Center" Foreground="{Binding DataContext.PrimaryTextBrush, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}" Text="{Binding Label}" />
+                          <TextBlock VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding Label}" />
 
                           <TextBox
                               Grid.Column="1"
                               Classes="dialog-field"
                               IsVisible="{Binding IsTextInput}"
-                              Background="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}"
-                              Foreground="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}"
+                              Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                              Foreground="{Binding ParameterEditForeColor, ElementName=Root}"
                               Text="{Binding Value, Mode=TwoWay}"
                               ToolTip.Tip="{Binding ToolTipText}"
                               KeyDown="OnFieldKeyDown"
@@ -121,8 +122,8 @@
                               MinHeight="110"
                               VerticalContentAlignment="Top"
                               HorizontalAlignment="Stretch"
-                              Background="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}"
-                              Foreground="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}"
+                              Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                              Foreground="{Binding ParameterEditForeColor, ElementName=Root}"
                               Text="{Binding Value, Mode=TwoWay}"
                               ToolTip.Tip="{Binding ToolTipText}"
                               PointerPressed="OnInteractivePointerPressed" />
@@ -131,8 +132,8 @@
                               Grid.Column="1"
                               Classes="dialog-field"
                               IsVisible="{Binding IsChoice}"
-                              Background="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}"
-                              Foreground="{Binding DataContext.ParameterEditForeColor, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}"
+                              Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                              Foreground="{Binding ParameterEditForeColor, ElementName=Root}"
                               ItemsSource="{Binding Options}"
                               SelectedItem="{Binding Value, Mode=TwoWay}"
                               ToolTip.Tip="{Binding ToolTipText}"
@@ -143,16 +144,16 @@
                               Grid.ColumnSpan="3"
                               IsVisible="{Binding IsChartSeriesList}"
                               Padding="10"
-                              Background="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}"
-                              BorderBrush="{Binding DataContext.CardBorderBrush, ElementName=Root, FallbackValue=#D5D9E0, TargetNullValue=#D5D9E0}"
+                              Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                              BorderBrush="{Binding CardBorderBrush, ElementName=Root}"
                               BorderThickness="1"
                               CornerRadius="8">
                             <StackPanel Spacing="8">
-                              <TextBlock Foreground="{Binding DataContext.SecondaryTextBrush, ElementName=Root, FallbackValue=#5E6777, TargetNullValue=#5E6777}" Text="{Binding ToolTipText}" TextWrapping="Wrap" />
+                              <TextBlock Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="{Binding ToolTipText}" TextWrapping="Wrap" />
                               <ItemsControl ItemsSource="{Binding ChartSeriesEntries}">
                                 <ItemsControl.ItemTemplate>
                                   <DataTemplate DataType="viewModels:ChartSeriesEditorRow">
-                                    <Grid ColumnDefinitions="*,110,Auto">
+                                    <Grid ColumnDefinitions="*,110,110,Auto">
                                       <ComboBox Classes="dialog-field"
                                                 ItemsSource="{Binding TargetOptions}"
                                                 SelectedItem="{Binding TargetPath, Mode=TwoWay}" />
@@ -161,7 +162,12 @@
                                                 Classes="dialog-field"
                                                 ItemsSource="{Binding AxisOptions}"
                                                 SelectedItem="{Binding Axis, Mode=TwoWay}" />
-                                      <Button Grid.Column="2"
+                                      <ComboBox Grid.Column="2"
+                                                Margin="8,0,0,0"
+                                                Classes="dialog-field"
+                                                ItemsSource="{Binding StyleOptions}"
+                                                SelectedItem="{Binding Style, Mode=TwoWay}" />
+                                      <Button Grid.Column="3"
                                               Margin="8,0,0,0"
                                               Classes="dialog-button"
                                               Content="Remove"
@@ -170,7 +176,7 @@
                                   </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                               </ItemsControl>
-                              <Grid ColumnDefinitions="*,110,Auto">
+                              <Grid ColumnDefinitions="*,110,110,Auto">
                                 <ComboBox Classes="dialog-field"
                                           ItemsSource="{Binding ChartTargetOptions}"
                                           SelectedItem="{Binding NewChartTargetPath, Mode=TwoWay}" />
@@ -179,7 +185,12 @@
                                           Classes="dialog-field"
                                           ItemsSource="{Binding ChartAxisOptions}"
                                           SelectedItem="{Binding NewChartAxis, Mode=TwoWay}" />
-                                <Button Grid.Column="2"
+                                <ComboBox Grid.Column="2"
+                                          Margin="8,0,0,0"
+                                          Classes="dialog-field"
+                                          ItemsSource="{Binding ChartStyleOptions}"
+                                          SelectedItem="{Binding NewChartStyle, Mode=TwoWay}" />
+                                <Button Grid.Column="3"
                                         Margin="8,0,0,0"
                                         Classes="dialog-button"
                                         Content="Add"
@@ -193,8 +204,8 @@
                               Classes="dialog-field"
                               IsVisible="{Binding IsReadOnly}"
                               IsReadOnly="True"
-                              Background="{Binding DataContext.ParameterEditBackgrundColor, ElementName=Root, FallbackValue=#FFFFFF, TargetNullValue=#FFFFFF}"
-                              Foreground="{Binding DataContext.SecondaryTextBrush, ElementName=Root, FallbackValue=#5E6777, TargetNullValue=#5E6777}"
+                              Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                              Foreground="{Binding SecondaryTextBrush, ElementName=Root}"
                               Text="{Binding Value}"
                               ToolTip.Tip="{Binding ToolTipText}"
                               PointerPressed="OnInteractivePointerPressed" />
@@ -205,7 +216,7 @@
                               Height="28"
                               IsVisible="{Binding IsColor}"
                               Background="{Binding PreviewColor}"
-                              BorderBrush="{Binding DataContext.CardBorderBrush, ElementName=Root, FallbackValue=#D5D9E0, TargetNullValue=#D5D9E0}"
+                              BorderBrush="{Binding CardBorderBrush, ElementName=Root}"
                               BorderThickness="1"
                               CornerRadius="6" />
 
@@ -213,9 +224,9 @@
                               Grid.Column="3"
                               Classes="dialog-button"
                               IsVisible="{Binding ShowPickerButton}"
-                              Background="{Binding DataContext.EditPanelButtonBackground, ElementName=Root, FallbackValue=#F8FAFC, TargetNullValue=#F8FAFC}"
-                              BorderBrush="{Binding DataContext.EditPanelButtonBorderBrush, ElementName=Root, FallbackValue=#CBD5E1, TargetNullValue=#CBD5E1}"
-                              Foreground="{Binding DataContext.PrimaryTextBrush, ElementName=Root, FallbackValue=#111827, TargetNullValue=#111827}"
+                              Background="{Binding EditPanelButtonBackground, ElementName=Root}"
+                              BorderBrush="{Binding EditPanelButtonBorderBrush, ElementName=Root}"
+                              Foreground="{Binding PrimaryTextBrush, ElementName=Root}"
                               Click="OnOpenColorPickerClicked"
                               PointerPressed="OnInteractivePointerPressed"
                               Margin = "0,0,0,0"

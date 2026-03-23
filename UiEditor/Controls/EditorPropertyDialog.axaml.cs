@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -14,6 +15,30 @@ namespace Amium.UiEditor.Controls;
 
 public partial class EditorPropertyDialog : UserControl
 {
+    public static readonly StyledProperty<string> CardBorderBrushProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(CardBorderBrush), "#D5D9E0");
+
+    public static readonly StyledProperty<string> ParameterEditBackgrundColorProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(ParameterEditBackgrundColor), "#FFFFFF");
+
+    public static readonly StyledProperty<string> ParameterEditForeColorProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(ParameterEditForeColor), "#111827");
+
+    public static readonly StyledProperty<string> ParameterHoverColorProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(ParameterHoverColor), "#BDBDBD");
+
+    public static readonly StyledProperty<string> EditPanelButtonBackgroundProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(EditPanelButtonBackground), "#F8FAFC");
+
+    public static readonly StyledProperty<string> EditPanelButtonBorderBrushProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(EditPanelButtonBorderBrush), "#CBD5E1");
+
+    public static readonly StyledProperty<string> PrimaryTextBrushProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(PrimaryTextBrush), "#111827");
+
+    public static readonly StyledProperty<string> SecondaryTextBrushProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(SecondaryTextBrush), "#5E6777");
+
     private static readonly IReadOnlyList<Color> StandardColors =
     [
         Color.Parse("#1B19D8"),
@@ -39,14 +64,120 @@ public partial class EditorPropertyDialog : UserControl
     ];
 
     private EditorDialogField? _activeColorField;
+    private MainWindowViewModel? _subscribedViewModel;
+
+    public string CardBorderBrush
+    {
+        get => GetValue(CardBorderBrushProperty);
+        private set => SetValue(CardBorderBrushProperty, value);
+    }
+
+    public string ParameterEditBackgrundColor
+    {
+        get => GetValue(ParameterEditBackgrundColorProperty);
+        private set => SetValue(ParameterEditBackgrundColorProperty, value);
+    }
+
+    public string ParameterEditForeColor
+    {
+        get => GetValue(ParameterEditForeColorProperty);
+        private set => SetValue(ParameterEditForeColorProperty, value);
+    }
+
+    public string ParameterHoverColor
+    {
+        get => GetValue(ParameterHoverColorProperty);
+        private set => SetValue(ParameterHoverColorProperty, value);
+    }
+
+    public string EditPanelButtonBackground
+    {
+        get => GetValue(EditPanelButtonBackgroundProperty);
+        private set => SetValue(EditPanelButtonBackgroundProperty, value);
+    }
+
+    public string EditPanelButtonBorderBrush
+    {
+        get => GetValue(EditPanelButtonBorderBrushProperty);
+        private set => SetValue(EditPanelButtonBorderBrushProperty, value);
+    }
+
+    public string PrimaryTextBrush
+    {
+        get => GetValue(PrimaryTextBrushProperty);
+        private set => SetValue(PrimaryTextBrushProperty, value);
+    }
+
+    public string SecondaryTextBrush
+    {
+        get => GetValue(SecondaryTextBrushProperty);
+        private set => SetValue(SecondaryTextBrushProperty, value);
+    }
 
     public EditorPropertyDialog()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
         AttachedToVisualTree += (_, _) => BuildColorPalette();
+        DetachedFromVisualTree += (_, _) => AttachToViewModel(null);
     }
 
     private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        AttachToViewModel(ViewModel);
+    }
+
+    private void AttachToViewModel(MainWindowViewModel? viewModel)
+    {
+        if (ReferenceEquals(_subscribedViewModel, viewModel))
+        {
+            return;
+        }
+
+        if (_subscribedViewModel is not null)
+        {
+            _subscribedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+
+        _subscribedViewModel = viewModel;
+
+        if (_subscribedViewModel is not null)
+        {
+            _subscribedViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+
+        UpdateThemeBindings();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.CardBorderBrush)
+            || e.PropertyName == nameof(MainWindowViewModel.ParameterEditBackgrundColor)
+            || e.PropertyName == nameof(MainWindowViewModel.ParameterEditForeColor)
+            || e.PropertyName == nameof(MainWindowViewModel.ParameterHoverColor)
+            || e.PropertyName == nameof(MainWindowViewModel.EditPanelButtonBackground)
+            || e.PropertyName == nameof(MainWindowViewModel.EditPanelButtonBorderBrush)
+            || e.PropertyName == nameof(MainWindowViewModel.PrimaryTextBrush)
+            || e.PropertyName == nameof(MainWindowViewModel.SecondaryTextBrush))
+        {
+            UpdateThemeBindings();
+        }
+    }
+
+    private void UpdateThemeBindings()
+    {
+        var vm = ViewModel;
+        CardBorderBrush = vm?.CardBorderBrush ?? "#D5D9E0";
+        ParameterEditBackgrundColor = vm?.ParameterEditBackgrundColor ?? "#FFFFFF";
+        ParameterEditForeColor = vm?.ParameterEditForeColor ?? "#111827";
+        ParameterHoverColor = vm?.ParameterHoverColor ?? "#BDBDBD";
+        EditPanelButtonBackground = vm?.EditPanelButtonBackground ?? "#F8FAFC";
+        EditPanelButtonBorderBrush = vm?.EditPanelButtonBorderBrush ?? "#CBD5E1";
+        PrimaryTextBrush = vm?.PrimaryTextBrush ?? "#111827";
+        SecondaryTextBrush = vm?.SecondaryTextBrush ?? "#5E6777";
+    }
 
     private void OnInteractivePointerPressed(object? sender, PointerPressedEventArgs e)
     {

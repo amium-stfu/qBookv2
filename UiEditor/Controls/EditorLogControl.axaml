@@ -19,7 +19,7 @@
         </StackPanel>
       </Grid>
 
-      <Border Grid.Row="1" Margin="0,10,0,0" Background="{Binding EffectiveContainerBackground}" BorderBrush="{Binding EffectiveContainerBorderBrushValue}" BorderThickness="{Binding EffectiveContainerBorderThickness}" CornerRadius="8" ClipToBounds="True" Padding="10,10,10,10">
+      <Border Grid.Row="1" Margin="0,10,0,0" Background="{Binding EffectiveContainerBackgroundBrush}" BorderBrush="{Binding EffectiveContainerBorderBrushValue}" BorderThickness="{Binding EffectiveContainerBorderThickness}" CornerRadius="8" ClipToBounds="True" Padding="10,10,10,10">
         <ListBox x:Name="LogListBox" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" BorderThickness="0" Padding="0" ItemsSource="{Binding LogEntries, ElementName=Root}" SelectionMode="Multiple" KeyDown="OnLogListBoxKeyDown" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto">
           <ListBox.Styles>
             <Style Selector="ListBoxItem">
@@ -39,7 +39,7 @@
       </Border>
 
       <Grid Grid.Row="2" Margin="0,10,0,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-        <TextBlock Foreground="{Binding EffectiveMutedForeground}" Text="{Binding Footer}" VerticalAlignment="Center" />
+        <TextBlock Foreground="{Binding EffectiveMutedForegroundBrush}" Text="{Binding Footer}" VerticalAlignment="Center" />
         <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="6">
           <Button x:Name="DebugButton" Classes="toolicon" Width="30" Height="30" MinWidth="30" VerticalAlignment="Center" Background="{Binding DataContext.EditPanelButtonBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderBrush="{Binding DataContext.EditPanelButtonBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" Click="OnDebugFilterClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Debug ein/aus">
             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontSize="11" FontWeight="SemiBold" Text="D" />

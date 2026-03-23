@@ -8,28 +8,24 @@ namespace DefinitionSimulation;
 public class qPage : BookPage
 {
     private const string TrendPath = "Simulation/Signals/Trend";
-    private const string SinusPath = "Simulation/Signals/Sinus";
     private const string ReadPath = "Simulation/Signals/Read";
     private const string SetpointPath = "Simulation/Signals/Setpoint";
     private const string TauPath = "Simulation/Signals/Tau";
     private const string NoisePath = "Simulation/Signals/Noise";
 
     private readonly Item _trendSource = CreateDemoItem("Trend", "Runtime/Simulation/Trend", "value", 0f);
-    private readonly Item _sinusSource = CreateDemoItem("Sinus", "Runtime/Simulation/Sinus", "value", 0f);
     private readonly Item _readSource = CreateDemoItem("Read", "Runtime/Simulation/Read", "value", 0f);
     private readonly Item _setpointSource = CreateDemoItem("Setpoint", "Runtime/Simulation/Setpoint", "value", 40f);
     private readonly Item _tauSource = CreateDemoItem("Tau", "Runtime/Simulation/Tau", "s", 0.8f);
     private readonly Item _noiseSource = CreateDemoItem("Noise", "Runtime/Simulation/Noise", "amp", 0.05f);
 
     private Item? _trendAttached;
-    private Item? _sinusAttached;
     private Item? _readAttached;
     private Item? _setpointAttached;
     private Item? _tauAttached;
     private Item? _noiseAttached;
 
     private TrendSignal? _trendSignal;
-    private SinusSignal? _sinusSignal;
     private ReadSetSimulation? _readSetSimulation;
 
     private float _setpoint = 40f;
@@ -44,7 +40,6 @@ public class qPage : BookPage
     protected override void OnInitialize()
     {
         _trendAttached ??= Attach(_trendSource, "Signals/Trend");
-        _sinusAttached ??= Attach(_sinusSource, "Signals/Sinus");
         _readAttached ??= Attach(_readSource, "Signals/Read");
         _setpointAttached ??= Attach(_setpointSource, "Signals/Setpoint");
         _tauAttached ??= Attach(_tauSource, "Signals/Tau");
@@ -143,9 +138,6 @@ public class qPage : BookPage
         _trendSignal.SetNoise(1.2);
         _trendSignal.OnNewValue += OnTrendValue;
 
-        _sinusSignal = new SinusSignal(90);
-        _sinusSignal.OnNewValue += OnSinusValue;
-
         _readSetSimulation = new ReadSetSimulation
         {
             UpdateRateMs = 120,
@@ -174,13 +166,6 @@ public class qPage : BookPage
             _trendSignal.OnNewValue -= OnTrendValue;
             _trendSignal.Stop();
             _trendSignal = null;
-        }
-
-        if (_sinusSignal is not null)
-        {
-            _sinusSignal.OnNewValue -= OnSinusValue;
-            _sinusSignal.Stop();
-            _sinusSignal = null;
         }
 
         if (_readSetSimulation is not null)
@@ -212,11 +197,6 @@ public class qPage : BookPage
             UiPublisher.Publish(_trendAttached);
         }
 
-        if (_sinusAttached is not null)
-        {
-            UiPublisher.Publish(_sinusAttached);
-        }
-
         if (_readAttached is not null)
         {
             UiPublisher.Publish(_readAttached);
@@ -226,7 +206,6 @@ public class qPage : BookPage
     private void PublishSignalValues()
     {
         HostRegistries.Data.UpdateValue(TrendPath, _trendSource.Value);
-        HostRegistries.Data.UpdateValue(SinusPath, _sinusSource.Value);
         HostRegistries.Data.UpdateValue(ReadPath, _readSource.Value);
     }
 
@@ -244,12 +223,6 @@ public class qPage : BookPage
     {
         _trendSource.Value = value;
         HostRegistries.Data.UpdateValue(TrendPath, value);
-    }
-
-    private void OnSinusValue(float value)
-    {
-        _sinusSource.Value = value;
-        HostRegistries.Data.UpdateValue(SinusPath, value);
     }
 
     private void OnReadValue(float value)

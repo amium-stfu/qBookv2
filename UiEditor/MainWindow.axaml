@@ -55,110 +55,89 @@
       </Border>
 
       <Border Grid.Column="1" Classes="card" Padding="0" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
-        <TabControl
-            x:Name="PageTabs"
-            Margin="8,6,0,6"
-            Background="Transparent"
-            BorderThickness="0"
-            ItemsSource="{Binding Pages}"
-            SelectedItem="{Binding SelectedPage}"
-            TabStripPlacement="{Binding TabStripPlacement}">
-          <TabControl.Styles>
-            <Style Selector="TabControl#PageTabs /template/ ContentPresenter#PART_SelectedContentHost">
-              <Setter Property="Margin" Value="0" />
-            </Style>
-            <Style Selector="TabControl#PageTabs /template/ DockPanel">
-              <Setter Property="Margin" Value="0" />
-            </Style>
-            <Style Selector="TabControl#PageTabs /template/ TabStrip">
-              <Setter Property="Margin" Value="0" />
-              <Setter Property="VerticalAlignment" Value="Top" />
-              <Setter Property="HorizontalAlignment" Value="Stretch" />
-            </Style>
-            <Style Selector="TabControl#PageTabs TabItem">
-              <Setter Property="Margin" Value="0" />
-              <Setter Property="Padding" Value="0" />
-            </Style>
-            <Style Selector="TabControl#PageTabs TabItem /template/ ContentPresenter">
-              <Setter Property="HorizontalAlignment" Value="{Binding #PageTabs.DataContext.TabHeaderHorizontalAlignment}" />
-            </Style>
-          </TabControl.Styles>
-          <TabControl.ItemTemplate>
-            <DataTemplate>
-              <Border
-                  Margin="0,0,0,0"
-                  Padding="1"
-                  CornerRadius="0">
-                <Border.ContextMenu>
-                  <ContextMenu>
-                    <MenuItem Header="Top" Command="{Binding #PageTabs.DataContext.SetTabStripPlacementCommand}" CommandParameter="Top" />
-        
-                    <MenuItem Header="Right" Command="{Binding #PageTabs.DataContext.SetTabStripPlacementCommand}" CommandParameter="Right" />
-                  
-                  </ContextMenu>
-                </Border.ContextMenu>
-                <Grid ColumnDefinitions="48,200">
-                  <Border Grid.ColumnSpan="2"
-                          Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}"
-                          CornerRadius="0"
-                          IsVisible="{Binding IsNotSelected}" />
-                  <Border Grid.ColumnSpan="2"
-                          Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}"
-                          CornerRadius="0"
-                          IsVisible="{Binding IsSelected}" />
-                  <Border Grid.Column="0"
-                          Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}"
-                          CornerRadius="0"
-                          MinHeight="52"
-                          IsVisible="{Binding IsNotSelected}" />
-                  <Border Grid.Column="0"
-                          Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}"
-                          CornerRadius="0"
-                          MinHeight="52"
-                          IsVisible="{Binding IsSelected}" />
-                  <TextBlock Grid.Column="0"
-                             HorizontalAlignment="Center"
-                             VerticalAlignment="Center"
-                             FontSize="22"
-                             FontWeight="Bold"
-                             Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
-                             IsVisible="{Binding IsNotSelected}"
-                             Text="{Binding Index}" />
-                  <TextBlock Grid.Column="0"
-                             HorizontalAlignment="Center"
-                             VerticalAlignment="Center"
-                             FontSize="22"
-                             FontWeight="Bold"
-                             Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
-                             IsVisible="{Binding IsSelected}"
-                             Text="{Binding Index}" />
-                  <TextBlock Grid.Column="1"
-                             Margin="12,6"
-                             VerticalAlignment="Center"
-                             FontSize="18"
-                             FontWeight="SemiBold"
-                             Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
-                             IsVisible="{Binding IsNotSelected}"
-                             Text="{Binding TabTitle}" />
-                  <TextBlock Grid.Column="1"
-                             Margin="12,6"
-                             VerticalAlignment="Center"
-                             FontSize="18"
-                             FontWeight="SemiBold"
-                             Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
-                             IsVisible="{Binding IsSelected}"
-                             Text="{Binding TabTitle}" />
-                </Grid>
-              </Border>
-            </DataTemplate>
-          </TabControl.ItemTemplate>
-          <TabControl.ContentTemplate>
-            <DataTemplate>
-              <controls:PageEditorControl
-                  DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" />
-            </DataTemplate>
-          </TabControl.ContentTemplate>
-        </TabControl>
+        <Grid Margin="8,6,0,6" RowDefinitions="Auto,*">
+          <Border Grid.Row="0" IsVisible="{Binding IsTopTabStripPlacement}" Background="Transparent">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+              <ItemsControl ItemsSource="{Binding Pages}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding}"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="0"
+                            Margin="0">
+                      <Button.ContextMenu>
+                        <ContextMenu>
+                          <MenuItem Header="Top" Click="OnTabPlacementTopClicked" />
+                          <MenuItem Header="Right" Click="OnTabPlacementRightClicked" />
+                        </ContextMenu>
+                      </Button.ContextMenu>
+                      <Grid ColumnDefinitions="48,200">
+                        <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
+                        <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
+                        <Border Grid.Column="0" Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsNotSelected}" />
+                        <Border Grid.Column="0" Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsSelected}" />
+                        <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding Index}" />
+                        <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding Index}" />
+                        <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding TabTitle}" />
+                        <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Border>
+
+          <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+            <controls:CachedPageHostControl DataContext="{Binding}" />
+
+            <Border Grid.Column="1" IsVisible="{Binding IsRightTabStripPlacement}" Background="Transparent">
+              <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Pages}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Vertical" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Padding="0"
+                              Margin="0">
+                        <Button.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Top" Click="OnTabPlacementTopClicked" />
+                            <MenuItem Header="Right" Click="OnTabPlacementRightClicked" />
+                          </ContextMenu>
+                        </Button.ContextMenu>
+                        <Grid ColumnDefinitions="48,200">
+                          <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
+                          <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
+                          <Border Grid.Column="0" Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsNotSelected}" />
+                          <Border Grid.Column="0" Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsSelected}" />
+                          <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding Index}" />
+                          <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding Index}" />
+                          <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding TabTitle}" />
+                          <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Border>
+          </Grid>
+        </Grid>
       </Border>
     </Grid>
 

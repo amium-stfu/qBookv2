@@ -18,6 +18,30 @@ namespace Amium.UiEditor.Controls;
 
 public partial class EditorValueInputControl : UserControl
 {
+    public static readonly StyledProperty<string> CardBorderBrushProperty =
+        AvaloniaProperty.Register<EditorValueInputControl, string>(nameof(CardBorderBrush), "#D5D9E0");
+
+    public static readonly StyledProperty<string> ParameterEditBackgrundColorProperty =
+        AvaloniaProperty.Register<EditorValueInputControl, string>(nameof(ParameterEditBackgrundColor), "#FFFFFF");
+
+    public static readonly StyledProperty<string> ParameterEditForeColorProperty =
+        AvaloniaProperty.Register<EditorValueInputControl, string>(nameof(ParameterEditForeColor), "#111827");
+
+    public static readonly StyledProperty<string> ParameterHoverColorProperty =
+        AvaloniaProperty.Register<EditorValueInputControl, string>(nameof(ParameterHoverColor), "#BDBDBD");
+
+    public static readonly StyledProperty<string> ButtonBackColorProperty =
+        AvaloniaProperty.Register<EditorValueInputControl, string>(nameof(ButtonBackColor), "#CFDBE7");
+
+    public static readonly StyledProperty<string> EditPanelButtonBorderBrushProperty =
+        AvaloniaProperty.Register<EditorValueInputControl, string>(nameof(EditPanelButtonBorderBrush), "#CBD5E1");
+
+    public static readonly StyledProperty<string> ButtonForeColorProperty =
+        AvaloniaProperty.Register<EditorValueInputControl, string>(nameof(ButtonForeColor), "#111827");
+
+    public static readonly StyledProperty<string> ButtonHoverColorProperty =
+        AvaloniaProperty.Register<EditorValueInputControl, string>(nameof(ButtonHoverColor), "#E2E8F0");
+
     private enum ValueInputMode
     {
         None,
@@ -39,6 +63,54 @@ public partial class EditorValueInputControl : UserControl
     private bool _replaceOnNextOnscreenInput;
     private readonly List<(ToggleButton Button, int BitIndex)> _bitButtons = [];
 
+    public string CardBorderBrush
+    {
+        get => GetValue(CardBorderBrushProperty);
+        private set => SetValue(CardBorderBrushProperty, value);
+    }
+
+    public string ParameterEditBackgrundColor
+    {
+        get => GetValue(ParameterEditBackgrundColorProperty);
+        private set => SetValue(ParameterEditBackgrundColorProperty, value);
+    }
+
+    public string ParameterEditForeColor
+    {
+        get => GetValue(ParameterEditForeColorProperty);
+        private set => SetValue(ParameterEditForeColorProperty, value);
+    }
+
+    public string ParameterHoverColor
+    {
+        get => GetValue(ParameterHoverColorProperty);
+        private set => SetValue(ParameterHoverColorProperty, value);
+    }
+
+    public string ButtonBackColor
+    {
+        get => GetValue(ButtonBackColorProperty);
+        private set => SetValue(ButtonBackColorProperty, value);
+    }
+
+    public string EditPanelButtonBorderBrush
+    {
+        get => GetValue(EditPanelButtonBorderBrushProperty);
+        private set => SetValue(EditPanelButtonBorderBrushProperty, value);
+    }
+
+    public string ButtonForeColor
+    {
+        get => GetValue(ButtonForeColorProperty);
+        private set => SetValue(ButtonForeColorProperty, value);
+    }
+
+    public string ButtonHoverColor
+    {
+        get => GetValue(ButtonHoverColorProperty);
+        private set => SetValue(ButtonHoverColorProperty, value);
+    }
+
     public EditorValueInputControl()
     {
         InitializeComponent();
@@ -59,6 +131,7 @@ public partial class EditorValueInputControl : UserControl
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
         AttachToViewModel(ViewModel);
+        UpdateThemeBindings();
         ApplyInputTheme();
         RefreshFromViewModel();
     }
@@ -81,6 +154,8 @@ public partial class EditorValueInputControl : UserControl
         {
             _subscribedViewModel.PropertyChanged += OnViewModelPropertyChanged;
         }
+
+        UpdateThemeBindings();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -101,9 +176,23 @@ public partial class EditorValueInputControl : UserControl
             || e.PropertyName == nameof(MainWindowViewModel.ButtonHoverColor)
             || e.PropertyName == nameof(MainWindowViewModel.ButtonForeColor))
         {
+            UpdateThemeBindings();
             ApplyInputTheme();
             RefreshButtonChrome();
         }
+    }
+
+    private void UpdateThemeBindings()
+    {
+        var vm = ViewModel;
+        CardBorderBrush = vm?.CardBorderBrush ?? "#D5D9E0";
+        ParameterEditBackgrundColor = vm?.ParameterEditBackgrundColor ?? "#FFFFFF";
+        ParameterEditForeColor = vm?.ParameterEditForeColor ?? "#111827";
+        ParameterHoverColor = vm?.ParameterHoverColor ?? "#BDBDBD";
+        ButtonBackColor = vm?.ButtonBackColor ?? "#CFDBE7";
+        EditPanelButtonBorderBrush = vm?.EditPanelButtonBorderBrush ?? "#CBD5E1";
+        ButtonForeColor = vm?.ButtonForeColor ?? "#111827";
+        ButtonHoverColor = vm?.ButtonHoverColor ?? "#E2E8F0";
     }
 
     private void RefreshFromViewModel()

@@ -23,6 +23,7 @@ public sealed class ParameterDisplayModel
         BoolOptions = BuildBoolOptions();
         BitOptions = BuildBitOptions();
         ColorText = BuildColorText();
+        ColorBrush = BuildColorBrush();
     }
 
     public Parameter? Parameter { get; }
@@ -40,6 +41,8 @@ public sealed class ParameterDisplayModel
     public string ValueText { get; }
 
     public string ColorText { get; }
+
+    public IBrush ColorBrush { get; }
 
     public IReadOnlyList<ParameterChoiceState> BoolOptions { get; }
 
@@ -152,6 +155,26 @@ public sealed class ParameterDisplayModel
         }
 
         return Color.TryParse(text, out Color parsedColor) ? ToHex(parsedColor) : text;
+    }
+
+    private IBrush BuildColorBrush()
+    {
+        if (Definition.Kind != ParameterVisualKind.Color)
+        {
+            return Brushes.Transparent;
+        }
+
+        if (Parameter?.Value is Color color)
+        {
+            return new SolidColorBrush(color);
+        }
+
+        if (Color.TryParse(ColorText, out var parsedColor))
+        {
+            return new SolidColorBrush(parsedColor);
+        }
+
+        return Brushes.Transparent;
     }
 
     private static ParameterChoiceState CreateChoice(string label, bool isActive, int index = -1)

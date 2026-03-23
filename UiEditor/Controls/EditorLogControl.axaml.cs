@@ -22,6 +22,9 @@ public partial class EditorLogControl : UserControl
     public static readonly StyledProperty<bool> ShowSettingsButtonProperty =
         AvaloniaProperty.Register<EditorLogControl, bool>(nameof(ShowSettingsButton), true);
 
+    public static readonly StyledProperty<bool> PageIsActiveProperty =
+        AvaloniaProperty.Register<EditorLogControl, bool>(nameof(PageIsActive), true);
+
     private static readonly IBrush ActiveButtonBackground = new SolidColorBrush(Color.Parse("#916afd"));
     private static readonly IBrush ActiveButtonBorderBrush = new SolidColorBrush(Color.Parse("#916afd"));
     private static readonly IBrush ActiveButtonForeground = Brushes.White;
@@ -61,10 +64,27 @@ public partial class EditorLogControl : UserControl
         set => SetValue(ShowSettingsButtonProperty, value);
     }
 
+    public bool PageIsActive
+    {
+        get => GetValue(PageIsActiveProperty);
+        set => SetValue(PageIsActiveProperty, value);
+    }
+
     private PageItemModel? LogItem => DataContext as PageItemModel;
 
     private MainWindowViewModel? ViewModel
         => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == PageIsActiveProperty && PageIsActive)
+        {
+            ReloadEntries();
+            UpdateFilterButtons();
+        }
+    }
 
     private void OnSettingsClicked(object? sender, RoutedEventArgs e)
     {
@@ -349,6 +369,11 @@ public partial class EditorLogControl : UserControl
 
     private void OnLogEntryAdded(ProcessLogEntry entry)
     {
+        if (!PageIsActive)
+        {
+            return;
+        }
+
         Dispatcher.UIThread.Post(() =>
         {
             LogEntries.Add(CreateDisplayEntry(entry));

@@ -19,6 +19,11 @@ public sealed class EditorDialogField : ObservableObject
         {
             ChartAxisOptions.Add(axis);
         }
+
+        foreach (var style in new[] { "Line", "Step" })
+        {
+            ChartStyleOptions.Add(style);
+        }
     }
 
     public EditorDialogBindingDefinition Definition { get; }
@@ -41,9 +46,12 @@ public sealed class EditorDialogField : ObservableObject
 
     public ObservableCollection<string> ChartAxisOptions { get; } = [];
 
+    public ObservableCollection<string> ChartStyleOptions { get; } = [];
+
     private string _toolTipText = string.Empty;
     private string _newChartTargetPath = string.Empty;
     private string _newChartAxis = "Y1";
+    private string _newChartStyle = "Line";
 
     public string ToolTipText
     {
@@ -83,6 +91,12 @@ public sealed class EditorDialogField : ObservableObject
     {
         get => _newChartAxis;
         set => SetProperty(ref _newChartAxis, string.IsNullOrWhiteSpace(value) ? "Y1" : value);
+    }
+
+    public string NewChartStyle
+    {
+        get => _newChartStyle;
+        set => SetProperty(ref _newChartStyle, NormalizeStyle(value));
     }
 
     public bool IsChoice => PropertyType == EditorPropertyType.Choice;
@@ -127,7 +141,7 @@ public sealed class EditorDialogField : ObservableObject
             return;
         }
 
-        var row = CreateChartSeriesEntry(NewChartTargetPath, NewChartAxis);
+        var row = CreateChartSeriesEntry(NewChartTargetPath, NewChartAxis, NewChartStyle);
         ChartSeriesEntries.Add(row);
         SyncChartSeriesValueFromEntries();
     }
@@ -158,21 +172,23 @@ public sealed class EditorDialogField : ObservableObject
             var parts = line.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
             var targetPath = parts.Length > 0 ? parts[0] : string.Empty;
             var axis = parts.Length > 1 ? NormalizeAxis(parts[1]) : "Y1";
+            var style = parts.Length > 2 ? NormalizeStyle(parts[2]) : "Line";
             if (string.IsNullOrWhiteSpace(targetPath))
             {
                 continue;
             }
 
-            ChartSeriesEntries.Add(CreateChartSeriesEntry(targetPath, axis));
+            ChartSeriesEntries.Add(CreateChartSeriesEntry(targetPath, axis, style));
         }
     }
 
-    private ChartSeriesEditorRow CreateChartSeriesEntry(string targetPath, string axis)
+    private ChartSeriesEditorRow CreateChartSeriesEntry(string targetPath, string axis, string style)
     {
         var row = new ChartSeriesEditorRow
         {
             TargetPath = targetPath,
-            Axis = NormalizeAxis(axis)
+            Axis = NormalizeAxis(axis),
+            Style = NormalizeStyle(style)
         };
 
         foreach (var option in ChartTargetOptions)
@@ -185,13 +201,18 @@ public sealed class EditorDialogField : ObservableObject
             row.AxisOptions.Add(option);
         }
 
+        foreach (var option in ChartStyleOptions)
+        {
+            row.StyleOptions.Add(option);
+        }
+
         row.PropertyChanged += OnChartSeriesRowPropertyChanged;
         return row;
     }
 
     private void OnChartSeriesRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ChartSeriesEditorRow.TargetPath) or nameof(ChartSeriesEditorRow.Axis))
+        if (e.PropertyName is nameof(ChartSeriesEditorRow.TargetPath) or nameof(ChartSeriesEditorRow.Axis) or nameof(ChartSeriesEditorRow.Style))
         {
             SyncChartSeriesValueFromEntries();
         }
@@ -201,10 +222,19 @@ public sealed class EditorDialogField : ObservableObject
     {
         var serialized = string.Join(Environment.NewLine, ChartSeriesEntries
             .Where(row => !string.IsNullOrWhiteSpace(row.TargetPath))
-            .Select(row => $"{row.TargetPath}|{NormalizeAxis(row.Axis)}"));
+            .Select(row => SerializeChartSeriesEntry(row)));
 
         Parameter.Value = serialized;
         RaisePropertyChanged(nameof(Value));
+    }
+
+    private static string SerializeChartSeriesEntry(ChartSeriesEditorRow row)
+    {
+        var axis = NormalizeAxis(row.Axis);
+        var style = NormalizeStyle(row.Style);
+        return style == "Line"
+            ? $"{row.TargetPath}|{axis}"
+            : $"{row.TargetPath}|{axis}|{style}";
     }
 
     private static string NormalizeAxis(string? axis)
@@ -223,6 +253,23 @@ public sealed class EditorDialogField : ObservableObject
         return int.TryParse(trimmed, out var axisIndex)
             ? $"Y{Math.Clamp(axisIndex, 1, 4)}"
             : "Y1";
+    }
+
+    private static string NormalizeStyle(string? style)
+    {
+        if (string.IsNullOrWhiteSpace(style))
+        {
+            return "Line";
+        }
+
+        return style.Trim().ToLowerInvariant() switch
+        {
+            "step" => "Step",
+            "stephorizontal" => "Step",
+            "line" => "Line",
+            "straight" => "Line",
+            _ => "Line"
+        };
     }
 }
 

@@ -70,6 +70,32 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnTabPlacementTopClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (viewModel.SetTabStripPlacementCommand.CanExecute("Top"))
+        {
+            viewModel.SetTabStripPlacementCommand.Execute("Top");
+        }
+    }
+
+    private void OnTabPlacementRightClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (viewModel.SetTabStripPlacementCommand.CanExecute("Right"))
+        {
+            viewModel.SetTabStripPlacementCommand.Execute("Right");
+        }
+    }
+
     private void OpenLogWindow_Click(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)

@@ -32,7 +32,7 @@
       </Grid>
 
       <StackPanel IsVisible="{Binding Presentation.IsColor}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-        <Border Width="72" Height="72" CornerRadius="12" Background="{Binding Presentation.ColorText}" BorderBrush="{Binding Foreground}" BorderThickness="1" />
+        <Border Width="72" Height="72" CornerRadius="12" Background="{Binding Presentation.ColorBrush}" BorderBrush="{Binding Foreground}" BorderThickness="1" />
         <TextBlock HorizontalAlignment="Center" FontSize="{Binding UnitFontSize}" Foreground="{Binding Foreground}" Text="{Binding Presentation.ColorText}" />
       </StackPanel>
 

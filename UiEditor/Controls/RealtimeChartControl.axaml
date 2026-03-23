@@ -1,6 +1,6 @@
 <UserControl
     x:Name="Root"
-    x:Class="Amium.UiEditor.Controls.EditorChartControl"
+    x:Class="Amium.UiEditor.Controls.RealtimeChartControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Controls"
@@ -26,9 +26,9 @@
         </Border>
       </Grid>
 
-      <TextBlock x:Name="StatusTextBlock" Grid.Row="1" Margin="0,10,0,0" Foreground="{Binding EffectiveMutedForeground}" />
+      <TextBlock x:Name="StatusTextBlock" Grid.Row="1" Margin="0,10,0,0" Foreground="{Binding EffectiveMutedForegroundBrush}" />
 
-      <Border Grid.Row="2" Margin="0,10,0,0" Background="{Binding EffectiveContainerBackground}" BorderBrush="{Binding EffectiveContainerBorderBrushValue}" BorderThickness="{Binding EffectiveContainerBorderThickness}" CornerRadius="{Binding EffectiveCornerRadius}" ClipToBounds="True" Padding="8">
+      <Border Grid.Row="2" Margin="0,10,0,0" Background="{Binding EffectiveContainerBackgroundBrush}" BorderBrush="{Binding EffectiveContainerBorderBrushValue}" BorderThickness="{Binding EffectiveContainerBorderThickness}" CornerRadius="{Binding EffectiveCornerRadius}" ClipToBounds="True" Padding="8">
         <Grid x:Name="PlotHost" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" PointerMoved="OnPlotPointerMoved" PointerExited="OnPlotPointerExited">
           <ScottPlot:AvaPlot x:Name="ChartPlot" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
           <Canvas x:Name="CrosshairOverlay" IsHitTestVisible="False" ClipToBounds="True">
@@ -41,7 +41,7 @@
         </Grid>
       </Border>
 
-      <TextBlock Grid.Row="3" Margin="0,10,0,0" Foreground="{Binding EffectiveMutedForeground}" Text="{Binding Footer}" />
+      <TextBlock Grid.Row="3" Margin="0,10,0,0" Foreground="{Binding EffectiveMutedForegroundBrush}" Text="{Binding Footer}" />
     </Grid>
   </Border>
 </UserControl>

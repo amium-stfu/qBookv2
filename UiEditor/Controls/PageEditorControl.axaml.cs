@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
@@ -10,6 +11,12 @@ namespace Amium.UiEditor.Controls;
 
 public partial class PageEditorControl : UserControl
 {
+    public static readonly StyledProperty<string> GridLineBrushProperty =
+        AvaloniaProperty.Register<PageEditorControl, string>(nameof(GridLineBrush), "#E9EEF5");
+
+    public static readonly StyledProperty<PageModel?> PageProperty =
+        AvaloniaProperty.Register<PageEditorControl, PageModel?>(nameof(Page));
+
     private const double EdgeSnapDistance = 8;
 
     private Point? _dragStart;
@@ -29,9 +36,67 @@ public partial class PageEditorControl : UserControl
     public PageEditorControl()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
+        DetachedFromVisualTree += (_, _) => AttachToViewModel(null);
     }
 
     private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
+
+    private MainWindowViewModel? _subscribedViewModel;
+
+    public string GridLineBrush
+    {
+        get => GetValue(GridLineBrushProperty);
+        private set => SetValue(GridLineBrushProperty, value);
+    }
+
+    public PageModel? Page
+    {
+        get => GetValue(PageProperty);
+        set => SetValue(PageProperty, value);
+    }
+
+    private PageModel? CurrentPage => Page ?? ViewModel?.SelectedPage;
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        AttachToViewModel(ViewModel);
+    }
+
+    private void AttachToViewModel(MainWindowViewModel? viewModel)
+    {
+        if (ReferenceEquals(_subscribedViewModel, viewModel))
+        {
+            return;
+        }
+
+        if (_subscribedViewModel is not null)
+        {
+            _subscribedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+
+        _subscribedViewModel = viewModel;
+
+        if (_subscribedViewModel is not null)
+        {
+            _subscribedViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+
+        UpdateThemeBindings();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.GridLineBrush))
+        {
+            UpdateThemeBindings();
+        }
+    }
+
+    private void UpdateThemeBindings()
+    {
+        GridLineBrush = ViewModel?.GridLineBrush ?? "#E9EEF5";
+    }
 
     private void OnCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -288,7 +353,7 @@ public partial class PageEditorControl : UserControl
         var centerX = draggedItem.X + draggedItem.Width / 2;
         var centerY = draggedItem.Y + draggedItem.Height / 2;
 
-        return ViewModel?.SelectedPage.Items
+        return CurrentPage?.Items
             .Where(item => item.IsListControl && !ReferenceEquals(item, draggedItem))
             .FirstOrDefault(item => centerX >= item.X && centerX <= item.X + item.Width && centerY >= item.Y && centerY <= item.Y + item.Height);
     }
@@ -302,7 +367,7 @@ public partial class PageEditorControl : UserControl
         var horizontalCandidates = new List<double> { 0, EditorCanvas.Bounds.Width };
         var verticalCandidates = new List<double> { 0, EditorCanvas.Bounds.Height };
 
-        foreach (var item in ViewModel?.SelectedPage.Items ?? [])
+        foreach (var item in CurrentPage?.Items ?? [])
         {
             if (_dragOrigins.ContainsKey(item))
             {
@@ -351,7 +416,7 @@ public partial class PageEditorControl : UserControl
         var horizontalCandidates = new List<double> { EditorCanvas.Bounds.Width };
         var verticalCandidates = new List<double> { EditorCanvas.Bounds.Height };
 
-        foreach (var other in ViewModel?.SelectedPage.Items ?? [])
+        foreach (var other in CurrentPage?.Items ?? [])
         {
             if (ReferenceEquals(other, item))
             {

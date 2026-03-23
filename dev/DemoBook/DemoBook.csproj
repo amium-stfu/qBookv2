@@ -27,10 +27,6 @@
       <HintPath>B:\qBookv2\Host\plugins\UdlClient\UdlClient.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="UiEditor.Contracts">
-      <HintPath>B:\qBookv2\Host\plugins\UdlClient\UiEditor.Contracts.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
     <Reference Include="Amium.Contracts">
       <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.Contracts.dll</HintPath>
       <Private>false</Private>
@@ -117,14 +113,6 @@
     </Reference>
     <Reference Include="Microsoft.CodeAnalysis">
       <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Microsoft.CodeAnalysis.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="ScottPlot.Avalonia">
-      <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\ScottPlot.Avalonia.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="ScottPlot">
-      <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\ScottPlot.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Serilog">
