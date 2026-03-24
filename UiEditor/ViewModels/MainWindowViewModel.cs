@@ -42,7 +42,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private readonly ObservableCollection<PageItemModel> _selectedItems = [];
     private bool _isEditMode;
-    private bool _showGrid = true;
+    private bool _showGrid;
     private bool _snapToEdges = true;
     private bool _isDarkTheme;
     private int _gridSize = 20;
@@ -93,6 +93,7 @@ public sealed class MainWindowViewModel : ObservableObject
         LoadBookCommand = new RelayCommand(LoadBook, CanRunBookAction);
         RebuildBookCommand = new RelayCommand(RebuildBook, CanRunBookAction);
         RefreshLogCommand = new RelayCommand(RefreshLog);
+        ToggleEditModeCommand = new RelayCommand(ToggleEditMode);
         SetTabStripPlacementCommand = new RelayCommand<string>(SetTabStripPlacement);
         _bookProjectPath = GetDefaultTestbookPath();
         _loadedBookSummary = "Kein Book geladen";
@@ -159,9 +160,12 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 if (!value)
                 {
+                    ShowGrid = false;
+                    ClearItemSelection();
                     CancelSelection();
                     CancelEditorDialog();
                     CancelValueInput();
+                    SaveLayout();
                 }
 
                 OnPropertyChanged(nameof(EditModeText));
@@ -395,6 +399,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public RelayCommand LoadBookCommand { get; }
     public RelayCommand RebuildBookCommand { get; }
     public RelayCommand RefreshLogCommand { get; }
+    public RelayCommand ToggleEditModeCommand { get; }
     public RelayCommand<string> SetTabStripPlacementCommand { get; }
 
     public bool IsEditorDialogOpen
@@ -1515,6 +1520,15 @@ public sealed class MainWindowViewModel : ObservableObject
     private void SetTabStripPlacement(string? placement)
     {
         TabStripPlacement = ParseTabStripPlacement(placement);
+    }
+
+    private void ToggleEditMode()
+    {
+        IsEditMode = !IsEditMode;
+        if (IsEditMode)
+        {
+            StatusText = "Edit mode aktiviert";
+        }
     }
 
     private void ApplyBookTabStripPlacement(string? bookRootDirectory)

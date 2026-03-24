@@ -14,12 +14,14 @@
     <Compile Include="GlobalUsing.cs" />
     <Compile Include="Pages\AllControls\AllControls.qPage.cs" />
     <Compile Include="Pages\Simulation\Simulation.qPage.cs" />
+    <Compile Include="Pages\UdlClient\UdlClient.qPage.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Book.json" />
     <None Include="Pages\AllControls\Page.json" />
     <None Include="Pages\Simulation\Page.json" />
+    <None Include="Pages\UdlClient\Page.json" />
     <None Include="pipes.json" />
   </ItemGroup>
   <ItemGroup>

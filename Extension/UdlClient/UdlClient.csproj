@@ -12,5 +12,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Contracts\UiEditor.Contracts.csproj" />
+    <ProjectReference Include="..\..\Shared\AmiumItem\AmiumItem.csproj" />
   </ItemGroup>
 </Project>

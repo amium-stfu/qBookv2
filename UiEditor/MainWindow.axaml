@@ -3,6 +3,7 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Controls"
+  xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -13,48 +14,32 @@
     Background="{Binding WindowBackground}"
     Title="UI Editor PoC [Testbook Build]">
   <Grid RowDefinitions="Auto,*,Auto" Margin="8">
-    <Border Grid.Row="0" Classes="card" Padding="18,14" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
-      <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+    <Border Grid.Row="0" Classes="card" Padding="12,6" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
+      <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+        <TextBlock Grid.Column="0" FontSize="24" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="UI Editor" VerticalAlignment="Center" />
 
-            <TextBlock FontSize="26" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="UI Editor" />
-            <TextBlock Foreground="{Binding SecondaryTextBrush}" Text="Proof of concept fuer seitenorientierte Avalonia-Oberflaechen" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="8,0,0,0">
+          <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Click="LoadBook_Click" ToolTip.Tip="Load">
+            <controls:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.UiEditor/EditorIcons/openBook.svg" TintColor="{Binding PrimaryTextBrush}" />
+          </Button>
 
-        <Border
-            Grid.Column="1"
-            Padding="18,8"
-            CornerRadius="24"
-            Background="{Binding HeaderBadgeBackground}">
-          <TextBlock FontSize="16" FontWeight="Bold" Foreground="{Binding HeaderBadgeForeground}" Text="amium" />
-        </Border>
+          <ToggleButton Classes="headericon" Background="Transparent" BorderBrush="Transparent" IsChecked="{Binding IsDarkTheme}" ToolTip.Tip="Theme Switch">
+            <controls:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.UiEditor/EditorIcons/theme.svg" TintColor="{Binding PrimaryTextBrush}" />
+          </ToggleButton>
+
+          <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Click="OpenVsCode_Click" ToolTip.Tip="Open VS Code">
+            <controls:ThemeSvgIcon Width="26" Height="26" IconPath="avares://Amium.UiEditor/EditorIcons/csharp.svg" TintColor="{Binding PrimaryTextBrush}" />
+          </Button>
+
+          <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Click="OpenLogWindow_Click" ToolTip.Tip="Open Log">
+            <controls:ThemeSvgIcon Width="22" Height="22" IconPath="avares://Amium.UiEditor/EditorIcons/log.svg" TintColor="{Binding PrimaryTextBrush}" />
+          </Button>
+        </StackPanel>
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1" ColumnDefinitions="150,*" Margin="0,8,0,8">
-      <Border Grid.Column="0" Classes="card" Margin="0,0,0,0" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-          <StackPanel Spacing="12">
-            <TextBlock HorizontalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Control Panel" />
-            <ToggleButton Classes="toolbar" IsChecked="{Binding IsEditMode}">
-              <TextBlock HorizontalAlignment="Center" Text="Edit mode" />
-            </ToggleButton>
-            <ToggleButton Classes="toolbar" IsChecked="{Binding IsDarkTheme}">
-              <TextBlock HorizontalAlignment="Center" Text="{Binding ThemeModeText}" />
-            </ToggleButton>
-            <Button Classes="toolbar" Command="{Binding SaveLayoutCommand}" Content="Save JSON" />
-            <Button Classes="toolbar" Command="{Binding LoadLayoutCommand}" Content="Load JSON" />
-            <Button Classes="toolbar" Click="LoadBook_Click" Content="Load" />
-            <Button Classes="toolbar" Command="{Binding RebuildBookCommand}" Content="Rebuild" />
-            <Button Classes="toolbar" Click="OpenVsCode_Click" Content="Open VS Code" />
-            <Button Classes="toolbar" Click="OpenLogWindow_Click" Content="Open Log" />
-            <TextBlock FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Layout-Datei" />
-            <SelectableTextBlock TextWrapping="Wrap" Foreground="{Binding SecondaryTextBrush}" Text="{Binding LayoutFilePath}" />
-            <TextBlock TextWrapping="Wrap" Foreground="{Binding SecondaryTextBrush}" Text="Im Editiermodus erscheint das Editpanel direkt im Canvas oben mittig. Dort findest du Raster, Snap und die Ausrichtungsfunktionen." />
-            <TextBlock TextWrapping="Wrap" Foreground="{Binding SecondaryTextBrush}" Text="Tipp: Mehrfachauswahl nur mit gedrueckter Strg-Taste. Strg-Klick erweitert die Auswahl, Strg-Ziehen markiert mehrere Controls." />
-          </StackPanel>
-        </ScrollViewer>
-      </Border>
-
-      <Border Grid.Column="1" Classes="card" Padding="0" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
+    <Grid Grid.Row="1" ColumnDefinitions="*" Margin="0,8,0,8">
+      <Border Grid.Column="0" Classes="card" Padding="0" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
         <Grid Margin="8,6,0,6" RowDefinitions="Auto,*">
           <Border Grid.Row="0" IsVisible="{Binding IsTopTabStripPlacement}" Background="Transparent">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
@@ -66,49 +51,9 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <Button Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                            CommandParameter="{Binding}"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="0"
-                            Margin="0">
-                      <Button.ContextMenu>
-                        <ContextMenu>
-                          <MenuItem Header="Top" Click="OnTabPlacementTopClicked" />
-                          <MenuItem Header="Right" Click="OnTabPlacementRightClicked" />
-                        </ContextMenu>
-                      </Button.ContextMenu>
-                      <Grid ColumnDefinitions="48,200">
-                        <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
-                        <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
-                        <Border Grid.Column="0" Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsNotSelected}" />
-                        <Border Grid.Column="0" Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsSelected}" />
-                        <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding Index}" />
-                        <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding Index}" />
-                        <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding TabTitle}" />
-                        <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
-                      </Grid>
-                    </Button>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-          </Border>
-
-          <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
-            <controls:CachedPageHostControl DataContext="{Binding}" />
-
-            <Border Grid.Column="1" IsVisible="{Binding IsRightTabStripPlacement}" Background="Transparent">
-              <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Pages}">
-                  <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                      <StackPanel Orientation="Vertical" />
-                    </ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                      <Button Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    <Grid ColumnDefinitions="Auto,Auto">
+                      <Button Grid.Column="0"
+                              Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                               CommandParameter="{Binding}"
                               Background="Transparent"
                               BorderThickness="0"
@@ -131,6 +76,90 @@
                           <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
                         </Grid>
                       </Button>
+                            <Button Grid.Column="1"
+                              Classes="legendedit"
+                              Width="46"
+                              Height="52"
+                              MinWidth="46"
+                              Margin="0"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Stretch"
+                              Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                              BorderBrush="Transparent"
+                              CornerRadius="0"
+                              Command="{Binding DataContext.ToggleEditModeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              IsVisible="{Binding IsSelected}"
+                              ToolTip.Tip="Edit mode umschalten">
+                        <Grid>
+                          <controls:ThemeSvgIcon Width="20" Height="20" IconPath="avares://Amium.UiEditor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolNegationConverter}, FallbackValue=True, TargetNullValue=True}" />
+                          <controls:ThemeSvgIcon Width="20" Height="20" IconPath="avares://Amium.UiEditor/EditorIcons/pencil.svg" TintColor="#DC2626" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=Window}, FallbackValue=False, TargetNullValue=False}" />
+                        </Grid>
+                      </Button>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Border>
+
+          <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+            <controls:CachedPageHostControl DataContext="{Binding}" />
+
+            <Border Grid.Column="1" IsVisible="{Binding IsRightTabStripPlacement}" Background="Transparent">
+              <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Pages}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Vertical" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Grid ColumnDefinitions="Auto,Auto">
+                        <Button Grid.Column="0"
+                                Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="0"
+                                Margin="0">
+                          <Button.ContextMenu>
+                            <ContextMenu>
+                              <MenuItem Header="Top" Click="OnTabPlacementTopClicked" />
+                              <MenuItem Header="Right" Click="OnTabPlacementRightClicked" />
+                            </ContextMenu>
+                          </Button.ContextMenu>
+                          <Grid ColumnDefinitions="48,200">
+                            <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
+                            <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
+                            <Border Grid.Column="0" Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsNotSelected}" />
+                            <Border Grid.Column="0" Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsSelected}" />
+                            <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding Index}" />
+                            <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding Index}" />
+                            <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding TabTitle}" />
+                            <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
+                          </Grid>
+                        </Button>
+                        <Button Grid.Column="1"
+                          Classes="legendedit"
+                                Width="46"
+                                Height="52"
+                                MinWidth="46"
+                                Margin="0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Stretch"
+                                Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                BorderBrush="Transparent"
+                                CornerRadius="0"
+                                Command="{Binding DataContext.ToggleEditModeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                IsVisible="{Binding IsSelected}"
+                                ToolTip.Tip="Edit mode umschalten">
+                          <Grid>
+                            <controls:ThemeSvgIcon Width="20" Height="20" IconPath="avares://Amium.UiEditor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolNegationConverter}, FallbackValue=True, TargetNullValue=True}" />
+                            <controls:ThemeSvgIcon Width="20" Height="20" IconPath="avares://Amium.UiEditor/EditorIcons/pencil.svg" TintColor="#DC2626" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=Window}, FallbackValue=False, TargetNullValue=False}" />
+                          </Grid>
+                        </Button>
+                      </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>

@@ -45,7 +45,7 @@ public partial class EditorLogControl : UserControl
     private Button? _pauseButton;
     private Button? _openFolderButton;
     private Button? _settingsButton;
-    private global::Avalonia.Svg.Skia.Svg? _pauseIcon;
+    private ThemeSvgIcon? _pauseIcon;
 
     public EditorLogControl()
     {
@@ -125,7 +125,7 @@ public partial class EditorLogControl : UserControl
         _pauseButton = this.FindControl<Button>("PauseButton");
         _openFolderButton = this.FindControl<Button>("OpenFolderButton");
         _settingsButton = this.FindControl<Button>("SettingsButton");
-        _pauseIcon = this.FindControl<global::Avalonia.Svg.Skia.Svg>("PauseIcon");
+        _pauseIcon = this.FindControl<ThemeSvgIcon>("PauseIcon");
         HookObservedViewModel();
         HookObservedLogItem();
         ResolveProcessLog();
@@ -427,7 +427,7 @@ public partial class EditorLogControl : UserControl
         var isPaused = _processLog?.Pause ?? false;
         ApplyThemeButtonState(_pauseButton);
         _pauseButton.Opacity = 1;
-        _pauseIcon.Path = isPaused
+        _pauseIcon.IconPath = isPaused
             ? "avares://Amium.UiEditor/EditorIcons/play.svg"
             : "avares://Amium.UiEditor/EditorIcons/pause.svg";
     }

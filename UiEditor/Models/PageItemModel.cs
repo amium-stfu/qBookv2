@@ -440,6 +440,7 @@ public sealed class PageItemModel : ObservableObject
                 RaisePropertyChanged(nameof(EffectiveButtonBodyForeground));
                 RaisePropertyChanged(nameof(EffectiveButtonBodyForegroundBrush));
                 RaisePropertyChanged(nameof(ButtonIconCss));
+                RaisePropertyChanged(nameof(EffectiveButtonIconTintColor));
             }
         }
     }
@@ -452,6 +453,7 @@ public sealed class PageItemModel : ObservableObject
             if (SetProperty(ref _useThemeColor, value))
             {
                 RaisePropertyChanged(nameof(ButtonIconCss));
+                RaisePropertyChanged(nameof(EffectiveButtonIconTintColor));
             }
         }
     }
@@ -1322,6 +1324,8 @@ public sealed class PageItemModel : ObservableObject
 
     public string ButtonIconCss => UseThemeColor ? $"path {{ fill: {EffectiveButtonBodyForeground}; }}" : string.Empty;
 
+    public string EffectiveButtonIconTintColor => UseThemeColor ? EffectiveButtonBodyForeground : string.Empty;
+
     public bool ShowButtonFooter => ShowFooter && !string.IsNullOrWhiteSpace(Footer);
 
     public HorizontalAlignment ButtonTextHorizontalAlignment => ParseHorizontalAlignment(ButtonTextAlign, HorizontalAlignment.Center);
@@ -1655,6 +1659,7 @@ public sealed class PageItemModel : ObservableObject
         RaisePropertyChanged(nameof(EffectiveContainerBackgroundBrush));
         RaisePropertyChanged(nameof(EffectiveButtonBodyBackgroundBrush));
         RaisePropertyChanged(nameof(EffectiveButtonBodyForegroundBrush));
+        RaisePropertyChanged(nameof(EffectiveButtonIconTintColor));
     }
 
     public void ResolveTarget()

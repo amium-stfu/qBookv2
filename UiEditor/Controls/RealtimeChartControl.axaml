@@ -1,34 +1,32 @@
-<UserControl
+<controls:RealtimeChartControl
     x:Name="Root"
     x:Class="Amium.UiEditor.Controls.RealtimeChartControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Controls"
     xmlns:ScottPlot="clr-namespace:ScottPlot.Avalonia;assembly=ScottPlot.Avalonia"
-    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia"
-    Width="{Binding Width}"
-    Height="{Binding Height}">
+    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
+  <controls:RealtimeChartControl.HeaderActionsContent>
+    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+      <Button x:Name="PauseButton" Classes="toolicon" Width="30" Height="30" MinWidth="30" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnPauseClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Live/Pause">
+        <Grid>
+          <Grid IsVisible="{Binding IsPaused, ElementName=Root}">
+            <controls:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.UiEditor/EditorIcons/play.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+          </Grid>
+          <Grid IsVisible="{Binding IsPaused, ElementName=Root, Converter={StaticResource BoolNegationConverter}}">
+            <controls:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.UiEditor/EditorIcons/pause.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+          </Grid>
+        </Grid>
+      </Button>
 
-  <Border Background="{Binding EffectiveBackgroundBrush}" BorderBrush="{Binding EffectiveBorderBrushValue}" BorderThickness="{Binding EffectiveBorderThickness}" CornerRadius="{Binding EffectiveCornerRadius}" Padding="14" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-    <Grid RowDefinitions="38,Auto,*,Auto" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto" HorizontalAlignment="Stretch">
-        <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" FontSize="17" FontWeight="SemiBold" Foreground="{Binding EffectivePrimaryForegroundBrush}" Text="{Binding Title}" />
-        <Border Grid.Column="1" Margin="0,0,8,0" Background="Transparent" CornerRadius="8" Padding="8,4">
-          <Button x:Name="PauseButton" Classes="toolicon" Click="OnPauseClicked" Content="Pause" />
-        </Border>
-        <Border Grid.Column="2" Margin="0,0,8,0" Background="Transparent" CornerRadius="8" Padding="8,4">
-          <Button Classes="toolicon" Click="OnClearClicked" Content="Clear" />
-        </Border>
-        <Border Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" Background="Transparent" CornerRadius="8" Padding="8,4">
-          <Button Classes="toolicon" VerticalAlignment="Center" Background="{Binding DataContext.EditPanelButtonBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=#F8FAFC, TargetNullValue=#F8FAFC}" BorderBrush="{Binding DataContext.EditPanelButtonBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=#CBD5E1, TargetNullValue=#CBD5E1}" Click="OnSettingsClicked" IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Chart Einstellungen">
-            <svg:Svg Width="16" Height="16" Path="avares://Amium.UiEditor/EditorIcons/cog.svg" />
-          </Button>
-        </Border>
-      </Grid>
+      <Button Classes="toolicon" Width="30" Height="30" MinWidth="30" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnClearClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Chart leeren">
+        <controls:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.UiEditor/EditorIcons/clear.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+      </Button>
+    </StackPanel>
+  </controls:RealtimeChartControl.HeaderActionsContent>
 
-      <TextBlock x:Name="StatusTextBlock" Grid.Row="1" Margin="0,10,0,0" Foreground="{Binding EffectiveMutedForegroundBrush}" />
-
-      <Border Grid.Row="2" Margin="0,10,0,0" Background="{Binding EffectiveContainerBackgroundBrush}" BorderBrush="{Binding EffectiveContainerBorderBrushValue}" BorderThickness="{Binding EffectiveContainerBorderThickness}" CornerRadius="{Binding EffectiveCornerRadius}" ClipToBounds="True" Padding="8">
+  <controls:RealtimeChartControl.BodyContent>
+    <Border Background="{Binding EffectiveContainerBackgroundBrush}" BorderBrush="{Binding EffectiveContainerBorderBrushValue}" BorderThickness="{Binding EffectiveContainerBorderThickness}" CornerRadius="{Binding EffectiveCornerRadius}" ClipToBounds="True" Padding="8">
         <Grid x:Name="PlotHost" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" PointerMoved="OnPlotPointerMoved" PointerExited="OnPlotPointerExited">
           <ScottPlot:AvaPlot x:Name="ChartPlot" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
           <Canvas x:Name="CrosshairOverlay" IsHitTestVisible="False" ClipToBounds="True">
@@ -40,10 +38,7 @@
           </Border>
         </Grid>
       </Border>
-
-      <TextBlock Grid.Row="3" Margin="0,10,0,0" Foreground="{Binding EffectiveMutedForegroundBrush}" Text="{Binding Footer}" />
-    </Grid>
-  </Border>
-</UserControl>
+  </controls:RealtimeChartControl.BodyContent>
+</controls:RealtimeChartControl>
 
 

@@ -19,10 +19,13 @@ using ScottPlot.Avalonia;
 
 namespace Amium.UiEditor.Controls;
 
-public partial class RealtimeChartControl : UserControl
+public partial class RealtimeChartControl : EditorTemplateControl
 {
     public static readonly StyledProperty<bool> PageIsActiveProperty =
         AvaloniaProperty.Register<RealtimeChartControl, bool>(nameof(PageIsActive), true);
+
+    public static readonly StyledProperty<bool> IsPausedProperty =
+        AvaloniaProperty.Register<RealtimeChartControl, bool>(nameof(IsPaused));
 
     private static readonly ScottPlot.Color[] SeriesColors =
     [
@@ -52,15 +55,18 @@ public partial class RealtimeChartControl : UserControl
     private IYAxis? _yAxis2;
     private IYAxis? _yAxis3;
     private IYAxis? _yAxis4;
-    private Button? _pauseButton;
-    private TextBlock? _statusTextBlock;
-    private bool _isPaused;
     private bool _hasConfiguredAxes;
 
     public bool PageIsActive
     {
         get => GetValue(PageIsActiveProperty);
         set => SetValue(PageIsActiveProperty, value);
+    }
+
+    public bool IsPaused
+    {
+        get => GetValue(IsPausedProperty);
+        private set => SetValue(IsPausedProperty, value);
     }
 
     public RealtimeChartControl()
@@ -70,9 +76,6 @@ public partial class RealtimeChartControl : UserControl
         DetachedFromVisualTree += OnDetachedFromVisualTree;
         DataContextChanged += OnDataContextChanged;
     }
-
-    private MainWindowViewModel? ViewModel
-        => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
 
     private object? PlotSyncRoot => _avaPlot?.Plot.Sync;
 
@@ -85,8 +88,6 @@ public partial class RealtimeChartControl : UserControl
         _crosshairHorizontalLine = this.FindControl<Border>("CrosshairHorizontalLine");
         _crosshairInfoBorder = this.FindControl<Border>("CrosshairInfoBorder");
         _crosshairInfoTextBlock = this.FindControl<TextBlock>("CrosshairInfoTextBlock");
-        _pauseButton = this.FindControl<Button>("PauseButton");
-        _statusTextBlock = this.FindControl<TextBlock>("StatusTextBlock");
 
         ConfigurePlot();
         HookChartItem(DataContext as PageItemModel);
@@ -111,8 +112,6 @@ public partial class RealtimeChartControl : UserControl
         _yAxis2 = null;
         _yAxis3 = null;
         _yAxis4 = null;
-        _pauseButton = null;
-        _statusTextBlock = null;
         _hasConfiguredAxes = false;
         _chartState = null;
     }
@@ -140,6 +139,16 @@ public partial class RealtimeChartControl : UserControl
             else
             {
                 HideCrosshair();
+            }
+        }
+
+        if (change.Property == IsPausedProperty)
+        {
+            UpdateInteractionState();
+            UpdateStatusText();
+            if (!IsPaused && PageIsActive && IsVisible)
+            {
+                RenderPlot();
             }
         }
     }
@@ -262,7 +271,7 @@ public partial class RealtimeChartControl : UserControl
 
     private void OnRenderTimerTick(object? sender, EventArgs e)
     {
-        if (_isPaused)
+        if (IsPaused)
         {
             return;
         }
@@ -351,11 +360,18 @@ public partial class RealtimeChartControl : UserControl
         {
             lock (syncRoot)
             {
-                userInputProcessor.Disable();
+                if (IsPaused)
+                {
+                    userInputProcessor.Enable();
+                }
+                else
+                {
+                    userInputProcessor.Disable();
+                }
             }
         }
 
-        if (!_isPaused)
+        if (!IsPaused)
         {
             HideCrosshair();
         }
@@ -531,30 +547,12 @@ public partial class RealtimeChartControl : UserControl
 
     private void UpdateStatusText()
     {
-        if (_pauseButton is not null)
-        {
-            _pauseButton.Content = _isPaused ? "Live" : "Pause";
-        }
-
-        if (_statusTextBlock is null)
-        {
-            return;
-        }
-
-        var seriesCount = GetSeriesConfigurations().Count;
-        if (seriesCount == 0)
-        {
-            _statusTextBlock.Text = "Keine Serien konfiguriert";
-            return;
-        }
-
-        var modeText = _isPaused ? "Pause | Maus zeigt Fadenkreuz und Messwerte" : "Live | Zoom und Pan gesperrt";
-        _statusTextBlock.Text = $"{seriesCount} Serien | X=DateTime | {modeText} | History {_chartItem?.HistorySeconds ?? 120}s | View {_chartItem?.ViewSeconds ?? 30}s";
+        return;
     }
 
     private void OnPlotPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (!_isPaused || _plotHost is null)
+        if (!IsPaused || _plotHost is null)
         {
             HideCrosshair();
             return;
@@ -803,32 +801,15 @@ public partial class RealtimeChartControl : UserControl
         return new ScottPlot.Color(color.R, color.G, color.B, color.A);
     }
 
-    private void OnSettingsClicked(object? sender, RoutedEventArgs e)
-    {
-        if (_chartItem is null || ViewModel is null || this.GetVisualAncestors().OfType<PageEditorControl>().FirstOrDefault() is not { } editor)
-        {
-            return;
-        }
-
-        var anchor = this.TranslatePoint(new Point(Bounds.Width + 8, 0), editor) ?? new Point(24, 24);
-        ViewModel.OpenItemEditor(_chartItem, anchor.X, anchor.Y);
-        e.Handled = true;
-    }
-
     private void OnInteractivePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        e.Handled = true;
+        HandleInteractivePointerPressed(e);
     }
 
     private void OnPauseClicked(object? sender, RoutedEventArgs e)
     {
-        _isPaused = !_isPaused;
-        UpdateInteractionState();
-        UpdateStatusText();
-        if (!_isPaused)
-        {
-            RenderPlot();
-        }
+        IsPaused = !IsPaused;
+        e.Handled = true;
     }
 
     private void OnClearClicked(object? sender, RoutedEventArgs e)
@@ -837,6 +818,7 @@ public partial class RealtimeChartControl : UserControl
         _chartState?.SampleCurrentValues();
         HideCrosshair();
         RenderPlot();
+        e.Handled = true;
     }
 
     private readonly record struct ChartPoint(DateTime Timestamp, double Value);

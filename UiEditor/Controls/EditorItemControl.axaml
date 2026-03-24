@@ -7,10 +7,7 @@
   <controls:EditorItemControl.HeaderActionsContent>
     <Grid>
       <Button x:Name="SubItemsButton" Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnSubItemsClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="SubItems">
-        <Grid>
-          <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/menu.svg" Css="path { fill: #111827; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, Converter={StaticResource BoolNegationConverter}, FallbackValue=True, TargetNullValue=True}" />
-          <svg:Svg Width="12" Height="12" Path="avares://Amium.UiEditor/EditorIcons/menu.svg" Css="path { fill: #FFFFFF; }" IsVisible="{Binding DataContext.IsDarkTheme, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}, FallbackValue=False, TargetNullValue=False}" />
-        </Grid>
+        <controls:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.UiEditor/EditorIcons/menu.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
       </Button>
       <Popup x:Name="SubItemsPopup" Placement="RightEdgeAlignedTop" PlacementTarget="{Binding #SubItemsButton}" HorizontalOffset="8" IsLightDismissEnabled="True">
         <Border MinWidth="180" Padding="12" Background="{Binding CardBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderBrush="{Binding CardBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderThickness="1" CornerRadius="10" PointerPressed="OnInteractivePointerPressed">

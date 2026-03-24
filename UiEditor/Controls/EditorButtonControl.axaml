@@ -14,14 +14,14 @@
         CornerRadius="{Binding EffectiveBodyCornerRadius}"
         PointerReleased="OnButtonReleased">
       <Grid ClipToBounds="True">
-        <svg:Svg
+        <controls:ThemeSvgIcon
             Width="{Binding ButtonIconSize}"
             Height="{Binding ButtonIconSize}"
-            Css="{Binding ButtonIconCss}"
             HorizontalAlignment="{Binding ButtonIconHorizontalAlignment}"
             VerticalAlignment="Center"
             IsVisible="{Binding ShowButtonIcon}"
-          Path="{Binding EffectiveButtonIconPath}" />
+          IconPath="{Binding EffectiveButtonIconPath}"
+          TintColor="{Binding EffectiveButtonIconTintColor}" />
         <TextBlock
             HorizontalAlignment="{Binding ButtonTextHorizontalAlignment}"
             VerticalAlignment="Center"

@@ -1,14 +1,11 @@
 {
   "profiles": {
     "AmiumUiEditorCurrent": {
-      "commandName": "Executable",
-      "executablePath": "$(ProjectDir)bin\\$(Configuration)\\net9.0-windows\\Amium.UiEditor.exe",
-      "workingDirectory": "$(ProjectDir)bin\\$(Configuration)\\net9.0-windows",
+      "commandName": "Project",
       "nativeDebugging": false
     },
     "Amium.UiEditor": {
       "commandName": "Project",
-      "workingDirectory": "$(ProjectDir)bin\\$(Configuration)\\net9.0-windows",
       "nativeDebugging": false
     }
   }
