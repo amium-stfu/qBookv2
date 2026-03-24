@@ -8,5 +8,6 @@ public enum EditorPropertyType
     Color,
     Choice,
     MultilineText,
-    ChartSeriesList
+    ChartSeriesList,
+    AttachItemList
 }

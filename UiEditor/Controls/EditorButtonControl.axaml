@@ -1,8 +1,9 @@
-<controls:EditorButtonControl
+<editorUi:EditorTemplateControl
     x:Class="Amium.UiEditor.Controls.EditorButtonControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Controls"
+  xmlns:editorUi="using:Amium.EditorUi.Controls"
     xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
   <controls:EditorButtonControl.BodyContent>
     <Border
@@ -14,7 +15,7 @@
         CornerRadius="{Binding EffectiveBodyCornerRadius}"
         PointerReleased="OnButtonReleased">
       <Grid ClipToBounds="True">
-        <controls:ThemeSvgIcon
+        <editorUi:ThemeSvgIcon
             Width="{Binding ButtonIconSize}"
             Height="{Binding ButtonIconSize}"
             HorizontalAlignment="{Binding ButtonIconHorizontalAlignment}"
@@ -34,4 +35,4 @@
       </Grid>
     </Border>
   </controls:EditorButtonControl.BodyContent>
-</controls:EditorButtonControl>
+</editorUi:EditorTemplateControl>

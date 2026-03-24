@@ -10,6 +10,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Amium.EditorUi.Controls;
 using Amium.Host;
 using Amium.Items;
 using Amium.UiEditor.Models;
@@ -56,6 +57,9 @@ public partial class RealtimeChartControl : EditorTemplateControl
     private IYAxis? _yAxis3;
     private IYAxis? _yAxis4;
     private bool _hasConfiguredAxes;
+
+    private MainWindowViewModel? ViewModel
+        => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
 
     public bool PageIsActive
     {

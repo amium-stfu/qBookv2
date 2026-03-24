@@ -1,11 +1,9 @@
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
-using System.IO;
-using System.Diagnostics;
-using Amium.UiEditor.Helpers;
+using Amium.EditorUi.Helpers;
 
-namespace Amium.UiEditor.Controls;
+namespace Amium.EditorUi.Controls;
 
 public partial class ThemeSvgIcon : UserControl
 {
@@ -64,7 +62,7 @@ public partial class ThemeSvgIcon : UserControl
         {
             _iconElement.IsVisible = false;
             SvgPathProperty.SetValue(_iconElement, null);
-            Debug.WriteLine($"ThemeSvgIcon could not load icon '{IconPath}': {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"ThemeSvgIcon could not load icon '{IconPath}': {ex.Message}");
         }
     }
 }

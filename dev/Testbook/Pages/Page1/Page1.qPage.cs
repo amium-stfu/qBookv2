@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Amium.Helpers;
 using Amium.Host;
-using Amium.Host.Logging;
+using Amium.Logging;
 using Amium.Items;
 
 namespace DefinitionPage1;

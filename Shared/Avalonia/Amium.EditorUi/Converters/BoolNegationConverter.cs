@@ -1,8 +1,7 @@
-using System;
 using System.Globalization;
 using Avalonia.Data.Converters;
 
-namespace Amium.UiEditor.Converters;
+namespace Amium.EditorUi.Converters;
 
 public sealed class BoolNegationConverter : IValueConverter
 {

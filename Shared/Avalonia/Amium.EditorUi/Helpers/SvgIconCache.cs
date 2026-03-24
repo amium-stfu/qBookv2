@@ -1,17 +1,17 @@
-using System;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Avalonia.Platform;
 
-namespace Amium.UiEditor.Helpers;
+namespace Amium.EditorUi.Helpers;
 
 internal static partial class SvgIconCache
 {
     private static readonly ConcurrentDictionary<string, string> CachedPaths = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly string CacheDirectory = Path.Combine(Path.GetTempPath(), "Amium.UiEditor", "SvgTintCache");
+    private static readonly string CacheDirectory = Path.Combine(Path.GetTempPath(), "Amium.EditorUi", "SvgTintCache");
+    private static readonly string CurrentAssemblyName = typeof(SvgIconCache).Assembly.GetName().Name ?? "Amium.EditorUi";
+    private static readonly string[] LegacyIconAssemblyNames = ["Amium.UiEditor", "AmiumStudio"];
 
     public static string? ResolvePath(string? iconPath, string? tintColor)
     {
@@ -20,7 +20,7 @@ internal static partial class SvgIconCache
             return null;
         }
 
-        var normalizedIconPath = iconPath.Trim();
+        var normalizedIconPath = NormalizeIconPath(iconPath.Trim());
         if (!IconExists(normalizedIconPath))
         {
             return null;
@@ -68,6 +68,27 @@ internal static partial class SvgIconCache
         }
 
         return File.Exists(iconPath);
+    }
+
+    private static string NormalizeIconPath(string iconPath)
+    {
+        if (!Uri.TryCreate(iconPath, UriKind.Absolute, out var uri)
+            || !uri.Scheme.Equals("avares", StringComparison.OrdinalIgnoreCase))
+        {
+            return iconPath;
+        }
+
+        var original = uri.OriginalString;
+        foreach (var legacyAssemblyName in LegacyIconAssemblyNames)
+        {
+            var legacyPrefix = $"avares://{legacyAssemblyName}/";
+            if (original.StartsWith(legacyPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"avares://{CurrentAssemblyName}/{original[legacyPrefix.Length..]}";
+            }
+        }
+
+        return original;
     }
 
     private static string ApplyTint(string svgContent, string tintColor)

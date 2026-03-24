@@ -1,15 +1,10 @@
-using System;
+using Serilog;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.IO;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using Amium.Host;
 
-namespace Amium.Host.Logging;
+namespace Amium.Logging;
 
 public sealed class CsvLogger
 {
@@ -39,10 +34,9 @@ public sealed class CsvLogger
 
     private DateTime _start;
     private CancellationTokenSource? _cts;
-    private ATask? _loggingTask;
-    private ATask? _writingTask;
+    private Task? _loggingTask;
+    private Task? _writingTask;
     private StreamWriter? _writer;
-    
 
     public string Filename { get; set; } = "default.csv";
     public string Separator { get; set; } = ";";
@@ -117,8 +111,8 @@ public sealed class CsvLogger
         try
         {
             await Task.WhenAll(
-                _loggingTask?.AwaitAsync() ?? Task.CompletedTask,
-                _writingTask?.AwaitAsync() ?? Task.CompletedTask).ConfigureAwait(false);
+                _loggingTask ?? Task.CompletedTask,
+                _writingTask ?? Task.CompletedTask).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -182,7 +176,7 @@ public sealed class CsvLogger
         }
         catch (Exception ex)
         {
-            Core.LogWarn("[CsvLogger] Failed to collect values.", ex);
+            Log.Warning(ex, "[CsvLogger] Failed to collect values.");
             return "Error";
         }
     }
@@ -204,13 +198,9 @@ public sealed class CsvLogger
         Running = true;
 
         var token = _cts.Token;
-        _loggingTask = new ATask($"{Name}.Logger", _ =>
-        {
-            RunLogger(token);
-            return Task.CompletedTask;
-        });
-        _writingTask = new ATask($"{Name}.Writer", _ => WriteLogsToFileAsync(token));
-        Core.LogInfo($"[CsvLogger] Started '{Name}' file={FullPath} interval={Interval}ms");
+        _loggingTask = Task.Run(() => RunLogger(token), token);
+        _writingTask = Task.Run(() => WriteLogsToFileAsync(token), token);
+        Log.Information("[CsvLogger] Started '{Name}' file={FullPath} interval={Interval}ms", Name, FullPath, Interval);
     }
 
     private string BuildHeaderLine()

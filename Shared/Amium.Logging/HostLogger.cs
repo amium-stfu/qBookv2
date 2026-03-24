@@ -1,30 +1,29 @@
 using Serilog;
 using Serilog.Events;
-using System;
-using System.IO;
-using Amium.Host.Logging;
 
-namespace Amium.Host;
+namespace Amium.Logging;
 
 public static class HostLogger
 {
     private static bool _initialized;
+    private static string _applicationName = "Amium";
 
     public static ILogger Log { get; private set; } = Serilog.Log.Logger;
     public static ProcessLog ProcessLog { get; } = new();
 
+    public static string ApplicationName => _applicationName;
     public static string LogDirectory => Path.Combine(AppContext.BaseDirectory, "logs");
-
     public static string LogFilePath => Path.Combine(LogDirectory, "host-.log");
-
     public static string CurrentLogFilePath => Path.Combine(LogDirectory, $"host-{DateTime.Now:yyyyMMdd}.log");
 
-    public static void Initialize()
+    public static void Initialize(string applicationName = "Amium")
     {
         if (_initialized)
         {
             return;
         }
+
+        _applicationName = string.IsNullOrWhiteSpace(applicationName) ? "Amium" : applicationName.Trim();
 
         Directory.CreateDirectory(LogDirectory);
         ProcessLog.SetLogDirectory(LogDirectory);
@@ -32,7 +31,7 @@ public static class HostLogger
         Log = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-            .Enrich.WithProperty("App", "Amium.UiEditor")
+            .Enrich.WithProperty("App", _applicationName)
             .WriteTo.Debug(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
             .WriteTo.Sink(new ProcessLogSink(ProcessLog))
             .WriteTo.File(
@@ -45,7 +44,7 @@ public static class HostLogger
 
         Serilog.Log.Logger = Log;
         _initialized = true;
-        Log.Information("Host logger initialized. LogDirectory={LogDirectory} CurrentLogFile={CurrentLogFile}", LogDirectory, CurrentLogFilePath);
+        Log.Information("Logger initialized. App={AppName} LogDirectory={LogDirectory} CurrentLogFile={CurrentLogFile}", _applicationName, LogDirectory, CurrentLogFilePath);
     }
 
     public static void Shutdown()
@@ -55,7 +54,7 @@ public static class HostLogger
             return;
         }
 
-        Log.Information("Host logger shutdown");
+        Log.Information("Logger shutdown. App={AppName}", _applicationName);
         Serilog.Log.CloseAndFlush();
         _initialized = false;
     }

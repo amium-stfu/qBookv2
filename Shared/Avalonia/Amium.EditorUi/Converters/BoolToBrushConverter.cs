@@ -1,9 +1,8 @@
-using System;
 using System.Globalization;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 
-namespace Amium.UiEditor.Converters;
+namespace Amium.EditorUi.Converters;
 
 public sealed class BoolToBrushConverter : IValueConverter
 {

@@ -10,8 +10,9 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Amium.EditorUi.Controls;
 using Amium.Host;
-using Amium.Host.Logging;
+using Amium.Logging;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 
@@ -428,8 +429,8 @@ public partial class EditorLogControl : UserControl
         ApplyThemeButtonState(_pauseButton);
         _pauseButton.Opacity = 1;
         _pauseIcon.IconPath = isPaused
-            ? "avares://Amium.UiEditor/EditorIcons/play.svg"
-            : "avares://Amium.UiEditor/EditorIcons/pause.svg";
+            ? "avares://Amium.EditorUi/EditorIcons/play.svg"
+            : "avares://Amium.EditorUi/EditorIcons/pause.svg";
     }
 
     private void UpdateChromeButtons()

@@ -5,6 +5,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
+using Amium.EditorUi.Controls;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 
@@ -12,6 +14,11 @@ namespace Amium.UiEditor.Controls;
 
 public partial class EditorItemControl : EditorTemplateControl
 {
+    private PageItemModel? Item => DataContext as PageItemModel;
+
+    private MainWindowViewModel? ViewModel
+        => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
+
     public EditorItemControl()
     {
         InitializeComponent();

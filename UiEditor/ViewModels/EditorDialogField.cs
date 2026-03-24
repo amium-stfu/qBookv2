@@ -42,6 +42,8 @@ public sealed class EditorDialogField : ObservableObject
 
     public ObservableCollection<ChartSeriesEditorRow> ChartSeriesEntries { get; } = [];
 
+    public ObservableCollection<AttachItemEditorRow> AttachItemEntries { get; } = [];
+
     public ObservableCollection<string> ChartTargetOptions { get; } = [];
 
     public ObservableCollection<string> ChartAxisOptions { get; } = [];
@@ -107,7 +109,9 @@ public sealed class EditorDialogField : ObservableObject
 
     public bool IsChartSeriesList => PropertyType == EditorPropertyType.ChartSeriesList;
 
-    public bool IsTextInput => !IsChoice && !IsReadOnly && !IsMultilineText && !IsChartSeriesList;
+    public bool IsAttachItemList => PropertyType == EditorPropertyType.AttachItemList;
+
+    public bool IsTextInput => !IsChoice && !IsReadOnly && !IsMultilineText && !IsChartSeriesList && !IsAttachItemList;
 
     public bool ShowPickerButton => IsColor && !IsReadOnly;
 
@@ -132,6 +136,32 @@ public sealed class EditorDialogField : ObservableObject
         }
 
         RebuildChartSeriesEntries();
+    }
+
+    public void InitializeAttachItemEditor()
+    {
+        if (!IsAttachItemList)
+        {
+            return;
+        }
+
+        RebuildAttachItemEntries();
+    }
+
+    public void RefreshAttachItemOptions(IEnumerable<string> options)
+    {
+        if (!IsAttachItemList)
+        {
+            return;
+        }
+
+        Options.Clear();
+        foreach (var option in options.Where(static option => !string.IsNullOrWhiteSpace(option)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            Options.Add(option);
+        }
+
+        RebuildAttachItemEntries();
     }
 
     public void AddChartSeriesEntry()
@@ -270,6 +300,47 @@ public sealed class EditorDialogField : ObservableObject
             "straight" => "Line",
             _ => "Line"
         };
+    }
+
+    private void RebuildAttachItemEntries()
+    {
+        foreach (var row in AttachItemEntries)
+        {
+            row.PropertyChanged -= OnAttachItemRowPropertyChanged;
+        }
+
+        AttachItemEntries.Clear();
+        var selectedPaths = Value
+            .Replace("\r", string.Empty)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var option in Options)
+        {
+            var row = new AttachItemEditorRow
+            {
+                RelativePath = option,
+                IsAttached = selectedPaths.Contains(option)
+            };
+
+            row.PropertyChanged += OnAttachItemRowPropertyChanged;
+            AttachItemEntries.Add(row);
+        }
+    }
+
+    private void OnAttachItemRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(AttachItemEditorRow.IsAttached))
+        {
+            return;
+        }
+
+        var serialized = string.Join(Environment.NewLine, AttachItemEntries
+            .Where(static row => row.IsAttached)
+            .Select(static row => row.RelativePath));
+
+        Parameter.Value = serialized;
+        RaisePropertyChanged(nameof(Value));
     }
 }
 

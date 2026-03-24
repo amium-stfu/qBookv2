@@ -1,5 +1,5 @@
 using System;
-using Amium.Host.Logging;
+using Amium.Logging;
 using Amium.Items;
 
 namespace Amium.Host;

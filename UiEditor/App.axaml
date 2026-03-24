@@ -1,6 +1,6 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:converters="using:Amium.UiEditor.Converters"
+             xmlns:converters="using:Amium.EditorUi.Converters"
              x:Class="Amium.UiEditor.App"
              RequestedThemeVariant="Default">
   <Application.Resources>

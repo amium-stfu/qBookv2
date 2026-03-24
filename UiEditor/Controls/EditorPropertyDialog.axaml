@@ -199,6 +199,29 @@
                             </StackPanel>
                           </Border>
 
+                          <Border
+                              Grid.Column="1"
+                              Grid.ColumnSpan="3"
+                              IsVisible="{Binding IsAttachItemList}"
+                              Padding="10"
+                              Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                              BorderBrush="{Binding CardBorderBrush, ElementName=Root}"
+                              BorderThickness="1"
+                              CornerRadius="8">
+                            <StackPanel Spacing="8">
+                              <TextBlock Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="{Binding ToolTipText}" TextWrapping="Wrap" />
+                              <ScrollViewer MaxHeight="240" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding AttachItemEntries}">
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="viewModels:AttachItemEditorRow">
+                                      <CheckBox IsChecked="{Binding IsAttached, Mode=TwoWay}" Content="{Binding DisplayLabel}" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Margin="0,0,0,6" />
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </ScrollViewer>
+                            </StackPanel>
+                          </Border>
+
                           <TextBox
                               Grid.Column="1"
                               Classes="dialog-field"

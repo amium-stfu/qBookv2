@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
+using Amium.Logging;
 using Amium.Items;
 
 namespace Amium.Host;
@@ -184,19 +185,19 @@ public sealed class DataRegistry : IDataRegistry
 public interface IProcessLogRegistry
 {
     IReadOnlyCollection<string> GetAllNames();
-    bool TryGet(string name, out Logging.ProcessLog? value);
-    void Register(string name, Logging.ProcessLog log);
+    bool TryGet(string name, out ProcessLog? value);
+    void Register(string name, ProcessLog log);
 }
 
 public sealed class ProcessLogRegistry : IProcessLogRegistry
 {
-    private readonly ConcurrentDictionary<string, Logging.ProcessLog> _logs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, ProcessLog> _logs = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyCollection<string> GetAllNames() => _logs.Keys.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
 
-    public bool TryGet(string name, out Logging.ProcessLog? value) => _logs.TryGetValue(name, out value);
+    public bool TryGet(string name, out ProcessLog? value) => _logs.TryGetValue(name, out value);
 
-    public void Register(string name, Logging.ProcessLog log)
+    public void Register(string name, ProcessLog log)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         _logs[name] = log ?? throw new ArgumentNullException(nameof(log));

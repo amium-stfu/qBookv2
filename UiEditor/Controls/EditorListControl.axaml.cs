@@ -7,7 +7,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Amium.EditorUi.Controls;
 using Amium.UiEditor.Models;
+using Amium.UiEditor.ViewModels;
 
 namespace Amium.UiEditor.Controls;
 
@@ -17,6 +19,11 @@ public partial class EditorListControl : EditorTemplateControl
     private ListBox? _itemListBox;
     private ScrollViewer? _listScrollViewer;
     private INotifyCollectionChanged? _itemsCollection;
+
+    private PageItemModel? Item => DataContext as PageItemModel;
+
+    private MainWindowViewModel? ViewModel
+        => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
 
     public EditorListControl()
     {

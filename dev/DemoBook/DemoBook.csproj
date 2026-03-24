@@ -33,6 +33,10 @@
       <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.Contracts.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Amium.EditorUi">
+      <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.EditorUi.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Amium.Host">
       <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.Host.dll</HintPath>
       <Private>false</Private>
@@ -41,8 +45,12 @@
       <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.Items.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="Amium.UiEditor">
-      <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.UiEditor.dll</HintPath>
+    <Reference Include="Amium.Logging">
+      <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.Logging.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AmiumStudio">
+      <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\AmiumStudio.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Avalonia.Base">

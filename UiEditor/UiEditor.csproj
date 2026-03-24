@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <AssemblyName>Amium.UiEditor</AssemblyName>
+    <AssemblyName>AmiumStudio</AssemblyName>
     <RootNamespace>Amium.UiEditor</RootNamespace>
     <NoWarn>$(NoWarn);CS0108</NoWarn>
   </PropertyGroup>
@@ -40,12 +40,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AvaloniaResource Include="EditorIcons\**\*.svg" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\Contracts\UiEditor.Contracts.csproj" />
     <ProjectReference Include="..\Host\UiEditor.Host.csproj" />
+    <ProjectReference Include="..\Shared\Avalonia\Amium.EditorUi\Amium.EditorUi.csproj" />
+    <ProjectReference Include="..\Shared\Amium.Logging\Amium.Logging.csproj" />
     <ProjectReference Include="..\Shared\AmiumItem\AmiumItem.csproj" />
   </ItemGroup>
 </Project>

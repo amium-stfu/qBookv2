@@ -12,15 +12,16 @@ using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Threading;
+using Amium.EditorUi;
 using Amium.Items;
 using Amium.Host;
-using Amium.Host.Logging;
+using Amium.Logging;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.Persistence;
 
 namespace Amium.UiEditor.ViewModels;
 
-public sealed class MainWindowViewModel : ObservableObject
+public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
 {
     private const string DemoTargetPath = "Demo/Item/Demo 1";
     private static readonly IReadOnlyList<string> ParameterFormatOptions = ["Text", "Numeric", "Hex", "bool", "b4", "b8", "b16"];
@@ -41,10 +42,12 @@ public sealed class MainWindowViewModel : ObservableObject
     };
 
     private readonly ObservableCollection<PageItemModel> _selectedItems = [];
+    private readonly bool _supportsUdlClientControl;
     private bool _isEditMode;
-    private bool _showGrid;
+    private bool _showGrid = true;
     private bool _snapToEdges = true;
     private bool _isDarkTheme;
+    private bool _isHeaderCollapsed;
     private int _gridSize = 20;
     private string _statusText;
     private string _bookProjectPath;
@@ -71,8 +74,9 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool _isValueInputOpen;
     private Dock _tabStripPlacement = Dock.Right;
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(bool supportsUdlClientControl = false)
     {
+        _supportsUdlClientControl = supportsUdlClientControl;
         Pages = [];
         GridLines = [];
         SelectionState = new SelectionState();
@@ -94,6 +98,7 @@ public sealed class MainWindowViewModel : ObservableObject
         RebuildBookCommand = new RelayCommand(RebuildBook, CanRunBookAction);
         RefreshLogCommand = new RelayCommand(RefreshLog);
         ToggleEditModeCommand = new RelayCommand(ToggleEditMode);
+        ToggleHeaderCollapsedCommand = new RelayCommand(ToggleHeaderCollapsed);
         SetTabStripPlacementCommand = new RelayCommand<string>(SetTabStripPlacement);
         _bookProjectPath = GetDefaultTestbookPath();
         _loadedBookSummary = "Kein Book geladen";
@@ -109,6 +114,8 @@ public sealed class MainWindowViewModel : ObservableObject
         RefreshDataRegistryDiagnostics();
         RefreshLog();
     }
+
+    public bool SupportsUdlClientControl => _supportsUdlClientControl;
 
     public ObservableCollection<PageModel> Pages { get; }
 
@@ -160,8 +167,6 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 if (!value)
                 {
-                    ShowGrid = false;
-                    ClearItemSelection();
                     CancelSelection();
                     CancelEditorDialog();
                     CancelValueInput();
@@ -283,6 +288,12 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool IsRightTabStripPlacement => TabStripPlacement == Dock.Right;
 
+    public bool IsHeaderCollapsed
+    {
+        get => _isHeaderCollapsed;
+        set => SetProperty(ref _isHeaderCollapsed, value);
+    }
+
     public string ThemeModeText => IsDarkTheme ? "Dark Theme" : "Light Theme";
     public string WindowBackground => CurrentTheme.WindowBackground;
     public string DialogBackground => CurrentTheme.DialogBackground;
@@ -400,6 +411,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public RelayCommand RebuildBookCommand { get; }
     public RelayCommand RefreshLogCommand { get; }
     public RelayCommand ToggleEditModeCommand { get; }
+    public RelayCommand ToggleHeaderCollapsedCommand { get; }
     public RelayCommand<string> SetTabStripPlacementCommand { get; }
 
     public bool IsEditorDialogOpen
@@ -767,6 +779,11 @@ public sealed class MainWindowViewModel : ObservableObject
             return ControlKind.ChartControl;
         }
 
+        if (string.Equals(type, "UdlClientControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "UdlClient", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.UdlClientControl;
+        }
+
         return ControlKind.Item;
     }
 
@@ -1097,6 +1114,21 @@ public sealed class MainWindowViewModel : ObservableObject
         return true;
     }
 
+    void IEditorUiHost.OpenItemEditor(object item, double x, double y)
+    {
+        if (item is PageItemModel pageItem)
+        {
+            OpenItemEditor(pageItem, x, y);
+        }
+    }
+
+    bool IEditorUiHost.DeleteItem(object item)
+        => item is PageItemModel pageItem && DeleteItem(pageItem);
+
+    bool IEditorUiHost.IsEditMode => IsEditMode;
+
+    string? IEditorUiHost.PrimaryTextBrush => PrimaryTextBrush;
+
     public void CancelListPopup()
     {
         _listPopupTarget = null;
@@ -1294,6 +1326,9 @@ public sealed class MainWindowViewModel : ObservableObject
         nodeObject["HistorySeconds"] = item.HistorySeconds;
         nodeObject["ViewSeconds"] = item.ViewSeconds;
         nodeObject["ChartSeriesDefinitions"] = item.ChartSeriesDefinitions;
+        nodeObject["UdlClientHost"] = item.UdlClientHost;
+        nodeObject["UdlClientPort"] = item.UdlClientPort;
+        nodeObject["UdlAttachedItemPaths"] = item.UdlAttachedItemPaths;
         nodeObject["IsReadOnly"] = item.IsReadOnly;
         nodeObject["IsAutoHeight"] = item.IsAutoHeight;
         nodeObject["ListItemHeight"] = item.ListItemHeight;
@@ -1331,6 +1366,7 @@ public sealed class MainWindowViewModel : ObservableObject
             ControlKind.ListControl => "ListControl",
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
+            ControlKind.UdlClientControl => "UdlClient",
             _ => "Item"
         };
     }
@@ -1389,6 +1425,9 @@ public sealed class MainWindowViewModel : ObservableObject
         item.HistorySeconds = GetIntProperty(properties, "HistorySeconds") ?? item.HistorySeconds;
         item.ViewSeconds = GetIntProperty(properties, "ViewSeconds") ?? item.ViewSeconds;
         item.ChartSeriesDefinitions = GetStringProperty(properties, "ChartSeriesDefinitions") ?? item.ChartSeriesDefinitions;
+        item.UdlClientHost = GetStringProperty(properties, "UdlClientHost") ?? item.UdlClientHost;
+        item.UdlClientPort = GetIntProperty(properties, "UdlClientPort") ?? item.UdlClientPort;
+        item.UdlAttachedItemPaths = GetStringProperty(properties, "UdlAttachedItemPaths") ?? item.UdlAttachedItemPaths;
         item.IsReadOnly = GetBoolProperty(properties, "IsReadOnly") ?? item.IsReadOnly;
         item.IsAutoHeight = GetBoolProperty(properties, "IsAutoHeight") ?? item.IsAutoHeight;
         item.ListItemHeight = GetDoubleProperty(properties, "ListItemHeight") ?? item.ListItemHeight;
@@ -1508,6 +1547,7 @@ public sealed class MainWindowViewModel : ObservableObject
             ControlKind.ListControl => "ListControl",
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
+            ControlKind.UdlClientControl => "UdlClientControl",
             _ => "Item"
         };
     }
@@ -1520,6 +1560,12 @@ public sealed class MainWindowViewModel : ObservableObject
     private void SetTabStripPlacement(string? placement)
     {
         TabStripPlacement = ParseTabStripPlacement(placement);
+    }
+
+    private void ToggleHeaderCollapsed()
+    {
+        IsHeaderCollapsed = !IsHeaderCollapsed;
+        StatusText = IsHeaderCollapsed ? "Kopfbereich eingeklappt" : "Kopfbereich ausgeklappt";
     }
 
     private void ToggleEditMode()
@@ -1666,6 +1712,21 @@ public sealed class MainWindowViewModel : ObservableObject
                 HistorySeconds = 120,
                 ViewSeconds = 30,
                 RefreshRateMs = 100
+            },
+            ControlKind.UdlClientControl => new PageItemModel
+            {
+                Kind = ControlKind.UdlClientControl,
+                Name = "UdlClientControl",
+                ControlCaption = string.Empty,
+                BodyCaption = "UdlClient",
+                Footer = "Disconnected",
+                UdlClientHost = "192.168.178.15",
+                UdlClientPort = 9001,
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 420),
+                Height = Math.Max(height, 170),
+                ContainerBorderWidth = 0
             },
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
         };
@@ -1933,8 +1994,19 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void RefreshEditorDialogChoiceOptions(PageItemModel item)
     {
-        foreach (var field in EditorDialogSections.SelectMany(section => section.Fields).Where(field => field.IsChoice))
+        foreach (var field in EditorDialogSections.SelectMany(section => section.Fields))
         {
+            if (field.IsAttachItemList)
+            {
+                field.RefreshAttachItemOptions(GetUdlAttachItemOptions(item));
+                continue;
+            }
+
+            if (!field.IsChoice)
+            {
+                continue;
+            }
+
             var selectedTargetPath = GetSelectedTargetPath(item);
             var options = field.Key switch
             {
@@ -2216,6 +2288,14 @@ public sealed class MainWindowViewModel : ObservableObject
                     BindDouble("ContainerBorderWidth", "ContainerBorderWidth", current => current.ContainerBorderWidth, (current, value) => current.ContainerBorderWidth = value)
                 }));
                 break;
+            case ControlKind.UdlClientControl:
+                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
+                {
+                    BindText("UdlClientHost", "Host", current => current.UdlClientHost, (current, value) => { current.UdlClientHost = value; return null; }),
+                    BindInt("UdlClientPort", "Port", current => current.UdlClientPort, (current, value) => current.UdlClientPort = value),
+                    BindAttachItemList("UdlAttachedItemPaths", "AttachToUi", current => current.UdlAttachedItemPaths, (current, value) => { current.UdlAttachedItemPaths = value; return null; }, GetUdlAttachItemOptions)
+                }));
+                break;
         }
 
         return sections;
@@ -2232,6 +2312,9 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private static EditorDialogBindingDefinition BindChartSeriesList(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, string>? toolTipFactory = null)
         => new(key, label, EditorPropertyType.ChartSeriesList, read, apply, toolTipFactory: toolTipFactory);
+
+    private static EditorDialogBindingDefinition BindAttachItemList(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, IEnumerable<string>> optionsFactory)
+        => new(key, label, EditorPropertyType.AttachItemList, read, apply, optionsFactory: optionsFactory);
 
     private static EditorDialogBindingDefinition BindChoice(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.Choice, read, apply, optionsFactory: optionsFactory);
@@ -2524,6 +2607,9 @@ public sealed class MainWindowViewModel : ObservableObject
             HistorySeconds = item.HistorySeconds,
             ViewSeconds = item.ViewSeconds,
             ChartSeriesDefinitions = item.ChartSeriesDefinitions,
+            UdlClientHost = item.UdlClientHost,
+            UdlClientPort = item.UdlClientPort,
+            UdlAttachedItemPaths = item.UdlAttachedItemPaths,
             IsReadOnly = item.IsReadOnly,
             IsAutoHeight = item.IsAutoHeight,
             ListItemHeight = item.ListItemHeight,
@@ -2777,7 +2863,7 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         return HostRegistries.Data.GetAllKeys()
             .Select(key => HostRegistries.Data.TryGet(key, out var item) ? (Key: key, Item: item) : (Key: (string?)null, Item: null))
-            .Where(entry => !string.IsNullOrWhiteSpace(entry.Key) && entry.Item?.Value is Host.Logging.ProcessLog)
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Key) && entry.Item?.Value is ProcessLog)
             .Select(entry => entry.Key!)
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -2862,7 +2948,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private string GetSuggestedControlName(ControlKind kind, PageModel page, PageItemModel? parentItem, PageItemModel? excludeItem)
     {
-        var baseName = kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", _ => "Item" };
+        var baseName = kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", _ => "Item" };
         var candidate = baseName;
         var index = 1;
         while (!IsControlNameUnique(page, candidate, excludeItem))
@@ -2907,6 +2993,23 @@ public sealed class MainWindowViewModel : ObservableObject
         return !EnumeratePageItems(page.Items)
             .Where(item => !ReferenceEquals(item, excludeItem))
             .Any(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static IEnumerable<string> GetUdlAttachItemOptions(PageItemModel item)
+    {
+        var normalizedName = NormalizeControlName(item.Name);
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            return [];
+        }
+
+        var prefix = $"Runtime/UdlClient/{normalizedName}/";
+        return HostRegistries.Data.GetAllKeys()
+            .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(key => key[prefix.Length..])
+            .Where(static key => !string.IsNullOrWhiteSpace(key))
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private PageModel? FindOwningPage(PageItemModel item)

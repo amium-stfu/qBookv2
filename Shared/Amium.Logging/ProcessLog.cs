@@ -1,14 +1,10 @@
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
-using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
-using System.Linq;
-using System.IO;
 
-namespace Amium.Host.Logging;
+namespace Amium.Logging;
 
 public sealed class ProcessLog
 {
@@ -102,7 +98,7 @@ public sealed class ProcessLog
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
         SetLogDirectory(directory);
 
-        var logFilePath = System.IO.Path.Combine(directory, "process-.log");
+        var logFilePath = Path.Combine(directory, "process-.log");
         _log = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .WriteTo.File(

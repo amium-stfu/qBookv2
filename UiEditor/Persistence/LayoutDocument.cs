@@ -135,6 +135,12 @@ public sealed class PageItemDocument
 
     public string ChartSeriesDefinitions { get; init; } = string.Empty;
 
+    public string UdlClientHost { get; init; } = "192.168.178.15";
+
+    public int UdlClientPort { get; init; } = 9001;
+
+    public string UdlAttachedItemPaths { get; init; } = string.Empty;
+
     public bool IsReadOnly { get; init; }
 
     public bool IsAutoHeight { get; init; } = true;

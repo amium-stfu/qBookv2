@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Amium.Host;
-using Amium.Host.Logging;
+using Amium.Logging;
 using Amium.Items;
 using UdlRuntimeClient = UdlClient.UdlClient;
 using UdlRuntimeModule = UdlClient.Module;

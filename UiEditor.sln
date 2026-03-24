@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Amium.UiEditor", "UiEditor\UiEditor.csproj", "{E2DFF4AB-3767-4A2D-A1D0-5E42E96D999A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AmiumStudio", "UiEditor\UiEditor.csproj", "{E2DFF4AB-3767-4A2D-A1D0-5E42E96D999A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Amium.Contracts", "Contracts\UiEditor.Contracts.csproj", "{5CE44207-0046-4205-AB4A-DBD11712193B}"
 EndProject
@@ -10,7 +10,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UdlClient", "Extension\UdlC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Amium.Items", "Shared\AmiumItem\AmiumItem.csproj", "{E6B84D43-B6F0-4F61-8D4D-FAE3AA7D0D08}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Amium.EditorUi", "Shared\Avalonia\Amium.EditorUi\Amium.EditorUi.csproj", "{B332B0A4-9A44-465E-9966-A91D06312923}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Amium.Logging", "Shared\Amium.Logging\Amium.Logging.csproj", "{2C876720-48CC-48EA-9360-6400D1D2D5E1}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Amium.Host", "Host\UiEditor.Host.csproj", "{7AE93D11-90E2-4C6B-B15F-75E871063CE4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UdlBook", "UdlBook\UdlBook.csproj", "{D3DAA726-54AE-4F35-BA98-C52F7DBA4D60}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -34,10 +40,22 @@ Global
 		{E6B84D43-B6F0-4F61-8D4D-FAE3AA7D0D08}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E6B84D43-B6F0-4F61-8D4D-FAE3AA7D0D08}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E6B84D43-B6F0-4F61-8D4D-FAE3AA7D0D08}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B332B0A4-9A44-465E-9966-A91D06312923}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B332B0A4-9A44-465E-9966-A91D06312923}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B332B0A4-9A44-465E-9966-A91D06312923}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B332B0A4-9A44-465E-9966-A91D06312923}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2C876720-48CC-48EA-9360-6400D1D2D5E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2C876720-48CC-48EA-9360-6400D1D2D5E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2C876720-48CC-48EA-9360-6400D1D2D5E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2C876720-48CC-48EA-9360-6400D1D2D5E1}.Release|Any CPU.Build.0 = Release|Any CPU
 		{7AE93D11-90E2-4C6B-B15F-75E871063CE4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{7AE93D11-90E2-4C6B-B15F-75E871063CE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7AE93D11-90E2-4C6B-B15F-75E871063CE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7AE93D11-90E2-4C6B-B15F-75E871063CE4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D3DAA726-54AE-4F35-BA98-C52F7DBA4D60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D3DAA726-54AE-4F35-BA98-C52F7DBA4D60}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D3DAA726-54AE-4F35-BA98-C52F7DBA4D60}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D3DAA726-54AE-4F35-BA98-C52F7DBA4D60}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

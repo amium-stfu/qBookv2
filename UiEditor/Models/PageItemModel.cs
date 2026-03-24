@@ -19,7 +19,8 @@ public enum ControlKind
     Item,
     ListControl,
     LogControl,
-    ChartControl
+    ChartControl,
+    UdlClientControl
 }
 
 public sealed class PageItemModel : ObservableObject
@@ -110,6 +111,9 @@ public sealed class PageItemModel : ObservableObject
     private int _historySeconds = 120;
     private int _viewSeconds = 30;
     private string _chartSeriesDefinitions = string.Empty;
+    private string _udlClientHost = "192.168.178.15";
+    private int _udlClientPort = 9001;
+    private string _udlAttachedItemPaths = string.Empty;
     private Item? _target;
     private int _refreshRateMs = 1000;
     private bool _isReadOnly;
@@ -471,6 +475,8 @@ public sealed class PageItemModel : ObservableObject
     public bool IsLogControl => Kind == ControlKind.LogControl;
 
     public bool IsChartControl => Kind == ControlKind.ChartControl;
+
+    public bool IsUdlClientControl => Kind == ControlKind.UdlClientControl;
 
     public bool IsSelected
     {
@@ -1045,6 +1051,24 @@ public sealed class PageItemModel : ObservableObject
         set => SetProperty(ref _chartSeriesDefinitions, value ?? string.Empty);
     }
 
+    public string UdlClientHost
+    {
+        get => _udlClientHost;
+        set => SetProperty(ref _udlClientHost, string.IsNullOrWhiteSpace(value) ? "192.168.178.15" : value.Trim());
+    }
+
+    public int UdlClientPort
+    {
+        get => _udlClientPort;
+        set => SetProperty(ref _udlClientPort, value <= 0 ? 9001 : value);
+    }
+
+    public string UdlAttachedItemPaths
+    {
+        get => _udlAttachedItemPaths;
+        set => SetProperty(ref _udlAttachedItemPaths, value ?? string.Empty);
+    }
+
     public bool IsReadOnly
     {
         get => _isReadOnly;
@@ -1305,7 +1329,7 @@ public sealed class PageItemModel : ObservableObject
 
     public bool ShowButtonIcon => HasButtonIcon;
 
-    public string EffectiveButtonIconPath => HasButtonIcon ? ButtonIcon : "avares://Amium.UiEditor/EditorIcons/clear.svg";
+    public string EffectiveButtonIconPath => HasButtonIcon ? ButtonIcon : "avares://Amium.EditorUi/EditorIcons/clear.svg";
 
     public string EffectiveButtonCommand => ButtonCommand;
 

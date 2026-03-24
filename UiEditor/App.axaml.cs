@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Amium.Host;
+using Amium.Logging;
 using Amium.UiEditor.ViewModels;
 using System;
 using System.Runtime.ExceptionServices;
@@ -19,8 +20,8 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        HostLogger.Initialize();
-        HostLogger.Log.Information("Application startup. BaseDirectory={BaseDirectory}", AppContext.BaseDirectory);
+        HostLogger.Initialize("AmiumStudio");
+        HostLogger.Log.Information("AmiumStudio startup. BaseDirectory={BaseDirectory}", AppContext.BaseDirectory);
         RegisterGlobalExceptionHandlers();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)

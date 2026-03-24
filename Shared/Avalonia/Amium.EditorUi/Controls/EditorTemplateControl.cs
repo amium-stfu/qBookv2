@@ -1,4 +1,4 @@
-using System.Linq;
+using System.ComponentModel;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -6,10 +6,8 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
-using Amium.UiEditor.Models;
-using Amium.UiEditor.ViewModels;
 
-namespace Amium.UiEditor.Controls;
+namespace Amium.EditorUi.Controls;
 
 public partial class EditorTemplateControl : UserControl
 {
@@ -19,9 +17,22 @@ public partial class EditorTemplateControl : UserControl
     public static readonly StyledProperty<object?> HeaderActionsContentProperty =
         AvaloniaProperty.Register<EditorTemplateControl, object?>(nameof(HeaderActionsContent));
 
+    public static readonly DirectProperty<EditorTemplateControl, bool> HostIsEditModeProperty =
+        AvaloniaProperty.RegisterDirect<EditorTemplateControl, bool>(nameof(HostIsEditMode), control => control.HostIsEditMode);
+
+    public static readonly DirectProperty<EditorTemplateControl, string?> HostPrimaryTextBrushProperty =
+        AvaloniaProperty.RegisterDirect<EditorTemplateControl, string?>(nameof(HostPrimaryTextBrush), control => control.HostPrimaryTextBrush);
+
+    private IEditorUiHost? _host;
+    private INotifyPropertyChanged? _hostNotifier;
+    private bool _hostIsEditMode;
+    private string? _hostPrimaryTextBrush = "#111827";
+
     public EditorTemplateControl()
     {
         InitializeComponent();
+        AttachedToVisualTree += OnAttachedToVisualTree;
+        DetachedFromVisualTree += OnDetachedFromVisualTree;
     }
 
     public object? BodyContent
@@ -36,10 +47,21 @@ public partial class EditorTemplateControl : UserControl
         set => SetValue(HeaderActionsContentProperty, value);
     }
 
-    protected PageItemModel? Item => DataContext as PageItemModel;
+    public bool HostIsEditMode
+    {
+        get => _hostIsEditMode;
+        private set => SetAndRaise(HostIsEditModeProperty, ref _hostIsEditMode, value);
+    }
 
-    protected MainWindowViewModel? ViewModel
-        => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
+    public string? HostPrimaryTextBrush
+    {
+        get => _hostPrimaryTextBrush;
+        private set => SetAndRaise(HostPrimaryTextBrushProperty, ref _hostPrimaryTextBrush, value);
+    }
+
+    protected object? ItemContext => DataContext;
+
+    protected IEditorUiHost? Host => _host;
 
     protected void HandleInteractivePointerPressed(PointerPressedEventArgs e)
     {
@@ -48,14 +70,28 @@ public partial class EditorTemplateControl : UserControl
 
     protected void HandleSettingsClicked(RoutedEventArgs e)
     {
-        if (Item is null || ViewModel is null || this.GetVisualAncestors().OfType<PageEditorControl>().FirstOrDefault() is not { } editor)
+        if (ItemContext is null || Host is null)
         {
             return;
         }
 
-        var anchor = this.TranslatePoint(new Point(Bounds.Width + 8, 0), editor) ?? new Point(24, 24);
-        ViewModel.OpenItemEditor(Item, anchor.X, anchor.Y);
+        var anchorTarget = this.GetVisualRoot() as Visual;
+        var anchor = anchorTarget is null
+            ? new Point(24, 24)
+            : this.TranslatePoint(new Point(Bounds.Width + 8, 0), anchorTarget) ?? new Point(24, 24);
+
+        Host.OpenItemEditor(ItemContext, anchor.X, anchor.Y);
         e.Handled = true;
+    }
+
+    private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        ResolveHost();
+    }
+
+    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        AttachToHost(null);
     }
 
     private void OnInteractivePointerPressed(object? sender, PointerPressedEventArgs e)
@@ -70,7 +106,7 @@ public partial class EditorTemplateControl : UserControl
 
     private async void OnDeleteClicked(object? sender, RoutedEventArgs e)
     {
-        if (Item is null || ViewModel is null)
+        if (ItemContext is null || Host is null)
         {
             return;
         }
@@ -88,8 +124,55 @@ public partial class EditorTemplateControl : UserControl
             return;
         }
 
-        ViewModel.DeleteItem(Item);
+        Host.DeleteItem(ItemContext);
         e.Handled = true;
+    }
+
+    private void ResolveHost()
+    {
+        var resolved = this.GetVisualRoot() is TopLevel { DataContext: IEditorUiHost host }
+            ? host
+            : null;
+
+        AttachToHost(resolved);
+        RefreshHostBindings();
+    }
+
+    private void AttachToHost(IEditorUiHost? host)
+    {
+        if (ReferenceEquals(_host, host))
+        {
+            return;
+        }
+
+        if (_hostNotifier is not null)
+        {
+            _hostNotifier.PropertyChanged -= OnHostPropertyChanged;
+        }
+
+        _host = host;
+        _hostNotifier = host as INotifyPropertyChanged;
+
+        if (_hostNotifier is not null)
+        {
+            _hostNotifier.PropertyChanged += OnHostPropertyChanged;
+        }
+    }
+
+    private void OnHostPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(e.PropertyName)
+            || e.PropertyName == nameof(IEditorUiHost.IsEditMode)
+            || e.PropertyName == nameof(IEditorUiHost.PrimaryTextBrush))
+        {
+            RefreshHostBindings();
+        }
+    }
+
+    private void RefreshHostBindings()
+    {
+        HostIsEditMode = _host?.IsEditMode ?? false;
+        HostPrimaryTextBrush = string.IsNullOrWhiteSpace(_host?.PrimaryTextBrush) ? "#111827" : _host.PrimaryTextBrush;
     }
 
     private static async Task<bool> ShowDeleteDialogAsync(Window owner)

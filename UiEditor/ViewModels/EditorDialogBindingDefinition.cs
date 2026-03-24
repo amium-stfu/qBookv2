@@ -57,6 +57,7 @@ public sealed class EditorDialogBindingDefinition
 
         field.ToolTipText = ToolTipFactory?.Invoke(item) ?? string.Empty;
         field.InitializeChartSeriesEditor();
+        field.InitializeAttachItemEditor();
         return field;
     }
 

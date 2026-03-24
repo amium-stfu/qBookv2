@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>UdlBook</AssemblyName>
+    <RootNamespace>UdlBook</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Avalonia\Amium.EditorUi\Amium.EditorUi.csproj" />
+    <ProjectReference Include="..\Shared\Amium.Logging\Amium.Logging.csproj" />
+    <ProjectReference Include="..\Shared\AmiumItem\AmiumItem.csproj" />
+    <ProjectReference Include="..\Extension\UdlClient\UdlClient.csproj" />
+  </ItemGroup>
+</Project>
