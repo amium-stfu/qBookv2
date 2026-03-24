@@ -1329,7 +1329,7 @@ public sealed class PageItemModel : ObservableObject
 
     public bool ShowButtonIcon => HasButtonIcon;
 
-    public string EffectiveButtonIconPath => HasButtonIcon ? ButtonIcon : "avares://Amium.EditorUi/EditorIcons/clear.svg";
+    public string EffectiveButtonIconPath => HasButtonIcon ? ButtonIcon : "avares://Amium.Editor/EditorIcons/clear.svg";
 
     public string EffectiveButtonCommand => ButtonCommand;
 

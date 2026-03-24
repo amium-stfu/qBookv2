@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Amium.Editor</AssemblyName>
+    <RootNamespace>Amium.UiEditor</RootNamespace>
+    <NoWarn>$(NoWarn);CS0108</NoWarn>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultAvaloniaItems>false</EnableDefaultAvaloniaItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.6" />
+    <PackageReference Include="Avalonia.Svg.Skia" Version="11.2.6" />
+    <PackageReference Include="ScottPlot.Avalonia" Version="5.0.56" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Host\UiEditor.Host.csproj" />
+    <ProjectReference Include="..\Shared\AmiumItem\AmiumItem.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\UiEditor\IEditorUiHost.cs" Link="IEditorUiHost.cs" />
+    <Compile Include="..\UiEditor\Controls\**\*.cs" Link="Controls\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\UiEditor\Helpers\**\*.cs" Link="Helpers\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\UiEditor\Converters\**\*.cs" Link="Converters\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\UiEditor\Models\**\*.cs" Link="Models\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\UiEditor\Persistence\**\*.cs" Link="Persistence\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\UiEditor\ViewModels\**\*.cs" Link="ViewModels\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\UiEditor\Host\BookUiLayoutLoader.cs" Link="Host\BookUiLayoutLoader.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaXaml Include="..\UiEditor\Controls\**\*.axaml" Link="Controls\%(RecursiveDir)%(Filename)%(Extension)" />
+    <AvaloniaResource Include="..\UiEditor\EditorIcons\**\*.svg" Link="EditorIcons\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

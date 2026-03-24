@@ -27,15 +27,15 @@
 
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="8,0,0,0">
             <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Command="{Binding SelectPageByNameCommand}" CommandParameter="Overview" ToolTip.Tip="Overview">
-              <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.EditorUi/EditorIcons/openBook.svg" TintColor="{Binding PrimaryTextBrush}" />
+              <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/openBook.svg" TintColor="{Binding PrimaryTextBrush}" />
             </Button>
 
             <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Command="{Binding SelectPageByNameCommand}" CommandParameter="UdlClient" ToolTip.Tip="UdlClient Seite">
-              <editorUi:ThemeSvgIcon Width="22" Height="22" IconPath="avares://Amium.EditorUi/EditorIcons/log.svg" TintColor="{Binding PrimaryTextBrush}" />
+              <editorUi:ThemeSvgIcon Width="22" Height="22" IconPath="avares://Amium.Editor/EditorIcons/log.svg" TintColor="{Binding PrimaryTextBrush}" />
             </Button>
 
             <ToggleButton Classes="headericon" Background="Transparent" BorderBrush="Transparent" IsChecked="{Binding IsDarkTheme}" ToolTip.Tip="Theme Switch">
-              <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.EditorUi/EditorIcons/theme.svg" TintColor="{Binding PrimaryTextBrush}" />
+              <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/theme.svg" TintColor="{Binding PrimaryTextBrush}" />
             </ToggleButton>
 
             <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Command="{Binding ToggleTabPlacementCommand}" ToolTip.Tip="Tab-Position wechseln">

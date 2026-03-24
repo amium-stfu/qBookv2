@@ -18,6 +18,10 @@ namespace Amium.Host;
 
 public sealed class BookRoslynCompiler
 {
+    public static Func<IReadOnlyList<string>> AdditionalReferenceResolver { get; set; } = static () => Array.Empty<string>();
+    public static Action<string>? InfoLogger { get; set; }
+    public static Action<string>? DebugLogger { get; set; }
+
     private readonly object _buildLock = new();
     private AssemblyLoadContext? _loadContext;
     private WeakReference? _loadContextWeakReference;
@@ -111,9 +115,9 @@ public sealed class BookRoslynCompiler
             .ToArray();
 
         var firstPdbDocument = TryReadFirstPdbDocument(pdbImage);
-        Core.LogInfo(
+        InfoLogger?.Invoke(
             $"Build output ready. AssemblyPath={dllPath} PdbPath={pdbPath} SourceFileCount={sourcePaths.Length} FirstSource={sourcePaths.FirstOrDefault() ?? "<none>"}");
-        Core.LogInfo($"PDB first document={firstPdbDocument ?? "<unavailable>"}");
+        InfoLogger?.Invoke($"PDB first document={firstPdbDocument ?? "<unavailable>"}");
 
         return new BookBuildResult(project, true, diagnostics, assembly, dllPath, pdbPath, peImage, pdbImage);
     }
@@ -121,7 +125,7 @@ public sealed class BookRoslynCompiler
     public Assembly LoadRuntimeAssembly(string assemblyPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
-        Core.LogInfo($"LoadRuntimeAssembly requested for {assemblyPath}");
+        InfoLogger?.Invoke($"LoadRuntimeAssembly requested for {assemblyPath}");
         return LoadAssembly(assemblyPath);
     }
 
@@ -136,7 +140,6 @@ public sealed class BookRoslynCompiler
     private static IReadOnlyList<MetadataReference> GetMetadataReferences()
     {
         var references = new Dictionary<string, MetadataReference>(StringComparer.OrdinalIgnoreCase);
-        HostPluginCatalog.EnsureLoaded();
 
         var trustedPlatformAssemblies = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))?
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -147,7 +150,7 @@ public sealed class BookRoslynCompiler
             TryAddReference(references, assemblyPath);
         }
 
-        foreach (var assemblyPath in HostPluginCatalog.GetProjectReferencePaths(AppContext.BaseDirectory))
+        foreach (var assemblyPath in AdditionalReferenceResolver())
         {
             TryAddReference(references, assemblyPath);
         }
@@ -175,12 +178,12 @@ public sealed class BookRoslynCompiler
         UnloadPreviousAssembly();
 
         var fullAssemblyPath = Path.GetFullPath(assemblyPath);
-        Core.LogInfo($"Loading runtime assembly from path {fullAssemblyPath}");
+        InfoLogger?.Invoke($"Loading runtime assembly from path {fullAssemblyPath}");
 
         var loadContext = new BookRuntimeLoadContext(fullAssemblyPath);
         var assembly = loadContext.LoadFromAssemblyPath(fullAssemblyPath);
 
-        Core.LogInfo(
+        InfoLogger?.Invoke(
             $"Runtime assembly loaded. FullName={assembly.FullName} Location={assembly.Location} LoadContext={loadContext.Name}");
 
         _loadContext = loadContext;
@@ -260,7 +263,7 @@ public sealed class BookRoslynCompiler
         }
         catch (Exception ex)
         {
-            Core.LogDebug($"Reading first PDB document failed: {ex.Message}");
+            DebugLogger?.Invoke($"Reading first PDB document failed: {ex.Message}");
             return null;
         }
     }

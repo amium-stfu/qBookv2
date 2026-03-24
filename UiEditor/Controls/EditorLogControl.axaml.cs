@@ -429,8 +429,8 @@ public partial class EditorLogControl : UserControl
         ApplyThemeButtonState(_pauseButton);
         _pauseButton.Opacity = 1;
         _pauseIcon.IconPath = isPaused
-            ? "avares://Amium.EditorUi/EditorIcons/play.svg"
-            : "avares://Amium.EditorUi/EditorIcons/pause.svg";
+            ? "avares://Amium.Editor/EditorIcons/play.svg"
+            : "avares://Amium.Editor/EditorIcons/pause.svg";
     }
 
     private void UpdateChromeButtons()

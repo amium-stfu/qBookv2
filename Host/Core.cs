@@ -22,6 +22,10 @@ public enum CoreState
 public static class Core
 {
     //State Heartbeat to keep the editor updated on the current state of the host, especially during long operations like build and run. The editor can use this to show appropriate status messages or indicators.
+    static Core()
+    {
+        RoslynBridge.EnsureInitialized();
+    }
     
     public static System.Threading.Timer? PipeHeartbeat;
     public static CoreState State { get; private set; } = CoreState.Init;

@@ -21,7 +21,7 @@ using Amium.UiEditor.Persistence;
 
 namespace Amium.UiEditor.ViewModels;
 
-public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
+public class MainWindowViewModel : ObservableObject, IEditorUiHost
 {
     private const string DemoTargetPath = "Demo/Item/Demo 1";
     private static readonly IReadOnlyList<string> ParameterFormatOptions = ["Text", "Numeric", "Hex", "bool", "b4", "b8", "b16"];
@@ -50,13 +50,8 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
     private bool _isHeaderCollapsed;
     private int _gridSize = 20;
     private string _statusText;
-    private string _bookProjectPath;
-    private string _loadedBookSummary;
-    private string _messagesSummary;
-    private string _currentLogText;
     private string _dataRegistrySummary;
     private string _editorDialogChoiceSummary;
-    private bool _isBookOperationRunning;
     private PageItemModel? _selectedItem;
     private PageModel _selectedPage = null!;
     private double _canvasWidth;
@@ -94,25 +89,16 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
         AlignVerticalCenterCommand = new RelayCommand(AlignVerticalCenter);
         MatchWidthCommand = new RelayCommand(MatchWidth);
         MatchHeightCommand = new RelayCommand(MatchHeight);
-        LoadBookCommand = new RelayCommand(LoadBook, CanRunBookAction);
-        RebuildBookCommand = new RelayCommand(RebuildBook, CanRunBookAction);
-        RefreshLogCommand = new RelayCommand(RefreshLog);
         ToggleEditModeCommand = new RelayCommand(ToggleEditMode);
         ToggleHeaderCollapsedCommand = new RelayCommand(ToggleHeaderCollapsed);
         SetTabStripPlacementCommand = new RelayCommand<string>(SetTabStripPlacement);
-        _bookProjectPath = GetDefaultTestbookPath();
-        _loadedBookSummary = "Kein Book geladen";
-        _messagesSummary = "Keine Meldungen";
-        _currentLogText = string.Empty;
         _dataRegistrySummary = "HostRegistry: 0 Items";
         _editorDialogChoiceSummary = "Dialog Choices: geschlossen";
         _statusText = $"Layout-Datei: {LayoutFilePath}";
         HostRegistries.Data.RegistryChanged += OnDataRegistryStructureChanged;
-        HostLogger.ProcessLog.EntryAdded += OnHostLogEntryAdded;
 
         SetPages(CreateDefaultPages());
         RefreshDataRegistryDiagnostics();
-        RefreshLog();
     }
 
     public bool SupportsUdlClientControl => _supportsUdlClientControl;
@@ -333,40 +319,7 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
     public string StatusText
     {
         get => _statusText;
-        private set => SetProperty(ref _statusText, value);
-    }
-
-    public string BookProjectPath
-    {
-        get => _bookProjectPath;
-        set
-        {
-            if (SetProperty(ref _bookProjectPath, value))
-            {
-                LoadBookCommand.RaiseCanExecuteChanged();
-                RebuildBookCommand.RaiseCanExecuteChanged();
-            }
-        }
-    }
-
-    public string LoadedBookSummary
-    {
-        get => _loadedBookSummary;
-        private set => SetProperty(ref _loadedBookSummary, value);
-    }
-
-    public string MessagesSummary
-    {
-        get => _messagesSummary;
-        private set => SetProperty(ref _messagesSummary, value);
-    }
-
-    public string CurrentLogFilePath => HostLogger.CurrentLogFilePath;
-
-    public string CurrentLogText
-    {
-        get => _currentLogText;
-        private set => SetProperty(ref _currentLogText, value);
+        protected set => SetProperty(ref _statusText, value);
     }
 
     public string DataRegistrySummary
@@ -379,19 +332,6 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         get => _editorDialogChoiceSummary;
         private set => SetProperty(ref _editorDialogChoiceSummary, value);
-    }
-
-    public bool IsBookOperationRunning
-    {
-        get => _isBookOperationRunning;
-        private set
-        {
-            if (SetProperty(ref _isBookOperationRunning, value))
-            {
-                LoadBookCommand.RaiseCanExecuteChanged();
-                RebuildBookCommand.RaiseCanExecuteChanged();
-            }
-        }
     }
 
     public string LayoutFilePath { get; }
@@ -407,9 +347,6 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
     public RelayCommand AlignVerticalCenterCommand { get; }
     public RelayCommand MatchWidthCommand { get; }
     public RelayCommand MatchHeightCommand { get; }
-    public RelayCommand LoadBookCommand { get; }
-    public RelayCommand RebuildBookCommand { get; }
-    public RelayCommand RefreshLogCommand { get; }
     public RelayCommand ToggleEditModeCommand { get; }
     public RelayCommand ToggleHeaderCollapsedCommand { get; }
     public RelayCommand<string> SetTabStripPlacementCommand { get; }
@@ -454,357 +391,6 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         get => _editorDialogError;
         private set => SetProperty(ref _editorDialogError, value);
-    }
-
-    private bool CanRunBookAction()
-        => !IsBookOperationRunning && !string.IsNullOrWhiteSpace(BookProjectPath);
-
-    public void RefreshLog()
-    {
-        var entries = HostLogger.ProcessLog.GetEntries();
-        if (entries.Count == 0)
-        {
-            CurrentLogText = "Noch kein Log vorhanden.";
-            OnPropertyChanged(nameof(CurrentLogFilePath));
-            return;
-        }
-
-        CurrentLogText = string.Join(Environment.NewLine, entries.Select(FormatLogEntry));
-        OnPropertyChanged(nameof(CurrentLogFilePath));
-    }
-
-    private void OnHostLogEntryAdded(ProcessLogEntry entry)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            var formatted = FormatLogEntry(entry);
-            CurrentLogText = string.IsNullOrWhiteSpace(CurrentLogText) || string.Equals(CurrentLogText, "Noch kein Log vorhanden.", StringComparison.Ordinal)
-                ? formatted
-                : $"{CurrentLogText}{Environment.NewLine}{formatted}";
-        });
-    }
-
-    private static string FormatLogEntry(ProcessLogEntry entry)
-    {
-        if (string.IsNullOrWhiteSpace(entry.Exception))
-        {
-            return $"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Level}] {entry.Message}";
-        }
-
-        return $"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Level}] {entry.Message}{Environment.NewLine}{entry.Exception}";
-    }
-
-    private void ResetMessages()
-    {
-        Messages.Clear();
-        MessagesSummary = "Keine Meldungen";
-    }
-
-    private void AddMessage(string source, string severity, string message, string? location = null)
-    {
-        Messages.Add(new HostMessageEntry
-        {
-            Source = source,
-            Severity = severity,
-            Message = message,
-            Location = location ?? string.Empty
-        });
-
-        MessagesSummary = $"{Messages.Count} Meldungen";
-    }
-    private async void LoadBook()
-    {
-        if (!CanRunBookAction())
-        {
-            return;
-        }
-
-        IsBookOperationRunning = true;
-        ResetMessages();
-        try
-        {
-            var result = await Core.LoadAndRunAsync(BookProjectPath);
-            BookProjectPath = result.Project.RootDirectory;
-            ApplyBookTabStripPlacement(result.Project.RootDirectory);
-            LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
-            AddMessage("Load", result.Success ? "Info" : "Error", $"Load {(result.Success ? "erfolgreich" : "fehlgeschlagen")}: {result.Project.ProjectName}", result.Project.RootDirectory);
-
-            foreach (var diagnostic in result.Diagnostics)
-            {
-                var span = diagnostic.Location.GetMappedLineSpan();
-                var path = string.IsNullOrWhiteSpace(span.Path) ? diagnostic.Location.SourceTree?.FilePath ?? string.Empty : span.Path;
-                var location = string.IsNullOrWhiteSpace(path)
-                    ? string.Empty
-                    : $"{Path.GetFileName(path)}:{span.StartLinePosition.Line + 1}:{span.StartLinePosition.Character + 1}";
-
-                AddMessage("Roslyn", diagnostic.Severity.ToString(), diagnostic.GetMessage(), location);
-            }
-
-            StatusText = result.Success
-                ? $"Load erfolgreich: {result.Project.ProjectName} ({result.ErrorCount} Fehler, {result.WarningCount} Warnungen)"
-                : $"Load fehlgeschlagen: {result.ErrorCount} Fehler, {result.WarningCount} Warnungen";
-        }
-        catch (Exception ex)
-        {
-            LoadedBookSummary = "Book konnte nicht geladen werden";
-            AddMessage("Load", "Error", ex.Message);
-            StatusText = $"Load fehlgeschlagen: {ex.Message}";
-        }
-        finally
-        {
-            RefreshLog();
-            IsBookOperationRunning = false;
-        }
-    }
-
-    private async void RebuildBook()
-    {
-        if (!CanRunBookAction())
-        {
-            return;
-        }
-
-        IsBookOperationRunning = true;
-        ResetMessages();
-        try
-        {
-            var result = await Core.RebuildAsync(BookProjectPath);
-            ApplyBookTabStripPlacement(result.Project.RootDirectory);
-            SetPages(CreatePagesFromBook(result.Project));
-            BookProjectPath = result.Project.RootDirectory;
-            LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
-            AddMessage("Build", result.Success ? "Info" : "Error", $"Build {(result.Success ? "erfolgreich" : "fehlgeschlagen")}: {result.Project.ProjectName}", result.Project.RootDirectory);
-
-            foreach (var diagnostic in result.Diagnostics)
-            {
-                var span = diagnostic.Location.GetMappedLineSpan();
-                var path = string.IsNullOrWhiteSpace(span.Path) ? diagnostic.Location.SourceTree?.FilePath ?? string.Empty : span.Path;
-                var location = string.IsNullOrWhiteSpace(path)
-                    ? string.Empty
-                    : $"{Path.GetFileName(path)}:{span.StartLinePosition.Line + 1}:{span.StartLinePosition.Character + 1}";
-
-                AddMessage("Roslyn", diagnostic.Severity.ToString(), diagnostic.GetMessage(), location);
-            }
-
-            StatusText = result.Success
-                ? $"Build erfolgreich: {result.Project.ProjectName} ({result.ErrorCount} Fehler, {result.WarningCount} Warnungen)"
-                : $"Build fehlgeschlagen: {result.ErrorCount} Fehler, {result.WarningCount} Warnungen";
-        }
-        catch (Exception ex)
-        {
-            AddMessage("Build", "Error", ex.Message);
-            StatusText = $"Rebuild fehlgeschlagen: {ex.Message}";
-        }
-        finally
-        {
-            RefreshLog();
-            IsBookOperationRunning = false;
-        }
-    }
-
-    private IReadOnlyList<PageModel> CreatePagesFromBook(BookProject project)
-    {
-        var pages = project.Pages
-            .Select((page, index) => CreatePageFromBook(page, index + 1))
-            .ToList();
-
-        if (pages.Count == 0)
-        {
-            pages.Add(new PageModel
-            {
-                Index = 1,
-                Name = project.ProjectName
-            });
-        }
-
-        return pages;
-    }
-
-    private PageModel CreatePageFromBook(BookProjectPage page, int index)
-    {
-        var pageName = string.IsNullOrWhiteSpace(page.Name) ? $"Page{index}" : page.Name;
-        var pageDisplayText = GetPageDisplayText(page) ?? pageName;
-
-        if (string.IsNullOrWhiteSpace(page.UiFile) || !File.Exists(page.UiFile))
-        {
-            var fallbackModel = new PageModel
-            {
-                Index = index,
-                Name = pageName,
-                DisplayText = pageDisplayText,
-                UiFilePath = page.UiFile
-            };
-
-            fallbackModel.Items.Add(CreateFallbackItem(page.Name, "Keine Page.json gefunden"));
-            return fallbackModel;
-        }
-
-        try
-        {
-            var layout = BookUiLayoutLoader.Load(page.UiFile, page.Name);
-            var model = new PageModel
-            {
-                Index = index,
-                Name = pageName,
-                DisplayText = pageDisplayText,
-                UiFilePath = page.UiFile,
-                UiLayoutDefinition = layout
-            };
-
-            var items = CreateItemsFromNode(pageName, layout.Layout, 48, 48).ToList();
-
-            foreach (var item in items)
-            {
-                model.Items.Add(item);
-            }
-
-            return model;
-        }
-        catch (Exception ex)
-        {
-            AddMessage("UI", "Error", ex.Message, page.UiFile);
-            var fallbackModel = new PageModel
-            {
-                Index = index,
-                Name = pageName,
-                DisplayText = pageDisplayText,
-                UiFilePath = page.UiFile
-            };
-            fallbackModel.Items.Add(CreateFallbackItem(page.Name, $"UI-Fehler: {ex.Message}"));
-            return fallbackModel;
-        }
-    }
-
-    private IEnumerable<PageItemModel> CreateItemsFromNode(string pageName, BookUiNode node, double defaultX, double defaultY)
-    {
-        if (IsContainerNode(node))
-        {
-            var x = node.X ?? defaultX;
-            var y = node.Y ?? defaultY;
-            var spacing = node.Spacing ?? 12d;
-            var nextY = y;
-
-            foreach (var child in node.Children)
-            {
-                foreach (var item in CreateItemsFromNode(pageName, child, x, nextY))
-                {
-                    yield return item;
-                    nextY = Math.Max(nextY, item.Y + item.Height + spacing);
-                }
-            }
-
-            yield break;
-        }
-
-        yield return CreateItemFromUiNode(pageName, node, defaultX, defaultY);
-    }
-
-    private PageItemModel CreateItemFromUiNode(string pageName, BookUiNode node, double defaultX, double defaultY)
-    {
-        var type = node.Type;
-        var text = string.IsNullOrWhiteSpace(node.Text) ? type : node.Text;
-        var kind = GetControlKindFromUiType(type);
-        var isButton = kind == ControlKind.Button;
-        var isListControl = kind == ControlKind.ListControl;
-        var isChartControl = kind == ControlKind.ChartControl;
-        var item = new PageItemModel
-        {
-            Kind = kind,
-            Name = text,
-            BodyCaption = text,
-            ControlCaption = pageName,
-            Footer = isButton ? "Aktion" : type,
-            X = node.X ?? defaultX,
-            Y = node.Y ?? defaultY,
-            Width = node.Width ?? (isButton ? 320 : (kind == ControlKind.LogControl ? 420 : (isChartControl ? 520 : (isListControl ? 260 : 260)))),
-            Height = node.Height ?? (isButton ? 96 : (kind == ControlKind.LogControl ? 260 : (isChartControl ? 260 : (isListControl ? 220 : 84)))),
-            IsAutoHeight = isListControl,
-            UiNodeType = string.IsNullOrWhiteSpace(type) ? GetDefaultUiType(kind) : type,
-            UiProperties = CloneJsonObject(node.Properties)
-        };
-
-        ApplyKnownUiProperties(item, node.Properties, pageName, type);
-        item.SetHierarchy(pageName, null);
-
-        foreach (var childNode in node.Children)
-        {
-            var childItems = CreateItemsFromNode(pageName, childNode, 0, 0).ToList();
-            foreach (var childItem in childItems)
-            {
-                if (item.IsListControl)
-                {
-                    item.AttachChildToList(childItem);
-                }
-                else
-                {
-                    childItem.SetHierarchy(pageName, item);
-                }
-
-                item.Items.Add(childItem);
-            }
-        }
-
-        item.ApplyTheme(IsDarkTheme);
-        item.SyncChildWidths();
-        item.ApplyListHeightRules();
-        return item;
-    }
-
-    private static bool IsContainerNode(BookUiNode node)
-    {
-        return string.Equals(node.Type, "StackPanel", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(node.Type, "Canvas", StringComparison.OrdinalIgnoreCase)
-            || string.IsNullOrWhiteSpace(node.Type);
-    }
-
-    private static ControlKind GetControlKindFromUiType(string? type)
-    {
-        if (string.Equals(type, "Button", StringComparison.OrdinalIgnoreCase))
-        {
-            return ControlKind.Button;
-        }
-
-        if (string.Equals(type, "ListControl", StringComparison.OrdinalIgnoreCase))
-        {
-            return ControlKind.ListControl;
-        }
-
-        if (string.Equals(type, "LogControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "ProcessLog", StringComparison.OrdinalIgnoreCase))
-        {
-            return ControlKind.LogControl;
-        }
-
-        if (string.Equals(type, "ChartControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "Chart", StringComparison.OrdinalIgnoreCase))
-        {
-            return ControlKind.ChartControl;
-        }
-
-        if (string.Equals(type, "UdlClientControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "UdlClient", StringComparison.OrdinalIgnoreCase))
-        {
-            return ControlKind.UdlClientControl;
-        }
-
-        return ControlKind.Item;
-    }
-
-    private PageItemModel CreateFallbackItem(string pageName, string message)
-    {
-        var item = new PageItemModel
-        {
-            Kind = ControlKind.Item,
-            Name = message,
-            BodyCaption = message,
-            ControlCaption = pageName,
-            Footer = "Book",
-            X = 48,
-            Y = 48,
-            Width = 320,
-            Height = 84
-        };
-
-        item.SetHierarchy(pageName, null);
-        item.ApplyTheme(IsDarkTheme);
-        return item;
     }
 
     public void SelectPage(PageModel? page)
@@ -1371,7 +957,7 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
         };
     }
 
-    private static void ApplyKnownUiProperties(PageItemModel item, JsonObject properties, string pageName, string? fallbackType)
+    protected static void ApplyKnownUiProperties(PageItemModel item, JsonObject properties, string pageName, string? fallbackType)
     {
         item.Name = GetStringProperty(properties, "Name") ?? item.Name;
         item.Id = GetStringProperty(properties, "Id") ?? item.Id;
@@ -1539,7 +1125,7 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject[propertyName] = value;
     }
 
-    private static string GetDefaultUiType(ControlKind kind)
+    protected static string GetDefaultUiType(ControlKind kind)
     {
         return kind switch
         {
@@ -1552,7 +1138,7 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
         };
     }
 
-    private static JsonObject CloneJsonObject(JsonObject? source)
+    protected static JsonObject CloneJsonObject(JsonObject? source)
     {
         return source?.DeepClone() as JsonObject ?? new JsonObject();
     }
@@ -1577,15 +1163,17 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    private void ApplyBookTabStripPlacement(string? bookRootDirectory)
+    protected void ApplyBookTabStripPlacement(string? bookRootDirectory)
     {
         var documentObject = LoadJsonObject(GetBookManifestPath(bookRootDirectory));
         TabStripPlacement = ParseTabStripPlacement(GetStringProperty(documentObject, "TabStripPlacement"));
     }
 
-    private string? GetBookManifestPath(string? bookRootDirectory = null)
+    protected virtual string? CurrentProjectRootDirectory => null;
+
+    protected string? GetBookManifestPath(string? bookRootDirectory = null)
     {
-        var rootDirectory = string.IsNullOrWhiteSpace(bookRootDirectory) ? BookProjectPath : bookRootDirectory;
+        var rootDirectory = string.IsNullOrWhiteSpace(bookRootDirectory) ? CurrentProjectRootDirectory : bookRootDirectory;
         if (string.IsNullOrWhiteSpace(rootDirectory))
         {
             return null;
@@ -1594,7 +1182,7 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
         return Path.Combine(rootDirectory, "Book.json");
     }
 
-    private static JsonObject LoadJsonObject(string? path)
+    protected static JsonObject LoadJsonObject(string? path)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
@@ -1610,7 +1198,7 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
         return JsonNode.Parse(json) as JsonObject ?? new JsonObject();
     }
 
-    private static string? GetPageDisplayText(BookProjectPage page)
+    protected static string? GetPageDisplayText(BookProjectPage page)
     {
         var metadata = LoadJsonObject(page.MetadataFile);
         return GetStringProperty(metadata, "Title")
@@ -1877,7 +1465,7 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
         StatusText = "Hoehen an Master angeglichen";
     }
 
-    private void SetPages(IReadOnlyList<PageModel> pages)
+    protected void SetPages(IReadOnlyList<PageModel> pages)
     {
         Pages.Clear();
 
@@ -3017,43 +2605,7 @@ public sealed class MainWindowViewModel : ObservableObject, IEditorUiHost
         return Pages.FirstOrDefault(page => EnumeratePageItems(page.Items).Any(candidate => ReferenceEquals(candidate, item)));
     }
 
-    private static string GetDefaultTestbookPath()
-    {
-        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "dev", "Testbook"));
-    }
-
-    private void ApplyDestroyedUi(BookProject? project)
-    {
-        var pages = project is not null
-            ? project.Pages.Select((page, index) => new PageModel
-            {
-                Index = index + 1,
-                Name = string.IsNullOrWhiteSpace(page.Name) ? $"Page{index + 1}" : page.Name
-            }).ToList()
-            : Pages.Select(page => new PageModel
-            {
-                Index = page.Index,
-                Name = page.Name
-            }).ToList();
-
-        if (pages.Count > 0)
-        {
-            SetPages(pages);
-        }
-
-        StatusText = "Runtime gestoppt. Canvas geleert.";
-    }
-
-    private void ApplyRunningUi(BookProject project)
-    {
-        ApplyBookTabStripPlacement(project.RootDirectory);
-        SetPages(CreatePagesFromBook(project));
-        BookProjectPath = project.RootDirectory;
-        LoadedBookSummary = $"{project.ProjectName} | Pages: {project.Pages.Count} | C#: {project.SourceFiles.Count} | UI: {project.UiFiles.Count}";
-        StatusText = $"Runtime gestartet: {project.ProjectName}";
-    }
-
-    private static List<PageModel> CreateDefaultPages()
+    protected static List<PageModel> CreateDefaultPages()
     {
         return
         [

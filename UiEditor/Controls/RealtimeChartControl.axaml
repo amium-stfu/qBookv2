@@ -12,16 +12,16 @@
       <Button x:Name="PauseButton" Classes="toolicon" Width="30" Height="30" MinWidth="30" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnPauseClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Live/Pause">
         <Grid>
           <Grid IsVisible="{Binding IsPaused, ElementName=Root}">
-            <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.EditorUi/EditorIcons/play.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+            <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.Editor/EditorIcons/play.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
           </Grid>
           <Grid IsVisible="{Binding IsPaused, ElementName=Root, Converter={StaticResource BoolNegationConverter}}">
-            <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.EditorUi/EditorIcons/pause.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+            <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.Editor/EditorIcons/pause.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
           </Grid>
         </Grid>
       </Button>
 
       <Button Classes="toolicon" Width="30" Height="30" MinWidth="30" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnClearClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Chart leeren">
-        <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.EditorUi/EditorIcons/clear.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+        <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.Editor/EditorIcons/clear.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
       </Button>
     </StackPanel>
   </controls:RealtimeChartControl.HeaderActionsContent>

@@ -15,8 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Shared\Avalonia\Amium.EditorUi\Amium.EditorUi.csproj" />
-    <ProjectReference Include="..\Shared\Amium.Logging\Amium.Logging.csproj" />
+    <ProjectReference Include="..\Editor\Amium.Editor.csproj" />
     <ProjectReference Include="..\Shared\AmiumItem\AmiumItem.csproj" />
     <ProjectReference Include="..\Extension\UdlClient\UdlClient.csproj" />
   </ItemGroup>

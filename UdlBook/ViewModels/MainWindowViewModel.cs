@@ -29,7 +29,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 string.Empty,
                 [
                     "Eigenes MainWindow statt Konfigurationszweige im AmiumStudio-Fenster.",
-                    "Gemeinsame Avalonia-Bausteine bleiben darunter in Amium.EditorUi.",
+                    "Gemeinsame Avalonia-Bausteine liegen jetzt direkt in Amium.Editor.",
                     "UdlBook kann spaeter gezielt UdlClient-spezifische Controls aufnehmen."
                 ],
                 "Diese Seite ist die neutrale Startflaeche fuer das UdlBook-Produkt."),
@@ -63,7 +63,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 string.Empty,
                 [
                     "MainWindow und MainWindowViewModel pro Produkt getrennt halten.",
-                    "Gemeinsam genutzte Teilansichten spaeter wieder in Shared ziehen.",
+                    "Gemeinsam genutzte Teilansichten spaeter produktneutral im Editor bündeln.",
                     "UdlBook danach gezielt um UdlClient-spezifische Flaechen erweitern."
                 ],
                 "Diese Roadmap vermeidet spaetere Entflechtung quer durch beide Apps.")

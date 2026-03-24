@@ -15,7 +15,7 @@
         <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" FontSize="17" FontWeight="SemiBold" Foreground="{Binding EffectivePrimaryForegroundBrush}" Text="{Binding Title}" />
         <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="6">
           <Button x:Name="SettingsButton" Classes="toolicon" VerticalAlignment="Center" Background="{Binding DataContext.EditPanelButtonBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderBrush="{Binding DataContext.EditPanelButtonBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" Click="OnSettingsClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Log Einstellungen">
-            <editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.EditorUi/EditorIcons/cog.svg" TintColor="{Binding DataContext.EditPanelInputForeground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+            <editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/cog.svg" TintColor="{Binding DataContext.EditPanelInputForeground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
           </Button>
         </StackPanel>
       </Grid>
@@ -58,10 +58,10 @@
             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontSize="11" FontWeight="SemiBold" Text="F" />
           </Button>
           <Button x:Name="PauseButton" Classes="toolicon" Width="30" Height="30" MinWidth="30" VerticalAlignment="Center" Background="{Binding DataContext.EditPanelButtonBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderBrush="{Binding DataContext.EditPanelButtonBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" Click="OnPauseClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Live/Pause">
-            <editorUi:ThemeSvgIcon x:Name="PauseIcon" Width="14" Height="14" IconPath="avares://Amium.EditorUi/EditorIcons/pause.svg" TintColor="{Binding DataContext.EditPanelInputForeground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+            <editorUi:ThemeSvgIcon x:Name="PauseIcon" Width="14" Height="14" IconPath="avares://Amium.Editor/EditorIcons/pause.svg" TintColor="{Binding DataContext.EditPanelInputForeground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
           </Button>
           <Button x:Name="OpenFolderButton" Classes="toolicon" Width="30" Height="30" MinWidth="30" VerticalAlignment="Center" Background="{Binding DataContext.EditPanelButtonBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderBrush="{Binding DataContext.EditPanelButtonBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" Click="OnOpenFolderClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Log Verzeichnis oeffnen">
-            <editorUi:ThemeSvgIcon Width="14" Height="14" IconPath="avares://Amium.EditorUi/EditorIcons/folder.svg" TintColor="{Binding DataContext.EditPanelInputForeground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+            <editorUi:ThemeSvgIcon Width="14" Height="14" IconPath="avares://Amium.Editor/EditorIcons/folder.svg" TintColor="{Binding DataContext.EditPanelInputForeground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
           </Button>
         </StackPanel>
       </Grid>

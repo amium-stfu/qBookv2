@@ -74,6 +74,8 @@ public sealed class BookManifest
 
 public static class BookProjectLoader
 {
+    public static Func<string, IReadOnlyList<string>> ReferencePathResolver { get; set; } = static _ => Array.Empty<string>();
+
     public static BookProject Load(string rootDirectory)
     {
         if (string.IsNullOrWhiteSpace(rootDirectory))
@@ -236,8 +238,7 @@ public static class BookProjectLoader
 
     private static string CreateProjectFileContent(BookProject project)
     {
-        HostPluginCatalog.EnsureLoaded();
-        var references = HostPluginCatalog.GetProjectReferencePaths(project.RootDirectory);
+        var references = ReferencePathResolver(project.RootDirectory);
 
         var sb = new StringBuilder();
         sb.AppendLine("<Project Sdk=\"Microsoft.NET.Sdk\">");

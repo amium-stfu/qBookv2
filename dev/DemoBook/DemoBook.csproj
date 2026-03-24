@@ -33,6 +33,10 @@
       <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.Contracts.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Amium.Editor">
+      <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.Editor.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Amium.EditorUi">
       <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.EditorUi.dll</HintPath>
       <Private>false</Private>
@@ -47,6 +51,10 @@
     </Reference>
     <Reference Include="Amium.Logging">
       <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.Logging.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Amium.Roslyn">
+      <HintPath>B:\qBookv2\UiEditor\bin\Debug\net9.0-windows\Amium.Roslyn.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="AmiumStudio">
