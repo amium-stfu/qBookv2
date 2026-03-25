@@ -45,6 +45,7 @@
                   <controls:EditorListControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsListControl}" />
                   <controls:EditorLogControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsLogControl}" PageIsActive="{Binding Page.IsSelected, ElementName=Root}" />
                   <controls:RealtimeChartControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsChartControl}" PageIsActive="{Binding Page.IsSelected, ElementName=Root}" />
+                  <controls:UdlClientControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsUdlClientControl}" />
                   <Border BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#F59E0B}" BorderThickness="2" CornerRadius="8" IsHitTestVisible="False" />
                   <Border BorderBrush="{Binding IsMasterSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#2563EB}" BorderThickness="3" CornerRadius="8" IsHitTestVisible="False" />
                   <Border Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4" Background="#F59E0B" CornerRadius="4" Cursor="BottomRightCorner" IsVisible="{Binding IsMasterSelected}" PointerPressed="OnResizeHandlePointerPressed" />
@@ -82,6 +83,7 @@
                 <Button Classes="toolbar" Click="OnBeginAddListControlClicked" Content="ListControl" />
                 <Button Classes="toolbar" Click="OnBeginAddLogControlClicked" Content="LogControl" />
                 <Button Classes="toolbar" Click="OnBeginAddChartControlClicked" Content="ChartControl" />
+                <Button Classes="toolbar" Click="OnBeginAddUdlClientControlClicked" Content="UdlClientControl" IsVisible="{Binding SupportsUdlClientControl}" />
                 <Button Click="OnCancelSelectionClicked" Content="Abbrechen" />
               </StackPanel>
             </Border>

@@ -45,6 +45,7 @@ public interface IDataRegistry
     Item UpsertSnapshot(string key, Item snapshot, bool pruneMissingMembers = false);
     bool UpdateValue(string key, object? value, ulong? timestamp = null);
     bool UpdateParameter(string key, string parameterName, object? value, ulong? timestamp = null);
+    bool Remove(string key);
 }
 
 public sealed class DataRegistry : IDataRegistry
@@ -60,9 +61,14 @@ public sealed class DataRegistry : IDataRegistry
 
     public Item UpsertSnapshot(string key, Item snapshot, bool pruneMissingMembers = false)
     {
+        var added = false;
         var item = _items.AddOrUpdate(
             key,
-            _ => snapshot,
+            _ =>
+            {
+                added = true;
+                return snapshot;
+            },
             (_, existing) =>
             {
                 MergeItem(existing, snapshot, pruneMissingMembers);
@@ -70,11 +76,16 @@ public sealed class DataRegistry : IDataRegistry
             });
 
         RaiseItemChanged(key, item, DataChangeKind.SnapshotUpserted);
-        RaiseRegistryChanged(key, item, DataChangeKind.SnapshotUpserted);
-        var keys = string.Join(", ", _items.Keys.OrderBy(static value => value, StringComparer.OrdinalIgnoreCase));
-        var message = $"DataRegistry.UpsertSnapshot key={key} count={_items.Count} keys=[{keys}]";
-        Debug.WriteLine(message);
-        HostLogger.Log.Information(message);
+
+        if (added)
+        {
+            RaiseRegistryChanged(key, item, DataChangeKind.SnapshotUpserted);
+            var keys = string.Join(", ", _items.Keys.OrderBy(static value => value, StringComparer.OrdinalIgnoreCase));
+            var message = $"DataRegistry.UpsertSnapshot key={key} count={_items.Count} keys=[{keys}]";
+            Debug.WriteLine(message);
+            HostLogger.Log.Information(message);
+        }
+
         return item;
     }
 
@@ -110,6 +121,16 @@ public sealed class DataRegistry : IDataRegistry
 
         RaiseItemChanged(key, item, DataChangeKind.ParameterUpdated, parameterName, timestamp);
         return true;
+    }
+
+    public bool Remove(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        return _items.TryRemove(key, out _);
     }
 
     private void RaiseItemChanged(string key, Item item, DataChangeKind changeKind, string? parameterName = null, ulong? timestamp = null)

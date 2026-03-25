@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Amium.Items;
@@ -20,6 +21,7 @@ public sealed class UdlClient : IDisposable
     private long _rxDispatchLogCount;
     private long _heartbeatLogCount;
     private long _ignoredFrameLogCount;
+    private long _unknownTypeLogCount;
 
     public UdlClient(string name)
     {
@@ -49,11 +51,10 @@ public sealed class UdlClient : IDisposable
 
         WriteDiagnostic($"open requested endpoint={ip}:{port}");
 
-        var can = new Can(ip, port);
+        var can = new Can(ip, port, OnCanDiagnostic);
         var lifetime = new CancellationTokenSource();
 
         can.MessageReceived += OnCanMessageReceived;
-        can.Diagnostic += OnCanDiagnostic;
 
         lock (_sync)
         {
@@ -147,6 +148,7 @@ public sealed class UdlClient : IDisposable
     {
         try
         {
+            WriteDiagnostic("idle loop started");
             while (!token.IsCancellationRequested)
             {
                 HbIdle();
@@ -156,12 +158,17 @@ public sealed class UdlClient : IDisposable
         catch (OperationCanceledException)
         {
         }
+        catch (Exception exception)
+        {
+            WriteDiagnostic($"idle loop error={exception.GetType().Name}: {exception.Message}");
+        }
     }
 
     private async Task WritebackLoopAsync(CancellationToken token)
     {
         try
         {
+            WriteDiagnostic("writeback loop started");
             while (!token.IsCancellationRequested)
             {
                 foreach (var entry in Items.GetDictionary())
@@ -184,6 +191,10 @@ public sealed class UdlClient : IDisposable
         }
         catch (OperationCanceledException)
         {
+        }
+        catch (Exception exception)
+        {
+            WriteDiagnostic($"writeback loop error={exception.GetType().Name}: {exception.Message}");
         }
     }
 
@@ -230,7 +241,10 @@ public sealed class UdlClient : IDisposable
             default:
                 module.Params["LastType"].Value = type;
                 module.Params["LastRaw"].Value = FormatBytes(data, dlc);
-                WriteDiagnostic($"subchannel unknown type={type} module={module.Name}");
+                if (ShouldSample(ref _unknownTypeLogCount, 8, 100))
+                {
+                    WriteDiagnostic($"subchannel unknown type={type} module={module.Name}");
+                }
                 break;
         }
     }
@@ -468,7 +482,15 @@ public sealed class UdlClient : IDisposable
 
     private void WriteDiagnostic(string message)
     {
-        Diagnostic?.Invoke($"[UdlClient:{Name}] {message}");
+        var formatted = $"[UdlClient:{Name}] {message}";
+        try
+        {
+            Diagnostic?.Invoke(formatted);
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine($"UdlClient diagnostic callback failed: {exception}");
+        }
     }
 
     private static void WaitForCompletion(Task? task)

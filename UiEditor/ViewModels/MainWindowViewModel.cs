@@ -914,6 +914,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["ChartSeriesDefinitions"] = item.ChartSeriesDefinitions;
         nodeObject["UdlClientHost"] = item.UdlClientHost;
         nodeObject["UdlClientPort"] = item.UdlClientPort;
+        nodeObject["UdlClientAutoConnect"] = item.UdlClientAutoConnect;
         nodeObject["UdlAttachedItemPaths"] = item.UdlAttachedItemPaths;
         nodeObject["IsReadOnly"] = item.IsReadOnly;
         nodeObject["IsAutoHeight"] = item.IsAutoHeight;
@@ -1013,6 +1014,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.ChartSeriesDefinitions = GetStringProperty(properties, "ChartSeriesDefinitions") ?? item.ChartSeriesDefinitions;
         item.UdlClientHost = GetStringProperty(properties, "UdlClientHost") ?? item.UdlClientHost;
         item.UdlClientPort = GetIntProperty(properties, "UdlClientPort") ?? item.UdlClientPort;
+        item.UdlClientAutoConnect = GetBoolProperty(properties, "UdlClientAutoConnect") ?? item.UdlClientAutoConnect;
         item.UdlAttachedItemPaths = GetStringProperty(properties, "UdlAttachedItemPaths") ?? item.UdlAttachedItemPaths;
         item.IsReadOnly = GetBoolProperty(properties, "IsReadOnly") ?? item.IsReadOnly;
         item.IsAutoHeight = GetBoolProperty(properties, "IsAutoHeight") ?? item.IsAutoHeight;
@@ -1308,8 +1310,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlCaption = string.Empty,
                 BodyCaption = "UdlClient",
                 Footer = "Disconnected",
-                UdlClientHost = "192.168.178.15",
+                UdlClientHost = "192.168.178.151",
                 UdlClientPort = 9001,
+                UdlClientAutoConnect = false,
                 X = x,
                 Y = y,
                 Width = Math.Max(width, 420),
@@ -1835,7 +1838,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             case ControlKind.Signal:
                 sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
-                    BindChoice("TargetPath", "Target", current => current.TargetPath, (current, value) => { current.ApplyTargetSelection(value); return null; }, _ => HostRegistries.Data.GetAllKeys().OrderBy(key => key)),
+                    BindChoice("TargetPath", "Target", current => current.TargetPath, (current, value) => { current.ApplyTargetSelection(value); return null; }, _ => GetSelectableTargetOptions()),
                     BindChoice("TargetParameterPath", "TargetParameter", current => current.TargetParameterPath, (current, value) => { current.TargetParameterPath = value; return null; }, current => GetTargetParameterOptions(current.TargetPath)),
                     BindChoice("TargetParameterFormatKind", "Format", current => SplitParameterFormat(current.TargetParameterFormat).Kind, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(value, SplitParameterFormat(current.TargetParameterFormat).Parameter); return null; }, _ => ParameterFormatOptions),
                     BindText("TargetParameterFormatParameter", "FormatParameter", current => SplitParameterFormat(current.TargetParameterFormat).Parameter, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(SplitParameterFormat(current.TargetParameterFormat).Kind, value); return null; }, EditorPropertyType.Text, GetFormatParameterToolTip),
@@ -1881,6 +1884,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 {
                     BindText("UdlClientHost", "Host", current => current.UdlClientHost, (current, value) => { current.UdlClientHost = value; return null; }),
                     BindInt("UdlClientPort", "Port", current => current.UdlClientPort, (current, value) => current.UdlClientPort = value),
+                    BindChoice("UdlClientAutoConnect", "AutoConnect", current => current.UdlClientAutoConnect ? "True" : "False", (current, value) => { current.UdlClientAutoConnect = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindAttachItemList("UdlAttachedItemPaths", "AttachToUi", current => current.UdlAttachedItemPaths, (current, value) => { current.UdlAttachedItemPaths = value; return null; }, GetUdlAttachItemOptions)
                 }));
                 break;
@@ -2197,6 +2201,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ChartSeriesDefinitions = item.ChartSeriesDefinitions,
             UdlClientHost = item.UdlClientHost,
             UdlClientPort = item.UdlClientPort,
+            UdlClientAutoConnect = item.UdlClientAutoConnect,
             UdlAttachedItemPaths = item.UdlAttachedItemPaths,
             IsReadOnly = item.IsReadOnly,
             IsAutoHeight = item.IsAutoHeight,
@@ -2596,6 +2601,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(key => key[prefix.Length..])
             .Where(static key => !string.IsNullOrWhiteSpace(key))
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IEnumerable<string> GetSelectableTargetOptions()
+    {
+        return HostRegistries.Data.GetAllKeys()
+            .Where(static key => !key.StartsWith("Runtime/UdlClient/", StringComparison.OrdinalIgnoreCase))
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }

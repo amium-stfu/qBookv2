@@ -2,7 +2,15 @@
     x:Class="UdlBook.MainWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.UiEditor.Controls"
+    xmlns:models="using:Amium.UiEditor.Models"
+    xmlns:viewModels="using:UdlBook.ViewModels"
     xmlns:editorUi="using:Amium.EditorUi.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    x:CompileBindings="False"
+    x:DataType="viewModels:MainWindowViewModel"
     Width="1280"
     Height="820"
     MinWidth="1024"
@@ -11,41 +19,32 @@
     Title="UdlBook">
   <Grid RowDefinitions="Auto,*,Auto" Margin="8">
     <Grid Grid.Row="0">
-      <Border Padding="12,6" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="16" IsVisible="{Binding IsHeaderExpanded}">
+      <Border Classes="card" Padding="12,6" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" IsVisible="{Binding IsHeaderCollapsed, Converter={StaticResource BoolNegationConverter}, FallbackValue=True, TargetNullValue=True}">
         <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,8,0">
             <Button Classes="headericon" Command="{Binding ToggleHeaderCollapsedCommand}" ToolTip.Tip="Kopfbereich einklappen">
               <TextBlock FontSize="16" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="^" />
             </Button>
             <TextBlock FontSize="24" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="UdlBook" VerticalAlignment="Center" />
-            <Border Padding="8,4" Background="{Binding HeaderBadgeBackground}" CornerRadius="999">
-              <TextBlock Foreground="{Binding HeaderBadgeForeground}" FontSize="12" FontWeight="SemiBold" Text="UdlClient Shell" />
-            </Border>
           </StackPanel>
 
-          <TextBlock Grid.Column="1" Margin="20,0" VerticalAlignment="Center" Foreground="{Binding SecondaryTextBrush}" Text="{Binding HeaderSummary}" TextTrimming="CharacterEllipsis" />
-
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="8,0,0,0">
-            <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Command="{Binding SelectPageByNameCommand}" CommandParameter="Overview" ToolTip.Tip="Overview">
+            <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Click="LoadBook_Click" ToolTip.Tip="Load">
               <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/openBook.svg" TintColor="{Binding PrimaryTextBrush}" />
-            </Button>
-
-            <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Command="{Binding SelectPageByNameCommand}" CommandParameter="UdlClient" ToolTip.Tip="UdlClient Seite">
-              <editorUi:ThemeSvgIcon Width="22" Height="22" IconPath="avares://Amium.Editor/EditorIcons/log.svg" TintColor="{Binding PrimaryTextBrush}" />
             </Button>
 
             <ToggleButton Classes="headericon" Background="Transparent" BorderBrush="Transparent" IsChecked="{Binding IsDarkTheme}" ToolTip.Tip="Theme Switch">
               <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/theme.svg" TintColor="{Binding PrimaryTextBrush}" />
             </ToggleButton>
 
-            <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Command="{Binding ToggleTabPlacementCommand}" ToolTip.Tip="Tab-Position wechseln">
-              <TextBlock FontSize="13" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="{Binding TabPlacementGlyph}" />
+            <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" Click="OpenLogWindow_Click" ToolTip.Tip="Open Log">
+              <editorUi:ThemeSvgIcon Width="22" Height="22" IconPath="avares://Amium.Editor/EditorIcons/log.svg" TintColor="{Binding PrimaryTextBrush}" />
             </Button>
           </StackPanel>
         </Grid>
       </Border>
 
-      <Border Padding="0,2" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="16" IsVisible="{Binding IsHeaderCollapsed}">
+      <Border Classes="card" Padding="0,2" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" IsVisible="{Binding IsHeaderCollapsed}">
         <Button Classes="headericon" HorizontalAlignment="Center" Background="Transparent" BorderBrush="Transparent" Command="{Binding ToggleHeaderCollapsedCommand}" ToolTip.Tip="Kopfbereich ausklappen">
           <TextBlock FontSize="16" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="v" />
         </Button>
@@ -53,7 +52,7 @@
     </Grid>
 
     <Grid Grid.Row="1" ColumnDefinitions="*" Margin="0,8,0,8">
-      <Border Grid.Column="0" Padding="0" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="16">
+      <Border Grid.Column="0" Classes="card" Padding="0" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
         <Grid Margin="8,6,0,6" RowDefinitions="Auto,*">
           <Border Grid.Row="0" IsVisible="{Binding IsTopTabStripPlacement}" Background="Transparent">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
@@ -64,30 +63,51 @@
                   </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate>
-                    <Button Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                            CommandParameter="{Binding}"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="0"
-                            Margin="0,0,8,0">
-                      <Grid ColumnDefinitions="48,220,Auto">
-                        <Border Grid.ColumnSpan="3" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="14" IsVisible="{Binding IsNotSelected}" />
-                        <Border Grid.ColumnSpan="3" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="14" IsVisible="{Binding IsSelected}" />
-                        <Border Grid.Column="0" Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="14,0,0,14" MinHeight="52" IsVisible="{Binding IsNotSelected}" />
-                        <Border Grid.Column="0" Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="14,0,0,14" MinHeight="52" IsVisible="{Binding IsSelected}" />
-                        <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding Index}" />
-                        <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding Index}" />
-                        <StackPanel Grid.Column="1" Margin="12,6" VerticalAlignment="Center" Spacing="2">
-                          <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding TabTitle}" />
-                          <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
-                          <TextBlock FontSize="12" Foreground="{Binding DataContext.SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=Window}}" Text="{Binding Caption}" />
+                  <DataTemplate DataType="models:PageModel">
+                    <Grid ColumnDefinitions="Auto,Auto">
+                      <Button Grid.Column="0"
+                              Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Padding="0"
+                              Margin="0">
+                        <Button.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Top" Click="OnTabPlacementTopClicked" />
+                            <MenuItem Header="Right" Click="OnTabPlacementRightClicked" />
+                          </ContextMenu>
+                        </Button.ContextMenu>
+                        <Grid ColumnDefinitions="48,200">
+                          <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
+                          <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
+                          <Border Grid.Column="0" Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsNotSelected}" />
+                          <Border Grid.Column="0" Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsSelected}" />
+                          <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding Index}" />
+                          <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding Index}" />
+                          <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding TabTitle}" />
+                          <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
+                        </Grid>
+                      </Button>
+                      <Button Grid.Column="1"
+                              Classes="headericon"
+                              Width="68"
+                              Height="34"
+                              MinWidth="68"
+                              Margin="0,0,8,0"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center"
+                              Background="Transparent"
+                              BorderBrush="Transparent"
+                              Command="{Binding DataContext.ToggleEditModeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              IsVisible="{Binding IsSelected}"
+                              ToolTip.Tip="Edit mode umschalten">
+                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <TextBlock VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" Text="Edit" />
+                          <editorUi:ThemeSvgIcon Width="14" Height="14" IconPath="avares://Amium.Editor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" />
                         </StackPanel>
-                        <Border Grid.Column="2" Margin="0,0,12,0" Padding="8,4" VerticalAlignment="Center" Background="{Binding DataContext.HeaderBadgeBackground, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="999" IsVisible="{Binding ShowsUdlClientBadge}">
-                          <TextBlock Foreground="{Binding DataContext.HeaderBadgeForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="11" FontWeight="SemiBold" Text="UDL" />
-                        </Border>
-                      </Grid>
-                    </Button>
+                      </Button>
+                    </Grid>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
@@ -95,57 +115,7 @@
           </Border>
 
           <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
-            <Border Grid.Column="0" Margin="8,8,8,8" Padding="24" Background="{Binding CanvasBackground}" BorderBrush="{Binding CanvasBorderBrush}" BorderThickness="1" CornerRadius="18">
-              <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                  <TextBlock FontSize="28" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="{Binding SelectedPage.TabTitle}" />
-                  <Border Padding="8,4" VerticalAlignment="Center" Background="{Binding HeaderBadgeBackground}" CornerRadius="999" IsVisible="{Binding SelectedPage.ShowsUdlClientBadge}">
-                    <TextBlock Foreground="{Binding HeaderBadgeForeground}" FontSize="11" FontWeight="SemiBold" Text="UdlClient" />
-                  </Border>
-                </StackPanel>
-
-                <TextBlock Grid.Row="1" Margin="0,14,0,0" FontSize="15" Foreground="{Binding SecondaryTextBrush}" Text="{Binding SelectedPage.Description}" TextWrapping="Wrap" />
-
-                <Border Grid.Row="2" Margin="0,14,0,0" Padding="14" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="14">
-                  <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel>
-                      <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="{Binding SelectedPage.SummaryTitle}" />
-                      <TextBlock Margin="0,8,0,0" Foreground="{Binding SecondaryTextBrush}" Text="{Binding SelectedPage.SummaryText}" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="1" Margin="18,0,0,0" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="{Binding SelectedPage.SideLabel}" />
-                  </Grid>
-                </Border>
-
-                <Grid Grid.Row="3" Margin="0,14,0,0" ColumnDefinitions="1.2*,0.8*">
-                  <Border Margin="0,0,16,0" Padding="18" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="16">
-                    <Grid RowDefinitions="Auto,*">
-                      <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Aktuelle Leitlinien" />
-                      <ItemsControl Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding SelectedPage.BulletPoints}">
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate>
-                            <TextBlock Margin="0,0,0,8" Foreground="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=Window}}" Text="{Binding .}" TextWrapping="Wrap" />
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                    </Grid>
-                  </Border>
-
-                  <Border Grid.Column="1" Padding="18" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="16" IsVisible="{Binding SelectedPage.ShowPlaceholderCard}">
-                    <Grid RowDefinitions="Auto,*,Auto">
-                      <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="{Binding SelectedPage.PlaceholderTitle}" />
-                      <Border Grid.Row="1" Margin="0,10,0,0" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="18" Background="{Binding WindowBackground}">
-                        <TextBlock Foreground="{Binding SecondaryTextBrush}" Text="{Binding SelectedPage.PlaceholderText}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                      </Border>
-                      <TextBlock Grid.Row="2" Margin="0,10,0,0" Foreground="{Binding SecondaryTextBrush}" Text="Diese Fläche ersetzt in UdlBook später gezielt den produktgebundenen Inhalt aus AmiumStudio." TextWrapping="Wrap" />
-                    </Grid>
-                  </Border>
-                </Grid>
-
-                <Border Grid.Row="4" Margin="0,14,0,0" Padding="14" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="14">
-                  <TextBlock Foreground="{Binding SecondaryTextBrush}" Text="{Binding SelectedPage.FooterNote}" TextWrapping="Wrap" />
-                </Border>
-              </Grid>
-            </Border>
+            <controls:CachedPageHostControl DataContext="{Binding}" />
 
             <Border Grid.Column="1" IsVisible="{Binding IsRightTabStripPlacement}" Background="Transparent">
               <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
@@ -156,30 +126,51 @@
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                      <Button Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                              CommandParameter="{Binding}"
-                              Background="Transparent"
-                              BorderThickness="0"
-                              Padding="0"
-                              Margin="0,0,8,8">
-                        <Grid ColumnDefinitions="48,220,Auto">
-                          <Border Grid.ColumnSpan="3" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="14" IsVisible="{Binding IsNotSelected}" />
-                          <Border Grid.ColumnSpan="3" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="14" IsVisible="{Binding IsSelected}" />
-                          <Border Grid.Column="0" Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="14,0,0,14" MinHeight="52" IsVisible="{Binding IsNotSelected}" />
-                          <Border Grid.Column="0" Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="14,0,0,14" MinHeight="52" IsVisible="{Binding IsSelected}" />
-                          <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding Index}" />
-                          <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding Index}" />
-                          <StackPanel Grid.Column="1" Margin="12,6" VerticalAlignment="Center" Spacing="2">
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding TabTitle}" />
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
-                            <TextBlock FontSize="12" Foreground="{Binding DataContext.SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=Window}}" Text="{Binding Caption}" />
+                    <DataTemplate DataType="models:PageModel">
+                      <Grid ColumnDefinitions="Auto,Auto">
+                        <Button Grid.Column="0"
+                                Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="0"
+                                Margin="0">
+                          <Button.ContextMenu>
+                            <ContextMenu>
+                              <MenuItem Header="Top" Click="OnTabPlacementTopClicked" />
+                              <MenuItem Header="Right" Click="OnTabPlacementRightClicked" />
+                            </ContextMenu>
+                          </Button.ContextMenu>
+                          <Grid ColumnDefinitions="48,200">
+                            <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
+                            <Border Grid.ColumnSpan="2" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
+                            <Border Grid.Column="0" Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsNotSelected}" />
+                            <Border Grid.Column="0" Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsSelected}" />
+                            <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding Index}" />
+                            <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding Index}" />
+                            <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding TabTitle}" />
+                            <TextBlock Grid.Column="1" Margin="12,6" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
+                          </Grid>
+                        </Button>
+                        <Button Grid.Column="1"
+                                Classes="headericon"
+                                Width="68"
+                                Height="34"
+                                MinWidth="68"
+                                Margin="0,0,8,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                Command="{Binding DataContext.ToggleEditModeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                IsVisible="{Binding IsSelected}"
+                                ToolTip.Tip="Edit mode umschalten">
+                          <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" Text="Edit" />
+                            <editorUi:ThemeSvgIcon Width="14" Height="14" IconPath="avares://Amium.Editor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" />
                           </StackPanel>
-                          <Border Grid.Column="2" Margin="0,0,12,0" Padding="8,4" VerticalAlignment="Center" Background="{Binding DataContext.HeaderBadgeBackground, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="999" IsVisible="{Binding ShowsUdlClientBadge}">
-                            <TextBlock Foreground="{Binding DataContext.HeaderBadgeForeground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="11" FontWeight="SemiBold" Text="UDL" />
-                          </Border>
-                        </Grid>
-                      </Button>
+                        </Button>
+                      </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -190,13 +181,13 @@
       </Border>
     </Grid>
 
-    <Border Grid.Row="2" Padding="16,10" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="16">
+    <Border Grid.Row="2" Classes="card" Padding="16,10" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Spacing="2">
           <TextBlock VerticalAlignment="Center" Foreground="{Binding SecondaryTextBrush}" Text="{Binding FooterText}" />
           <TextBlock VerticalAlignment="Center" Foreground="{Binding SecondaryTextBrush}" Text="{Binding StatusText}" />
         </StackPanel>
-        <TextBlock Grid.Column="1" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="UdlBook Shell" />
+        <TextBlock Grid.Column="1" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Footer" />
       </Grid>
     </Border>
   </Grid>

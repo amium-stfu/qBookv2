@@ -1,250 +1,520 @@
-using System.Collections.ObjectModel;
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using Avalonia.Controls;
+using Avalonia.Threading;
+using Amium.Host;
+using Amium.Logging;
+using Amium.UiEditor.Models;
+using Amium.UiEditor.ViewModels;
+using System.Text.Json.Nodes;
 
 namespace UdlBook.ViewModels;
 
-public sealed class MainWindowViewModel : ObservableObject
+public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowViewModel
 {
-    private bool _isDarkTheme;
-    private bool _isHeaderCollapsed;
-    private string _statusText;
-    private Dock _tabStripPlacement = Dock.Right;
-    private UdlBookPageViewModel _selectedPage;
+    private readonly string _startupPagePath;
+    private string _bookProjectPath;
+    private string _loadedBookSummary;
+    private string _messagesSummary;
+    private string _currentLogText;
+    private bool _isBookOperationRunning;
 
     public MainWindowViewModel()
+        : base(true)
     {
-        Pages =
-        [
-            new UdlBookPageViewModel(
-                1,
-                "Overview",
-                "Overview",
-                "Produkt-Shell fuer den abgespeckten UDL-Workflow.",
-                "Trennung der Produkte",
-                "UdlBook bekommt eine eigene Shell, auch wenn der Innenbereich im Moment noch wenig Funktionalitaet hat.",
-                "Shell",
-                false,
-                string.Empty,
-                string.Empty,
-                [
-                    "Eigenes MainWindow statt Konfigurationszweige im AmiumStudio-Fenster.",
-                    "Gemeinsame Avalonia-Bausteine liegen jetzt direkt in Amium.Editor.",
-                    "UdlBook kann spaeter gezielt UdlClient-spezifische Controls aufnehmen."
-                ],
-                "Diese Seite ist die neutrale Startflaeche fuer das UdlBook-Produkt."),
-            new UdlBookPageViewModel(
-                2,
-                "UdlClient",
-                "UdlClient",
-                "Reservierter Einstiegspunkt fuer das kommende UdlClient-Control in UdlBook.",
-                "Naechster konkreter Ausbau",
-                "Hier sitzt spaeter die UdlClient-Oberflaeche. AmiumStudio bleibt davon bewusst frei, weil dort Clients codebasiert erzeugt werden.",
-                "Client",
-                true,
-                "UdlClient Control Slot",
-                "Diese Flaeche dient vorerst als Platzhalter fuer das erste produkt-spezifische UdlBook-Control.",
-                [
-                    "UdlBook darf UdlClient-spezifische Visualisierung direkt aufnehmen.",
-                    "Die Shell-Struktur ist bereits getrennt, damit das Control spaeter nicht in AmiumStudio hineinleckt.",
-                    "Shared-Controls bleiben generisch; die konkrete Einbindung liegt in der Product-Shell."
-                ],
-                "Erster geplanter Ausbaupunkt: dediziertes UdlClient-Control nur fuer UdlBook."),
-            new UdlBookPageViewModel(
-                3,
-                "Roadmap",
-                "Roadmap",
-                "Arbeitsstand der Produktentflechtung zwischen UdlBook und AmiumStudio.",
-                "Kurzfristige Schritte",
-                "Zuerst wird nur die Shell sauber getrennt. Danach folgen produktneutrale Auslagerungen und erst dann die erste echte UdlBook-spezifische Funktion.",
-                "Plan",
-                false,
-                string.Empty,
-                string.Empty,
-                [
-                    "MainWindow und MainWindowViewModel pro Produkt getrennt halten.",
-                    "Gemeinsam genutzte Teilansichten spaeter produktneutral im Editor bündeln.",
-                    "UdlBook danach gezielt um UdlClient-spezifische Flaechen erweitern."
-                ],
-                "Diese Roadmap vermeidet spaetere Entflechtung quer durch beide Apps.")
-        ];
+        _startupPagePath = Path.Combine(AppContext.BaseDirectory, "Page.json");
+        LoadBookCommand = new Amium.UiEditor.ViewModels.RelayCommand(LoadBook, CanRunBookAction);
+        RebuildBookCommand = new Amium.UiEditor.ViewModels.RelayCommand(RebuildBook, CanRunBookAction);
+        RefreshLogCommand = new Amium.UiEditor.ViewModels.RelayCommand(RefreshLog);
+        _bookProjectPath = Path.GetDirectoryName(_startupPagePath) ?? AppContext.BaseDirectory;
+        _loadedBookSummary = "Kein Book geladen";
+        _messagesSummary = "Keine Meldungen";
+        _currentLogText = string.Empty;
+        HostLogger.ProcessLog.EntryAdded += OnHostLogEntryAdded;
+        RefreshLog();
 
-        SelectPageCommand = new RelayCommand<UdlBookPageViewModel>(SelectPage);
-        SelectPageByNameCommand = new RelayCommand<string>(SelectPageByName);
-        ToggleHeaderCollapsedCommand = new RelayCommand(ToggleHeaderCollapsed);
-        ToggleTabPlacementCommand = new RelayCommand(ToggleTabPlacement);
-
-        _selectedPage = Pages[0];
-        _selectedPage.IsSelected = true;
-        _statusText = "Eigene UdlBook-Shell aktiv. Innenbereich ist noch bewusst generisch.";
+        Dispatcher.UIThread.Post(LoadStartupPage, DispatcherPriority.Background);
     }
 
-    public ObservableCollection<UdlBookPageViewModel> Pages { get; }
+    protected override string? CurrentProjectRootDirectory => BookProjectPath;
 
-    public RelayCommand<UdlBookPageViewModel> SelectPageCommand { get; }
-
-    public RelayCommand<string> SelectPageByNameCommand { get; }
-
-    public RelayCommand ToggleHeaderCollapsedCommand { get; }
-
-    public RelayCommand ToggleTabPlacementCommand { get; }
-
-    public UdlBookPageViewModel SelectedPage
+    public string BookProjectPath
     {
-        get => _selectedPage;
+        get => _bookProjectPath;
+        set
+        {
+            if (SetProperty(ref _bookProjectPath, value))
+            {
+                LoadBookCommand.RaiseCanExecuteChanged();
+                RebuildBookCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string LoadedBookSummary
+    {
+        get => _loadedBookSummary;
+        private set => SetProperty(ref _loadedBookSummary, value);
+    }
+
+    public string MessagesSummary
+    {
+        get => _messagesSummary;
+        private set => SetProperty(ref _messagesSummary, value);
+    }
+
+    public string CurrentLogFilePath => HostLogger.CurrentLogFilePath;
+
+    public string CurrentLogText
+    {
+        get => _currentLogText;
+        private set => SetProperty(ref _currentLogText, value);
+    }
+
+    public bool IsBookOperationRunning
+    {
+        get => _isBookOperationRunning;
         private set
         {
-            if (ReferenceEquals(value, _selectedPage))
+            if (SetProperty(ref _isBookOperationRunning, value))
             {
-                return;
-            }
-
-            _selectedPage.IsSelected = false;
-            if (SetProperty(ref _selectedPage, value))
-            {
-                _selectedPage.IsSelected = true;
-                OnPropertyChanged(nameof(HeaderSummary));
-                OnPropertyChanged(nameof(FooterText));
-                StatusText = $"Seite aktiv: {_selectedPage.TabTitle}";
+                LoadBookCommand.RaiseCanExecuteChanged();
+                RebuildBookCommand.RaiseCanExecuteChanged();
             }
         }
     }
 
-    public bool IsDarkTheme
+    public Amium.UiEditor.ViewModels.RelayCommand LoadBookCommand { get; }
+
+    public Amium.UiEditor.ViewModels.RelayCommand RebuildBookCommand { get; }
+
+    public Amium.UiEditor.ViewModels.RelayCommand RefreshLogCommand { get; }
+
+    public void RefreshLog()
     {
-        get => _isDarkTheme;
-        set
+        var entries = HostLogger.ProcessLog.GetEntries();
+        if (entries.Count == 0)
         {
-            if (SetProperty(ref _isDarkTheme, value))
-            {
-                OnPropertyChanged(nameof(WindowBackground));
-                OnPropertyChanged(nameof(CardBackground));
-                OnPropertyChanged(nameof(CardBorderBrush));
-                OnPropertyChanged(nameof(CanvasBackground));
-                OnPropertyChanged(nameof(CanvasBorderBrush));
-                OnPropertyChanged(nameof(PrimaryTextBrush));
-                OnPropertyChanged(nameof(SecondaryTextBrush));
-                OnPropertyChanged(nameof(TabSelectNumerBackColor));
-                OnPropertyChanged(nameof(TabSelectBackColor));
-                OnPropertyChanged(nameof(TabSelectForeColor));
-                OnPropertyChanged(nameof(TabNumerBackColor));
-                OnPropertyChanged(nameof(TabBackColor));
-                OnPropertyChanged(nameof(TabForeColor));
-                OnPropertyChanged(nameof(HeaderBadgeBackground));
-                OnPropertyChanged(nameof(HeaderBadgeForeground));
-                StatusText = value ? "Dark Theme aktiv" : "Light Theme aktiv";
-            }
+            CurrentLogText = "Noch kein Log vorhanden.";
+            OnPropertyChanged(nameof(CurrentLogFilePath));
+            return;
         }
+
+        CurrentLogText = string.Join(Environment.NewLine, entries.Select(FormatLogEntry));
+        OnPropertyChanged(nameof(CurrentLogFilePath));
     }
 
-    public bool IsHeaderCollapsed
+    public void ApplyDestroyedUi(BookProject? project)
     {
-        get => _isHeaderCollapsed;
-        set
+        var pages = project is not null
+            ? project.Pages.Select((page, index) => new PageModel
+            {
+                Index = index + 1,
+                Name = string.IsNullOrWhiteSpace(page.Name) ? $"Page{index + 1}" : page.Name
+            }).ToList()
+            : Pages.Select(page => new PageModel
+            {
+                Index = page.Index,
+                Name = page.Name
+            }).ToList();
+
+        if (pages.Count > 0)
         {
-            if (SetProperty(ref _isHeaderCollapsed, value))
-            {
-                OnPropertyChanged(nameof(IsHeaderExpanded));
-            }
+            SetPages(pages);
         }
+
+        StatusText = "Runtime gestoppt. Canvas geleert.";
     }
 
-    public bool IsHeaderExpanded => !IsHeaderCollapsed;
-
-    public Dock TabStripPlacement
+    public void ApplyRunningUi(BookProject project)
     {
-        get => _tabStripPlacement;
-        set
+        ApplyBookTabStripPlacement(project.RootDirectory);
+        SetPages(CreatePagesFromBook(project));
+        BookProjectPath = project.RootDirectory;
+        LoadedBookSummary = $"{project.ProjectName} | Pages: {project.Pages.Count} | C#: {project.SourceFiles.Count} | UI: {project.UiFiles.Count}";
+        StatusText = $"Runtime gestartet: {project.ProjectName}";
+    }
+
+    private bool CanRunBookAction()
+        => !IsBookOperationRunning && !string.IsNullOrWhiteSpace(BookProjectPath);
+
+    private void OnHostLogEntryAdded(ProcessLogEntry entry)
+    {
+        Dispatcher.UIThread.Post(() =>
         {
-            if (SetProperty(ref _tabStripPlacement, value))
+            var formatted = FormatLogEntry(entry);
+            CurrentLogText = string.IsNullOrWhiteSpace(CurrentLogText) || string.Equals(CurrentLogText, "Noch kein Log vorhanden.", StringComparison.Ordinal)
+                ? formatted
+                : $"{CurrentLogText}{Environment.NewLine}{formatted}";
+        });
+    }
+
+    private static string FormatLogEntry(ProcessLogEntry entry)
+    {
+        if (string.IsNullOrWhiteSpace(entry.Exception))
+        {
+            return $"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Level}] {entry.Message}";
+        }
+
+        return $"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Level}] {entry.Message}{Environment.NewLine}{entry.Exception}";
+    }
+
+    private void ResetMessages()
+    {
+        Messages.Clear();
+        MessagesSummary = "Keine Meldungen";
+    }
+
+    private void LoadStartupPage()
+    {
+        ResetMessages();
+
+        if (!File.Exists(_startupPagePath))
+        {
+            LoadedBookSummary = "Default layout fehlt";
+            AddMessage("UI", "Warning", "Startup-Page.json nicht gefunden.", _startupPagePath);
+            StatusText = $"Keine Startup-Page gefunden: {_startupPagePath}";
+            return;
+        }
+
+        try
+        {
+            var layout = BookUiLayoutLoader.Load(_startupPagePath, "UdlClient");
+            var pageName = string.IsNullOrWhiteSpace(layout.PageName) ? "UdlClient" : layout.PageName;
+            var model = new PageModel
             {
-                OnPropertyChanged(nameof(IsTopTabStripPlacement));
-                OnPropertyChanged(nameof(IsRightTabStripPlacement));
-                OnPropertyChanged(nameof(TabPlacementGlyph));
-                StatusText = value == Dock.Top ? "Tab-Position: Top" : "Tab-Position: Right";
+                Index = 1,
+                Name = pageName,
+                DisplayText = string.IsNullOrWhiteSpace(layout.Title) ? pageName : layout.Title,
+                UiFilePath = _startupPagePath,
+                UiLayoutDefinition = layout
+            };
+
+            foreach (var item in CreateItemsFromNode(pageName, layout.Layout, 24, 24))
+            {
+                model.Items.Add(item);
             }
+
+            ApplyBookTabStripPlacement(Path.GetDirectoryName(_startupPagePath) ?? AppContext.BaseDirectory);
+            SetPages([model]);
+            BookProjectPath = Path.GetDirectoryName(_startupPagePath) ?? AppContext.BaseDirectory;
+            LoadedBookSummary = $"Default layout | {Path.GetFileName(_startupPagePath)}";
+            StatusText = $"Default layout geladen: {_startupPagePath}";
+        }
+        catch (Exception ex)
+        {
+            LoadedBookSummary = "Default layout fehlerhaft";
+            AddMessage("UI", "Error", ex.Message, _startupPagePath);
+            StatusText = $"Default layout konnte nicht geladen werden: {ex.Message}";
         }
     }
 
-    public bool IsTopTabStripPlacement => TabStripPlacement == Dock.Top;
-
-    public bool IsRightTabStripPlacement => TabStripPlacement == Dock.Right;
-
-    public string TabPlacementGlyph => TabStripPlacement == Dock.Top ? ">" : "^";
-
-    public string HeaderSummary => SelectedPage.Description;
-
-    public string FooterText => $"UdlBook | Seite {SelectedPage.Index}: {SelectedPage.TabTitle}";
-
-    public string StatusText
+    private void AddMessage(string source, string severity, string message, string? location = null)
     {
-        get => _statusText;
-        private set => SetProperty(ref _statusText, value);
+        Messages.Add(new HostMessageEntry
+        {
+            Source = source,
+            Severity = severity,
+            Message = message,
+            Location = location ?? string.Empty
+        });
+
+        MessagesSummary = $"{Messages.Count} Meldungen";
     }
 
-    private ThemePalette CurrentTheme => IsDarkTheme ? ThemePalette.Dark : ThemePalette.Light;
-
-    public string WindowBackground => CurrentTheme.WindowBackground;
-
-    public string CardBackground => CurrentTheme.CardBackground;
-
-    public string CardBorderBrush => CurrentTheme.CardBorderBrush;
-
-    public string CanvasBackground => CurrentTheme.CanvasBackground;
-
-    public string CanvasBorderBrush => CurrentTheme.CanvasBorderBrush;
-
-    public string PrimaryTextBrush => CurrentTheme.PrimaryTextBrush;
-
-    public string SecondaryTextBrush => CurrentTheme.SecondaryTextBrush;
-
-    public string TabSelectNumerBackColor => CurrentTheme.TabSelectNumerBackColor;
-
-    public string TabSelectBackColor => CurrentTheme.TabSelectBackColor;
-
-    public string TabSelectForeColor => CurrentTheme.TabSelectForeColor;
-
-    public string TabNumerBackColor => CurrentTheme.TabNumerBackColor;
-
-    public string TabBackColor => CurrentTheme.TabBackColor;
-
-    public string TabForeColor => CurrentTheme.TabForeColor;
-
-    public string HeaderBadgeBackground => CurrentTheme.HeaderBadgeBackground;
-
-    public string HeaderBadgeForeground => CurrentTheme.HeaderBadgeForeground;
-
-    private void SelectPage(UdlBookPageViewModel? page)
+    private async void LoadBook()
     {
-        if (page is null)
+        if (!CanRunBookAction())
         {
             return;
         }
 
-        SelectedPage = page;
+        IsBookOperationRunning = true;
+        ResetMessages();
+        try
+        {
+            var result = await Core.LoadAndRunAsync(BookProjectPath);
+            BookProjectPath = result.Project.RootDirectory;
+            ApplyBookTabStripPlacement(result.Project.RootDirectory);
+            LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
+            AddMessage("Load", result.Success ? "Info" : "Error", $"Load {(result.Success ? "erfolgreich" : "fehlgeschlagen")}: {result.Project.ProjectName}", result.Project.RootDirectory);
+
+            foreach (var diagnostic in result.Diagnostics)
+            {
+                var span = diagnostic.Location.GetMappedLineSpan();
+                var path = string.IsNullOrWhiteSpace(span.Path) ? diagnostic.Location.SourceTree?.FilePath ?? string.Empty : span.Path;
+                var location = string.IsNullOrWhiteSpace(path)
+                    ? string.Empty
+                    : $"{Path.GetFileName(path)}:{span.StartLinePosition.Line + 1}:{span.StartLinePosition.Character + 1}";
+
+                AddMessage("Roslyn", diagnostic.Severity.ToString(), diagnostic.GetMessage(), location);
+            }
+
+            StatusText = result.Success
+                ? $"Load erfolgreich: {result.Project.ProjectName} ({result.ErrorCount} Fehler, {result.WarningCount} Warnungen)"
+                : $"Load fehlgeschlagen: {result.ErrorCount} Fehler, {result.WarningCount} Warnungen";
+        }
+        catch (Exception ex)
+        {
+            LoadedBookSummary = "Book konnte nicht geladen werden";
+            AddMessage("Load", "Error", ex.Message);
+            StatusText = $"Load fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            RefreshLog();
+            IsBookOperationRunning = false;
+        }
     }
 
-    private void SelectPageByName(string? pageName)
+    private async void RebuildBook()
     {
-        if (string.IsNullOrWhiteSpace(pageName))
+        if (!CanRunBookAction())
         {
             return;
         }
 
-        var page = Pages.FirstOrDefault(candidate => string.Equals(candidate.Name, pageName, StringComparison.OrdinalIgnoreCase));
-        if (page is not null)
+        IsBookOperationRunning = true;
+        ResetMessages();
+        try
         {
-            SelectedPage = page;
+            var result = await Core.RebuildAsync(BookProjectPath);
+            ApplyBookTabStripPlacement(result.Project.RootDirectory);
+            SetPages(CreatePagesFromBook(result.Project));
+            BookProjectPath = result.Project.RootDirectory;
+            LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
+            AddMessage("Build", result.Success ? "Info" : "Error", $"Build {(result.Success ? "erfolgreich" : "fehlgeschlagen")}: {result.Project.ProjectName}", result.Project.RootDirectory);
+
+            foreach (var diagnostic in result.Diagnostics)
+            {
+                var span = diagnostic.Location.GetMappedLineSpan();
+                var path = string.IsNullOrWhiteSpace(span.Path) ? diagnostic.Location.SourceTree?.FilePath ?? string.Empty : span.Path;
+                var location = string.IsNullOrWhiteSpace(path)
+                    ? string.Empty
+                    : $"{Path.GetFileName(path)}:{span.StartLinePosition.Line + 1}:{span.StartLinePosition.Character + 1}";
+
+                AddMessage("Roslyn", diagnostic.Severity.ToString(), diagnostic.GetMessage(), location);
+            }
+
+            StatusText = result.Success
+                ? $"Build erfolgreich: {result.Project.ProjectName} ({result.ErrorCount} Fehler, {result.WarningCount} Warnungen)"
+                : $"Build fehlgeschlagen: {result.ErrorCount} Fehler, {result.WarningCount} Warnungen";
+        }
+        catch (Exception ex)
+        {
+            AddMessage("Build", "Error", ex.Message);
+            StatusText = $"Rebuild fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            RefreshLog();
+            IsBookOperationRunning = false;
         }
     }
 
-    private void ToggleHeaderCollapsed()
+    private IReadOnlyList<PageModel> CreatePagesFromBook(BookProject project)
     {
-        IsHeaderCollapsed = !IsHeaderCollapsed;
+        var pages = project.Pages
+            .Select((page, index) => CreatePageFromBook(page, index + 1))
+            .ToList();
+
+        if (pages.Count == 0)
+        {
+            pages.Add(new PageModel
+            {
+                Index = 1,
+                Name = project.ProjectName
+            });
+        }
+
+        return pages;
     }
 
-    private void ToggleTabPlacement()
+    private PageModel CreatePageFromBook(BookProjectPage page, int index)
     {
-        TabStripPlacement = TabStripPlacement == Dock.Top ? Dock.Right : Dock.Top;
+        var pageName = string.IsNullOrWhiteSpace(page.Name) ? $"Page{index}" : page.Name;
+        var pageDisplayText = GetPageDisplayText(page) ?? pageName;
+
+        if (string.IsNullOrWhiteSpace(page.UiFile) || !File.Exists(page.UiFile))
+        {
+            var fallbackModel = new PageModel
+            {
+                Index = index,
+                Name = pageName,
+                DisplayText = pageDisplayText,
+                UiFilePath = page.UiFile
+            };
+
+            fallbackModel.Items.Add(CreateFallbackItem(page.Name, "Keine Page.json gefunden"));
+            return fallbackModel;
+        }
+
+        try
+        {
+            var layout = BookUiLayoutLoader.Load(page.UiFile, page.Name);
+            var model = new PageModel
+            {
+                Index = index,
+                Name = pageName,
+                DisplayText = pageDisplayText,
+                UiFilePath = page.UiFile,
+                UiLayoutDefinition = layout
+            };
+
+            var items = CreateItemsFromNode(pageName, layout.Layout, 48, 48).ToList();
+
+            foreach (var item in items)
+            {
+                model.Items.Add(item);
+            }
+
+            return model;
+        }
+        catch (Exception ex)
+        {
+            AddMessage("UI", "Error", ex.Message, page.UiFile);
+            var fallbackModel = new PageModel
+            {
+                Index = index,
+                Name = pageName,
+                DisplayText = pageDisplayText,
+                UiFilePath = page.UiFile
+            };
+            fallbackModel.Items.Add(CreateFallbackItem(page.Name, $"UI-Fehler: {ex.Message}"));
+            return fallbackModel;
+        }
     }
+
+    private IEnumerable<PageItemModel> CreateItemsFromNode(string pageName, BookUiNode node, double defaultX, double defaultY)
+    {
+        if (IsContainerNode(node))
+        {
+            var x = node.X ?? defaultX;
+            var y = node.Y ?? defaultY;
+            var spacing = node.Spacing ?? 12d;
+            var nextY = y;
+
+            foreach (var child in node.Children)
+            {
+                foreach (var item in CreateItemsFromNode(pageName, child, x, nextY))
+                {
+                    yield return item;
+                    nextY = Math.Max(nextY, item.Y + item.Height + spacing);
+                }
+            }
+
+            yield break;
+        }
+
+        yield return CreateItemFromUiNode(pageName, node, defaultX, defaultY);
+    }
+
+    private PageItemModel CreateItemFromUiNode(string pageName, BookUiNode node, double defaultX, double defaultY)
+    {
+        var type = node.Type;
+        var text = string.IsNullOrWhiteSpace(node.Text) ? type : node.Text;
+        var kind = GetControlKindFromUiType(type);
+        var isButton = kind == ControlKind.Button;
+        var isListControl = kind == ControlKind.ListControl;
+        var isChartControl = kind == ControlKind.ChartControl;
+        var item = new PageItemModel
+        {
+            Kind = kind,
+            Name = text,
+            BodyCaption = text,
+            ControlCaption = pageName,
+            Footer = isButton ? "Aktion" : type,
+            X = node.X ?? defaultX,
+            Y = node.Y ?? defaultY,
+            Width = node.Width ?? (isButton ? 320 : (kind == ControlKind.LogControl ? 420 : (isChartControl ? 520 : 260))),
+            Height = node.Height ?? (isButton ? 96 : (kind == ControlKind.LogControl ? 260 : (isChartControl ? 260 : (isListControl ? 220 : 84)))),
+            IsAutoHeight = isListControl,
+            UiNodeType = string.IsNullOrWhiteSpace(type) ? GetDefaultUiType(kind) : type,
+            UiProperties = CloneJsonObject(node.Properties)
+        };
+
+        ApplyKnownUiProperties(item, node.Properties, pageName, type);
+        item.SetHierarchy(pageName, null);
+
+        foreach (var childNode in node.Children)
+        {
+            var childItems = CreateItemsFromNode(pageName, childNode, 0, 0).ToList();
+            foreach (var childItem in childItems)
+            {
+                if (item.IsListControl)
+                {
+                    item.AttachChildToList(childItem);
+                }
+                else
+                {
+                    childItem.SetHierarchy(pageName, item);
+                    item.Items.Add(childItem);
+                }
+            }
+        }
+
+        item.ApplyTheme(IsDarkTheme);
+        item.SyncChildWidths();
+        item.ApplyListHeightRules();
+        return item;
+    }
+
+    private static bool IsContainerNode(BookUiNode node)
+    {
+        return string.Equals(node.Type, "StackPanel", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(node.Type, "Canvas", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(node.Type);
+    }
+
+    private static ControlKind GetControlKindFromUiType(string? type)
+    {
+        if (string.Equals(type, "Button", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.Button;
+        }
+
+        if (string.Equals(type, "ListControl", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.ListControl;
+        }
+
+        if (string.Equals(type, "LogControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "ProcessLog", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.LogControl;
+        }
+
+        if (string.Equals(type, "ChartControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "Chart", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.ChartControl;
+        }
+
+        if (string.Equals(type, "UdlClientControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "UdlClient", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.UdlClientControl;
+        }
+
+        return ControlKind.Item;
+    }
+
+    private PageItemModel CreateFallbackItem(string pageName, string message)
+    {
+        var item = new PageItemModel
+        {
+            Kind = ControlKind.Item,
+            Name = message,
+            BodyCaption = message,
+            ControlCaption = pageName,
+            Footer = "Book",
+            X = 48,
+            Y = 48,
+            Width = 320,
+            Height = 84
+        };
+
+        item.SetHierarchy(pageName, null);
+        item.ApplyTheme(IsDarkTheme);
+        return item;
+    }
+
 }

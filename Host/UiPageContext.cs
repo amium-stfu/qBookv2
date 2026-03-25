@@ -93,6 +93,7 @@ public sealed class UiPageContext : IDisposable
         {
             _source.Changed -= OnSourceChanged;
             HostRegistries.Data.ItemChanged -= OnTargetChanged;
+            HostRegistries.Data.Remove(_targetPath);
         }
 
         private void OnSourceChanged(object? sender, ItemChangedEventArgs e)

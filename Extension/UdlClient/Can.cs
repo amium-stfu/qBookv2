@@ -12,6 +12,7 @@ public sealed class Can : IDisposable
     public delegate void OnMessageReceivedDelegate(uint id, byte dlc, byte[] data);
     public delegate void OnDiagnosticDelegate(string message);
 
+    private readonly Action<string>? _diagnosticSink;
     private readonly UdpClient _udpClient;
     private readonly IPEndPoint _remoteEndpoint;
     private readonly Thread _rxThread;
@@ -25,10 +26,11 @@ public sealed class Can : IDisposable
     private long _rxPacketLogCount;
     private long _rxFrameLogCount;
 
-    public Can(string ip, int port)
+    public Can(string ip, int port, Action<string>? diagnosticSink = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ip);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(port);
+        _diagnosticSink = diagnosticSink;
 
         WriteDiagnostic($"ctor start host={ip} port={port}");
         _remoteEndpoint = ResolveRemoteEndpoint(ip, port);
@@ -334,7 +336,9 @@ public sealed class Can : IDisposable
 
     private void WriteDiagnostic(string message)
     {
-        Diagnostic?.Invoke($"[Can] {message}");
+        var formatted = $"[Can] {message}";
+        _diagnosticSink?.Invoke(formatted);
+        Diagnostic?.Invoke(formatted);
     }
 
     private static string FormatBytes(byte[] data, byte dlc)

@@ -135,9 +135,11 @@ public sealed class PageItemDocument
 
     public string ChartSeriesDefinitions { get; init; } = string.Empty;
 
-    public string UdlClientHost { get; init; } = "192.168.178.15";
+    public string UdlClientHost { get; init; } = "192.168.178.151";
 
     public int UdlClientPort { get; init; } = 9001;
+
+    public bool UdlClientAutoConnect { get; init; }
 
     public string UdlAttachedItemPaths { get; init; } = string.Empty;
 

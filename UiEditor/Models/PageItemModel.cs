@@ -111,8 +111,9 @@ public sealed class PageItemModel : ObservableObject
     private int _historySeconds = 120;
     private int _viewSeconds = 30;
     private string _chartSeriesDefinitions = string.Empty;
-    private string _udlClientHost = "192.168.178.15";
+    private string _udlClientHost = "192.168.178.151";
     private int _udlClientPort = 9001;
+    private bool _udlClientAutoConnect;
     private string _udlAttachedItemPaths = string.Empty;
     private Item? _target;
     private int _refreshRateMs = 1000;
@@ -1054,13 +1055,19 @@ public sealed class PageItemModel : ObservableObject
     public string UdlClientHost
     {
         get => _udlClientHost;
-        set => SetProperty(ref _udlClientHost, string.IsNullOrWhiteSpace(value) ? "192.168.178.15" : value.Trim());
+        set => SetProperty(ref _udlClientHost, string.IsNullOrWhiteSpace(value) ? "192.168.178.151" : value.Trim());
     }
 
     public int UdlClientPort
     {
         get => _udlClientPort;
         set => SetProperty(ref _udlClientPort, value <= 0 ? 9001 : value);
+    }
+
+    public bool UdlClientAutoConnect
+    {
+        get => _udlClientAutoConnect;
+        set => SetProperty(ref _udlClientAutoConnect, value);
     }
 
     public string UdlAttachedItemPaths
@@ -1980,6 +1987,13 @@ public sealed class PageItemModel : ObservableObject
 
     private void OnDataRegistryChanged(object? sender, DataChangedEventArgs e)
     {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            var forwarded = e;
+            Dispatcher.UIThread.Post(() => OnDataRegistryChanged(sender, forwarded));
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(TargetPath) || !string.Equals(e.Key, TargetPath, StringComparison.Ordinal))
         {
             return;
