@@ -9,4 +9,6 @@ public interface IEditorUiHost
     void OpenItemEditor(object item, double x, double y);
 
     bool DeleteItem(object item);
+
+    void RefreshPageBindings(string pageName);
 }

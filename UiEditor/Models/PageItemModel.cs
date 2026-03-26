@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Globalization;
 using System.Text.Json.Nodes;
 using Avalonia;
@@ -8,7 +9,6 @@ using Avalonia.Threading;
 using Amium.Items;
 using Amium.Host;
 using Amium.UiEditor.ViewModels;
-using System.Diagnostics;
 
 namespace Amium.UiEditor.Models;
 
@@ -45,6 +45,10 @@ public sealed class PageItemModel : ObservableObject
     private const string DarkMutedForeground = "#9CA3AF";
     private const string DarkAccentBackground = "#1E3A8A";
     private const string DarkAccentForeground = "#DBEAFE";
+    private const int FooterSubItemColumns = 2;
+    private const double FooterSubItemRowSpacing = 6;
+    private const double FooterSubItemDesiredHeight = 32;
+    private const double FooterHorizontalPadding = 16;
 
     private double _x;
     private double _y;
@@ -64,6 +68,7 @@ public sealed class PageItemModel : ObservableObject
     private string _header = string.Empty;
     private string _title = string.Empty;
     private string _footer = string.Empty;
+    private string _bodyCaptionPosition = "Top";
     private bool _showCaption = true;
     private bool _showBodyCaption = true;
     private bool _showFooter = true;
@@ -107,13 +112,16 @@ public sealed class PageItemModel : ObservableObject
     private string _targetPath = string.Empty;
     private string _targetParameterPath = string.Empty;
     private string _targetParameterFormat = string.Empty;
+    private string _unit = string.Empty;
     private string _targetLog = "Logs/Host";
     private int _historySeconds = 120;
     private int _viewSeconds = 30;
     private string _chartSeriesDefinitions = string.Empty;
+    private string _interactionRules = string.Empty;
     private string _udlClientHost = "192.168.178.151";
     private int _udlClientPort = 9001;
     private bool _udlClientAutoConnect;
+    private bool _udlClientDebugLogging;
     private string _udlAttachedItemPaths = string.Empty;
     private Item? _target;
     private int _refreshRateMs = 1000;
@@ -147,6 +155,7 @@ public sealed class PageItemModel : ObservableObject
     public PageItemModel()
     {
         HostRegistries.Data.ItemChanged += OnDataRegistryChanged;
+        Items.CollectionChanged += OnItemsCollectionChanged;
     }
 
     public ControlKind Kind { get; init; }
@@ -220,6 +229,8 @@ public sealed class PageItemModel : ObservableObject
                 RaisePropertyChanged(nameof(ShowButtonText));
                 RaisePropertyChanged(nameof(BodyCaption));
                 RaisePropertyChanged(nameof(ShowBodyCaption));
+                RaisePropertyChanged(nameof(ShowTopBodyCaption));
+                RaisePropertyChanged(nameof(ShowInlineBodyCaption));
                 RaisePropertyChanged(nameof(ItemBodyHeight));
                 RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
                 RaisePropertyChanged(nameof(AvailableBodyHeight));
@@ -259,6 +270,26 @@ public sealed class PageItemModel : ObservableObject
         }
     }
 
+    public string Unit
+    {
+        get => _unit;
+        set
+        {
+            if (SetProperty(ref _unit, value ?? string.Empty))
+            {
+                if (Target is null)
+                {
+                    RaisePropertyChanged(nameof(DisplayUnit));
+                    RaisePropertyChanged(nameof(TargetParameterView));
+                    RaisePropertyChanged(nameof(ItemBodyPresentation));
+                    RaisePropertyChanged(nameof(ItemUnitWidth));
+                    RaisePropertyChanged(nameof(ItemValueFontSize));
+                    RaisePropertyChanged(nameof(CanOpenValueEditor));
+                }
+            }
+        }
+    }
+
     public bool BodyCaptionVisible
     {
         get => _showBodyCaption && !string.IsNullOrWhiteSpace(BodyCaption);
@@ -267,6 +298,8 @@ public sealed class PageItemModel : ObservableObject
             if (SetProperty(ref _showBodyCaption, value))
             {
                 RaisePropertyChanged(nameof(ShowBodyCaption));
+                RaisePropertyChanged(nameof(ShowTopBodyCaption));
+                RaisePropertyChanged(nameof(ShowInlineBodyCaption));
                 RaisePropertyChanged(nameof(ItemBodyHeight));
                 RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
                 RaisePropertyChanged(nameof(AvailableBodyHeight));
@@ -281,6 +314,26 @@ public sealed class PageItemModel : ObservableObject
     {
         get => BodyCaptionVisible;
         set => BodyCaptionVisible = value;
+    }
+
+    public string BodyCaptionPosition
+    {
+        get => _bodyCaptionPosition;
+        set
+        {
+            var normalized = NormalizeBodyCaptionPosition(value);
+            if (SetProperty(ref _bodyCaptionPosition, normalized))
+            {
+                RaisePropertyChanged(nameof(ShowTopBodyCaption));
+                RaisePropertyChanged(nameof(ShowInlineBodyCaption));
+                RaisePropertyChanged(nameof(ItemBodyHeight));
+                RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
+                RaisePropertyChanged(nameof(AvailableBodyHeight));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemValueFontSize));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
+            }
+        }
     }
 
     public bool CaptionVisible
@@ -1052,6 +1105,12 @@ public sealed class PageItemModel : ObservableObject
         set => SetProperty(ref _chartSeriesDefinitions, value ?? string.Empty);
     }
 
+    public string InteractionRules
+    {
+        get => _interactionRules;
+        set => SetProperty(ref _interactionRules, value ?? string.Empty);
+    }
+
     public string UdlClientHost
     {
         get => _udlClientHost;
@@ -1068,6 +1127,12 @@ public sealed class PageItemModel : ObservableObject
     {
         get => _udlClientAutoConnect;
         set => SetProperty(ref _udlClientAutoConnect, value);
+    }
+
+    public bool UdlClientDebugLogging
+    {
+        get => _udlClientDebugLogging;
+        set => SetProperty(ref _udlClientDebugLogging, value);
     }
 
     public string UdlAttachedItemPaths
@@ -1091,6 +1156,8 @@ public sealed class PageItemModel : ObservableObject
             {
                 RaisePropertyChanged(nameof(DisplayValue));
                 RaisePropertyChanged(nameof(DisplayUnit));
+                RaisePropertyChanged(nameof(RequestStatusText));
+                RaisePropertyChanged(nameof(DisplayFooter));
                 RaisePropertyChanged(nameof(TargetParameterView));
                 RaisePropertyChanged(nameof(ItemBodyPresentation));
                 RaisePropertyChanged(nameof(ShowBodyCaption));
@@ -1312,6 +1379,10 @@ public sealed class PageItemModel : ObservableObject
 
     public bool ShowControlCaption => CaptionVisible && !string.IsNullOrWhiteSpace(ControlCaption);
 
+    public bool ShowTopBodyCaption => BodyCaptionVisible && string.Equals(BodyCaptionPosition, "Top", StringComparison.OrdinalIgnoreCase);
+
+    public bool ShowInlineBodyCaption => BodyCaptionVisible && string.Equals(BodyCaptionPosition, "Left", StringComparison.OrdinalIgnoreCase);
+
     public string BodyCaption
     {
         get => Title;
@@ -1320,7 +1391,49 @@ public sealed class PageItemModel : ObservableObject
 
     public ParameterDisplayModel ItemBodyPresentation => BuildTargetParameterView(string.Empty, DisplayValue);
 
-    public bool ShowItemFooterPanel => IsItem && ShowFooter && !string.IsNullOrWhiteSpace(Footer);
+    public string RequestStatusText
+        => Target?.Params.Has("SendStatus") == true
+            ? Target.Params["SendStatus"].Value?.ToString() ?? string.Empty
+            : string.Empty;
+
+    public string DisplayFooter => string.Empty;
+
+    public bool ShowItemFooterPanel => IsItem && ShowFooter;
+
+    public bool HasFooterSubItems => IsItem && Items.Count > 0;
+
+    public int FooterSubItemRowCount => !HasFooterSubItems ? 0 : (Items.Count + FooterSubItemColumns - 1) / FooterSubItemColumns;
+
+    public double FooterSubItemWidth
+    {
+        get
+        {
+            var availableWidth = System.Math.Max(Width - FooterHorizontalPadding - FooterSubItemRowSpacing, 100);
+            return System.Math.Max(availableWidth / FooterSubItemColumns, 50);
+        }
+    }
+
+    public double FooterSubItemHeight => FooterSubItemDesiredHeight;
+
+    public double FooterPanelHeight
+    {
+        get
+        {
+            if (!ShowItemFooterPanel)
+            {
+                return 0;
+            }
+
+            if (!HasFooterSubItems)
+            {
+                return ItemFooterFontSize + 8;
+            }
+
+            return (FooterSubItemRowCount * FooterSubItemHeight)
+                + (System.Math.Max(FooterSubItemRowCount - 1, 0) * FooterSubItemRowSpacing)
+                + 8;
+        }
+    }
 
     public double ItemControlCaptionFontSize => System.Math.Clamp(Height * 0.13, 10, 18);
 
@@ -1371,7 +1484,7 @@ public sealed class PageItemModel : ObservableObject
         {
             var captionHeight = ShowControlCaption ? ItemHeaderHeight : 0;
             var footerHeight = ShowButtonFooter ? ItemFooterFontSize + 2 : 0;
-            var bodyCaptionHeight = ShowBodyCaption ? ItemBodyCaptionFontSize * 2.5 : 0;
+            var bodyCaptionHeight = ShowTopBodyCaption ? ItemBodyCaptionFontSize * 2.5 : 0;
             var bodyChromeHeight = 12;
             var availableHeight = Height - 8 - captionHeight - footerHeight - bodyCaptionHeight - bodyChromeHeight;
             return System.Math.Max(availableHeight, 12);
@@ -1408,13 +1521,13 @@ public sealed class PageItemModel : ObservableObject
     {
         get
         {
-            var footerHeight = ShowItemFooterPanel ? ItemFooterFontSize + 8 : 0;
+            var footerHeight = FooterPanelHeight;
             var baseBodyHeight = Height - ItemHeaderHeight - ItemBodyCaptionHeight - footerHeight - 8;
             return System.Math.Max(baseBodyHeight, 18);
         }
     }
 
-    public double ItemBodyCaptionHeight => BodyCaptionVisible ? ItemBodyCaptionFontSize + 3 : 0;
+    public double ItemBodyCaptionHeight => ShowTopBodyCaption ? ItemBodyCaptionFontSize + 3 : 0;
 
     public double AvailableBodyHeight
     {
@@ -1511,6 +1624,8 @@ public sealed class PageItemModel : ObservableObject
 
     public ParameterDisplayModel TargetParameterView => BuildTargetParameterView();
 
+    public bool HasInteractionRules => ItemInteractionRuleCodec.ParseDefinitions(InteractionRules).Count > 0;
+
     public bool CanOpenValueEditor
     {
         get
@@ -1545,9 +1660,17 @@ public sealed class PageItemModel : ObservableObject
     }
 
     public string DisplayUnit
-        => Target is not null && Target.Params.Has("Unit")
-            ? Target.Params["Unit"].Value?.ToString() ?? string.Empty
-            : Footer;
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(Unit))
+            {
+                return Unit;
+            }
+
+            return GetTargetUnitText(Target);
+        }
+    }
 
     public double MinWidth => Kind switch
     {
@@ -1596,10 +1719,16 @@ public sealed class PageItemModel : ObservableObject
                 RaisePropertyChanged(nameof(ChildContentWidth));
                 RaisePropertyChanged(nameof(ItemUnitWidth));
                 RaisePropertyChanged(nameof(CanOpenValueEditor));
+                RaisePropertyChanged(nameof(FooterSubItemWidth));
 
                 if (IsListControl)
                 {
                     SyncChildWidths();
+                }
+
+                if (IsItem)
+                {
+                    SyncFooterSubItemLayout();
                 }
             }
         }
@@ -1631,6 +1760,7 @@ public sealed class PageItemModel : ObservableObject
                 RaisePropertyChanged(nameof(ButtonAvailableBodyHeight));
                 RaisePropertyChanged(nameof(ButtonBodyFontSize));
                 RaisePropertyChanged(nameof(ButtonIconSize));
+                RaisePropertyChanged(nameof(FooterPanelHeight));
 
                 if (ParentListControl?.IsListControl == true && ParentListControl.IsAutoHeight && !ParentListControl._isApplyingListHeight)
                 {
@@ -1743,20 +1873,37 @@ public sealed class PageItemModel : ObservableObject
             return;
         }
 
+        var previousSuggestedName = GetSuggestedNameFromTargetPath(Target?.Path ?? TargetPath);
+        var previousTargetUnit = GetTargetUnitText(Target);
         var selectedItem = item!;
         _targetPath = selectedItem.Path ?? targetPath;
         RaisePropertyChanged(nameof(TargetPath));
         Target = selectedItem;
         EnsureTargetParameterSelection(selectedItem);
-        var targetText = selectedItem.Params.Has("Text")
-            ? selectedItem.Params["Text"].Value?.ToString() ?? string.Empty
-            : string.Empty;
+        var suggestedName = GetSuggestedNameFromTargetPath(selectedItem.Path ?? targetPath);
 
-        ControlCaption = !string.IsNullOrWhiteSpace(targetText)
-            ? targetText
-            : selectedItem.Name ?? ControlCaption;
+        if (string.IsNullOrWhiteSpace(Name)
+            || string.Equals(Name, previousSuggestedName, StringComparison.Ordinal)
+            || IsAutoGeneratedControlName(Name))
+        {
+            Name = suggestedName;
+        }
 
-        Footer = selectedItem.Params.Has("Unit") ? selectedItem.Params["Unit"].Value?.ToString() ?? string.Empty : string.Empty;
+        if (string.IsNullOrWhiteSpace(ControlCaption)
+            || string.Equals(ControlCaption, previousSuggestedName, StringComparison.Ordinal)
+            || IsAutoGeneratedControlCaption(ControlCaption))
+        {
+            ControlCaption = suggestedName;
+        }
+
+        var nextTargetUnit = GetTargetUnitText(selectedItem);
+        if (string.IsNullOrWhiteSpace(Unit)
+            || string.Equals(Unit, previousTargetUnit, StringComparison.Ordinal))
+        {
+            Unit = nextTargetUnit;
+        }
+
+        RaisePropertyChanged(nameof(DisplayUnit));
         RaisePropertyChanged(nameof(TargetParameterView));
         CancelPendingTargetRefresh();
         TriggerTargetRefresh();
@@ -1766,9 +1913,13 @@ public sealed class PageItemModel : ObservableObject
     {
         RaisePropertyChanged(nameof(DisplayValue));
         RaisePropertyChanged(nameof(DisplayUnit));
+        RaisePropertyChanged(nameof(RequestStatusText));
+        RaisePropertyChanged(nameof(DisplayFooter));
         RaisePropertyChanged(nameof(TargetParameterView));
         RaisePropertyChanged(nameof(ItemBodyPresentation));
         RaisePropertyChanged(nameof(ShowBodyCaption));
+        RaisePropertyChanged(nameof(ShowTopBodyCaption));
+        RaisePropertyChanged(nameof(ShowInlineBodyCaption));
         RaisePropertyChanged(nameof(ShowItemFooterPanel));
         RaisePropertyChanged(nameof(ItemBodyHeight));
         RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
@@ -1794,7 +1945,7 @@ public sealed class PageItemModel : ObservableObject
             return false;
         }
 
-        var parameter = ResolveTargetParameter();
+        var parameter = ResolveWriteParameter();
         if (parameter is null)
         {
             error = "Kein Parameter fuer den Writeback gefunden.";
@@ -1803,10 +1954,12 @@ public sealed class PageItemModel : ObservableObject
 
         try
         {
-            var convertedValue = ConvertEditorValue(rawValue, parameter.Value?.GetType());
+            var targetParameter = ResolveTargetParameter();
+            var writeTargetItem = ResolveWriteTargetItem();
+            var convertedValue = ConvertEditorValue(rawValue, parameter.Value?.GetType() ?? targetParameter?.Value?.GetType());
             if (string.Equals(parameter.Name, "Value", StringComparison.OrdinalIgnoreCase))
             {
-                Target.Value = convertedValue!;
+                writeTargetItem.Value = convertedValue!;
             }
             else
             {
@@ -1815,10 +1968,14 @@ public sealed class PageItemModel : ObservableObject
 
             RefreshTargetBindings();
 
-            var targetPath = Target.Path ?? TargetPath;
-            _ = string.Equals(parameter.Name, "Value", StringComparison.OrdinalIgnoreCase)
+            var targetPath = writeTargetItem.Path ?? Target.Path ?? TargetPath;
+            var updated = string.Equals(parameter.Name, "Value", StringComparison.OrdinalIgnoreCase)
                 ? HostRegistries.Data.UpdateValue(targetPath, convertedValue)
                 : HostRegistries.Data.UpdateParameter(targetPath, parameter.Name, convertedValue);
+            if (!updated)
+            {
+                PublishTargetSnapshot();
+            }
 
             error = string.Empty;
             return true;
@@ -1851,6 +2008,30 @@ public sealed class PageItemModel : ObservableObject
         var updatedValue = currentValue ^ (1UL << bitIndex);
         return TryUpdateTargetParameterValue((long)updatedValue, out error);
     }
+
+    public bool TryExecuteInteraction(ItemInteractionEvent interactionEvent, MainWindowViewModel? viewModel, out string error)
+    {
+        error = string.Empty;
+        var matchingRules = ItemInteractionRuleCodec.ParseDefinitions(InteractionRules)
+            .Where(rule => rule.Event == interactionEvent)
+            .ToList();
+
+        if (matchingRules.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var rule in matchingRules)
+        {
+            if (!TryExecuteInteractionRule(rule, viewModel, out error))
+            {
+                return true;
+            }
+        }
+
+        return true;
+    }
+
     public void SyncChildWidths()
     {
         if (!IsListControl)
@@ -1863,6 +2044,184 @@ public sealed class PageItemModel : ObservableObject
             item.Width = ChildContentWidth;
         }
     }
+
+    public void SyncFooterSubItemLayout()
+    {
+        if (!IsItem)
+        {
+            return;
+        }
+
+        var childWidth = FooterSubItemWidth;
+        var childHeight = FooterSubItemHeight;
+
+        foreach (var item in Items)
+        {
+            item.SetHierarchy(PageName, this);
+            item.Width = System.Math.Max(childWidth, item.MinWidth);
+            item.Height = System.Math.Max(childHeight, item.MinHeight);
+        }
+    }
+
+    private bool TryExecuteInteractionRule(ItemInteractionRule rule, MainWindowViewModel? viewModel, out string error)
+    {
+        error = string.Empty;
+
+        switch (rule.Action)
+        {
+            case ItemInteractionAction.OpenValueEditor:
+                if (viewModel is null)
+                {
+                    error = "Kein ViewModel fuer den Value-Editor verfuegbar.";
+                    return false;
+                }
+
+                viewModel.OpenValueInputForTargetPath(rule.TargetPath, this);
+                return true;
+
+            case ItemInteractionAction.ToggleBool:
+                if (!TryResolveInteractionTarget(rule.TargetPath, out var toggleTarget))
+                {
+                    error = "Target fuer ToggleBool wurde nicht gefunden.";
+                    return false;
+                }
+
+                var toggleRead = ResolveInteractionReadParameter(rule.TargetPath, toggleTarget!);
+                var toggleWrite = ResolveInteractionWriteParameter(rule.TargetPath, toggleTarget!);
+                if (toggleWrite is null)
+                {
+                    error = "Kein Write-Parameter fuer ToggleBool gefunden.";
+                    return false;
+                }
+
+                var toggledValue = ToBooleanLikeValue(toggleRead?.Value ?? toggleWrite.Value) ? 0 : 1;
+                return TryApplyInteractionWrite(toggleTarget!, rule.TargetPath, toggledValue, out error);
+
+            case ItemInteractionAction.SetValue:
+                if (!TryResolveInteractionTarget(rule.TargetPath, out var setTarget))
+                {
+                    error = "Target fuer SetValue wurde nicht gefunden.";
+                    return false;
+                }
+
+                return TryApplyInteractionWrite(setTarget!, rule.TargetPath, rule.Argument, out error);
+
+            default:
+                error = $"Action {rule.Action} wird noch nicht unterstuetzt.";
+                return false;
+        }
+    }
+
+    private bool TryResolveInteractionTarget(string? targetPath, out Item? item)
+    {
+        if (string.IsNullOrWhiteSpace(targetPath) || string.Equals(targetPath, "this", StringComparison.OrdinalIgnoreCase))
+        {
+            item = Target;
+            return item is not null;
+        }
+
+        return TryResolveTargetItem(targetPath, out item);
+    }
+
+    private Parameter? ResolveInteractionReadParameter(string? targetPath, Item targetItem)
+    {
+        if ((string.IsNullOrWhiteSpace(targetPath) || string.Equals(targetPath, "this", StringComparison.OrdinalIgnoreCase))
+            && ReferenceEquals(targetItem, Target))
+        {
+            return ResolveTargetParameter();
+        }
+
+        if (targetItem.Params.Has("Value"))
+        {
+            return targetItem.Params["Value"];
+        }
+
+        var firstParameter = targetItem.Params.GetDictionary().Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
+        return firstParameter is null ? null : targetItem.Params[firstParameter];
+    }
+
+    private Parameter? ResolveInteractionWriteParameter(string? targetPath, Item targetItem)
+    {
+        if ((string.IsNullOrWhiteSpace(targetPath) || string.Equals(targetPath, "this", StringComparison.OrdinalIgnoreCase))
+            && ReferenceEquals(targetItem, Target))
+        {
+            return ResolveWriteParameter();
+        }
+
+        if (targetItem.Has("Request"))
+        {
+            return targetItem["Request"].Params["Value"];
+        }
+
+        return ResolveInteractionReadParameter(targetPath, targetItem);
+    }
+
+    private bool TryApplyInteractionWrite(Item targetItem, string? targetPath, object? rawValue, out string error)
+    {
+        var writeParameter = ResolveInteractionWriteParameter(targetPath, targetItem);
+        var readParameter = ResolveInteractionReadParameter(targetPath, targetItem);
+        var writeTargetItem = ResolveInteractionWriteTargetItem(targetItem);
+        if (writeParameter is null)
+        {
+            error = "Kein Write-Parameter fuer die Action gefunden.";
+            return false;
+        }
+
+        try
+        {
+            var convertedValue = ConvertEditorValue(rawValue, writeParameter.Value?.GetType() ?? readParameter?.Value?.GetType());
+            if (string.Equals(writeParameter.Name, "Value", StringComparison.OrdinalIgnoreCase))
+            {
+                writeTargetItem.Value = convertedValue!;
+            }
+            else
+            {
+                writeParameter.Value = convertedValue!;
+            }
+
+            var resolvedTargetPath = writeTargetItem.Path ?? targetItem.Path ?? targetPath ?? string.Empty;
+            var updated = string.Equals(writeParameter.Name, "Value", StringComparison.OrdinalIgnoreCase)
+                ? HostRegistries.Data.UpdateValue(resolvedTargetPath, convertedValue)
+                : HostRegistries.Data.UpdateParameter(resolvedTargetPath, writeParameter.Name, convertedValue);
+            if (!updated)
+            {
+                PublishItemSnapshot(targetItem);
+            }
+
+            if (ReferenceEquals(targetItem, Target))
+            {
+                RefreshTargetBindings();
+            }
+
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static bool ToBooleanLikeValue(object? value)
+        => value switch
+        {
+            bool boolValue => boolValue,
+            string text when bool.TryParse(text, out var parsedBool) => parsedBool,
+            string text when long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedLong) => parsedLong != 0,
+            byte numeric => numeric != 0,
+            sbyte numeric => numeric != 0,
+            short numeric => numeric != 0,
+            ushort numeric => numeric != 0,
+            int numeric => numeric != 0,
+            uint numeric => numeric != 0,
+            long numeric => numeric != 0,
+            ulong numeric => numeric != 0,
+            float numeric => System.Math.Abs(numeric) > float.Epsilon,
+            double numeric => System.Math.Abs(numeric) > double.Epsilon,
+            decimal numeric => numeric != 0,
+            _ => false
+        };
 
     public void ApplyListControlDefaultsToChild(PageItemModel item)
     {
@@ -1994,14 +2353,32 @@ public sealed class PageItemModel : ObservableObject
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(TargetPath) || !string.Equals(e.Key, TargetPath, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(TargetPath))
         {
             return;
         }
 
-        if (Target is null || !ReferenceEquals(Target, e.Item))
+        var isDirectTarget = string.Equals(e.Key, TargetPath, StringComparison.Ordinal);
+        var isChildTarget = e.Key.StartsWith(TargetPath + "/", StringComparison.Ordinal);
+        var isAncestorTarget = TargetPath.StartsWith(e.Key + "/", StringComparison.Ordinal);
+        if (!isDirectTarget && !isChildTarget && !isAncestorTarget)
+        {
+            return;
+        }
+
+        if (isDirectTarget && (Target is null || !ReferenceEquals(Target, e.Item)))
         {
             Target = e.Item;
+        }
+
+        if (isAncestorTarget && TryResolveRelativeChild(e.Item, TargetPath[(e.Key.Length + 1)..], out var resolvedTarget) && resolvedTarget is not null)
+        {
+            Target = resolvedTarget;
+        }
+
+        if (isChildTarget && Target is not null)
+        {
+            ApplyChildRegistryUpdate(Target, e.Key[(TargetPath.Length + 1)..], e);
         }
 
         if (Target is not null)
@@ -2010,6 +2387,51 @@ public sealed class PageItemModel : ObservableObject
         }
 
         RequestTargetRefresh();
+    }
+
+    private static void ApplyChildRegistryUpdate(Item rootItem, string relativePath, DataChangedEventArgs e)
+    {
+        var current = rootItem;
+        foreach (var segment in relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!current.Has(segment))
+            {
+                return;
+            }
+
+            current = current[segment];
+        }
+
+        if (string.Equals(e.ParameterName, "Value", StringComparison.Ordinal) || e.ChangeKind == DataChangeKind.ValueUpdated)
+        {
+            current.Value = e.Item.Value;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(e.ParameterName) && e.Item.Params.Has(e.ParameterName) && current.Params.Has(e.ParameterName))
+        {
+            current.Params[e.ParameterName].Value = e.Item.Params[e.ParameterName].Value;
+        }
+    }
+
+    private void PublishTargetSnapshot()
+    {
+        if (Target is null)
+        {
+            return;
+        }
+
+        PublishItemSnapshot(Target);
+    }
+
+    private static void PublishItemSnapshot(Item item)
+    {
+        if (string.IsNullOrWhiteSpace(item.Path))
+        {
+            return;
+        }
+
+        HostRegistries.Data.UpsertSnapshot(item.Path!, item.Clone(), pruneMissingMembers: true);
     }
 
     private void RequestTargetRefresh()
@@ -2093,6 +2515,30 @@ public sealed class PageItemModel : ObservableObject
         }
     }
 
+    private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (IsListControl)
+        {
+            SyncChildWidths();
+        }
+
+        if (IsItem)
+        {
+            SyncFooterSubItemLayout();
+            RaisePropertyChanged(nameof(HasFooterSubItems));
+            RaisePropertyChanged(nameof(FooterSubItemRowCount));
+            RaisePropertyChanged(nameof(FooterSubItemWidth));
+            RaisePropertyChanged(nameof(FooterSubItemHeight));
+            RaisePropertyChanged(nameof(FooterPanelHeight));
+            RaisePropertyChanged(nameof(ShowItemFooterPanel));
+            RaisePropertyChanged(nameof(ItemBodyHeight));
+            RaisePropertyChanged(nameof(AvailableBodyHeight));
+            RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+            RaisePropertyChanged(nameof(ItemValueFontSize));
+            RaisePropertyChanged(nameof(ItemUnitFontSize));
+        }
+    }
+
     private static bool TryResolveTargetItem(string targetPath, out Item? item)
     {
         if (HostRegistries.Data.TryGet(targetPath, out item) && item is not null)
@@ -2100,16 +2546,39 @@ public sealed class PageItemModel : ObservableObject
             return true;
         }
 
-        var fallbackKey = HostRegistries.Data.GetAllKeys()
-            .FirstOrDefault(key => key.StartsWith(targetPath + "/", StringComparison.OrdinalIgnoreCase));
+        var rootKey = HostRegistries.Data.GetAllKeys()
+            .Where(key => targetPath.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(key => key.Length)
+            .FirstOrDefault();
 
-        if (fallbackKey is not null && HostRegistries.Data.TryGet(fallbackKey, out item) && item is not null)
+        if (rootKey is not null
+            && HostRegistries.Data.TryGet(rootKey, out var rootItem)
+            && rootItem is not null
+            && TryResolveRelativeChild(rootItem, targetPath[(rootKey.Length + 1)..], out item))
         {
             return true;
         }
 
         item = null;
         return false;
+    }
+
+    private static bool TryResolveRelativeChild(Item rootItem, string relativePath, out Item? item)
+    {
+        var current = rootItem;
+        foreach (var segment in relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!current.Has(segment))
+            {
+                item = null;
+                return false;
+            }
+
+            current = current[segment];
+        }
+
+        item = current;
+        return true;
     }
 
     private static string NormalizeLogTargetPath(string? value)
@@ -2171,11 +2640,109 @@ public sealed class PageItemModel : ObservableObject
             : isValueParameter && Target?.Params.Has("Format") == true
                 ? Target.Params["Format"].Value?.ToString() ?? string.Empty
                 : string.Empty;
-        var unitText = isValueParameter && Target?.Params.Has("Unit") == true
-            ? Target.Params["Unit"].Value?.ToString() ?? string.Empty
-            : Footer;
+        var unitText = !string.IsNullOrWhiteSpace(Unit)
+            ? Unit
+            : isValueParameter
+                ? GetTargetUnitText(Target)
+                : string.Empty;
 
         return new ParameterDisplayModel(parameter, label, format, unitText, fallbackText);
+    }
+
+    private static string GetTargetUnitText(Item? item)
+    {
+        return item?.Params.Has("Unit") == true
+            ? item.Params["Unit"].Value?.ToString() ?? string.Empty
+            : string.Empty;
+    }
+
+    private static string GetSuggestedNameFromTargetPath(string? targetPath)
+    {
+        var normalizedPath = NormalizeTargetRelativePath(targetPath);
+        return string.IsNullOrWhiteSpace(normalizedPath)
+            ? string.Empty
+            : normalizedPath.Replace('/', '.');
+    }
+
+    private static string NormalizeTargetRelativePath(string? targetPath)
+    {
+        if (string.IsNullOrWhiteSpace(targetPath))
+        {
+            return string.Empty;
+        }
+
+        var segments = targetPath
+            .Replace('\\', '/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (segments.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        if (segments.Length > 3
+            && string.Equals(segments[0], "Runtime", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(segments[1], "UdlClient", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Join('/', segments.Skip(3));
+        }
+
+        if (segments.Length > 3
+            && string.Equals(segments[0], "UdlBook", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Join('/', segments.Skip(3));
+        }
+
+        return string.Join('/', segments);
+    }
+
+    private static string NormalizeBodyCaptionPosition(string? value)
+    {
+        return string.Equals(value, "Left", StringComparison.OrdinalIgnoreCase)
+            ? "Left"
+            : "Top";
+    }
+
+    private bool IsAutoGeneratedControlName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return true;
+        }
+
+        var normalizedName = name.Trim();
+        var baseName = Kind switch
+        {
+            ControlKind.Button => "Button",
+            ControlKind.ListControl => "ListControl",
+            ControlKind.LogControl => "LogControl",
+            ControlKind.ChartControl => "ChartControl",
+            ControlKind.UdlClientControl => "UdlClientControl",
+            _ => "Item"
+        };
+
+        if (string.Equals(normalizedName, baseName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!normalizedName.StartsWith(baseName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var suffix = normalizedName[baseName.Length..];
+        return suffix.Length > 0 && suffix.All(char.IsDigit);
+    }
+
+    private bool IsAutoGeneratedControlCaption(string? caption)
+    {
+        if (string.IsNullOrWhiteSpace(caption))
+        {
+            return true;
+        }
+
+        return IsAutoGeneratedControlName(caption);
     }
 
     private Parameter? ResolveTargetParameter()
@@ -2191,6 +2758,46 @@ public sealed class PageItemModel : ObservableObject
         }
 
         return Target.Params.Has("Value") ? Target.Params["Value"] : null;
+    }
+
+    private Parameter? ResolveWriteParameter()
+    {
+        if (Target is null)
+        {
+            return null;
+        }
+
+        if (Target.Has("Request"))
+        {
+            return Target["Request"].Params["Value"];
+        }
+
+        return ResolveTargetParameter();
+    }
+
+    private Item ResolveWriteTargetItem()
+    {
+        if (Target is null)
+        {
+            throw new InvalidOperationException("Target ist nicht gesetzt.");
+        }
+
+        if (Target.Has("Request"))
+        {
+            return Target["Request"];
+        }
+
+        return Target;
+    }
+
+    private static Item ResolveInteractionWriteTargetItem(Item targetItem)
+    {
+        if (targetItem.Has("Request"))
+        {
+            return targetItem["Request"];
+        }
+
+        return targetItem;
     }
 
     private void EnsureTargetParameterSelection(Item targetItem)

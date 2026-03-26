@@ -3,26 +3,15 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Controls"
-  xmlns:editorUi="using:Amium.EditorUi.Controls"
-    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
-  <controls:EditorItemControl.HeaderActionsContent>
-    <Grid>
-      <Button x:Name="SubItemsButton" Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnSubItemsClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="SubItems">
-        <editorUi:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.Editor/EditorIcons/menu.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
-      </Button>
-      <Popup x:Name="SubItemsPopup" Placement="RightEdgeAlignedTop" PlacementTarget="{Binding #SubItemsButton}" HorizontalOffset="8" IsLightDismissEnabled="True">
-        <Border MinWidth="180" Padding="12" Background="{Binding CardBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderBrush="{Binding CardBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" BorderThickness="1" CornerRadius="10" PointerPressed="OnInteractivePointerPressed">
-          <TextBlock Foreground="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" Text="SubItems noch nicht implementiert." />
-        </Border>
-      </Popup>
-    </Grid>
-  </controls:EditorItemControl.HeaderActionsContent>
+  xmlns:editorUi="using:Amium.EditorUi.Controls">
 
   <controls:EditorItemControl.BodyContent>
     <controls:ParameterControl
         x:Name="ParameterPresenter"
         HorizontalAlignment="Stretch"
         VerticalAlignment="Stretch"
+        InlineCaptionText="{Binding BodyCaption}"
+        InlineCaptionVisible="{Binding ShowInlineBodyCaption}"
         Margin="0"
       ChoiceFontSize="{Binding ItemValueFontSize}"
       ChoiceHeight="{Binding ItemChoiceButtonHeight}"

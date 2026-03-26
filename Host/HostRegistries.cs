@@ -80,10 +80,6 @@ public sealed class DataRegistry : IDataRegistry
         if (added)
         {
             RaiseRegistryChanged(key, item, DataChangeKind.SnapshotUpserted);
-            var keys = string.Join(", ", _items.Keys.OrderBy(static value => value, StringComparer.OrdinalIgnoreCase));
-            var message = $"DataRegistry.UpsertSnapshot key={key} count={_items.Count} keys=[{keys}]";
-            Debug.WriteLine(message);
-            HostLogger.Log.Information(message);
         }
 
         return item;
@@ -91,7 +87,7 @@ public sealed class DataRegistry : IDataRegistry
 
     public bool UpdateValue(string key, object? value, ulong? timestamp = null)
     {
-        if (!_items.TryGetValue(key, out var item))
+        if (!TryResolveItem(key, out var item))
         {
             return false;
         }
@@ -108,7 +104,7 @@ public sealed class DataRegistry : IDataRegistry
 
     public bool UpdateParameter(string key, string parameterName, object? value, ulong? timestamp = null)
     {
-        if (!_items.TryGetValue(key, out var item) || !item.Params.Has(parameterName))
+        if (!TryResolveItem(key, out var item) || !item.Params.Has(parameterName))
         {
             return false;
         }
@@ -141,6 +137,40 @@ public sealed class DataRegistry : IDataRegistry
     private void RaiseRegistryChanged(string key, Item item, DataChangeKind changeKind, string? parameterName = null, ulong? timestamp = null)
     {
         RegistryChanged?.Invoke(this, new DataChangedEventArgs(key, item, changeKind, parameterName, timestamp));
+    }
+
+    private bool TryResolveItem(string key, out Item item)
+    {
+        if (_items.TryGetValue(key, out item!))
+        {
+            return true;
+        }
+
+        var rootKey = _items.Keys
+            .Where(existingKey => key.StartsWith(existingKey + "/", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(existingKey => existingKey.Length)
+            .FirstOrDefault();
+
+        if (rootKey is null || !_items.TryGetValue(rootKey, out var rootItem))
+        {
+            item = null!;
+            return false;
+        }
+
+        var current = rootItem;
+        foreach (var segment in key[(rootKey.Length + 1)..].Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!current.Has(segment))
+            {
+                item = null!;
+                return false;
+            }
+
+            current = current[segment];
+        }
+
+        item = current;
+        return true;
     }
 
 

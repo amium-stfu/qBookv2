@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -34,7 +33,7 @@ public partial class EditorItemControl : EditorTemplateControl
 
     private void OnParameterPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (ViewModel?.IsEditMode == true || Item is null || !Item.CanOpenValueEditor)
+        if (ViewModel?.IsEditMode == true || Item is null)
         {
             return;
         }
@@ -47,6 +46,26 @@ public partial class EditorItemControl : EditorTemplateControl
 
         var viewModel = ViewModel;
         if (viewModel is null)
+        {
+            return;
+        }
+
+        var interactionEvent = GetInteractionEvent(e, sender as Control);
+        if (interactionEvent is not null)
+        {
+            if (Item.TryExecuteInteraction(interactionEvent.Value, viewModel, out _))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            if (interactionEvent != ItemInteractionEvent.BodyLeftClick || Item.HasInteractionRules || !Item.CanOpenValueEditor)
+            {
+                return;
+            }
+        }
+
+        if (!Item.CanOpenValueEditor)
         {
             return;
         }
@@ -75,18 +94,19 @@ public partial class EditorItemControl : EditorTemplateControl
         _ = Item.TryUpdateTargetParameterValue(e.Value, out _);
     }
 
-    private void OnSubItemsClicked(object? sender, RoutedEventArgs e)
-    {
-        if (this.FindControl<Popup>("SubItemsPopup") is { } popup)
-        {
-            popup.IsOpen = !popup.IsOpen;
-        }
-
-        e.Handled = true;
-    }
-
     private void OnSettingsClicked(object? sender, RoutedEventArgs e)
     {
         HandleSettingsClicked(e);
+    }
+
+    private static ItemInteractionEvent? GetInteractionEvent(PointerPressedEventArgs e, Control? control)
+    {
+        var point = e.GetCurrentPoint(control);
+        return point.Properties.PointerUpdateKind switch
+        {
+            PointerUpdateKind.LeftButtonPressed => ItemInteractionEvent.BodyLeftClick,
+            PointerUpdateKind.RightButtonPressed => ItemInteractionEvent.BodyRightClick,
+            _ => null
+        };
     }
 }

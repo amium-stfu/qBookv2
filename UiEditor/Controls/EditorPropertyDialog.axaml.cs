@@ -39,6 +39,30 @@ public partial class EditorPropertyDialog : UserControl
     public static readonly StyledProperty<string> SecondaryTextBrushProperty =
         AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(SecondaryTextBrush), "#5E6777");
 
+    public static readonly StyledProperty<string> TabSelectBackColorProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(TabSelectBackColor), "#FFF1C4");
+
+    public static readonly StyledProperty<string> TabSelectForeColorProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(TabSelectForeColor), "#000000");
+
+    public static readonly StyledProperty<string> TabBackColorProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(TabBackColor), "#E7E7E7");
+
+    public static readonly StyledProperty<string> TabForeColorProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(TabForeColor), "#111827");
+
+    public static readonly StyledProperty<string> EditorDialogSectionHeaderBackgroundProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(EditorDialogSectionHeaderBackground), "#E8EEF6");
+
+    public static readonly StyledProperty<string> EditorDialogSectionHeaderForegroundProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(EditorDialogSectionHeaderForeground), "#111827");
+
+    public static readonly StyledProperty<string> EditorDialogSectionHeaderBorderBrushProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(EditorDialogSectionHeaderBorderBrush), "#CBD5E1");
+
+    public static readonly StyledProperty<string> EditorDialogSectionContentBackgroundProperty =
+        AvaloniaProperty.Register<EditorPropertyDialog, string>(nameof(EditorDialogSectionContentBackground), "#EEF3F8");
+
     private static readonly IReadOnlyList<Color> StandardColors =
     [
         Color.Parse("#1B19D8"),
@@ -114,6 +138,54 @@ public partial class EditorPropertyDialog : UserControl
         private set => SetValue(SecondaryTextBrushProperty, value);
     }
 
+    public string TabSelectBackColor
+    {
+        get => GetValue(TabSelectBackColorProperty);
+        private set => SetValue(TabSelectBackColorProperty, value);
+    }
+
+    public string TabSelectForeColor
+    {
+        get => GetValue(TabSelectForeColorProperty);
+        private set => SetValue(TabSelectForeColorProperty, value);
+    }
+
+    public string TabBackColor
+    {
+        get => GetValue(TabBackColorProperty);
+        private set => SetValue(TabBackColorProperty, value);
+    }
+
+    public string TabForeColor
+    {
+        get => GetValue(TabForeColorProperty);
+        private set => SetValue(TabForeColorProperty, value);
+    }
+
+    public string EditorDialogSectionHeaderBackground
+    {
+        get => GetValue(EditorDialogSectionHeaderBackgroundProperty);
+        private set => SetValue(EditorDialogSectionHeaderBackgroundProperty, value);
+    }
+
+    public string EditorDialogSectionHeaderForeground
+    {
+        get => GetValue(EditorDialogSectionHeaderForegroundProperty);
+        private set => SetValue(EditorDialogSectionHeaderForegroundProperty, value);
+    }
+
+    public string EditorDialogSectionHeaderBorderBrush
+    {
+        get => GetValue(EditorDialogSectionHeaderBorderBrushProperty);
+        private set => SetValue(EditorDialogSectionHeaderBorderBrushProperty, value);
+    }
+
+    public string EditorDialogSectionContentBackground
+    {
+        get => GetValue(EditorDialogSectionContentBackgroundProperty);
+        private set => SetValue(EditorDialogSectionContentBackgroundProperty, value);
+    }
+
     public EditorPropertyDialog()
     {
         InitializeComponent();
@@ -160,7 +232,15 @@ public partial class EditorPropertyDialog : UserControl
             || e.PropertyName == nameof(MainWindowViewModel.EditPanelButtonBackground)
             || e.PropertyName == nameof(MainWindowViewModel.EditPanelButtonBorderBrush)
             || e.PropertyName == nameof(MainWindowViewModel.PrimaryTextBrush)
-            || e.PropertyName == nameof(MainWindowViewModel.SecondaryTextBrush))
+            || e.PropertyName == nameof(MainWindowViewModel.SecondaryTextBrush)
+            || e.PropertyName == nameof(MainWindowViewModel.TabSelectBackColor)
+            || e.PropertyName == nameof(MainWindowViewModel.TabSelectForeColor)
+            || e.PropertyName == nameof(MainWindowViewModel.TabBackColor)
+            || e.PropertyName == nameof(MainWindowViewModel.TabForeColor)
+            || e.PropertyName == nameof(MainWindowViewModel.EditorDialogSectionHeaderBackground)
+            || e.PropertyName == nameof(MainWindowViewModel.EditorDialogSectionHeaderForeground)
+            || e.PropertyName == nameof(MainWindowViewModel.EditorDialogSectionHeaderBorderBrush)
+            || e.PropertyName == nameof(MainWindowViewModel.EditorDialogSectionContentBackground))
         {
             UpdateThemeBindings();
         }
@@ -177,6 +257,14 @@ public partial class EditorPropertyDialog : UserControl
         EditPanelButtonBorderBrush = vm?.EditPanelButtonBorderBrush ?? "#CBD5E1";
         PrimaryTextBrush = vm?.PrimaryTextBrush ?? "#111827";
         SecondaryTextBrush = vm?.SecondaryTextBrush ?? "#5E6777";
+        TabSelectBackColor = vm?.TabSelectBackColor ?? "#FFF1C4";
+        TabSelectForeColor = vm?.TabSelectForeColor ?? "#000000";
+        TabBackColor = vm?.TabBackColor ?? "#E7E7E7";
+        TabForeColor = vm?.TabForeColor ?? "#111827";
+        EditorDialogSectionHeaderBackground = vm?.EditorDialogSectionHeaderBackground ?? "#E8EEF6";
+        EditorDialogSectionHeaderForeground = vm?.EditorDialogSectionHeaderForeground ?? "#111827";
+        EditorDialogSectionHeaderBorderBrush = vm?.EditorDialogSectionHeaderBorderBrush ?? "#CBD5E1";
+        EditorDialogSectionContentBackground = vm?.EditorDialogSectionContentBackground ?? "#EEF3F8";
     }
 
     private void OnInteractivePointerPressed(object? sender, PointerPressedEventArgs e)
@@ -257,31 +345,32 @@ public partial class EditorPropertyDialog : UserControl
         e.Handled = true;
     }
 
-    private void OnAddChartSeriesClicked(object? sender, RoutedEventArgs e)
+    private async void OnEditStructuredFieldClicked(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control { DataContext: EditorDialogField field })
         {
             return;
         }
 
-        field.AddChartSeriesEntry();
-        e.Handled = true;
-    }
-
-    private void OnRemoveChartSeriesClicked(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Control { DataContext: ChartSeriesEditorRow row } control)
+        if (TopLevel.GetTopLevel(this) is not Window owner)
         {
             return;
         }
 
-        var field = control.GetVisualAncestors()
-            .OfType<Control>()
-            .Select(ancestor => ancestor.DataContext)
-            .OfType<EditorDialogField>()
-            .FirstOrDefault();
+        Window? editorWindow = field.PropertyType switch
+        {
+            EditorPropertyType.ChartSeriesList => new ChartSeriesEditorDialogWindow(ViewModel, field),
+            EditorPropertyType.AttachItemList => new AttachItemsEditorDialogWindow(ViewModel, field),
+            EditorPropertyType.InteractionRuleList => new InteractionRulesEditorDialogWindow(ViewModel, field),
+            _ => null
+        };
 
-        field?.RemoveChartSeriesEntry(row);
+        if (editorWindow is null)
+        {
+            return;
+        }
+
+        await editorWindow.ShowDialog(owner);
         e.Handled = true;
     }
 
@@ -291,9 +380,25 @@ public partial class EditorPropertyDialog : UserControl
         e.Handled = true;
     }
 
+    private void OnApplyClicked(object? sender, RoutedEventArgs e)
+    {
+        ViewModel?.ApplyEditorDialog();
+        e.Handled = true;
+    }
+
     private void OnCancelClicked(object? sender, RoutedEventArgs e)
     {
         ViewModel?.CancelEditorDialog();
+        e.Handled = true;
+    }
+
+    private void OnSectionToggleClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: EditorDialogSection section })
+        {
+            section.IsExpanded = !section.IsExpanded;
+        }
+
         e.Handled = true;
     }
 

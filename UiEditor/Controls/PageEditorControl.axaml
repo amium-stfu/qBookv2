@@ -96,8 +96,6 @@
                 <Button Click="OnCancelListSelectionClicked" Content="Abbrechen" />
               </StackPanel>
             </Border>
-
-            <controls:EditorPropertyDialog IsVisible="{Binding IsEditorDialogOpen}" Canvas.Left="{Binding EditorDialogX}" Canvas.Top="{Binding EditorDialogY}" ZIndex="200" />
           </Canvas>
         </Grid>
 

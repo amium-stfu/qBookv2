@@ -9,11 +9,8 @@ using Avalonia.VisualTree;
 
 namespace Amium.EditorUi.Controls;
 
-public partial class EditorTemplateControl : UserControl
+public partial class EditorTemplateControl : EditorShellControl
 {
-    public static readonly StyledProperty<object?> BodyContentProperty =
-        AvaloniaProperty.Register<EditorTemplateControl, object?>(nameof(BodyContent));
-
     public static readonly StyledProperty<object?> HeaderActionsContentProperty =
         AvaloniaProperty.Register<EditorTemplateControl, object?>(nameof(HeaderActionsContent));
 
@@ -33,12 +30,6 @@ public partial class EditorTemplateControl : UserControl
         InitializeComponent();
         AttachedToVisualTree += OnAttachedToVisualTree;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
-    }
-
-    public object? BodyContent
-    {
-        get => GetValue(BodyContentProperty);
-        set => SetValue(BodyContentProperty, value);
     }
 
     public object? HeaderActionsContent

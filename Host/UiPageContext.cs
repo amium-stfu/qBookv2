@@ -70,6 +70,7 @@ public sealed class UiPageContext : IDisposable
     {
         private readonly Item _attachedItem;
         private readonly Item _source;
+        private readonly List<Item> _subscribedSourceItems = [];
         private bool _isSyncingFromSource;
         private bool _isSyncingFromTarget;
         private readonly string _targetPath;
@@ -79,7 +80,7 @@ public sealed class UiPageContext : IDisposable
             _source = source;
             _attachedItem = attachedItem;
             _targetPath = targetPath;
-            _source.Changed += OnSourceChanged;
+            SubscribeSourceTree(_source);
             HostRegistries.Data.ItemChanged += OnTargetChanged;
         }
 
@@ -91,7 +92,7 @@ public sealed class UiPageContext : IDisposable
 
         public void Dispose()
         {
-            _source.Changed -= OnSourceChanged;
+            UnsubscribeSourceTree();
             HostRegistries.Data.ItemChanged -= OnTargetChanged;
             HostRegistries.Data.Remove(_targetPath);
         }
@@ -99,6 +100,11 @@ public sealed class UiPageContext : IDisposable
         private void OnSourceChanged(object? sender, ItemChangedEventArgs e)
         {
             if (_isSyncingFromTarget)
+            {
+                return;
+            }
+
+            if (IsStructuralParameter(e.ParameterName))
             {
                 return;
             }
@@ -111,6 +117,13 @@ public sealed class UiPageContext : IDisposable
             _isSyncingFromSource = true;
             try
             {
+                if (!string.Equals(e.Item.Path, _source.Path, StringComparison.Ordinal))
+                {
+                    var treeSnapshot = _source.Clone().Repath(_targetPath);
+                    HostRegistries.Data.UpsertSnapshot(_targetPath, treeSnapshot, pruneMissingMembers: true);
+                    return;
+                }
+
                 var parameterName = e.ParameterName;
                 if (string.Equals(parameterName, "Value", StringComparison.Ordinal))
                 {
@@ -137,7 +150,14 @@ public sealed class UiPageContext : IDisposable
 
         private void OnTargetChanged(object? sender, DataChangedEventArgs e)
         {
-            if (_isSyncingFromSource || !string.Equals(e.Key, _targetPath, StringComparison.Ordinal))
+            if (_isSyncingFromSource)
+            {
+                return;
+            }
+
+            var isDirectTarget = string.Equals(e.Key, _targetPath, StringComparison.Ordinal);
+            var isChildTarget = e.Key.StartsWith(_targetPath + "/", StringComparison.Ordinal);
+            if (!isDirectTarget && !isChildTarget)
             {
                 return;
             }
@@ -145,28 +165,149 @@ public sealed class UiPageContext : IDisposable
             _isSyncingFromTarget = true;
             try
             {
+                if (isChildTarget)
+                {
+                    ApplyChildTargetChange(e.Key[(_targetPath.Length + 1)..], e);
+                    return;
+                }
+
                 if (string.Equals(e.ParameterName, "Value", StringComparison.Ordinal) || e.ChangeKind == DataChangeKind.ValueUpdated)
                 {
-                    _source.Value = e.Item.Value;
+                    SetItemValueIfChanged(_source, e.Item.Value);
                     return;
                 }
 
-                if (!string.IsNullOrWhiteSpace(e.ParameterName) && e.Item.Params.Has(e.ParameterName))
+                if (!string.IsNullOrWhiteSpace(e.ParameterName)
+                    && !IsStructuralParameter(e.ParameterName)
+                    && e.Item.Params.Has(e.ParameterName))
                 {
-                    _source.Params[e.ParameterName].Value = e.Item.Params[e.ParameterName].Value;
+                    SetParameterValueIfChanged(_source.Params[e.ParameterName], e.Item.Params[e.ParameterName].Value);
                     return;
                 }
 
-                var snapshot = e.Item.Clone();
-                foreach (var parameterEntry in snapshot.Params.GetDictionary())
-                {
-                    _source.Params[parameterEntry.Key].Value = parameterEntry.Value.Value;
-                }
+                ApplySnapshotToSource(_source, e.Item);
             }
             finally
             {
                 _isSyncingFromTarget = false;
             }
+        }
+
+        private void ApplyChildTargetChange(string relativePath, DataChangedEventArgs e)
+        {
+            var current = _source;
+            foreach (var segment in relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (!current.Has(segment))
+                {
+                    return;
+                }
+
+                current = current[segment];
+            }
+
+            if (string.Equals(e.ParameterName, "Value", StringComparison.Ordinal) || e.ChangeKind == DataChangeKind.ValueUpdated)
+            {
+                SetItemValueIfChanged(current, e.Item.Value);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(e.ParameterName)
+                && !IsStructuralParameter(e.ParameterName)
+                && e.Item.Params.Has(e.ParameterName)
+                && current.Params.Has(e.ParameterName))
+            {
+                SetParameterValueIfChanged(current.Params[e.ParameterName], e.Item.Params[e.ParameterName].Value);
+            }
+        }
+
+        private static void ApplySnapshotToSource(Item sourceItem, Item snapshotItem)
+        {
+            foreach (var parameterEntry in snapshotItem.Params.GetDictionary())
+            {
+                if (IsStructuralParameter(parameterEntry.Key))
+                {
+                    continue;
+                }
+
+                SetParameterValueIfChanged(sourceItem.Params[parameterEntry.Key], parameterEntry.Value.Value);
+            }
+
+            foreach (var childEntry in snapshotItem.GetDictionary())
+            {
+                var sourceChild = sourceItem[childEntry.Key];
+                ApplySnapshotToSource(sourceChild, childEntry.Value);
+            }
+        }
+
+        private static bool IsStructuralParameter(string? parameterName)
+            => string.Equals(parameterName, "Path", StringComparison.Ordinal)
+                || string.Equals(parameterName, "Name", StringComparison.Ordinal);
+
+        private static void SetItemValueIfChanged(Item item, object? value)
+        {
+            if (ValuesEqual(item.Value, value))
+            {
+                return;
+            }
+
+            item.Value = value;
+        }
+
+        private static void SetParameterValueIfChanged(Parameter parameter, object? value)
+        {
+            if (ValuesEqual(parameter.Value, value))
+            {
+                return;
+            }
+
+            parameter.Value = value;
+        }
+
+        private static bool ValuesEqual(object? left, object? right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            if (left is null || right is null)
+            {
+                return false;
+            }
+
+            if (left is double leftDouble && right is double rightDouble)
+            {
+                return leftDouble.Equals(rightDouble) || (double.IsNaN(leftDouble) && double.IsNaN(rightDouble));
+            }
+
+            if (left is float leftFloat && right is float rightFloat)
+            {
+                return leftFloat.Equals(rightFloat) || (float.IsNaN(leftFloat) && float.IsNaN(rightFloat));
+            }
+
+            return Equals(left, right);
+        }
+
+        private void SubscribeSourceTree(Item item)
+        {
+            _subscribedSourceItems.Add(item);
+            item.Changed += OnSourceChanged;
+
+            foreach (var child in item.GetDictionary().Values)
+            {
+                SubscribeSourceTree(child);
+            }
+        }
+
+        private void UnsubscribeSourceTree()
+        {
+            foreach (var item in _subscribedSourceItems)
+            {
+                item.Changed -= OnSourceChanged;
+            }
+
+            _subscribedSourceItems.Clear();
         }
     }
 }

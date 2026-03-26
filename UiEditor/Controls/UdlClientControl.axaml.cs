@@ -48,10 +48,11 @@ public partial class UdlClientControl : EditorTemplateControl
     private UdlClientRuntime? _client;
     private CancellationTokenSource? _monitorCts;
     private Task? _monitorTask;
+    private DispatcherTimer? _attachedItemsRefreshTimer;
     private readonly Dictionary<string, string> _publishedStatusValues = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _publishedRuntimeSignatures = new(StringComparer.OrdinalIgnoreCase);
     private int _clientItemsDirty = 1;
-    private int _attachedItemsDirty = 1;
+    private int _lastPublishedClientItemCount = -1;
     private int _hasAttachedPaths;
     private ConnectionState _connectionState = ConnectionState.Disconnected;
     private bool _canConnect = true;
@@ -134,6 +135,7 @@ public partial class UdlClientControl : EditorTemplateControl
     private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
         TearDownClient();
+        CancelAttachedItemsRefresh();
         ReleaseUiPageContext();
         UnhookObservedItem();
         foreach (var row in AttachRows)
@@ -198,6 +200,7 @@ public partial class UdlClientControl : EditorTemplateControl
         if (e.PropertyName is nameof(PageItemModel.UdlClientHost)
             or nameof(PageItemModel.UdlClientPort)
             or nameof(PageItemModel.UdlClientAutoConnect)
+            or nameof(PageItemModel.UdlClientDebugLogging)
             or nameof(PageItemModel.UdlAttachedItemPaths)
             or nameof(PageItemModel.Name)
             or nameof(PageItemModel.PageName))
@@ -240,6 +243,7 @@ public partial class UdlClientControl : EditorTemplateControl
     private void OnMenuClicked(object? sender, RoutedEventArgs e)
     {
         RebuildAttachRows();
+        LogAttachListSnapshot();
         if (_attachPopup is not null)
         {
             _attachPopup.IsOpen = !_attachPopup.IsOpen;
@@ -285,7 +289,7 @@ public partial class UdlClientControl : EditorTemplateControl
             Interlocked.Exchange(ref _lastLoggedTxCounter, 0);
             Interlocked.Exchange(ref _monitorLoopCounter, 0);
             Interlocked.Exchange(ref _clientItemsDirty, 1);
-            Interlocked.Exchange(ref _attachedItemsDirty, 1);
+            _lastPublishedClientItemCount = -1;
             _publishedStatusValues.Clear();
             _publishedRuntimeSignatures.Clear();
             var client = new UdlClientRuntime(NormalizeClientName(item));
@@ -322,7 +326,8 @@ public partial class UdlClientControl : EditorTemplateControl
         BeginDisconnectClient();
         _connectionState = ConnectionState.Disconnected;
         Interlocked.Exchange(ref _clientItemsDirty, 0);
-        Interlocked.Exchange(ref _attachedItemsDirty, 0);
+        _lastPublishedClientItemCount = -1;
+        CancelAttachedItemsRefresh();
         _publishedStatusValues.Clear();
         _publishedRuntimeSignatures.Clear();
         RefreshPresentation();
@@ -344,7 +349,8 @@ public partial class UdlClientControl : EditorTemplateControl
         client.FrameReceived -= OnClientFrameReceived;
         client.Diagnostic -= OnClientDiagnostic;
         Interlocked.Exchange(ref _clientItemsDirty, 0);
-        Interlocked.Exchange(ref _attachedItemsDirty, 0);
+        _lastPublishedClientItemCount = -1;
+        CancelAttachedItemsRefresh();
         _publishedRuntimeSignatures.Clear();
         ReleaseUiPageContext();
 
@@ -378,7 +384,8 @@ public partial class UdlClientControl : EditorTemplateControl
         _client.FrameReceived -= OnClientFrameReceived;
         _client.Diagnostic -= OnClientDiagnostic;
         Interlocked.Exchange(ref _clientItemsDirty, 0);
-        Interlocked.Exchange(ref _attachedItemsDirty, 0);
+        _lastPublishedClientItemCount = -1;
+        CancelAttachedItemsRefresh();
         _publishedRuntimeSignatures.Clear();
         ReleaseUiPageContext();
         _client.Dispose();
@@ -391,19 +398,15 @@ public partial class UdlClientControl : EditorTemplateControl
         Interlocked.Increment(ref _rxCounter);
         _connectionState = ConnectionState.Connected;
         Interlocked.Exchange(ref _clientItemsDirty, 1);
-        if (Volatile.Read(ref _hasAttachedPaths) == 1)
-        {
-            Interlocked.Exchange(ref _attachedItemsDirty, 1);
-        }
     }
 
     private void OnClientDiagnostic(string message)
     {
         UpdateCountersFromDiagnostic(message);
 
-        if (ShouldLogDiagnosticMessage(message))
+        if (ShouldLogDiagnosticMessage(message) && ShouldWriteVerboseDiagnostics())
         {
-            WriteDiagnosticLog(message);
+            WriteVerboseDiagnosticLog(message);
         }
     }
 
@@ -435,7 +438,6 @@ public partial class UdlClientControl : EditorTemplateControl
             {
                 var loop = Interlocked.Increment(ref _monitorLoopCounter);
                 var publishItems = Interlocked.Exchange(ref _clientItemsDirty, 0) == 1;
-                var synchronizeAttached = Interlocked.Exchange(ref _attachedItemsDirty, 0) == 1;
 
                 if (publishItems)
                 {
@@ -444,21 +446,14 @@ public partial class UdlClientControl : EditorTemplateControl
 
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    if (synchronizeAttached)
-                    {
-                        SynchronizeAttachedItems();
-                    }
-
                     RefreshPresentation();
                 });
 
                 if (loop == 1 || loop % 4 == 0)
                 {
-                    LogTrafficSnapshot();
-
                     if (GetRootItemCount() == 0 && Interlocked.Read(ref _messageCounter) > 0)
                     {
-                        WriteDiagnosticLog($"Monitor snapshot roots=0 items={EnumerateClientItems().Count} messages={Interlocked.Read(ref _messageCounter)} localPort={_client?.LocalPort ?? 0}");
+                        WriteVerboseDiagnosticLog($"Monitor snapshot roots=0 items={EnumerateClientItems().Count} messages={Interlocked.Read(ref _messageCounter)} localPort={_client?.LocalPort ?? 0}");
                     }
                 }
 
@@ -468,19 +463,6 @@ public partial class UdlClientControl : EditorTemplateControl
         catch (OperationCanceledException)
         {
         }
-    }
-
-    private void LogTrafficSnapshot()
-    {
-        var totalRx = Interlocked.Read(ref _rxCounter);
-        var totalTx = Interlocked.Read(ref _txCounter);
-        var previousRx = Interlocked.Exchange(ref _lastLoggedRxCounter, totalRx);
-        var previousTx = Interlocked.Exchange(ref _lastLoggedTxCounter, totalTx);
-        var deltaRx = totalRx - previousRx;
-        var deltaTx = totalTx - previousTx;
-        var items = EnumerateClientItems().Count;
-        var rootItems = GetRootItemCount();
-        WriteDiagnosticLog($"Traffic 1Hz state={_connectionState} rx/s={deltaRx} tx/s={deltaTx} totalRx={totalRx} totalTx={totalTx} roots={rootItems} items={items} localPort={_client?.LocalPort ?? 0}");
     }
 
     private void UpdateCountersFromDiagnostic(string message)
@@ -535,13 +517,58 @@ public partial class UdlClientControl : EditorTemplateControl
             return;
         }
 
-        foreach (var runtimeItem in EnumerateClientItems())
+        var runtimeItems = EnumerateClientItems();
+        if (runtimeItems.Count != _lastPublishedClientItemCount)
+        {
+            _lastPublishedClientItemCount = runtimeItems.Count;
+            ScheduleAttachedItemsRefresh();
+        }
+
+        foreach (var runtimeItem in runtimeItems)
         {
             if (!string.IsNullOrWhiteSpace(runtimeItem.Path) && ShouldPublishRuntimeItem(runtimeItem))
             {
                 HostRegistries.Data.UpsertSnapshot(runtimeItem.Path!, runtimeItem.Clone(), pruneMissingMembers: true);
             }
         }
+    }
+
+    private void ScheduleAttachedItemsRefresh()
+    {
+        if (Volatile.Read(ref _hasAttachedPaths) != 1)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            _attachedItemsRefreshTimer ??= new DispatcherTimer();
+            _attachedItemsRefreshTimer.Stop();
+            _attachedItemsRefreshTimer.Interval = TimeSpan.FromSeconds(2);
+            _attachedItemsRefreshTimer.Tick -= OnAttachedItemsRefreshTimerTick;
+            _attachedItemsRefreshTimer.Tick += OnAttachedItemsRefreshTimerTick;
+            _attachedItemsRefreshTimer.Start();
+        });
+    }
+
+    private void CancelAttachedItemsRefresh()
+    {
+        Dispatcher.UIThread.Post(() => _attachedItemsRefreshTimer?.Stop());
+    }
+
+    private void OnAttachedItemsRefreshTimerTick(object? sender, EventArgs e)
+    {
+        if (sender is DispatcherTimer timer)
+        {
+            timer.Stop();
+            timer.Tick -= OnAttachedItemsRefreshTimerTick;
+        }
+
+        SynchronizeAttachedItems();
+        RebuildAttachRows();
+        Host?.RefreshPageBindings(Item?.PageName ?? string.Empty);
+        RefreshPresentation();
+        WriteVerboseDiagnosticLog($"AttachToUi refreshed after item-settle delay itemCount={_lastPublishedClientItemCount}");
     }
 
     private bool ShouldPublishRuntimeItem(Item runtimeItem)
@@ -729,6 +756,70 @@ public partial class UdlClientControl : EditorTemplateControl
             .ToArray();
     }
 
+    private void LogAttachListSnapshot()
+    {
+        if (!ShouldWriteVerboseDiagnostics())
+        {
+            return;
+        }
+
+        var item = Item;
+        if (item is null)
+        {
+            WriteVerboseDiagnosticLog("Attach list open skipped because DataContext item is null");
+            return;
+        }
+
+        var prefix = $"Runtime/UdlClient/{NormalizeClientName(item)}/";
+        var registryOptions = HostRegistries.Data.GetAllKeys()
+            .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(key => key[prefix.Length..])
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var clientItems = EnumerateClientItems()
+            .Select(static candidate => new
+            {
+                FullPath = candidate.Path ?? string.Empty,
+                RelativePath = GetRelativeRuntimePath(candidate)
+            })
+            .OrderBy(static candidate => candidate.FullPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var attachOptions = GetAttachOptions(item).ToArray();
+        var attachRows = AttachRows
+            .Select(static (row, index) => new
+            {
+                Index = index,
+                row.RelativePath,
+                row.IsAttached
+            })
+            .ToArray();
+
+        WriteVerboseDiagnosticLog($"Attach list open page={item.PageName} client={NormalizeClientName(item)} registryCount={registryOptions.Length} clientItemCount={clientItems.Length} optionCount={attachOptions.Length} rowCount={attachRows.Length}");
+
+        foreach (var option in registryOptions.Select(static (path, index) => new { Index = index, Path = path }))
+        {
+            WriteVerboseDiagnosticLog($"Attach registry[{option.Index}]={option.Path}");
+        }
+
+        foreach (var clientItem in clientItems.Select(static (candidate, index) => new { Index = index, candidate.FullPath, candidate.RelativePath }))
+        {
+            WriteVerboseDiagnosticLog($"Attach runtime[{clientItem.Index}] full={clientItem.FullPath} relative={clientItem.RelativePath}");
+        }
+
+        foreach (var option in attachOptions.Select(static (path, index) => new { Index = index, Path = path }))
+        {
+            WriteVerboseDiagnosticLog($"Attach option[{option.Index}]={option.Path}");
+        }
+
+        foreach (var row in attachRows)
+        {
+            WriteVerboseDiagnosticLog($"Attach row[{row.Index}] path={row.RelativePath} attached={row.IsAttached}");
+        }
+    }
+
     private void RefreshPresentation()
     {
         if (!Dispatcher.UIThread.CheckAccess())
@@ -755,6 +846,21 @@ public partial class UdlClientControl : EditorTemplateControl
     private void EnsureDiagnosticLog(PageItemModel item)
     {
         _ = item;
+    }
+
+    private bool ShouldWriteVerboseDiagnostics()
+    {
+        return Item?.UdlClientDebugLogging == true;
+    }
+
+    private void WriteVerboseDiagnosticLog(string message)
+    {
+        if (!ShouldWriteVerboseDiagnostics())
+        {
+            return;
+        }
+
+        WriteDiagnosticLog(message);
     }
 
     private void WriteDiagnosticLog(string message)
@@ -829,10 +935,27 @@ public partial class UdlClientControl : EditorTemplateControl
             return [];
         }
 
-        return serialized
+        var parsed = serialized
             .Replace("\r", string.Empty)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .Select(static path => path.Replace('\\', '/').Trim('/'))
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static path => path.Count(static ch => ch == '/'))
+            .ThenBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var normalized = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in parsed)
+        {
+            var hasAncestor = normalized.Any(existing => path.StartsWith(existing + "/", StringComparison.OrdinalIgnoreCase));
+            if (!hasAncestor)
+            {
+                normalized.Add(path);
+            }
+        }
+
+        return normalized;
     }
 
     private static string NormalizeClientName(PageItemModel item)

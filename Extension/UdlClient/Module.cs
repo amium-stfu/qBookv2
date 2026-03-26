@@ -4,28 +4,48 @@ namespace UdlClient;
 
 public sealed class Module : Item
 {
+    private const string RequestItemName = "Request";
+    private const string ReadItemName = "Read";
+    private const string SetItemName = "Set";
+    private const string OutItemName = "Out";
+    private const string StateItemName = "State";
+    private const string AlertItemName = "Alert";
+    private const string CommandItemName = "Command";
+
+    
+
     public Module(string name, string? path = null)
         : base(name, path: path)
     {
         Params["Kind"].Value = "UdlModule";
         Params["Text"].Value = name;
+        Params["Unit"].Value = string.Empty;
 
-        AddItem($"{name}.Set");
-        AddItem($"{name}.Out");
-        AddItem($"{name}.State");
-        AddItem($"{name}.Unit");
-        AddItem($"{name}.alert");
-        AddItem($"{name}.Command");
-        AddItem($"{name}.CommandSet");
+        AddRequestChannel(ReadItemName);
+        AddRequestChannel(SetItemName);
+        AddRequestChannel(OutItemName);
+        AddItem(StateItemName);
+        AddItem(AlertItemName);
+        AddRequestChannel(CommandItemName);
     }
 
-    public Item Set => this[$"{Name}.Set"];
-    public Item Out => this[$"{Name}.Out"];
-    public Item State => this[$"{Name}.State"];
-    public Item Unit => this[$"{Name}.Unit"];
-    public Item Alert => this[$"{Name}.alert"];
-    public Item Command => this[$"{Name}.Command"];
-    public Item CommandSet => this[$"{Name}.CommandSet"];
+    public Item Read => this[ReadItemName];
+    public Item ReadRequest => Read[RequestItemName];
+    public Item Set => this[SetItemName];
+    public Item SetRequest => Set[RequestItemName];
+    public Item Out => this[OutItemName];
+    public Item OutRequest => Out[RequestItemName];
+    public Item State => this[StateItemName];
+    public Item Alert => this[AlertItemName];
+    public Item Command => this[CommandItemName];
+    public Item CommandRequest => Command[RequestItemName];
 
-    public bool WriteBack { get; set; }
+    private void AddRequestChannel(string name)
+    {
+        AddItem(name);
+        var channel = this[name];
+        channel.AddItem(RequestItemName);
+        channel[RequestItemName].Params["Text"].Value = $"{name} Request";
+        channel[RequestItemName].Value = channel.Value;
+    }
 }

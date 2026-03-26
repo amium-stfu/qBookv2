@@ -69,6 +69,12 @@ public partial class ParameterControl : UserControl
     public static readonly StyledProperty<double> ValueVerticalOffsetProperty =
         AvaloniaProperty.Register<ParameterControl, double>(nameof(ValueVerticalOffset), 0);
 
+    public static readonly StyledProperty<string> InlineCaptionTextProperty =
+        AvaloniaProperty.Register<ParameterControl, string>(nameof(InlineCaptionText), string.Empty);
+
+    public static readonly StyledProperty<bool> InlineCaptionVisibleProperty =
+        AvaloniaProperty.Register<ParameterControl, bool>(nameof(InlineCaptionVisible), false);
+
     public ParameterControl()
     {
         InitializeComponent();
@@ -147,6 +153,18 @@ public partial class ParameterControl : UserControl
     {
         get => GetValue(ValueVerticalOffsetProperty);
         set => SetValue(ValueVerticalOffsetProperty, value);
+    }
+
+    public string InlineCaptionText
+    {
+        get => GetValue(InlineCaptionTextProperty);
+        set => SetValue(InlineCaptionTextProperty, value ?? string.Empty);
+    }
+
+    public bool InlineCaptionVisible
+    {
+        get => GetValue(InlineCaptionVisibleProperty);
+        set => SetValue(InlineCaptionVisibleProperty, value);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)

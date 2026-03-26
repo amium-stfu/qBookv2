@@ -1,51 +1,79 @@
-﻿<controls:EditorTemplateControl
+﻿<controls:EditorShellControl
     x:Class="Amium.EditorUi.Controls.EditorTemplateControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.EditorUi.Controls"
-    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
-  <Border
-      Background="{Binding EffectiveBackgroundBrush}"
-      BorderBrush="{Binding EffectiveBorderBrushValue}"
-      BorderThickness="{Binding EffectiveBorderThickness}"
-      CornerRadius="{Binding EffectiveCornerRadius}"
-      Padding="8,4,8,4">
-    <Grid RowDefinitions="Auto,Auto,*,Auto">
-      <Border Grid.Row="0" Background="{Binding EffectiveHeaderBackgroundBrush}" BorderBrush="{Binding EffectiveHeaderBorderBrush}" BorderThickness="{Binding EffectiveHeaderBorderThickness}" CornerRadius="{Binding EffectiveHeaderCornerRadius}" Padding="8,0" MinHeight="{Binding ItemHeaderHeight}" IsVisible="{Binding ShowControlCaption}">
-        <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-          <TextBlock VerticalAlignment="Center" FontSize="{Binding ItemControlCaptionFontSize}" FontWeight="Medium" Foreground="{Binding EffectiveHeaderForegroundBrush}" IsVisible="{Binding ShowControlCaption}" Text="{Binding ControlCaption}" />
+  xmlns:uiControls="using:Amium.UiEditor.Controls"
+  xmlns:uiModels="using:Amium.UiEditor.Models"
+    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia"
+    ShellBackground="{Binding EffectiveBackgroundBrush}"
+    ShellBorderBrush="{Binding EffectiveBorderBrushValue}"
+    ShellBorderThickness="{Binding EffectiveBorderThickness}"
+    ShellCornerRadius="{Binding EffectiveCornerRadius}"
+    ShellPadding="8,4,8,4"
+    ShowHeader="{Binding ShowControlCaption}"
+    ShowSubHeader="{Binding ShowTopBodyCaption}"
+    ShowFooter="{Binding ShowItemFooterPanel}"
+    ShowOverlayContent="{Binding ShowControlCaption, Converter={StaticResource BoolNegationConverter}}"
+    HeaderBackground="{Binding EffectiveHeaderBackgroundBrush}"
+    HeaderBorderBrush="{Binding EffectiveHeaderBorderBrush}"
+    HeaderBorderThickness="{Binding EffectiveHeaderBorderThickness}"
+    HeaderCornerRadius="{Binding EffectiveHeaderCornerRadius}"
+    HeaderPadding="8,0"
+    HeaderMinHeight="{Binding ItemHeaderHeight}"
+    BodyBackground="{Binding EffectiveBodyBackgroundBrush}"
+    BodyBorderBrush="{Binding EffectiveBodyBorderBrush}"
+    BodyBorderThickness="{Binding EffectiveBodyBorderThickness}"
+    BodyCornerRadius="{Binding EffectiveBodyCornerRadius}"
+    BodyPadding="8,0,8,0"
+    FooterBackground="{Binding EffectiveFooterBackgroundBrush}"
+    FooterBorderBrush="{Binding EffectiveFooterBorderBrush}"
+    FooterBorderThickness="{Binding EffectiveFooterBorderThickness}"
+    FooterCornerRadius="{Binding EffectiveFooterCornerRadius}">
+  <controls:EditorShellControl.HeaderContent>
+    <TextBlock VerticalAlignment="Center" FontSize="{Binding ItemControlCaptionFontSize}" FontWeight="Medium" Foreground="{Binding EffectiveHeaderForegroundBrush}" Text="{Binding ControlCaption}" />
+  </controls:EditorShellControl.HeaderContent>
 
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-            <ContentPresenter Content="{Binding HeaderActionsContent, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
-            <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnSettingsClicked" IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Settings">
-              <controls:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.Editor/EditorIcons/cog.svg" TintColor="{Binding HostPrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
-            </Button>
-            <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnDeleteClicked" IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Löschen">
-              <controls:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.Editor/EditorIcons/remove.svg" TintColor="{Binding HostPrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
-            </Button>
-          </StackPanel>
-        </Grid>
-      </Border>
+  <controls:EditorShellControl.HeaderRightContent>
+    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+      <ContentPresenter Content="{Binding HeaderActionsContent, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
+      <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnSettingsClicked" IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Settings">
+        <controls:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.Editor/EditorIcons/cog.svg" TintColor="{Binding HostPrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
+      </Button>
+      <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnDeleteClicked" IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Löschen">
+        <controls:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.Editor/EditorIcons/remove.svg" TintColor="{Binding HostPrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
+      </Button>
+    </StackPanel>
+  </controls:EditorShellControl.HeaderRightContent>
 
-      <TextBlock Grid.Row="1" Margin="8,0,0,6" FontSize="{Binding ItemBodyCaptionFontSize}" FontWeight="SemiBold" Foreground="{Binding EffectiveBodyForegroundBrush}" IsVisible="{Binding BodyCaptionVisible}" Opacity="0.82" Text="{Binding BodyCaption}" />
+  <controls:EditorShellControl.SubHeaderContent>
+    <TextBlock Margin="8,0,0,6" FontSize="{Binding ItemBodyCaptionFontSize}" FontWeight="SemiBold" Foreground="{Binding EffectiveBodyForegroundBrush}" Opacity="0.82" Text="{Binding BodyCaption}" />
+  </controls:EditorShellControl.SubHeaderContent>
 
-      <Border Grid.Row="2" Margin="0,2,0,2" Padding="8,0,8,0" ClipToBounds="True" Background="{Binding EffectiveBodyBackgroundBrush}" BorderBrush="{Binding EffectiveBodyBorderBrush}" BorderThickness="{Binding EffectiveBodyBorderThickness}" CornerRadius="{Binding EffectiveBodyCornerRadius}">
-        <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Content="{Binding BodyContent, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
-      </Border>
+  <controls:EditorShellControl.FooterContent>
+    <ItemsControl IsVisible="{Binding HasFooterSubItems}" ItemsSource="{Binding Items}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <UniformGrid Columns="2" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="uiModels:PageItemModel">
+          <uiControls:EditorItemControl Margin="0,0,6,6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </controls:EditorShellControl.FooterContent>
 
-      <Border Grid.Row="3" Margin="0,2,0,0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="{Binding EffectiveFooterBackgroundBrush}" BorderBrush="{Binding EffectiveFooterBorderBrush}" BorderThickness="{Binding EffectiveFooterBorderThickness}" CornerRadius="{Binding EffectiveFooterCornerRadius}" IsVisible="{Binding ShowFooter}">
-        <TextBlock Margin="0,1,0,0" VerticalAlignment="Center" FontStyle="Italic" FontSize="13" Foreground="{Binding EffectiveFooterForegroundBrush}" Text="{Binding Footer}" />
-      </Border>
-
-      <StackPanel Grid.RowSpan="4" Panel.ZIndex="10" Margin="0,4,0,0" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ShowControlCaption, Converter={StaticResource BoolNegationConverter}}">
-        <ContentPresenter Content="{Binding HeaderActionsContent, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
-        <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnSettingsClicked" IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Settings">
-          <controls:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.Editor/EditorIcons/cog.svg" TintColor="{Binding HostPrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
-        </Button>
-        <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnDeleteClicked" IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Löschen">
-          <controls:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.Editor/EditorIcons/remove.svg" TintColor="{Binding HostPrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
-        </Button>
-      </StackPanel>
-    </Grid>
-  </Border>
-</controls:EditorTemplateControl>
+  <controls:EditorShellControl.OverlayContent>
+    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
+      <ContentPresenter Content="{Binding HeaderActionsContent, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
+      <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnSettingsClicked" IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Settings">
+        <controls:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.Editor/EditorIcons/cog.svg" TintColor="{Binding HostPrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
+      </Button>
+      <Button Classes="toolicon" Width="18" Height="18" MinWidth="18" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnDeleteClicked" IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Löschen">
+        <controls:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.Editor/EditorIcons/remove.svg" TintColor="{Binding HostPrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
+      </Button>
+    </StackPanel>
+  </controls:EditorShellControl.OverlayContent>
+</controls:EditorShellControl>

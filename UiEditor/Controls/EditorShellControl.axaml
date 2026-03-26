@@ -1,0 +1,66 @@
+<controls:EditorShellControl
+    x:Name="Root"
+    x:Class="Amium.EditorUi.Controls.EditorShellControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.EditorUi.Controls">
+  <Border
+      Background="{Binding ShellBackground, ElementName=Root}"
+      BorderBrush="{Binding ShellBorderBrush, ElementName=Root}"
+      BorderThickness="{Binding ShellBorderThickness, ElementName=Root}"
+      CornerRadius="{Binding ShellCornerRadius, ElementName=Root}"
+      Padding="{Binding ShellPadding, ElementName=Root}">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+      <Border
+          Grid.Row="0"
+          Background="{Binding HeaderBackground, ElementName=Root}"
+          BorderBrush="{Binding HeaderBorderBrush, ElementName=Root}"
+          BorderThickness="{Binding HeaderBorderThickness, ElementName=Root}"
+          CornerRadius="{Binding HeaderCornerRadius, ElementName=Root}"
+          Padding="{Binding HeaderPadding, ElementName=Root}"
+          MinHeight="{Binding HeaderMinHeight, ElementName=Root}"
+          IsVisible="{Binding ShowHeader, ElementName=Root}">
+        <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+          <ContentPresenter Content="{Binding HeaderContent, ElementName=Root}" />
+          <ContentPresenter Grid.Column="1" Content="{Binding HeaderRightContent, ElementName=Root}" />
+        </Grid>
+      </Border>
+
+      <ContentPresenter Grid.Row="1" Content="{Binding SubHeaderContent, ElementName=Root}" IsVisible="{Binding ShowSubHeader, ElementName=Root}" />
+
+      <Border
+          Grid.Row="2"
+          Margin="0,2,0,2"
+          Padding="{Binding BodyPadding, ElementName=Root}"
+          ClipToBounds="True"
+          Background="{Binding BodyBackground, ElementName=Root}"
+          BorderBrush="{Binding BodyBorderBrush, ElementName=Root}"
+          BorderThickness="{Binding BodyBorderThickness, ElementName=Root}"
+          CornerRadius="{Binding BodyCornerRadius, ElementName=Root}">
+        <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Content="{Binding BodyContent, ElementName=Root}" />
+      </Border>
+
+      <Border
+          Grid.Row="3"
+          Margin="0,2,0,0"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch"
+          Background="{Binding FooterBackground, ElementName=Root}"
+          BorderBrush="{Binding FooterBorderBrush, ElementName=Root}"
+          BorderThickness="{Binding FooterBorderThickness, ElementName=Root}"
+          CornerRadius="{Binding FooterCornerRadius, ElementName=Root}"
+          IsVisible="{Binding ShowFooter, ElementName=Root}">
+        <ContentPresenter Content="{Binding FooterContent, ElementName=Root}" />
+      </Border>
+
+        <ContentPresenter
+          Grid.RowSpan="4"
+          ZIndex="10"
+          Margin="0,4,0,0"
+          HorizontalAlignment="Right"
+          VerticalAlignment="Top"
+          Content="{Binding OverlayContent, ElementName=Root}"
+          IsVisible="{Binding ShowOverlayContent, ElementName=Root}" />
+    </Grid>
+  </Border>
+</controls:EditorShellControl>

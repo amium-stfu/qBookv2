@@ -9,5 +9,6 @@ public enum EditorPropertyType
     Choice,
     MultilineText,
     ChartSeriesList,
-    AttachItemList
+    AttachItemList,
+    InteractionRuleList
 }

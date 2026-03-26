@@ -354,7 +354,7 @@ public class qPage : BookPage
             LogValue(focusedModule.State, "State");
             LogValue(focusedModule.Set, "Set");
             LogValue(focusedModule.Out, "Out");
-            LogValue(focusedModule.Unit, "Unit");
+            LogValue(focusedModule, "Unit", ReadModuleUnit(focusedModule));
             LogValue(focusedModule.Alert, "Alert");
         }
     }
@@ -379,7 +379,7 @@ public class qPage : BookPage
                 var module = modules[index];
                 var moduleName = module.Name ?? $"Module {index + 1}";
                 slot.Params["Text"].Value = moduleName;
-                slot.Params["Unit"].Value = module.Unit.Value?.ToString() ?? string.Empty;
+                slot.Params["Unit"].Value = ReadModuleUnit(module);
                 slot.Value = BuildModuleSummary(module);
             }
             else
@@ -433,15 +433,15 @@ public class qPage : BookPage
         _focusedModuleItem.Value = module.Name ?? "-";
         _focusedValueItem.Value = module.Value ?? 0f;
         _focusedStateItem.Value = module.State.Value ?? 0;
-        _focusedUnitItem.Value = module.Unit.Value ?? string.Empty;
+        _focusedUnitItem.Value = ReadModuleUnit(module);
         _focusedSetActualItem.Value = module.Set.Value ?? 0f;
         _focusedOutActualItem.Value = module.Out.Value ?? 0f;
 
         _isSyncingWriteProxyItems = true;
         try
         {
-            _focusedSetWriteItem.Value = ReadWriteRequest(module.Set, module.Set.Value);
-            _focusedOutWriteItem.Value = ReadWriteRequest(module.Out, module.Out.Value);
+            _focusedSetWriteItem.Value = ReadSetRequest(module.Set, module.Set.Value);
+            _focusedOutWriteItem.Value = ReadSetRequest(module.Out, module.Out.Value);
         }
         finally
         {
@@ -517,7 +517,15 @@ public class qPage : BookPage
         }
 
         var targetItem = selector(module);
-        targetItem.Params["Write"].Value = floatValue;
+        if (targetItem.Has("Request"))
+        {
+            targetItem["Request"].Value = floatValue;
+        }
+        else
+        {
+            targetItem.Params["Set"].Value = floatValue;
+        }
+
         LogReceive($"TX request {_focusedModuleName}.{label} = {floatValue:0.###}");
     }
 
@@ -552,8 +560,18 @@ public class qPage : BookPage
         }
     }
 
-    private static object ReadWriteRequest(Item item, object? fallbackValue)
+    private static object ReadSetRequest(Item item, object? fallbackValue)
     {
+        if (item.Has("Request") && item["Request"].Value is not null)
+        {
+            return item["Request"].Value;
+        }
+
+        if (item.Params.Has("Set") && item.Params["Set"].Value is not null)
+        {
+            return item.Params["Set"].Value;
+        }
+
         if (item.Params.Has("Write") && item.Params["Write"].Value is not null)
         {
             return item.Params["Write"].Value;
@@ -564,7 +582,7 @@ public class qPage : BookPage
 
     private static string BuildModuleSummary(UdlRuntimeModule module)
     {
-        var unit = module.Unit.Value?.ToString();
+        var unit = ReadModuleUnit(module);
         var suffix = string.IsNullOrWhiteSpace(unit) ? string.Empty : $" {unit}";
         return $"V={FormatValue(module.Value)}{suffix} | Set={FormatValue(module.Set.Value)} | Out={FormatValue(module.Out.Value)} | State={FormatValue(module.State.Value)}";
     }
@@ -583,6 +601,29 @@ public class qPage : BookPage
 
         _lastLoggedValues[cacheKey] = formattedValue;
         LogReceive($"RX {itemName} ({label}) = {formattedValue}");
+    }
+
+    private void LogValue(Item item, string label, object? value)
+    {
+        var itemName = item.Name ?? label;
+        var cacheKey = $"{item.Path ?? itemName}/{label}";
+        var formattedValue = FormatValue(value);
+
+        if (_lastLoggedValues.TryGetValue(cacheKey, out var previousValue)
+            && string.Equals(previousValue, formattedValue, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastLoggedValues[cacheKey] = formattedValue;
+        LogReceive($"RX {itemName} ({label}) = {formattedValue}");
+    }
+
+    private static string ReadModuleUnit(UdlRuntimeModule module)
+    {
+        return module.Params.Has("Unit")
+            ? module.Params["Unit"].Value?.ToString() ?? string.Empty
+            : string.Empty;
     }
 
     private void OnClientDiagnostic(string message)

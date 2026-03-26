@@ -35,6 +35,8 @@ public sealed class PageItemDocument
 
     public string BodyCaption { get; init; } = string.Empty;
 
+    public string BodyCaptionPosition { get; init; } = "Top";
+
     public bool BodyCaptionVisible { get; init; } = true;
 
     public bool ShowBodyCaption { get; init; } = true;
@@ -125,6 +127,8 @@ public sealed class PageItemDocument
 
     public string TargetParameterFormat { get; init; } = string.Empty;
 
+    public string Unit { get; init; } = string.Empty;
+
     public string TargetLog { get; init; } = "Logs/Host";
 
     public int RefreshRateMs { get; init; } = 1000;
@@ -135,11 +139,15 @@ public sealed class PageItemDocument
 
     public string ChartSeriesDefinitions { get; init; } = string.Empty;
 
+    public List<ItemInteractionRuleDocument> InteractionRules { get; init; } = [];
+
     public string UdlClientHost { get; init; } = "192.168.178.151";
 
     public int UdlClientPort { get; init; } = 9001;
 
     public bool UdlClientAutoConnect { get; init; }
+
+    public bool UdlClientDebugLogging { get; init; }
 
     public string UdlAttachedItemPaths { get; init; } = string.Empty;
 
@@ -166,6 +174,17 @@ public sealed class PageItemDocument
     public double Height { get; init; }
 
     public List<PageItemDocument> Items { get; init; } = [];
+}
+
+public sealed class ItemInteractionRuleDocument
+{
+    public ItemInteractionEvent Event { get; init; } = ItemInteractionEvent.BodyLeftClick;
+
+    public ItemInteractionAction Action { get; init; } = ItemInteractionAction.OpenValueEditor;
+
+    public string TargetPath { get; init; } = "this";
+
+    public string Argument { get; init; } = string.Empty;
 }
 
 

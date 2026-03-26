@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Nodes;
@@ -63,8 +64,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private string _editorDialogTitle = string.Empty;
     private string _editorDialogError = string.Empty;
     private bool _isEditorDialogOpen;
+    private bool _isRefreshingEditorDialogFields;
     private double _editorDialogX;
     private double _editorDialogY;
+    private int _dataRegistryRefreshQueued;
     private PageItemModel? _activeValueInputItem;
     private bool _isValueInputOpen;
     private Dock _tabStripPlacement = Dock.Right;
@@ -76,6 +79,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         GridLines = [];
         SelectionState = new SelectionState();
         EditorDialogSections = [];
+        EditorDialogActionFields = [];
         Messages = [];
         LayoutFilePath = Path.Combine(AppContext.BaseDirectory, "layout.json");
         SelectPageCommand = new RelayCommand<PageModel>(SelectPage);
@@ -109,7 +113,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public ObservableCollection<EditorDialogSection> EditorDialogSections { get; }
 
+    public ObservableCollection<EditorDialogField> EditorDialogActionFields { get; }
+
     public ObservableCollection<HostMessageEntry> Messages { get; }
+
+    public bool HasEditorDialogActionFields => EditorDialogActionFields.Count > 0;
+
+    public bool ShowEditorDialogActionPlaceholder => !HasEditorDialogActionFields;
 
     public PageModel SelectedPage
     {
@@ -228,6 +238,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 OnPropertyChanged(nameof(TabNumerBackColor));
                 OnPropertyChanged(nameof(TabBackColor));
                 OnPropertyChanged(nameof(TabForeColor));
+                OnPropertyChanged(nameof(EditorDialogSectionHeaderBackground));
+                OnPropertyChanged(nameof(EditorDialogSectionHeaderForeground));
+                OnPropertyChanged(nameof(EditorDialogSectionHeaderBorderBrush));
+                OnPropertyChanged(nameof(EditorDialogSectionContentBackground));
                 OnPropertyChanged(nameof(HeaderBadgeBackground));
                 OnPropertyChanged(nameof(HeaderBadgeForeground));
             }
@@ -308,6 +322,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     public string TabNumerBackColor => CurrentTheme.TabNumerBackColor;
     public string TabBackColor => CurrentTheme.TabBackColor;
     public string TabForeColor => CurrentTheme.TabForeColor;
+    public string EditorDialogSectionHeaderBackground => CurrentTheme.EditorDialogSectionHeaderBackground;
+    public string EditorDialogSectionHeaderForeground => CurrentTheme.EditorDialogSectionHeaderForeground;
+    public string EditorDialogSectionHeaderBorderBrush => CurrentTheme.EditorDialogSectionHeaderBorderBrush;
+    public string EditorDialogSectionContentBackground => CurrentTheme.EditorDialogSectionContentBackground;
     public string HeaderBadgeBackground => CurrentTheme.HeaderBadgeBackground;
     public string HeaderBadgeForeground => CurrentTheme.HeaderBadgeForeground;
     public bool HasMultiSelection => _selectedItems.Count > 1;
@@ -568,6 +586,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public void OpenItemEditor(PageItemModel item, double x, double y)
     {
+        if (IsEditorDialogOpen
+            && _editorDialogMode == EditorDialogMode.Edit
+            && ReferenceEquals(_editorDialogItem, item))
+        {
+            return;
+        }
+
         OpenEditorDialog(EditorDialogMode.Edit, item, item.ParentItem, x, y, $"{item.Name} bearbeiten");
     }
 
@@ -583,13 +608,88 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         StatusText = $"Eingabe aktiv: {item.Title}";
     }
 
+    public void OpenValueInputForTargetPath(string? targetPath, PageItemModel sourceItem)
+    {
+        if (sourceItem is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(targetPath) || string.Equals(targetPath, "this", StringComparison.OrdinalIgnoreCase))
+        {
+            OpenValueInput(sourceItem);
+            return;
+        }
+
+        if (TryFindValueInputItem(targetPath, out var existingItem) && existingItem is not null)
+        {
+            OpenValueInput(existingItem);
+            return;
+        }
+
+        if (!TryResolveDataTargetItem(targetPath, out var targetItem) || targetItem is null)
+        {
+            return;
+        }
+
+        var targetText = targetItem.Params.Has("Text")
+            ? targetItem.Params["Text"].Value?.ToString() ?? string.Empty
+            : string.Empty;
+
+        var proxy = new PageItemModel
+        {
+            Kind = ControlKind.Item,
+            Name = targetItem.Name ?? "InteractionTarget",
+            Title = !string.IsNullOrWhiteSpace(targetText) ? targetText : targetItem.Name ?? string.Empty,
+            Unit = targetItem.Params.Has("Unit") ? targetItem.Params["Unit"].Value?.ToString() ?? string.Empty : string.Empty,
+            TargetParameterFormat = targetItem.Params.Has("Format")
+                ? targetItem.Params["Format"].Value?.ToString() ?? string.Empty
+                : sourceItem.TargetParameterFormat,
+            ShowFooter = true,
+            ShowCaption = true,
+            ShowBodyCaption = true
+        };
+
+        proxy.ApplyTargetSelection(targetItem.Path ?? targetPath);
+        OpenValueInput(proxy);
+    }
+
     public void CancelValueInput()
     {
         ActiveValueInputItem = null;
         IsValueInputOpen = false;
     }
 
+    private bool TryFindValueInputItem(string targetPath, out PageItemModel? match)
+    {
+        match = null;
+        var resolvedTargetPath = targetPath;
+        if (TryResolveDataTargetItem(targetPath, out var resolvedItem) && !string.IsNullOrWhiteSpace(resolvedItem?.Path))
+        {
+            resolvedTargetPath = resolvedItem.Path!;
+        }
+
+        match = Pages
+            .SelectMany(page => EnumeratePageItems(page.Items))
+            .FirstOrDefault(item => item.CanOpenValueEditor
+                && !string.IsNullOrWhiteSpace(item.TargetPath)
+                && string.Equals(item.TargetPath, resolvedTargetPath, StringComparison.Ordinal));
+
+        return match is not null;
+    }
+
+    private static bool TryResolveDataTargetItem(string targetPath, out Item? item)
+    {
+        return TryResolveDataItem(targetPath, out item);
+    }
+
     public void CommitEditorDialog()
+        => CommitEditorDialog(closeAfterSave: true);
+
+    public void ApplyEditorDialog()
+        => CommitEditorDialog(closeAfterSave: false);
+
+    private void CommitEditorDialog(bool closeAfterSave)
     {
         if (_editorDialogItem is null)
         {
@@ -634,6 +734,18 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             case EditorDialogMode.Edit:
                 StatusText = $"Control gespeichert: {_editorDialogItem.Path}";
                 break;
+        }
+
+        if (!closeAfterSave)
+        {
+            if (_editorDialogMode is EditorDialogMode.AddCanvas or EditorDialogMode.AddList)
+            {
+                _editorDialogMode = EditorDialogMode.Edit;
+                EditorDialogTitle = $"{_editorDialogItem.Name} bearbeiten";
+            }
+
+            EditorDialogError = string.Empty;
+            return;
         }
 
         ResetEditorDialog();
@@ -869,6 +981,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         SetOptionalJsonValue(nodeObject, "HeaderBackColor", item.HeaderBackColor);
         SetOptionalJsonValue(nodeObject, "HeaderBorderColor", item.HeaderBorderColor);
         nodeObject["BodyCaption"] = item.BodyCaption;
+        nodeObject["BodyCaptionPosition"] = item.BodyCaptionPosition;
         nodeObject["BodyCaptionVisible"] = item.BodyCaptionVisible;
         nodeObject["ShowBodyCaption"] = item.ShowBodyCaption;
         nodeObject["ShowFooter"] = item.ShowFooter;
@@ -907,14 +1020,24 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["TargetPath"] = item.TargetPath;
         nodeObject["TargetParameterPath"] = item.TargetParameterPath;
         nodeObject["TargetParameterFormat"] = item.TargetParameterFormat;
+            nodeObject["Unit"] = item.Unit;
         nodeObject["TargetLog"] = item.TargetLog;
         nodeObject["RefreshRateMs"] = item.RefreshRateMs;
         nodeObject["HistorySeconds"] = item.HistorySeconds;
         nodeObject["ViewSeconds"] = item.ViewSeconds;
         nodeObject["ChartSeriesDefinitions"] = item.ChartSeriesDefinitions;
+        if (TryBuildInteractionRulesJson(item.InteractionRules, out var interactionRulesJson))
+        {
+            nodeObject["InteractionRules"] = interactionRulesJson;
+        }
+        else
+        {
+            nodeObject.Remove("InteractionRules");
+        }
         nodeObject["UdlClientHost"] = item.UdlClientHost;
         nodeObject["UdlClientPort"] = item.UdlClientPort;
         nodeObject["UdlClientAutoConnect"] = item.UdlClientAutoConnect;
+        nodeObject["UdlClientDebugLogging"] = item.UdlClientDebugLogging;
         nodeObject["UdlAttachedItemPaths"] = item.UdlAttachedItemPaths;
         nodeObject["IsReadOnly"] = item.IsReadOnly;
         nodeObject["IsAutoHeight"] = item.IsAutoHeight;
@@ -965,6 +1088,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.ControlCaption = GetFirstStringProperty(properties, "ControlCaption", "Header") ?? item.ControlCaption;
         item.CaptionVisible = GetFirstBoolProperty(properties, "CaptionVisible", "ShowCaption") ?? item.CaptionVisible;
         item.BodyCaption = GetFirstStringProperty(properties, "BodyCaption", "Title") ?? item.BodyCaption;
+        item.BodyCaptionPosition = GetStringProperty(properties, "BodyCaptionPosition") ?? item.BodyCaptionPosition;
         item.BodyCaptionVisible = GetFirstBoolProperty(properties, "BodyCaptionVisible", "ShowBodyCaption") ?? item.BodyCaptionVisible;
         item.ShowFooter = GetBoolProperty(properties, "ShowFooter") ?? item.ShowFooter;
         item.Footer = GetStringProperty(properties, "Footer") ?? item.Footer;
@@ -1007,14 +1131,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.TargetPath = GetStringProperty(properties, "TargetPath") ?? item.TargetPath;
         item.TargetParameterPath = GetStringProperty(properties, "TargetParameterPath") ?? item.TargetParameterPath;
         item.TargetParameterFormat = GetStringProperty(properties, "TargetParameterFormat") ?? item.TargetParameterFormat;
+            item.Unit = GetFirstStringProperty(properties, "Unit", "Footer") ?? item.Unit;
         item.TargetLog = GetStringProperty(properties, "TargetLog") ?? item.TargetLog;
         item.RefreshRateMs = GetIntProperty(properties, "RefreshRateMs") ?? item.RefreshRateMs;
         item.HistorySeconds = GetIntProperty(properties, "HistorySeconds") ?? item.HistorySeconds;
         item.ViewSeconds = GetIntProperty(properties, "ViewSeconds") ?? item.ViewSeconds;
         item.ChartSeriesDefinitions = GetStringProperty(properties, "ChartSeriesDefinitions") ?? item.ChartSeriesDefinitions;
+        item.InteractionRules = ReadInteractionRulesProperty(properties) ?? item.InteractionRules;
         item.UdlClientHost = GetStringProperty(properties, "UdlClientHost") ?? item.UdlClientHost;
         item.UdlClientPort = GetIntProperty(properties, "UdlClientPort") ?? item.UdlClientPort;
         item.UdlClientAutoConnect = GetBoolProperty(properties, "UdlClientAutoConnect") ?? item.UdlClientAutoConnect;
+        item.UdlClientDebugLogging = GetBoolProperty(properties, "UdlClientDebugLogging") ?? item.UdlClientDebugLogging;
         item.UdlAttachedItemPaths = GetStringProperty(properties, "UdlAttachedItemPaths") ?? item.UdlAttachedItemPaths;
         item.IsReadOnly = GetBoolProperty(properties, "IsReadOnly") ?? item.IsReadOnly;
         item.IsAutoHeight = GetBoolProperty(properties, "IsAutoHeight") ?? item.IsAutoHeight;
@@ -1027,8 +1154,50 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         if (string.IsNullOrWhiteSpace(item.ControlCaption) && item.IsItem)
         {
-            item.ControlCaption = pageName;
+              item.ControlCaption = item.Name;
         }
+    }
+
+    private static bool TryBuildInteractionRulesJson(string definitions, out JsonArray array)
+    {
+        var rules = ItemInteractionRuleCodec.ParseDefinitions(definitions);
+        array = new JsonArray(rules.Select(static rule => (JsonNode?)new JsonObject
+        {
+            ["Event"] = rule.Event.ToString(),
+            ["Action"] = rule.Action.ToString(),
+            ["TargetPath"] = rule.TargetPath,
+            ["Argument"] = rule.Argument
+        }).ToArray());
+
+        return rules.Count > 0;
+    }
+
+    private static string? ReadInteractionRulesProperty(JsonObject properties)
+    {
+        if (properties["InteractionRules"] is JsonArray array)
+        {
+            return ItemInteractionRuleCodec.SerializeDefinitions(array
+                .OfType<JsonObject>()
+                .Select(static ruleObject => new ItemInteractionRule
+                {
+                    Event = Enum.TryParse<ItemInteractionEvent>(GetStringValue(ruleObject, "Event"), ignoreCase: true, out var eventKind) ? eventKind : ItemInteractionEvent.BodyLeftClick,
+                    Action = Enum.TryParse<ItemInteractionAction>(GetStringValue(ruleObject, "Action"), ignoreCase: true, out var actionKind) ? actionKind : ItemInteractionAction.OpenValueEditor,
+                    TargetPath = GetStringValue(ruleObject, "TargetPath") ?? "this",
+                    Argument = GetStringValue(ruleObject, "Argument") ?? string.Empty
+                }));
+        }
+
+        return GetStringProperty(properties, "InteractionRules");
+    }
+
+    private static string? GetStringValue(JsonObject properties, string propertyName)
+    {
+        var value = properties[propertyName];
+        return value switch
+        {
+            JsonValue jsonValue when jsonValue.TryGetValue<string>(out var result) => result,
+            _ => null
+        };
     }
 
     private static string? GetStringProperty(JsonObject properties, string propertyName)
@@ -1313,6 +1482,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 UdlClientHost = "192.168.178.151",
                 UdlClientPort = 9001,
                 UdlClientAutoConnect = false,
+                UdlClientDebugLogging = false,
                 X = x,
                 Y = y,
                 Width = Math.Max(width, 420),
@@ -1330,7 +1500,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             Kind = ControlKind.Item,
             ControlCaption = "Item",
             BodyCaption = "Value",
-            Footer = "Unit",
+            Unit = string.Empty,
+            ShowFooter = false,
             BodyCornerRadius = 8,
             X = x,
             Y = y,
@@ -1541,6 +1712,16 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 field.PropertyChanged += OnEditorDialogFieldChanged;
             }
         }
+
+        EditorDialogActionFields.Clear();
+        foreach (var field in BuildActionFieldsForItem(item))
+        {
+            field.PropertyChanged += OnEditorDialogFieldChanged;
+            EditorDialogActionFields.Add(field);
+        }
+
+        OnPropertyChanged(nameof(HasEditorDialogActionFields));
+        OnPropertyChanged(nameof(ShowEditorDialogActionPlaceholder));
     }
 
     private void ResetEditorDialogSubscriptions()
@@ -1552,20 +1733,27 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 field.PropertyChanged -= OnEditorDialogFieldChanged;
             }
         }
+
+        foreach (var field in EditorDialogActionFields)
+        {
+            field.PropertyChanged -= OnEditorDialogFieldChanged;
+        }
     }
 
 
     private void OnDataRegistryStructureChanged(object? sender, DataChangedEventArgs e)
     {
-        var registryCount = HostRegistries.Data.GetAllKeys().Count;
-        var message = $"MainWindowViewModel.OnDataRegistryStructureChanged pid={HostRegistries.ProcessId} session={HostRegistries.SessionId} dataRegistryId={HostRegistries.DataRegistryId} key={e.Key} change={e.ChangeKind} count={registryCount}";
-        Debug.WriteLine(message);
-        HostLogger.Log.Information(message);
+        if (Interlocked.Exchange(ref _dataRegistryRefreshQueued, 1) == 1)
+        {
+            return;
+        }
+
         Dispatcher.UIThread.Post(() =>
         {
+            Interlocked.Exchange(ref _dataRegistryRefreshQueued, 0);
             RefreshDataRegistryDiagnostics();
             RefreshOpenEditorDialogChoiceOptions();
-        });
+        }, DispatcherPriority.Background);
     }
 
     private void RefreshOpenEditorDialogChoiceOptions()
@@ -1575,21 +1763,25 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return;
         }
 
-        var keys = HostRegistries.Data.GetAllKeys().OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList();
-        var message = $"RefreshOpenEditorDialogChoiceOptions open={IsEditorDialogOpen} keys={keys.Count} [{string.Join(", ", keys)}]";
-        Debug.WriteLine(message);
-        HostLogger.Log.Information(message);
-
         RefreshEditorDialogChoiceOptions(_editorDialogItem);
     }
 
     private void RefreshEditorDialogChoiceOptions(PageItemModel item)
     {
-        foreach (var field in EditorDialogSections.SelectMany(section => section.Fields))
+        foreach (var field in EnumerateEditorDialogFields())
         {
             if (field.IsAttachItemList)
             {
-                field.RefreshAttachItemOptions(GetUdlAttachItemOptions(item));
+                var attachOptions = field.Definition.OptionsFactory is null
+                    ? []
+                    : field.Definition.OptionsFactory(item);
+                field.RefreshAttachItemOptions(attachOptions);
+                continue;
+            }
+
+            if (field.IsInteractionRuleList)
+            {
+                field.RefreshInteractionRuleTargetOptions(GetSelectableTargetOptions());
                 continue;
             }
 
@@ -1599,7 +1791,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             }
 
             var selectedTargetPath = GetSelectedTargetPath(item);
-            var options = field.Key switch
+            var choiceOptions = field.Key switch
             {
                 "TargetParameterPath" => GetTargetParameterOptions(selectedTargetPath),
                 _ when field.Definition.OptionsFactory is not null => field.Definition.OptionsFactory(item),
@@ -1607,7 +1799,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             };
 
             var selectFirstWhenInvalid = field.Key == "TargetParameterPath" && !string.IsNullOrWhiteSpace(selectedTargetPath);
-            RefreshDialogFieldOptions(field, options, selectFirstWhenInvalid);
+            RefreshDialogFieldOptions(field, choiceOptions, selectFirstWhenInvalid);
         }
 
         UpdateEditorDialogChoiceDiagnostics();
@@ -1679,7 +1871,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     }
     private void OnEditorDialogFieldChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(EditorDialogField.Value) || sender is not EditorDialogField field || _editorDialogItem is null)
+        if (_isRefreshingEditorDialogFields
+            || e.PropertyName != nameof(EditorDialogField.Value)
+            || sender is not EditorDialogField field
+            || _editorDialogItem is null)
         {
             return;
         }
@@ -1697,6 +1892,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         if (string.Equals(field.Key, "TargetPath", StringComparison.Ordinal))
         {
+            field.Definition.Apply(_editorDialogItem, field.Value);
+
             var parameterField = FindDialogField("TargetParameterPath");
             if (parameterField is not null)
             {
@@ -1710,6 +1907,15 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 {
                     parameterField.Value = parameterField.Options.FirstOrDefault() ?? string.Empty;
                 }
+            }
+
+            RefreshEditorDialogFieldValues(_editorDialogItem, "Name", "Path", "Unit", "ControlCaption", "TargetPath", "TargetParameterPath");
+            RefreshEditorDialogChoiceOptions(_editorDialogItem);
+
+            var nameField = FindDialogField("Name");
+            if (nameField is not null)
+            {
+                EditorDialogTitle = _editorDialogMode == EditorDialogMode.Edit ? $"{nameField.Value} bearbeiten" : $"{_editorDialogItem.Kind} anlegen";
             }
         }
 
@@ -1739,12 +1945,41 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         EditorDialogError = string.Empty;
     }
 
+    private void RefreshEditorDialogFieldValues(PageItemModel item, params string[] keys)
+    {
+        _isRefreshingEditorDialogFields = true;
+        try
+        {
+            foreach (var key in keys)
+            {
+                var field = FindDialogField(key);
+                if (field is null)
+                {
+                    continue;
+                }
+
+                var value = field.Definition.ReadValue(item);
+                if (!string.Equals(field.Value, value, StringComparison.Ordinal))
+                {
+                    field.Value = value;
+                }
+            }
+        }
+        finally
+        {
+            _isRefreshingEditorDialogFields = false;
+        }
+    }
+
     private IReadOnlyList<EditorDialogSection> BuildSectionsForItem(PageItemModel item)
     {
         return BuildBindingSectionsForItem(item)
             .Select(sectionBinding =>
             {
-                var section = new EditorDialogSection(sectionBinding.Title);
+                var section = new EditorDialogSection(
+                    sectionBinding.Title,
+                    isExpanded: string.Equals(sectionBinding.Title, "Identity", StringComparison.Ordinal)
+                        || string.Equals(sectionBinding.Title, "Control", StringComparison.Ordinal));
                 foreach (var binding in sectionBinding.Bindings)
                 {
                     section.Fields.Add(binding.CreateField(item));
@@ -1753,6 +1988,29 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 return section;
             })
             .ToList();
+    }
+
+    private IReadOnlyList<EditorDialogField> BuildActionFieldsForItem(PageItemModel item)
+    {
+        if (item.Kind is not (ControlKind.Item or ControlKind.Signal))
+        {
+            return [];
+        }
+
+        return
+        [
+            BindInteractionRuleList(
+                "InteractionRules",
+                "Interactions",
+                current => current.InteractionRules,
+                (current, value) =>
+                {
+                    current.InteractionRules = value;
+                    return null;
+                },
+                _ => "Default without rules: left click opens the value editor. Event and Action are stored as enum strings in export and import.")
+                .CreateField(item)
+        ];
     }
 
     private IReadOnlyList<(string Title, IReadOnlyList<EditorDialogBindingDefinition> Bindings)> BuildBindingSectionsForItem(PageItemModel item)
@@ -1787,6 +2045,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var body = new List<EditorDialogBindingDefinition>
         {
             BindText("BodyCaption", "Caption", current => current.BodyCaption, (current, value) => { current.BodyCaption = value; return null; }),
+            BindChoice("BodyCaptionPosition", "Position", current => current.BodyCaptionPosition, (current, value) => { current.BodyCaptionPosition = value; return null; }, _ => new[] { "Top", "Left" }),
             BindText("BodyForeColor", "CaptionForeColor", current => current.BodyForeColor ?? string.Empty, (current, value) => { current.BodyForeColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
             BindChoice("BodyCaptionVisible", "CaptionVisible", current => current.BodyCaptionVisible ? "True" : "False", (current, value) => { current.BodyCaptionVisible = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" }),
             BindDouble("BodyCornerRadius", "CornerRadius", current => current.BodyCornerRadius, (current, value) => current.BodyCornerRadius = value),
@@ -1798,6 +2057,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var footer = new List<EditorDialogBindingDefinition>
         {
             BindChoice("ShowFooter", "FooterVisible", current => current.ShowFooter ? "True" : "False", (current, value) => { current.ShowFooter = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" }),
+            BindAttachItemList("FooterSubItems", "SubItems", GetFooterSubItemSelection, ApplyFooterSubItems, GetFooterSubItemOptions),
             BindDouble("FooterCornerRadius", "CornerRadius", current => current.FooterCornerRadius, (current, value) => current.FooterCornerRadius = value),
             BindDouble("FooterBorderWidth", "BorderWidth", current => current.FooterBorderWidth, (current, value) => current.FooterBorderWidth = value),
             BindText("FooterBorderColor", "BorderColor", current => current.FooterBorderColor ?? string.Empty, (current, value) => { current.FooterBorderColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
@@ -1806,7 +2066,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         var commonSpecific = new List<EditorDialogBindingDefinition>
         {
-            BindText("Footer", "FooterText", current => current.Footer, (current, value) => { current.Footer = value; return null; })
+            BindText("Unit", "Unit", current => current.Unit, (current, value) => { current.Unit = value; return null; })
         };
 
         var sections = new List<(string Title, IReadOnlyList<EditorDialogBindingDefinition> Bindings)>
@@ -1821,7 +2081,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         switch (item.Kind)
         {
             case ControlKind.Button:
-                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
                     BindChoice("ButtonCommand", "Command", current => current.ButtonCommand, (current, value) => { current.ButtonCommand = value; return null; }, _ => GetCommandRegistryOptions()),
                     BindText("ButtonText", "ButtonText", current => current.ButtonText, (current, value) => { current.ButtonText = value; return null; }),
@@ -1836,7 +2096,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 break;
             case ControlKind.Item:
             case ControlKind.Signal:
-                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
                     BindChoice("TargetPath", "Target", current => current.TargetPath, (current, value) => { current.ApplyTargetSelection(value); return null; }, _ => GetSelectableTargetOptions()),
                     BindChoice("TargetParameterPath", "TargetParameter", current => current.TargetParameterPath, (current, value) => { current.TargetParameterPath = value; return null; }, current => GetTargetParameterOptions(current.TargetPath)),
@@ -1847,7 +2107,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }));
                 break;
             case ControlKind.ChartControl:
-                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
                     BindChartSeriesList("ChartSeriesDefinitions", "Series", current => current.ChartSeriesDefinitions, (current, value) => { current.ChartSeriesDefinitions = value; return null; }, GetChartSeriesToolTip),
                     BindText("ContainerBorder", "ContainerBorder", current => current.ContainerBorder ?? string.Empty, (current, value) => { current.ContainerBorder = EmptyToNull(value); return null; }, EditorPropertyType.Color),
@@ -1859,7 +2119,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }));
                 break;
             case ControlKind.ListControl:
-                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
                     BindText("ContainerBorder", "ContainerBorder", current => current.ContainerBorder ?? string.Empty, (current, value) => { current.ContainerBorder = EmptyToNull(value); return null; }, EditorPropertyType.Color),
                     BindText("ContainerBackgroundColor", "ContainerBg", current => current.ContainerBackgroundColor ?? string.Empty, (current, value) => { current.ContainerBackgroundColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
@@ -1871,7 +2131,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }));
                 break;
             case ControlKind.LogControl:
-                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
                     BindChoice("TargetLog", "TargetLog", current => current.TargetLog, (current, value) => { current.TargetLog = value; return null; }, _ => GetProcessLogTargetOptions()),
                     BindText("ContainerBorder", "ContainerBorder", current => current.ContainerBorder ?? string.Empty, (current, value) => { current.ContainerBorder = EmptyToNull(value); return null; }, EditorPropertyType.Color),
@@ -1880,11 +2140,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }));
                 break;
             case ControlKind.UdlClientControl:
-                sections.Add(("Specific", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
                     BindText("UdlClientHost", "Host", current => current.UdlClientHost, (current, value) => { current.UdlClientHost = value; return null; }),
                     BindInt("UdlClientPort", "Port", current => current.UdlClientPort, (current, value) => current.UdlClientPort = value),
                     BindChoice("UdlClientAutoConnect", "AutoConnect", current => current.UdlClientAutoConnect ? "True" : "False", (current, value) => { current.UdlClientAutoConnect = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindChoice("UdlClientDebugLogging", "DebugLogging", current => current.UdlClientDebugLogging ? "True" : "False", (current, value) => { current.UdlClientDebugLogging = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindAttachItemList("UdlAttachedItemPaths", "AttachToUi", current => current.UdlAttachedItemPaths, (current, value) => { current.UdlAttachedItemPaths = value; return null; }, GetUdlAttachItemOptions)
                 }));
                 break;
@@ -1907,6 +2168,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private static EditorDialogBindingDefinition BindAttachItemList(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.AttachItemList, read, apply, optionsFactory: optionsFactory);
+
+    private static EditorDialogBindingDefinition BindInteractionRuleList(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, string>? toolTipFactory = null)
+        => new(key, label, EditorPropertyType.InteractionRuleList, read, apply, toolTipFactory: toolTipFactory);
 
     private static EditorDialogBindingDefinition BindChoice(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.Choice, read, apply, optionsFactory: optionsFactory);
@@ -1953,7 +2217,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return false;
         }
 
-        foreach (var field in EditorDialogSections.SelectMany(section => section.Fields))
+        foreach (var field in EnumerateEditorDialogFields())
         {
             if (field.IsReadOnly)
             {
@@ -1974,7 +2238,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     }
 
     private EditorDialogField? FindDialogField(string key)
-        => EditorDialogSections.SelectMany(section => section.Fields).FirstOrDefault(field => string.Equals(field.Key, key, StringComparison.Ordinal));
+        => EnumerateEditorDialogFields().FirstOrDefault(field => string.Equals(field.Key, key, StringComparison.Ordinal));
 
     private string BuildPreviewPath(PageItemModel item, string proposedName)
     {
@@ -1996,6 +2260,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         ResetEditorDialogSubscriptions();
         EditorDialogSections.Clear();
+        EditorDialogActionFields.Clear();
         _editorDialogMode = EditorDialogMode.None;
         _editorDialogItem = null;
         _editorDialogParentItem = null;
@@ -2003,7 +2268,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         EditorDialogError = string.Empty;
         IsEditorDialogOpen = false;
         EditorDialogChoiceSummary = "Dialog Choices: geschlossen";
+        OnPropertyChanged(nameof(HasEditorDialogActionFields));
+        OnPropertyChanged(nameof(ShowEditorDialogActionPlaceholder));
     }
+
+    private IEnumerable<EditorDialogField> EnumerateEditorDialogFields()
+        => EditorDialogSections.SelectMany(section => section.Fields).Concat(EditorDialogActionFields);
 
     private void SetSelectedItems(IReadOnlyList<PageItemModel> items, PageItemModel? primaryItem)
     {
@@ -2149,6 +2419,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ShowCaption = item.ShowCaption,
             CaptionVisible = item.CaptionVisible,
             BodyCaption = item.BodyCaption,
+            BodyCaptionPosition = item.BodyCaptionPosition,
             ShowBodyCaption = item.ShowBodyCaption,
             BodyCaptionVisible = item.BodyCaptionVisible,
             ShowFooter = item.ShowFooter,
@@ -2194,14 +2465,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             TargetPath = item.TargetPath,
             TargetParameterPath = item.TargetParameterPath,
             TargetParameterFormat = item.TargetParameterFormat,
+            Unit = item.Unit,
             TargetLog = item.TargetLog,
             RefreshRateMs = item.RefreshRateMs,
             HistorySeconds = item.HistorySeconds,
             ViewSeconds = item.ViewSeconds,
             ChartSeriesDefinitions = item.ChartSeriesDefinitions,
+            InteractionRules = ToInteractionRuleDocuments(item.InteractionRules),
             UdlClientHost = item.UdlClientHost,
             UdlClientPort = item.UdlClientPort,
             UdlClientAutoConnect = item.UdlClientAutoConnect,
+            UdlClientDebugLogging = item.UdlClientDebugLogging,
             UdlAttachedItemPaths = item.UdlAttachedItemPaths,
             IsReadOnly = item.IsReadOnly,
             IsAutoHeight = item.IsAutoHeight,
@@ -2240,6 +2514,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ShowCaption = item.ShowCaption,
             CaptionVisible = item.ShowCaption,
             BodyCaption = string.IsNullOrWhiteSpace(item.BodyCaption) ? item.Title : item.BodyCaption,
+            BodyCaptionPosition = item.BodyCaptionPosition,
             ShowBodyCaption = item.ShowBodyCaption,
             BodyCaptionVisible = item.ShowBodyCaption,
             ShowFooter = item.ShowFooter,
@@ -2283,11 +2558,18 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             TargetPath = item.TargetPath,
             TargetParameterPath = item.TargetParameterPath,
             TargetParameterFormat = item.TargetParameterFormat,
+            Unit = item.Unit,
             TargetLog = item.TargetLog,
             RefreshRateMs = item.RefreshRateMs,
             HistorySeconds = item.HistorySeconds,
             ViewSeconds = item.ViewSeconds,
             ChartSeriesDefinitions = item.ChartSeriesDefinitions,
+            InteractionRules = FromInteractionRuleDocuments(item.InteractionRules),
+            UdlClientHost = item.UdlClientHost,
+            UdlClientPort = item.UdlClientPort,
+            UdlClientAutoConnect = item.UdlClientAutoConnect,
+            UdlClientDebugLogging = item.UdlClientDebugLogging,
+            UdlAttachedItemPaths = item.UdlAttachedItemPaths,
             IsReadOnly = item.IsReadOnly,
             IsAutoHeight = item.IsAutoHeight,
             ListItemHeight = item.ControlHeight > 0 ? item.ControlHeight : item.ListItemHeight,
@@ -2315,6 +2597,26 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         model.ApplyListHeightRules();
         return model;
     }
+
+    private static List<ItemInteractionRuleDocument> ToInteractionRuleDocuments(string definitions)
+        => ItemInteractionRuleCodec.ParseDefinitions(definitions)
+            .Select(static rule => new ItemInteractionRuleDocument
+            {
+                Event = rule.Event,
+                Action = rule.Action,
+                TargetPath = rule.TargetPath,
+                Argument = rule.Argument
+            })
+            .ToList();
+
+    private static string FromInteractionRuleDocuments(IEnumerable<ItemInteractionRuleDocument>? documents)
+        => ItemInteractionRuleCodec.SerializeDefinitions((documents ?? []).Select(static rule => new ItemInteractionRule
+        {
+            Event = rule.Event,
+            Action = rule.Action,
+            TargetPath = rule.TargetPath,
+            Argument = rule.Argument
+        }));
 
     private static (string Kind, string Parameter) SplitParameterFormat(string? format)
     {
@@ -2410,7 +2712,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         => GetFormatParameterToolTip(SplitParameterFormat(item.TargetParameterFormat).Kind);
 
     private static string GetChartSeriesToolTip(PageItemModel item)
-        => "Eine Serie pro Zeile: TargetPath|Y1 bis TargetPath|Y4 oder optional mit Stil TargetPath|Y1|Step. Immer Value numerisch, X ist DateTime. Beispiel\nPage1/Sinus/AThread Sinus|Y1\nPage1/Task/ATask Counter|Y2|Step";
+        => string.Empty;
 
     private static string GetFormatParameterToolTip(string? kind)
     {
@@ -2490,13 +2792,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return [];
         }
 
-        if (!HostRegistries.Data.TryGet(targetPath, out var item) || item is null)
+        if (!TryResolveDataItem(targetPath, out var item) || item is null)
         {
-            var fallbackKey = HostRegistries.Data.GetAllKeys().FirstOrDefault(key => key.StartsWith(targetPath + "/", StringComparison.OrdinalIgnoreCase));
-            if (fallbackKey is null || !HostRegistries.Data.TryGet(fallbackKey, out item) || item is null)
-            {
-                return [];
-            }
+            return [];
         }
 
         return item.Params.GetDictionary().Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList();
@@ -2565,12 +2863,6 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return false;
         }
 
-        if (normalizedName.Contains('.'))
-        {
-            error = "Name darf keinen Punkt enthalten.";
-            return false;
-        }
-
         if (!IsControlNameUnique(page, normalizedName, excludeItem))
         {
             error = $"Name '{normalizedName}' ist auf {page.Name} bereits vergeben.";
@@ -2605,12 +2897,257 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .ToArray();
     }
 
+    private static IEnumerable<string> GetFooterSubItemOptions(PageItemModel item)
+    {
+        if (string.IsNullOrWhiteSpace(item.TargetPath) || !TryResolveDataItem(item.TargetPath, out var targetItem) || targetItem is null)
+        {
+            return [];
+        }
+
+        return EnumerateRelativeChildItemPaths(targetItem)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private string GetFooterSubItemSelection(PageItemModel item)
+    {
+        if (string.IsNullOrWhiteSpace(item.TargetPath) || item.Items.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var selected = item.Items
+            .Select(child => GetRelativeTargetPath(item.TargetPath, child.TargetPath))
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return string.Join(Environment.NewLine, selected!);
+    }
+
+    private string? ApplyFooterSubItems(PageItemModel item, string value)
+    {
+        if (string.IsNullOrWhiteSpace(item.TargetPath) || !TryResolveDataItem(item.TargetPath, out var targetRoot) || targetRoot is null)
+        {
+            item.Items.Clear();
+            return null;
+        }
+
+        var selectedPaths = value
+            .Replace("\r", string.Empty)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (selectedPaths.Length == 0)
+        {
+            item.Items.Clear();
+            return null;
+        }
+
+        var existingByRelativePath = item.Items
+            .Select(child => (Child: child, RelativePath: GetRelativeTargetPath(item.TargetPath, child.TargetPath)))
+            .Where(static entry => !string.IsNullOrWhiteSpace(entry.RelativePath))
+            .GroupBy(entry => entry.RelativePath!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Child, StringComparer.OrdinalIgnoreCase);
+
+        var syncedChildren = new List<PageItemModel>();
+        foreach (var relativePath in selectedPaths)
+        {
+            if (!TryResolveRelativeChild(targetRoot, relativePath, out var resolvedTarget) || resolvedTarget is null)
+            {
+                continue;
+            }
+
+            var isNew = !existingByRelativePath.TryGetValue(relativePath, out var childItem);
+            childItem ??= CreateFooterSubItem(item);
+            ConfigureFooterSubItem(item, childItem, relativePath, resolvedTarget, isNew);
+            syncedChildren.Add(childItem);
+        }
+
+        item.Items.Clear();
+        foreach (var child in syncedChildren)
+        {
+            item.Items.Add(child);
+        }
+
+        item.SyncFooterSubItemLayout();
+        EnsureFooterSubItemHostHeight(item);
+        return null;
+    }
+
+    private PageItemModel CreateFooterSubItem(PageItemModel parentItem)
+    {
+        var item = new PageItemModel
+        {
+            Kind = ControlKind.Item,
+            ControlCaption = string.Empty,
+            BodyCaption = string.Empty,
+            Unit = string.Empty,
+            CaptionVisible = false,
+            ShowFooter = false,
+            BodyCaptionVisible = true,
+            BodyCaptionPosition = "Left",
+            BodyCornerRadius = 8,
+            Width = System.Math.Max(parentItem.FooterSubItemWidth, 50),
+            Height = System.Math.Max(parentItem.FooterSubItemHeight, 1)
+        };
+
+        item.ApplyTheme(IsDarkTheme);
+        return item;
+    }
+
+    private void ConfigureFooterSubItem(PageItemModel parentItem, PageItemModel childItem, string relativePath, Item targetItem, bool isNew)
+    {
+        var previousBodyCaption = childItem.BodyCaption;
+        childItem.ApplyTargetSelection(targetItem.Path ?? string.Empty);
+
+        if (isNew)
+        {
+            var relativeName = relativePath.Replace('/', '.');
+            childItem.Name = string.IsNullOrWhiteSpace(parentItem.Name)
+                ? relativeName
+                : $"{parentItem.Name}.{relativeName}";
+        }
+
+        childItem.CaptionVisible = false;
+        childItem.ShowFooter = false;
+        childItem.BodyCaptionVisible = true;
+        childItem.BodyCaptionPosition = "Left";
+
+        if (isNew
+            || string.IsNullOrWhiteSpace(previousBodyCaption)
+            || string.Equals(previousBodyCaption, "Value", StringComparison.OrdinalIgnoreCase))
+        {
+            childItem.BodyCaption = childItem.ControlCaption;
+        }
+
+        childItem.SetHierarchy(parentItem.PageName, parentItem);
+        childItem.ApplyTheme(IsDarkTheme);
+    }
+
+    private static void EnsureFooterSubItemHostHeight(PageItemModel item)
+    {
+        if (!item.HasFooterSubItems)
+        {
+            return;
+        }
+
+        var minimumHeight = item.ItemHeaderHeight + item.ItemBodyCaptionHeight + item.FooterPanelHeight + 26;
+        item.Height = System.Math.Max(item.Height, minimumHeight);
+    }
+
+    private static string? GetRelativeTargetPath(string? rootTargetPath, string? childTargetPath)
+    {
+        if (string.IsNullOrWhiteSpace(rootTargetPath) || string.IsNullOrWhiteSpace(childTargetPath))
+        {
+            return null;
+        }
+
+        if (!childTargetPath.StartsWith(rootTargetPath + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return childTargetPath[(rootTargetPath.Length + 1)..];
+    }
+
+    private static IEnumerable<string> EnumerateRelativeChildItemPaths(Item rootItem)
+    {
+        foreach (var child in rootItem.GetDictionary().Values.OrderBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(child.Name))
+            {
+                continue;
+            }
+
+            yield return child.Name;
+
+            foreach (var descendantPath in EnumerateRelativeChildItemPaths(child))
+            {
+                yield return $"{child.Name}/{descendantPath}";
+            }
+        }
+    }
+
     private static IEnumerable<string> GetSelectableTargetOptions()
     {
         return HostRegistries.Data.GetAllKeys()
+            .SelectMany(static key => EnumerateSelectablePaths(key))
             .Where(static key => !key.StartsWith("Runtime/UdlClient/", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static IEnumerable<string> EnumerateSelectablePaths(string key)
+    {
+        if (!HostRegistries.Data.TryGet(key, out var item) || item is null)
+        {
+            return [key];
+        }
+
+        return EnumerateItemPaths(item);
+    }
+
+    private static IEnumerable<string> EnumerateItemPaths(Item item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Path))
+        {
+            yield return item.Path!;
+        }
+
+        foreach (var child in item.GetDictionary().Values.OrderBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (var childPath in EnumerateItemPaths(child))
+            {
+                yield return childPath;
+            }
+        }
+    }
+
+    private static bool TryResolveDataItem(string targetPath, out Item? item)
+    {
+        if (HostRegistries.Data.TryGet(targetPath, out item) && item is not null)
+        {
+            return true;
+        }
+
+        var rootKey = HostRegistries.Data.GetAllKeys()
+            .Where(key => targetPath.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(key => key.Length)
+            .FirstOrDefault();
+
+        if (rootKey is not null
+            && HostRegistries.Data.TryGet(rootKey, out var rootItem)
+            && rootItem is not null
+            && TryResolveRelativeChild(rootItem, targetPath[(rootKey.Length + 1)..], out item))
+        {
+            return true;
+        }
+
+        item = null;
+        return false;
+    }
+
+    private static bool TryResolveRelativeChild(Item rootItem, string relativePath, out Item? item)
+    {
+        var current = rootItem;
+        foreach (var segment in relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!current.Has(segment))
+            {
+                item = null;
+                return false;
+            }
+
+            current = current[segment];
+        }
+
+        item = current;
+        return true;
     }
 
     private PageModel? FindOwningPage(PageItemModel item)
@@ -2628,6 +3165,37 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Name = "Page1"
             }
         ];
+    }
+
+    public void RefreshPageBindings(string pageName)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => RefreshPageBindings(pageName));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(pageName))
+        {
+            return;
+        }
+
+        var page = Pages.FirstOrDefault(candidate => string.Equals(candidate.Name, pageName, StringComparison.Ordinal));
+        if (page is null)
+        {
+            return;
+        }
+
+        foreach (var item in EnumeratePageItems(page.Items))
+        {
+            item.ResolveTarget();
+            item.RefreshTargetBindings();
+        }
+
+        if (IsEditorDialogOpen && _editorDialogItem is not null && string.Equals(_editorDialogItem.PageName, pageName, StringComparison.Ordinal))
+        {
+            RefreshEditorDialogChoiceOptions(_editorDialogItem);
+        }
     }
 }
 

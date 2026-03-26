@@ -17,13 +17,14 @@
 
     <Grid Grid.Row="1">
       <Grid IsVisible="{Binding Presentation.IsText}">
-        <Grid ColumnDefinitions="*,Auto" HorizontalAlignment="Stretch" VerticalAlignment="Bottom">
-          <TextBlock VerticalAlignment="Bottom" FontFamily="Calibri" TextTrimming="CharacterEllipsis" FontSize="{Binding ResolvedValueFontSize}" FontWeight="Bold" Foreground="{Binding Foreground}" Text="{Binding Presentation.ValueText}">
+        <Grid ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch" VerticalAlignment="Bottom">
+          <TextBlock IsVisible="{Binding InlineCaptionVisible}" Margin="0,0,8,0" VerticalAlignment="Bottom" FontFamily="Calibri" TextTrimming="CharacterEllipsis" FontSize="{Binding ResolvedValueFontSize}" FontWeight="Normal" Foreground="{Binding Foreground}" Opacity="0.82" Text="{Binding InlineCaptionText}" />
+          <TextBlock Grid.Column="1" VerticalAlignment="Bottom" FontFamily="Calibri" TextTrimming="CharacterEllipsis" FontSize="{Binding ResolvedValueFontSize}" FontWeight="Bold" Foreground="{Binding Foreground}" Text="{Binding Presentation.ValueText}">
             <TextBlock.RenderTransform>
               <TranslateTransform Y="{Binding ValueVerticalOffset}" />
             </TextBlock.RenderTransform>
           </TextBlock>
-          <TextBlock Grid.Column="1" IsVisible="{Binding Presentation.ShowUnit}" MaxWidth="{Binding UnitWidth}" Margin="4,0,6,0" HorizontalAlignment="Left" VerticalAlignment="Bottom" FontFamily="Calibri" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{Binding ResolvedUnitFontSize}" FontStyle="Italic" FontWeight="Normal" Foreground="{Binding Foreground}" Text="{Binding Presentation.UnitText}">
+          <TextBlock Grid.Column="2" IsVisible="{Binding Presentation.ShowUnit}" MaxWidth="{Binding UnitWidth}" Margin="4,0,6,0" HorizontalAlignment="Left" VerticalAlignment="Bottom" FontFamily="Calibri" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{Binding ResolvedUnitFontSize}" FontStyle="Italic" FontWeight="Normal" Foreground="{Binding Foreground}" Text="{Binding Presentation.UnitText}">
             <TextBlock.RenderTransform>
               <TranslateTransform Y="{Binding ResolvedUnitBaselineOffset}" />
             </TextBlock.RenderTransform>

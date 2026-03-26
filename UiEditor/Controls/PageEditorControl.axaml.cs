@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -32,12 +33,17 @@ public partial class PageEditorControl : UserControl
     private double _resizeOriginWidth;
     private double _resizeOriginHeight;
     private readonly Dictionary<PageItemModel, Size> _resizeOrigins = [];
+    private EditorPropertyDialogWindow? _editorDialogWindow;
 
     public PageEditorControl()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
-        DetachedFromVisualTree += (_, _) => AttachToViewModel(null);
+        DetachedFromVisualTree += (_, _) =>
+        {
+            CloseEditorDialogWindow();
+            AttachToViewModel(null);
+        };
     }
 
     private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
@@ -83,19 +89,72 @@ public partial class PageEditorControl : UserControl
         }
 
         UpdateThemeBindings();
+        SyncEditorDialogWindow();
     }
 
-    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainWindowViewModel.GridLineBrush))
         {
             UpdateThemeBindings();
+        }
+
+        if (string.IsNullOrWhiteSpace(e.PropertyName)
+            || e.PropertyName == nameof(MainWindowViewModel.IsEditorDialogOpen))
+        {
+            SyncEditorDialogWindow();
         }
     }
 
     private void UpdateThemeBindings()
     {
         GridLineBrush = ViewModel?.GridLineBrush ?? "#E9EEF5";
+    }
+
+    private void SyncEditorDialogWindow()
+    {
+        if (ViewModel?.IsEditorDialogOpen == true)
+        {
+            EnsureEditorDialogWindow();
+            return;
+        }
+
+        CloseEditorDialogWindow();
+    }
+
+    private void EnsureEditorDialogWindow()
+    {
+        if (_editorDialogWindow is not null)
+        {
+            _editorDialogWindow.Activate();
+            return;
+        }
+
+        var owner = TopLevel.GetTopLevel(this) as Window;
+        _editorDialogWindow = EditorPropertyDialogWindow.ShowOrActivate(owner, ViewModel);
+        _editorDialogWindow.Closed -= OnEditorDialogWindowClosed;
+        _editorDialogWindow.Closed += OnEditorDialogWindowClosed;
+    }
+
+    private void CloseEditorDialogWindow()
+    {
+        if (_editorDialogWindow is null)
+        {
+            return;
+        }
+
+        _editorDialogWindow.Closed -= OnEditorDialogWindowClosed;
+        _editorDialogWindow.Close();
+        _editorDialogWindow = null;
+    }
+
+    private void OnEditorDialogWindowClosed(object? sender, EventArgs e)
+    {
+        if (_editorDialogWindow is not null)
+        {
+            _editorDialogWindow.Closed -= OnEditorDialogWindowClosed;
+            _editorDialogWindow = null;
+        }
     }
 
     private void OnCanvasPointerPressed(object? sender, PointerPressedEventArgs e)

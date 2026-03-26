@@ -100,14 +100,14 @@ public sealed class Can : IDisposable
         WriteDiagnostic("dispose completed");
     }
 
-    public void Transmit(CanMessage message)
+    public bool Transmit(CanMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         if (Volatile.Read(ref _disposed) != 0)
         {
             WriteDiagnostic($"tx ignored disposed id=0x{message.Id:X3}");
-            return;
+            return false;
         }
 
         _txBuffer.Enqueue(message);
@@ -116,6 +116,8 @@ public sealed class Can : IDisposable
         {
             WriteDiagnostic($"tx queued id=0x{message.Id:X3} dlc={Math.Min(message.Data.Length, 8)} queue={_txBuffer.Count}");
         }
+
+        return true;
     }
 
     private void TxLoop()
