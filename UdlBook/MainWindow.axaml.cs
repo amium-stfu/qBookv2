@@ -27,7 +27,7 @@ public partial class MainWindow : Window
 
         var file = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
         {
-            Title = "Create layout file",
+            Title = "Select book directory and first page name",
             SuggestedFileName = "Page.json",
             DefaultExtension = "json",
             FileTypeChoices = new[]
@@ -46,9 +46,9 @@ public partial class MainWindow : Window
 
         var path = file.Path.LocalPath;
 
-                if (!File.Exists(path))
-                {
-                        var content = @"{
+        if (!File.Exists(path))
+        {
+            var content = @"{
     ""Page"": ""Page1"",
     ""Title"": ""New Layout"",
     ""Layout"": {
@@ -57,8 +57,8 @@ public partial class MainWindow : Window
     }
 }";
 
-                        File.WriteAllText(path, content);
-                }
+            File.WriteAllText(path, content);
+        }
 
         viewModel.LoadLayoutFromFile(path);
     }
@@ -75,28 +75,19 @@ public partial class MainWindow : Window
         Amium.Host.ThreadsManager.StopAll();
         Amium.Host.TimerManager.StopAll();
 
-        var file = await StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+        // Verzeichnis direkt wählen: ein Ordner entspricht einem „Buch“.
+        var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
         {
-            Title = "Select Book.json",
-            AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new Avalonia.Platform.Storage.FilePickerFileType("Book definition")
-                {
-                    Patterns = new[] { "*.json" }
-                }
-            }
+            Title = "Select book directory",
+            AllowMultiple = false
         });
 
-        if (file.Count == 0)
+        if (folders.Count == 0)
         {
             return;
         }
 
-        var selectedPath = file[0].Path.LocalPath;
-        // Pass the selected file path to the host; it can resolve the
-        // actual project root (it handles both file and directory paths).
-        viewModel.BookProjectPath = selectedPath;
+        viewModel.BookProjectPath = folders[0].Path.LocalPath;
         if (viewModel.LoadBookCommand.CanExecute(null))
         {
             viewModel.LoadBookCommand.Execute(null);
@@ -130,6 +121,27 @@ public partial class MainWindow : Window
             return;
         }
 
+        // In directory-book mode, Save As should only copy the book
+        // directory – the user chooses a target folder, not a file.
+        if (viewModel.IsDirectoryBook)
+        {
+            var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
+            {
+                Title = "Save book as",
+                AllowMultiple = false
+            });
+
+            if (folders.Count == 0)
+            {
+                return;
+            }
+
+            var targetDirectory = folders[0].Path.LocalPath;
+            viewModel.SaveCurrentLayoutAs(targetDirectory);
+            return;
+        }
+
+        // Single-layout mode keeps the file-based Save As behavior.
         var file = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
         {
             Title = "Save layout as",
