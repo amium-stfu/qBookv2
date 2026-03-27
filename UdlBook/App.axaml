@@ -1,6 +1,7 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="using:Amium.EditorUi.Converters"
+             xmlns:local="using:UdlBook"
              x:Class="UdlBook.App"
              RequestedThemeVariant="Default">
   <Application.Resources>
@@ -48,6 +49,15 @@
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Foreground" Value="#111827" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <Style Selector="Button.legendedit">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Height" Value="52" />
+      <Setter Property="MinHeight" Value="52" />
       <Setter Property="Opacity" Value="1" />
     </Style>
 

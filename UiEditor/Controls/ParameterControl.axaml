@@ -4,6 +4,27 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:viewModels="using:Amium.UiEditor.ViewModels">
+  <UserControl.Styles>
+    <!-- Einheitliches Verhalten fuer Bool-/Bit-Buttons im Body: statischer Hintergrund -->
+    <Style Selector="Button:pointerover">
+      <Setter Property="Background" Value="{Binding Background}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderBrush}" />
+    </Style>
+    <Style Selector="Button:pressed">
+      <Setter Property="Background" Value="{Binding Background}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderBrush}" />
+    </Style>
+    <!-- Hover-/Pressed-Stil fuer Button-Content unterdruecken (kein Farbwechsel des Textes) -->
+    <Style Selector="Button /template/ ContentPresenter">
+      <Setter Property="TextElement.Foreground" Value="{Binding Foreground}" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter">
+      <Setter Property="TextElement.Foreground" Value="{Binding Foreground}" />
+    </Style>
+    <Style Selector="Button:pressed /template/ ContentPresenter">
+      <Setter Property="TextElement.Foreground" Value="{Binding Foreground}" />
+    </Style>
+  </UserControl.Styles>
   <Grid DataContext="{Binding #Root}" RowDefinitions="Auto,*">
     <TextBlock
         Grid.Row="0"
@@ -46,9 +67,9 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate DataType="viewModels:ParameterChoiceState">
-              <Button MinWidth="72" MinHeight="{Binding ChoiceHeight, ElementName=Root}" Padding="10,4" Background="{Binding Background}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="8" Click="OnBoolChoiceClicked" Tag="{Binding Index}">
+              <Border MinWidth="72" MinHeight="{Binding ChoiceHeight, ElementName=Root}" Padding="10,4" Background="{Binding Background}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="8" Tag="{Binding Index}" PointerPressed="OnBoolChoicePointerPressed">
                 <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontSize="{Binding ChoiceFontSize, ElementName=Root}" FontWeight="SemiBold" Foreground="{Binding Foreground}" Text="{Binding Label}" />
-              </Button>
+              </Border>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
@@ -62,9 +83,9 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate DataType="viewModels:ParameterChoiceState">
-            <Button HorizontalAlignment="Stretch" MinHeight="{Binding ChoiceHeight, ElementName=Root}" Margin="0,0,6,6" Padding="8,3" Background="{Binding Background}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="8" Click="OnBitChoiceClicked" Tag="{Binding Index}">
+            <Border HorizontalAlignment="Stretch" MinHeight="{Binding ChoiceHeight, ElementName=Root}" Margin="0,0,6,6" Padding="8,3" Background="{Binding Background}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="8" Tag="{Binding Index}" PointerPressed="OnBitChoicePointerPressed">
               <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontSize="{Binding ChoiceFontSize, ElementName=Root}" FontWeight="SemiBold" Foreground="{Binding Foreground}" Text="{Binding Label}" />
-            </Button>
+            </Border>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>

@@ -1,6 +1,7 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Amium.UiEditor.Models;
@@ -249,6 +250,22 @@ public partial class ParameterControl : UserControl
         }
     }
 
+    private void OnBitChoicePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Border { Tag: int bitIndex })
+        {
+            BitChoiceClicked?.Invoke(this, new BitChoiceClickedEventArgs(bitIndex));
+            e.Handled = true;
+            return;
+        }
+
+        if (sender is Border { Tag: string bitText } && int.TryParse(bitText, out var parsedBitIndex))
+        {
+            BitChoiceClicked?.Invoke(this, new BitChoiceClickedEventArgs(parsedBitIndex));
+            e.Handled = true;
+        }
+    }
+
     private void OnBoolChoiceClicked(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: int boolTag })
@@ -259,6 +276,22 @@ public partial class ParameterControl : UserControl
         }
 
         if (sender is Button { Tag: string boolTextTag } && int.TryParse(boolTextTag, out var parsedBoolTag))
+        {
+            BoolChoiceClicked?.Invoke(this, new BoolChoiceClickedEventArgs(parsedBoolTag != 0));
+            e.Handled = true;
+        }
+    }
+
+    private void OnBoolChoicePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Border { Tag: int boolTag })
+        {
+            BoolChoiceClicked?.Invoke(this, new BoolChoiceClickedEventArgs(boolTag != 0));
+            e.Handled = true;
+            return;
+        }
+
+        if (sender is Border { Tag: string boolTextTag } && int.TryParse(boolTextTag, out var parsedBoolTag))
         {
             BoolChoiceClicked?.Invoke(this, new BoolChoiceClickedEventArgs(parsedBoolTag != 0));
             e.Handled = true;

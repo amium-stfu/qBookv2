@@ -25,6 +25,9 @@
     <Compile Include="CameraRegistry.cs" />
     <Compile Include="Core.cs" />
     <Compile Include="HostRegistries.cs" />
+    <Compile Include="UdlModule.cs" />
+    <Compile Include="HostUdlClient.cs" />
+    <Compile Include="CanHubRegistry.cs" />
     <Compile Include="UiPublisher.cs" />
     <Compile Include="UiPageContext.cs" />
     <Compile Include="PluginCatalog.cs" />
@@ -35,5 +38,6 @@
     <Compile Include="Helpers\**\*.cs" />
     <Compile Include="Manager\**\*.cs" />
     <Compile Include="Net\PipeCom.cs" />
+    <Compile Include="Net\CanHub.cs" />
   </ItemGroup>
 </Project>

@@ -13,26 +13,66 @@ namespace UdlBook.ViewModels;
 
 public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowViewModel
 {
-    private readonly string _startupPagePath;
+    private readonly string _configPath;
+    private readonly string _defaultLayoutPath;
+    private readonly UdlBookAppConfig _config;
+    private string _startupPagePath;
+    private string _currentLayoutFilePath = string.Empty;
     private string _bookProjectPath;
     private string _loadedBookSummary;
     private string _messagesSummary;
     private string _currentLogText;
+    private string _headerTitle = "UdlBook";
+    private bool _hasLayout;
+    private bool _isDefaultLayout;
     private bool _isBookOperationRunning;
 
     public MainWindowViewModel()
         : base(true)
     {
-        _startupPagePath = Path.Combine(AppContext.BaseDirectory, "Page.json");
+        AutoSaveOnEditModeExit = false;
+        _configPath = Path.Combine(AppContext.BaseDirectory, "UdlBook.config.yaml");
+        _config = UdlBookAppConfig.Load(_configPath);
+
+        _defaultLayoutPath = Path.Combine(AppContext.BaseDirectory, "Page.json");
+        IsDarkTheme = !string.Equals(_config.DefaultTheme, "Light", StringComparison.OrdinalIgnoreCase);
+
+        _startupPagePath = string.IsNullOrWhiteSpace(_config.StartLayout)
+            ? _defaultLayoutPath
+            : _config.StartLayout;
         LoadBookCommand = new Amium.UiEditor.ViewModels.RelayCommand(LoadBook, CanRunBookAction);
         RebuildBookCommand = new Amium.UiEditor.ViewModels.RelayCommand(RebuildBook, CanRunBookAction);
         RefreshLogCommand = new Amium.UiEditor.ViewModels.RelayCommand(RefreshLog);
         _bookProjectPath = Path.GetDirectoryName(_startupPagePath) ?? AppContext.BaseDirectory;
-        _loadedBookSummary = "Kein Book geladen";
+        _loadedBookSummary = "No book loaded";
         _messagesSummary = "Keine Meldungen";
         _currentLogText = string.Empty;
         HostLogger.ProcessLog.EntryAdded += OnHostLogEntryAdded;
         RefreshLog();
+
+        // Ensure the canvas grid starts disabled and keep legend icon color in sync.
+        ShowGrid = false;
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(IsEditMode))
+            {
+                if (!IsEditMode)
+                {
+                    ShowGrid = false;
+                }
+
+                OnPropertyChanged(nameof(LegendEditIconColor));
+            }
+            else if (e.PropertyName == nameof(TabSelectForeColor))
+            {
+                OnPropertyChanged(nameof(LegendEditIconColor));
+            }
+            else if (e.PropertyName == nameof(IsDarkTheme))
+            {
+                _config.DefaultTheme = IsDarkTheme ? "Dark" : "Light";
+                _config.Save(_configPath);
+            }
+        };
 
         Dispatcher.UIThread.Post(LoadStartupPage, DispatcherPriority.Background);
     }
@@ -72,6 +112,65 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         private set => SetProperty(ref _currentLogText, value);
     }
 
+    public string HeaderTitle
+    {
+        get => _headerTitle;
+        private set => SetProperty(ref _headerTitle, value);
+    }
+
+    public bool HasLayout
+    {
+        get => _hasLayout;
+        private set
+        {
+            if (SetProperty(ref _hasLayout, value))
+            {
+                OnPropertyChanged(nameof(CanSaveLayout));
+            }
+        }
+    }
+
+    public bool IsDefaultLayout
+    {
+        get => _isDefaultLayout;
+        private set
+        {
+            if (SetProperty(ref _isDefaultLayout, value))
+            {
+                OnPropertyChanged(nameof(CanSaveLayout));
+            }
+        }
+    }
+
+    public bool CanSaveLayout
+    {
+        get => HasLayout && !IsDefaultLayout;
+    }
+
+    public bool IsCurrentLayoutStartLayout
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_currentLayoutFilePath) || string.IsNullOrWhiteSpace(_config.StartLayout))
+            {
+                return false;
+            }
+
+            try
+            {
+                var current = Path.GetFullPath(_currentLayoutFilePath);
+                var start = Path.GetFullPath(_config.StartLayout);
+                return string.Equals(current, start, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    public string StartLayoutIconColor => IsCurrentLayoutStartLayout ? "#F97316" : PrimaryTextBrush;
+
     public bool IsBookOperationRunning
     {
         get => _isBookOperationRunning;
@@ -85,18 +184,78 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         }
     }
 
+    public string LegendEditIconColor => IsEditMode ? "#DC2626" : TabSelectForeColor;
+
     public Amium.UiEditor.ViewModels.RelayCommand LoadBookCommand { get; }
 
     public Amium.UiEditor.ViewModels.RelayCommand RebuildBookCommand { get; }
 
     public Amium.UiEditor.ViewModels.RelayCommand RefreshLogCommand { get; }
 
+    public void SetCurrentLayoutAsStartup()
+    {
+        if (string.IsNullOrWhiteSpace(_currentLayoutFilePath) || !File.Exists(_currentLayoutFilePath))
+        {
+            AddMessage("StartLayout", "Warning", "No layout file is currently loaded.");
+            StatusText = "No layout file is currently loaded.";
+            return;
+        }
+
+        _config.StartLayout = _currentLayoutFilePath;
+        _config.Save(_configPath);
+        _startupPagePath = _currentLayoutFilePath;
+        StatusText = $"Start layout set to: {_currentLayoutFilePath}";
+        OnPropertyChanged(nameof(IsCurrentLayoutStartLayout));
+        OnPropertyChanged(nameof(StartLayoutIconColor));
+    }
+
+    public void SaveCurrentLayout()
+    {
+        SaveLayout();
+    }
+
+    public void SaveCurrentLayoutAs(string targetPath)
+    {
+        if (string.IsNullOrWhiteSpace(targetPath))
+        {
+            return;
+        }
+
+        // Ensure current in-memory layout is persisted to its backing file first.
+        SaveLayout();
+
+        var sourceLayoutPath = _currentLayoutFilePath;
+        if (string.IsNullOrWhiteSpace(sourceLayoutPath))
+        {
+            sourceLayoutPath = SelectedPage.UiFilePath ?? string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(sourceLayoutPath) || !File.Exists(sourceLayoutPath))
+        {
+            AddMessage("Save", "Warning", "No existing layout file to save from.");
+            StatusText = "No existing layout file to save.";
+            return;
+        }
+
+        var directory = Path.GetDirectoryName(targetPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        File.Copy(sourceLayoutPath, targetPath, true);
+
+        // Switch the current layout to the new file so further saves go there.
+        LoadLayoutFromFile(targetPath);
+        StatusText = $"Layout saved as: {targetPath}";
+    }
+
     public void RefreshLog()
     {
         var entries = HostLogger.ProcessLog.GetEntries();
         if (entries.Count == 0)
         {
-            CurrentLogText = "Noch kein Log vorhanden.";
+            CurrentLogText = "No log entries yet.";
             OnPropertyChanged(nameof(CurrentLogFilePath));
             return;
         }
@@ -124,7 +283,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             SetPages(pages);
         }
 
-        StatusText = "Runtime gestoppt. Canvas geleert.";
+        StatusText = "Runtime stopped. Canvas cleared.";
     }
 
     public void ApplyRunningUi(BookProject project)
@@ -133,7 +292,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         SetPages(CreatePagesFromBook(project));
         BookProjectPath = project.RootDirectory;
         LoadedBookSummary = $"{project.ProjectName} | Pages: {project.Pages.Count} | C#: {project.SourceFiles.Count} | UI: {project.UiFiles.Count}";
-        StatusText = $"Runtime gestartet: {project.ProjectName}";
+        StatusText = $"Runtime started: {project.ProjectName}";
     }
 
     private bool CanRunBookAction()
@@ -172,9 +331,12 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
         if (!File.Exists(_startupPagePath))
         {
-            LoadedBookSummary = "Default layout fehlt";
+            LoadedBookSummary = "Default layout missing";
             AddMessage("UI", "Warning", "Startup-Page.json nicht gefunden.", _startupPagePath);
-            StatusText = $"Keine Startup-Page gefunden: {_startupPagePath}";
+            StatusText = $"No startup page found: {_startupPagePath}";
+            HasLayout = false;
+            IsDefaultLayout = false;
+            HeaderTitle = "UdlBook";
             return;
         }
 
@@ -199,14 +361,81 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             ApplyBookTabStripPlacement(Path.GetDirectoryName(_startupPagePath) ?? AppContext.BaseDirectory);
             SetPages([model]);
             BookProjectPath = Path.GetDirectoryName(_startupPagePath) ?? AppContext.BaseDirectory;
+            _currentLayoutFilePath = _startupPagePath;
+            HasLayout = true;
+            IsDefaultLayout = string.Equals(_startupPagePath, _defaultLayoutPath, StringComparison.OrdinalIgnoreCase);
+            HeaderTitle = Path.GetFileNameWithoutExtension(_startupPagePath) ?? "UdlBook";
             LoadedBookSummary = $"Default layout | {Path.GetFileName(_startupPagePath)}";
-            StatusText = $"Default layout geladen: {_startupPagePath}";
+            StatusText = $"Default layout loaded: {_startupPagePath}";
+            OnPropertyChanged(nameof(IsCurrentLayoutStartLayout));
+            OnPropertyChanged(nameof(StartLayoutIconColor));
         }
         catch (Exception ex)
         {
-            LoadedBookSummary = "Default layout fehlerhaft";
+            LoadedBookSummary = "Default layout invalid";
             AddMessage("UI", "Error", ex.Message, _startupPagePath);
-            StatusText = $"Default layout konnte nicht geladen werden: {ex.Message}";
+            StatusText = $"Default layout could not be loaded: {ex.Message}";
+            HasLayout = false;
+            IsDefaultLayout = false;
+            HeaderTitle = "UdlBook";
+        }
+    }
+
+    public void LoadLayoutFromFile(string uiFilePath)
+    {
+        ResetMessages();
+
+        if (!File.Exists(uiFilePath))
+        {
+            LoadedBookSummary = "Layout file missing";
+            AddMessage("UI", "Warning", "Layout file not found.", uiFilePath);
+            StatusText = $"No layout file found: {uiFilePath}";
+            HasLayout = false;
+            IsDefaultLayout = false;
+            HeaderTitle = "UdlBook";
+            return;
+        }
+
+        try
+        {
+            var fallbackName = Path.GetFileNameWithoutExtension(uiFilePath);
+            var layout = BookUiLayoutLoader.Load(uiFilePath, fallbackName);
+            var pageName = string.IsNullOrWhiteSpace(layout.PageName) ? fallbackName : layout.PageName;
+            var model = new PageModel
+            {
+                Index = 1,
+                Name = pageName,
+                DisplayText = string.IsNullOrWhiteSpace(layout.Title) ? pageName : layout.Title,
+                UiFilePath = uiFilePath,
+                UiLayoutDefinition = layout
+            };
+
+            foreach (var item in CreateItemsFromNode(pageName, layout.Layout, 24, 24))
+            {
+                model.Items.Add(item);
+            }
+
+            var rootDirectory = Path.GetDirectoryName(uiFilePath) ?? AppContext.BaseDirectory;
+            ApplyBookTabStripPlacement(rootDirectory);
+            SetPages([model]);
+            BookProjectPath = rootDirectory;
+            _currentLayoutFilePath = uiFilePath;
+            HasLayout = true;
+            IsDefaultLayout = string.Equals(uiFilePath, _defaultLayoutPath, StringComparison.OrdinalIgnoreCase);
+            HeaderTitle = Path.GetFileNameWithoutExtension(uiFilePath) ?? "UdlBook";
+            LoadedBookSummary = $"Layout | {Path.GetFileName(uiFilePath)}";
+            StatusText = $"Layout loaded: {uiFilePath}";
+            OnPropertyChanged(nameof(IsCurrentLayoutStartLayout));
+            OnPropertyChanged(nameof(StartLayoutIconColor));
+        }
+        catch (Exception ex)
+        {
+            LoadedBookSummary = "Layout invalid";
+            AddMessage("UI", "Error", ex.Message, uiFilePath);
+            StatusText = $"Layout could not be loaded: {ex.Message}";
+            HasLayout = false;
+            IsDefaultLayout = false;
+            HeaderTitle = "UdlBook";
         }
     }
 
@@ -234,32 +463,83 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         ResetMessages();
         try
         {
-            var result = await Core.LoadAndRunAsync(BookProjectPath);
-            BookProjectPath = result.Project.RootDirectory;
-            ApplyBookTabStripPlacement(result.Project.RootDirectory);
-            LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
-            AddMessage("Load", result.Success ? "Info" : "Error", $"Load {(result.Success ? "erfolgreich" : "fehlgeschlagen")}: {result.Project.ProjectName}", result.Project.RootDirectory);
-
-            foreach (var diagnostic in result.Diagnostics)
+            if (!File.Exists(BookProjectPath))
             {
-                var span = diagnostic.Location.GetMappedLineSpan();
-                var path = string.IsNullOrWhiteSpace(span.Path) ? diagnostic.Location.SourceTree?.FilePath ?? string.Empty : span.Path;
-                var location = string.IsNullOrWhiteSpace(path)
-                    ? string.Empty
-                    : $"{Path.GetFileName(path)}:{span.StartLinePosition.Line + 1}:{span.StartLinePosition.Character + 1}";
-
-                AddMessage("Roslyn", diagnostic.Severity.ToString(), diagnostic.GetMessage(), location);
+                LoadedBookSummary = "Book definition not found";
+                AddMessage("Load", "Warning", "Book definition file not found.", BookProjectPath);
+                StatusText = $"No book definition found: {BookProjectPath}";
+                return;
             }
 
-            StatusText = result.Success
-                ? $"Load erfolgreich: {result.Project.ProjectName} ({result.ErrorCount} Fehler, {result.WarningCount} Warnungen)"
-                : $"Load fehlgeschlagen: {result.ErrorCount} Fehler, {result.WarningCount} Warnungen";
+            var definitionPath = Path.GetFullPath(BookProjectPath);
+            var definitionDirectory = Path.GetDirectoryName(definitionPath) ?? AppContext.BaseDirectory;
+            string? layoutPath = null;
+
+            try
+            {
+                var jsonText = File.ReadAllText(definitionPath);
+                var json = JsonNode.Parse(jsonText) as JsonObject;
+
+                if (json is not null)
+                {
+                    // 1) If the file itself contains a "Layout" node, treat it as a self-contained layout file.
+                    if (json["Layout"] is not null)
+                    {
+                        layoutPath = definitionPath;
+                    }
+                    else
+                    {
+                        // 2) Otherwise, look for explicit layout references.
+                        layoutPath = (string?)json["LayoutFile"]
+                            ?? (string?)json["UiFile"];
+
+                        if (!string.IsNullOrWhiteSpace(layoutPath))
+                        {
+                            layoutPath = Path.GetFullPath(Path.Combine(definitionDirectory, layoutPath));
+                        }
+                        else
+                        {
+                            // 3) Heuristic for simple Book.json-style manifests:
+                            //    Prefer Page.json next to the definition, or a single other *.json.
+                            var candidate = Path.Combine(definitionDirectory, "Page.json");
+                            if (File.Exists(candidate))
+                            {
+                                layoutPath = candidate;
+                            }
+                            else
+                            {
+                                var jsonFiles = Directory.GetFiles(definitionDirectory, "*.json");
+                                var otherJsons = jsonFiles
+                                    .Where(path => !string.Equals(path, definitionPath, StringComparison.OrdinalIgnoreCase))
+                                    .ToArray();
+
+                                if (otherJsons.Length == 1)
+                                {
+                                    layoutPath = otherJsons[0];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // If parsing fails, treat the definition file itself as layout.
+                AddMessage("Load", "Warning", ex.Message, definitionPath);
+            }
+
+            layoutPath ??= definitionPath;
+            LoadLayoutFromFile(layoutPath);
+
+            BookProjectPath = definitionDirectory;
+            LoadedBookSummary = $"Book | {Path.GetFileName(definitionPath)}";
+            StatusText = $"Book loaded: {definitionPath}";
         }
         catch (Exception ex)
         {
-            LoadedBookSummary = "Book konnte nicht geladen werden";
+            LoadedBookSummary = "Book could not be loaded";
             AddMessage("Load", "Error", ex.Message);
-            StatusText = $"Load fehlgeschlagen: {ex.Message}";
+            StatusText = $"Load failed: {ex.Message}";
         }
         finally
         {
@@ -279,32 +559,19 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         ResetMessages();
         try
         {
-            var result = await Core.RebuildAsync(BookProjectPath);
-            ApplyBookTabStripPlacement(result.Project.RootDirectory);
-            SetPages(CreatePagesFromBook(result.Project));
-            BookProjectPath = result.Project.RootDirectory;
-            LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
-            AddMessage("Build", result.Success ? "Info" : "Error", $"Build {(result.Success ? "erfolgreich" : "fehlgeschlagen")}: {result.Project.ProjectName}", result.Project.RootDirectory);
-
-            foreach (var diagnostic in result.Diagnostics)
+            if (string.IsNullOrWhiteSpace(_currentLayoutFilePath))
             {
-                var span = diagnostic.Location.GetMappedLineSpan();
-                var path = string.IsNullOrWhiteSpace(span.Path) ? diagnostic.Location.SourceTree?.FilePath ?? string.Empty : span.Path;
-                var location = string.IsNullOrWhiteSpace(path)
-                    ? string.Empty
-                    : $"{Path.GetFileName(path)}:{span.StartLinePosition.Line + 1}:{span.StartLinePosition.Character + 1}";
-
-                AddMessage("Roslyn", diagnostic.Severity.ToString(), diagnostic.GetMessage(), location);
+                StatusText = "No layout to reload.";
+                return;
             }
 
-            StatusText = result.Success
-                ? $"Build erfolgreich: {result.Project.ProjectName} ({result.ErrorCount} Fehler, {result.WarningCount} Warnungen)"
-                : $"Build fehlgeschlagen: {result.ErrorCount} Fehler, {result.WarningCount} Warnungen";
+            LoadLayoutFromFile(_currentLayoutFilePath);
+            StatusText = $"Layout reloaded: {_currentLayoutFilePath}";
         }
         catch (Exception ex)
         {
             AddMessage("Build", "Error", ex.Message);
-            StatusText = $"Rebuild fehlgeschlagen: {ex.Message}";
+            StatusText = $"Rebuild failed: {ex.Message}";
         }
         finally
         {
@@ -346,7 +613,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                 UiFilePath = page.UiFile
             };
 
-            fallbackModel.Items.Add(CreateFallbackItem(page.Name, "Keine Page.json gefunden"));
+            fallbackModel.Items.Add(CreateFallbackItem(page.Name, "No Page.json found"));
             return fallbackModel;
         }
 
@@ -381,7 +648,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                 DisplayText = pageDisplayText,
                 UiFilePath = page.UiFile
             };
-            fallbackModel.Items.Add(CreateFallbackItem(page.Name, $"UI-Fehler: {ex.Message}"));
+            fallbackModel.Items.Add(CreateFallbackItem(page.Name, $"UI error: {ex.Message}"));
             return fallbackModel;
         }
     }
@@ -424,7 +691,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             Name = text,
             BodyCaption = text,
             ControlCaption = pageName,
-            Footer = isButton ? "Aktion" : type,
+            Footer = isButton ? "Action" : type,
             X = node.X ?? defaultX,
             Y = node.Y ?? defaultY,
             Width = node.Width ?? (isButton ? 320 : (kind == ControlKind.LogControl ? 420 : (isChartControl ? 520 : 260))),

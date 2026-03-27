@@ -195,6 +195,16 @@ public static class Core
         return result;
     }
 
+    public static Task<BookBuildResult> LoadAndRunUdlBookAsync(string? path = null, CancellationToken cancellationToken = default)
+    {
+        return LoadAndRunAsync(path, cancellationToken);
+    }
+
+    public static Task<BookBuildResult> LoadAndRunStudioProjectAsync(string? path = null, CancellationToken cancellationToken = default)
+    {
+        return LoadAndRunAsync(path, cancellationToken);
+    }
+
     public static async Task<BookBuildResult> RebuildAsync(string? directory = null, CancellationToken cancellationToken = default)
     {
         var targetDirectory = ResolveProjectDirectory(directory);
@@ -264,6 +274,16 @@ public static class Core
         {
             BuildSemaphore.Release();
         }
+    }
+
+    public static Task<BookBuildResult> RebuildUdlBookAsync(string? path = null, CancellationToken cancellationToken = default)
+    {
+        return RebuildAsync(path, cancellationToken);
+    }
+
+    public static Task<BookBuildResult> RebuildStudioProjectAsync(string? path = null, CancellationToken cancellationToken = default)
+    {
+        return RebuildAsync(path, cancellationToken);
     }
 
     public static void SendToEditor(string command, params string[] args)

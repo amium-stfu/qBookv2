@@ -548,8 +548,6 @@ public partial class EditorValueInputControl : UserControl
             ApplyBitButtonStyle(button);
             button.Click += OnBitButtonClicked;
             button.PointerPressed += OnInteractivePointerPressed;
-            button.PointerEntered += OnBitPointerEntered;
-            button.PointerExited += OnBitPointerExited;
             panel.Children.Add(button);
             _bitButtons.Add((button, bitIndex));
         }
@@ -633,18 +631,12 @@ public partial class EditorValueInputControl : UserControl
 
     private void OnBitPointerEntered(object? sender, PointerEventArgs e)
     {
-        if (sender is ToggleButton button)
-        {
-            ApplyBitButtonStyle(button, true);
-        }
+        // Hover-Effekte fuer Bit-Buttons sind explizit deaktiviert.
     }
 
     private void OnBitPointerExited(object? sender, PointerEventArgs e)
     {
-        if (sender is ToggleButton button)
-        {
-            ApplyBitButtonStyle(button);
-        }
+        // Hover-Effekte fuer Bit-Buttons sind explizit deaktiviert.
     }
 
     private void OnInputButtonClicked(object? sender, RoutedEventArgs e)
@@ -916,7 +908,7 @@ public partial class EditorValueInputControl : UserControl
             _ => string.Empty
         };
 
-        if (_item.TryUpdateTargetParameterValue(rawValue, out var error))
+        if (_item.TrySendInput(rawValue, out var error))
         {
             ViewModel?.CancelValueInput();
             return;
@@ -1016,7 +1008,7 @@ public partial class EditorValueInputControl : UserControl
         }
     }
 
-    private void ApplyBitButtonStyle(ToggleButton button, bool isPointerOver = false)
+    private void ApplyBitButtonStyle(ToggleButton button)
     {
         var vm = ViewModel;
         if (vm is null)
@@ -1025,7 +1017,7 @@ public partial class EditorValueInputControl : UserControl
         }
 
         var isActive = button.IsChecked == true;
-        var background = isActive ? vm.HeaderBadgeBackground : (isPointerOver ? vm.ButtonHoverColor : vm.ButtonBackColor);
+        var background = isActive ? vm.HeaderBadgeBackground : vm.ButtonBackColor;
         button.Background = Brush.Parse(background);
         button.BorderBrush = Brush.Parse(vm.EditPanelButtonBorderBrush);
         button.Foreground = Brush.Parse(vm.ButtonForeColor);

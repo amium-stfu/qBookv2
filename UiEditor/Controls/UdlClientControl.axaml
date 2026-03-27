@@ -6,99 +6,58 @@
     xmlns:editorUi="using:Amium.EditorUi.Controls"
     xmlns:viewModels="using:Amium.UiEditor.ViewModels">
   <controls:UdlClientControl.HeaderActionsContent>
-    <Grid>
-      <Button x:Name="MenuButton"
-              Classes="toolicon"
-              Width="18"
-              Height="18"
-              MinWidth="18"
-              Padding="0"
-              HorizontalAlignment="Center"
-              VerticalAlignment="Center"
-              Background="Transparent"
-              BorderBrush="Transparent"
-              CornerRadius="0"
-              Click="OnMenuClicked"
-              PointerPressed="OnInteractivePointerPressed"
-              ToolTip.Tip="Attach Items">
-        <editorUi:ThemeSvgIcon Width="12" Height="12" IconPath="avares://Amium.Editor/EditorIcons/menus.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+    <Grid ColumnDefinitions="Auto,Auto">
+          <Button Padding="0"
+            Background="Transparent"
+            BorderBrush="Transparent"
+            BorderThickness="0"
+            Cursor="Hand"
+              HorizontalAlignment="Left"
+              IsEnabled="{Binding CanToggleConnection, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}"
+              Click="OnToggleConnectionClicked"
+              PointerPressed="OnInteractivePointerPressed">
+      <Border Background="{Binding ConnectionStatusBackground, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}"
+          CornerRadius="6"
+          Padding="6,2">
+        <TextBlock FontSize="11"
+           FontWeight="SemiBold"
+           Foreground="{Binding ConnectionStatusForeground, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}"
+           Text="{Binding ConnectionStateText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
+      </Border>
       </Button>
-      <Popup x:Name="AttachPopup" Placement="BottomEdgeAlignedRight" PlacementTarget="{Binding #MenuButton}" HorizontalOffset="0" VerticalOffset="8" IsLightDismissEnabled="True">
-        <Border MinWidth="220"
-                MaxWidth="320"
-                Padding="12"
-                Background="{Binding CardBackground, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
-                BorderBrush="{Binding CardBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
-                BorderThickness="1"
-                CornerRadius="10"
-                PointerPressed="OnInteractivePointerPressed">
-          <Grid RowDefinitions="Auto,Auto,*" MaxHeight="280">
-            <TextBlock FontWeight="SemiBold"
-                       Foreground="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
-                       Text="Attach Items" />
-            <TextBlock Grid.Row="1"
-                       Margin="0,6,0,10"
-                       Foreground="{Binding SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
-                       Text="Alle angehakten Eintraege werden als UI-Targets registriert."
-                       TextWrapping="Wrap" />
-            <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-              <ItemsControl ItemsSource="{Binding AttachRows, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate DataType="viewModels:AttachItemEditorRow">
-                    <CheckBox Margin="0,0,0,6"
-                              IsChecked="{Binding IsAttached, Mode=TwoWay}"
-                              Content="{Binding DisplayLabel}" />
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-          </Grid>
-        </Border>
-      </Popup>
+
+      <Border Grid.Column="1"
+                          Margin="6,0,0,0"
+                          Padding="6,2"
+                          Background="#E0E0E0"
+                          BorderBrush="{Binding CardBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
+                          BorderThickness="1"
+                          CornerRadius="6">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <TextBlock FontSize="11"
+                     Foreground="#111827"
+                     Text="Modules" />
+          <TextBlock FontSize="11"
+                     FontWeight="SemiBold"
+                     Foreground="#111827"
+                     Text="{Binding ItemCountText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
+        </StackPanel>
+      </Border>
     </Grid>
   </controls:UdlClientControl.HeaderActionsContent>
 
   <controls:UdlClientControl.BodyContent>
-    <Grid RowDefinitions="Auto,Auto,Auto">
-      <Border Padding="10,8"
-              Background="{Binding EffectiveBodyBackgroundBrush}"
-              BorderBrush="{Binding EffectiveBodyBorderBrush}"
-              BorderThickness="{Binding EffectiveBodyBorderThickness}"
-              CornerRadius="10">
-        <Grid ColumnDefinitions="*,Auto">
-          <StackPanel Spacing="2" VerticalAlignment="Center">
-            <TextBlock FontSize="12" Foreground="{Binding EffectiveMutedForegroundBrush}" Text="Socket" />
-            <TextBlock FontSize="16" FontWeight="Bold" Foreground="{Binding EffectiveBodyForegroundBrush}" Text="{Binding SocketText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
-          </StackPanel>
-          <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" Foreground="{Binding EffectiveBodyForegroundBrush}" Text="{Binding ConnectionStateText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
-        </Grid>
-      </Border>
-
-      <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="*,Auto,Auto">
+    <Border Padding="10,8"
+            Background="{Binding EffectiveBodyBackgroundBrush}"
+            BorderBrush="{Binding EffectiveBodyBorderBrush}"
+            BorderThickness="{Binding EffectiveBodyBorderThickness}"
+            CornerRadius="10">
+      <Grid ColumnDefinitions="*">
         <StackPanel Spacing="2" VerticalAlignment="Center">
-          <TextBlock FontSize="12" Foreground="{Binding EffectiveMutedForegroundBrush}" Text="AutoConnect" />
-          <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="{Binding EffectiveBodyForegroundBrush}" Text="{Binding AutoConnectText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
+          <TextBlock FontSize="12" Foreground="{Binding EffectiveMutedForegroundBrush}" Text="Socket" />
+          <TextBlock FontSize="16" FontWeight="Bold" Foreground="{Binding EffectiveBodyForegroundBrush}" Text="{Binding SocketText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
         </StackPanel>
-        <Button Grid.Column="1" Margin="10,0,0,0" Padding="16,8" Click="OnConnectClicked" IsEnabled="{Binding CanConnect, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" PointerPressed="OnInteractivePointerPressed">
-          <TextBlock FontWeight="SemiBold" Text="Connect" />
-        </Button>
-        <Button Grid.Column="2" Margin="10,0,0,0" Padding="16,8" Click="OnDisconnectClicked" IsEnabled="{Binding CanDisconnect, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" PointerPressed="OnInteractivePointerPressed">
-          <TextBlock FontWeight="SemiBold" Text="Disconnect" />
-        </Button>
       </Grid>
-
-      <Border Grid.Row="2"
-              Margin="0,10,0,0"
-              Padding="10,8"
-              Background="{Binding EffectiveBodyBackgroundBrush}"
-              BorderBrush="{Binding EffectiveBodyBorderBrush}"
-              BorderThickness="{Binding EffectiveBodyBorderThickness}"
-              CornerRadius="10">
-        <Grid ColumnDefinitions="Auto,*">
-          <TextBlock FontWeight="SemiBold" Foreground="{Binding EffectiveBodyForegroundBrush}" Text="Items:" />
-          <TextBlock Grid.Column="1" Margin="8,0,0,0" Foreground="{Binding EffectiveBodyForegroundBrush}" Text="{Binding ItemCountText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
-        </Grid>
-      </Border>
-    </Grid>
+    </Border>
   </controls:UdlClientControl.BodyContent>
 </editorUi:EditorTemplateControl>

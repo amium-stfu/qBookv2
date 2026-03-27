@@ -31,8 +31,6 @@ namespace Amium.Items
             {
                 if (value is null)
                 {
-                    if (_value is not null && _value.GetType().IsValueType)
-                        throw new InvalidCastException($"Cannot assign null to parameter '{Name}' of type '{_value.GetType().FullName}'.");
                     _value = null;
                     LastUpdate = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     Changed?.Invoke(this, EventArgs.Empty);

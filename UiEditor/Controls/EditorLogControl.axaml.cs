@@ -370,13 +370,13 @@ public partial class EditorLogControl : UserControl
 
     private void OnLogEntryAdded(ProcessLogEntry entry)
     {
-        if (!PageIsActive)
-        {
-            return;
-        }
-
         Dispatcher.UIThread.Post(() =>
         {
+            if (!PageIsActive)
+            {
+                return;
+            }
+
             LogEntries.Add(CreateDisplayEntry(entry));
             ScrollToEnd();
         });

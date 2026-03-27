@@ -91,7 +91,7 @@ public partial class EditorItemControl : EditorTemplateControl
             return;
         }
 
-        _ = Item.TryUpdateTargetParameterValue(e.Value, out _);
+        _ = Item.TrySendInput(e.Value, out _);
     }
 
     private void OnSettingsClicked(object? sender, RoutedEventArgs e)

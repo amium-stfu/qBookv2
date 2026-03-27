@@ -11,6 +11,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Amium.EditorUi.Controls;
 using Amium.Host;
@@ -18,7 +19,7 @@ using Amium.Items;
 using Amium.Logging;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
-using UdlClientRuntime = UdlClient.UdlClient;
+using UdlClientRuntime = Amium.Host.HostUdlClient;
 
 namespace Amium.UiEditor.Controls;
 
@@ -42,6 +43,21 @@ public partial class UdlClientControl : EditorTemplateControl
     public static readonly DirectProperty<UdlClientControl, bool> CanDisconnectProperty =
         AvaloniaProperty.RegisterDirect<UdlClientControl, bool>(nameof(CanDisconnect), control => control.CanDisconnect);
 
+    public static readonly DirectProperty<UdlClientControl, IBrush> ConnectionStatusBackgroundProperty =
+        AvaloniaProperty.RegisterDirect<UdlClientControl, IBrush>(nameof(ConnectionStatusBackground), control => control.ConnectionStatusBackground);
+
+    public static readonly DirectProperty<UdlClientControl, IBrush> ConnectionStatusForegroundProperty =
+        AvaloniaProperty.RegisterDirect<UdlClientControl, IBrush>(nameof(ConnectionStatusForeground), control => control.ConnectionStatusForeground);
+
+    public static readonly DirectProperty<UdlClientControl, IBrush> ConnectionStatusHoverBackgroundProperty =
+        AvaloniaProperty.RegisterDirect<UdlClientControl, IBrush>(nameof(ConnectionStatusHoverBackground), control => control.ConnectionStatusHoverBackground);
+
+    public static readonly DirectProperty<UdlClientControl, bool> CanToggleConnectionProperty =
+        AvaloniaProperty.RegisterDirect<UdlClientControl, bool>(nameof(CanToggleConnection), control => control.CanToggleConnection);
+
+    public static readonly DirectProperty<UdlClientControl, string> ConnectionToggleTextProperty =
+        AvaloniaProperty.RegisterDirect<UdlClientControl, string>(nameof(ConnectionToggleText), control => control.ConnectionToggleText);
+
     private Popup? _attachPopup;
     private PageItemModel? _observedItem;
     private UiPageContext? _uiPageContext;
@@ -63,10 +79,16 @@ public partial class UdlClientControl : EditorTemplateControl
     private long _lastLoggedRxCounter;
     private long _lastLoggedTxCounter;
     private long _monitorLoopCounter;
+    private volatile bool _verboseDiagnosticsEnabled;
     private string _socketText = "192.168.178.151:9001";
     private string _connectionStateText = "Disconnected";
     private string _autoConnectText = "False";
     private string _itemCountText = "0";
+    private IBrush _connectionStatusBackground = Brushes.Black;
+    private IBrush _connectionStatusForeground = Brushes.White;
+    private IBrush _connectionStatusHoverBackground = Brushes.DimGray;
+    private bool _canToggleConnection = true;
+    private string _connectionToggleText = "Connect";
 
     public UdlClientControl()
     {
@@ -120,6 +142,36 @@ public partial class UdlClientControl : EditorTemplateControl
     {
         get => _canDisconnect;
         private set => SetAndRaise(CanDisconnectProperty, ref _canDisconnect, value);
+    }
+
+    public IBrush ConnectionStatusBackground
+    {
+        get => _connectionStatusBackground;
+        private set => SetAndRaise(ConnectionStatusBackgroundProperty, ref _connectionStatusBackground, value);
+    }
+
+    public IBrush ConnectionStatusForeground
+    {
+        get => _connectionStatusForeground;
+        private set => SetAndRaise(ConnectionStatusForegroundProperty, ref _connectionStatusForeground, value);
+    }
+
+    public IBrush ConnectionStatusHoverBackground
+    {
+        get => _connectionStatusHoverBackground;
+        private set => SetAndRaise(ConnectionStatusHoverBackgroundProperty, ref _connectionStatusHoverBackground, value);
+    }
+
+    public bool CanToggleConnection
+    {
+        get => _canToggleConnection;
+        private set => SetAndRaise(CanToggleConnectionProperty, ref _canToggleConnection, value);
+    }
+
+    public string ConnectionToggleText
+    {
+        get => _connectionToggleText;
+        private set => SetAndRaise(ConnectionToggleTextProperty, ref _connectionToggleText, value);
     }
 
     private PageItemModel? Item => DataContext as PageItemModel;
@@ -264,6 +316,20 @@ public partial class UdlClientControl : EditorTemplateControl
         e.Handled = true;
     }
 
+    private void OnToggleConnectionClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_client is null)
+        {
+            ConnectInternal();
+        }
+        else
+        {
+            DisconnectInternal();
+        }
+
+        e.Handled = true;
+    }
+
     private void ConnectInternal()
     {
         if (!Dispatcher.UIThread.CheckAccess())
@@ -292,10 +358,10 @@ public partial class UdlClientControl : EditorTemplateControl
             _lastPublishedClientItemCount = -1;
             _publishedStatusValues.Clear();
             _publishedRuntimeSignatures.Clear();
-            var client = new UdlClientRuntime(NormalizeClientName(item));
+            var client = new UdlClientRuntime(NormalizeClientName(item), item.UdlClientHost, item.UdlClientPort);
             client.FrameReceived += OnClientFrameReceived;
             client.Diagnostic += OnClientDiagnostic;
-            client.Open(item.UdlClientHost, item.UdlClientPort);
+            client.ConnectAsync().GetAwaiter().GetResult();
             _client = client;
             _connectionState = ConnectionState.Connected;
             StartMonitor();
@@ -521,6 +587,10 @@ public partial class UdlClientControl : EditorTemplateControl
         if (runtimeItems.Count != _lastPublishedClientItemCount)
         {
             _lastPublishedClientItemCount = runtimeItems.Count;
+            var samplePaths = string.Join(", ", runtimeItems
+                .Take(3)
+                .Select(static item => item.Path ?? string.Empty));
+            WriteDiagnosticLog($"Runtime items updated client={_client.Name} count={runtimeItems.Count} samplePaths=[{samplePaths}]");
             ScheduleAttachedItemsRefresh();
         }
 
@@ -528,6 +598,7 @@ public partial class UdlClientControl : EditorTemplateControl
         {
             if (!string.IsNullOrWhiteSpace(runtimeItem.Path) && ShouldPublishRuntimeItem(runtimeItem))
             {
+                WriteVerboseDiagnosticLog($"Publish snapshot client={_client.Name} path={runtimeItem.Path} signature={BuildItemSignature(runtimeItem)}");
                 HostRegistries.Data.UpsertSnapshot(runtimeItem.Path!, runtimeItem.Clone(), pruneMissingMembers: true);
             }
         }
@@ -683,6 +754,7 @@ public partial class UdlClientControl : EditorTemplateControl
 
             var alias = relativePath.Replace('\\', '/').Trim('/');
             var attached = pageContext.Attach(runtimeItem, alias);
+            WriteVerboseDiagnosticLog($"Attach snapshot page={pageContext.PagePath} client={NormalizeClientName(item)} runtimePath={runtimeItem.Path} alias={alias} attachedPath={attached.Path}");
             HostRegistries.Data.UpsertSnapshot(attached.Path!, attached.Clone(), pruneMissingMembers: true);
         }
     }
@@ -746,14 +818,26 @@ public partial class UdlClientControl : EditorTemplateControl
         var prefix = $"Runtime/UdlClient/{NormalizeClientName(item)}/";
         var runtimeOptions = HostRegistries.Data.GetAllKeys()
             .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            .Select(key => key[prefix.Length..]);
+            .Select(key => key[prefix.Length..])
+            .Where(static path => IsRootAttachPath(path));
 
         return runtimeOptions
             .Concat(EnumerateClientItems().Select(GetRelativeRuntimePath))
-            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Where(static path => IsRootAttachPath(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static bool IsRootAttachPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var normalized = path.Replace('\\', '/').Trim('/');
+        return !normalized.Contains('/');
     }
 
     private void LogAttachListSnapshot()
@@ -835,6 +919,28 @@ public partial class UdlClientControl : EditorTemplateControl
         ItemCountText = GetRootItemCount().ToString();
         CanConnect = _client is null;
         CanDisconnect = _client is not null;
+        CanToggleConnection = CanConnect || CanDisconnect;
+        ConnectionToggleText = _client is null ? "Connect" : "Disconnect";
+
+        switch (_connectionState)
+        {
+            case ConnectionState.Connected:
+                ConnectionStatusBackground = Brushes.ForestGreen;
+                ConnectionStatusForeground = Brushes.White;
+                break;
+            case ConnectionState.Failed:
+                ConnectionStatusBackground = Brushes.Tomato;
+                ConnectionStatusForeground = Brushes.White;
+                break;
+            default:
+                ConnectionStatusBackground = Brushes.Black;
+                ConnectionStatusForeground = Brushes.White;
+                break;
+        }
+
+        ConnectionStatusHoverBackground = CreateHoverBrush(ConnectionStatusBackground);
+
+        _verboseDiagnosticsEnabled = item?.UdlClientDebugLogging == true;
 
         if (item is not null)
         {
@@ -848,9 +954,22 @@ public partial class UdlClientControl : EditorTemplateControl
         _ = item;
     }
 
+    private static IBrush CreateHoverBrush(IBrush baseBrush)
+    {
+        if (baseBrush is SolidColorBrush solid)
+        {
+            var c = solid.Color;
+            static byte L(byte v) => (byte)System.Math.Min(255, v + (255 - v) * 0.25);
+            var lighter = Color.FromArgb(c.A, L(c.R), L(c.G), L(c.B));
+            return new SolidColorBrush(lighter);
+        }
+
+        return baseBrush;
+    }
+
     private bool ShouldWriteVerboseDiagnostics()
     {
-        return Item?.UdlClientDebugLogging == true;
+        return _verboseDiagnosticsEnabled;
     }
 
     private void WriteVerboseDiagnosticLog(string message)
@@ -859,18 +978,14 @@ public partial class UdlClientControl : EditorTemplateControl
         {
             return;
         }
-
-        WriteDiagnosticLog(message);
+        // Verbose Diagnostik: als Debug loggen und nicht über den UI-Thread marshallen,
+        // damit hohes Logaufkommen die UI nicht blockiert.
+        HostLogger.Log.Debug("[UdlClientControl] {Message}", message);
     }
 
     private void WriteDiagnosticLog(string message)
     {
-        if (!Dispatcher.UIThread.CheckAccess())
-        {
-            Dispatcher.UIThread.Post(() => WriteDiagnosticLog(message));
-            return;
-        }
-
+        // Wichtige Statusmeldungen (Connect/Disconnect/High-Level) als Information loggen.
         HostLogger.Log.Information("[UdlClientControl] {Message}", message);
     }
 
@@ -887,16 +1002,24 @@ public partial class UdlClientControl : EditorTemplateControl
 
     private static bool ShouldLogDiagnosticMessage(string message)
     {
-        if (message.Contains("OnCanMessageReceived", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("rx packet", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("rx frame", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("subchannel unknown type", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("frame ignored", StringComparison.OrdinalIgnoreCase))
+        // Nur Verbindungs-/Initialisierungs-Lifecycle loggen, alles andere ignorieren,
+        // damit das Log übersichtlich bleibt.
+        if (message.Contains("ctor start", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("remote resolved endpoint", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("udp socket", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("open requested", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("open completed", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("rx thread started", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("tx thread started", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("close requested", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("close completed", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("dispose start", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("dispose completed", StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            return true;
         }
 
-        return true;
+        return false;
     }
 
     private void PublishStatusItems(PageItemModel item)
@@ -925,6 +1048,7 @@ public partial class UdlClientControl : EditorTemplateControl
         snapshot.Params["Kind"].Value = "Status";
         snapshot.Params["Text"].Value = title;
         snapshot.Params["Title"].Value = title;
+        WriteVerboseDiagnosticLog($"Status snapshot base={statusBasePath} name={name} value={serializedValue}");
         HostRegistries.Data.UpsertSnapshot(snapshot.Path!, snapshot, pruneMissingMembers: true);
     }
 

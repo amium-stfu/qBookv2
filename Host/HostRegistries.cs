@@ -75,6 +75,13 @@ public sealed class DataRegistry : IDataRegistry
                 return existing;
             });
 
+        if (added)
+        {
+            // Neue Wurzeln im Registry-Log behalten, Updates dagegen still halten,
+            // um Lograuschen bei hochfrequenten Runtime-Updates zu vermeiden.
+            HostLogger.Log.Information("[DataRegistry] Added key={Key} itemPath={Path} name={Name}", key, snapshot.Path ?? string.Empty, snapshot.Name ?? string.Empty);
+        }
+
         RaiseItemChanged(key, item, DataChangeKind.SnapshotUpserted);
 
         if (added)

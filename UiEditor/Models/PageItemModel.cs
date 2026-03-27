@@ -1624,7 +1624,8 @@ public sealed class PageItemModel : ObservableObject
 
     public ParameterDisplayModel TargetParameterView => BuildTargetParameterView();
 
-    public bool HasInteractionRules => ItemInteractionRuleCodec.ParseDefinitions(InteractionRules).Count > 0;
+    public bool HasInteractionRules => ItemInteractionRuleCodec.ParseDefinitions(InteractionRules)
+        .Any(rule => rule.Action != ItemInteractionAction.SendInputTo);
 
     public bool CanOpenValueEditor
     {
@@ -1989,6 +1990,36 @@ public sealed class PageItemModel : ObservableObject
     }
 
 
+    public bool TrySendInput(object? rawValue, out string error)
+    {
+        var rules = ItemInteractionRuleCodec.ParseDefinitions(InteractionRules)
+            .Where(rule => rule.Action == ItemInteractionAction.SendInputTo)
+            .ToList();
+
+        if (rules.Count == 0)
+        {
+            return TryUpdateTargetParameterValue(rawValue, out error);
+        }
+
+        foreach (var rule in rules)
+        {
+            if (!TryResolveInteractionTarget(rule.TargetPath, out var target))
+            {
+                error = "Target fuer SendInputTo wurde nicht gefunden.";
+                return false;
+            }
+
+            if (!TryApplyInteractionWrite(target!, rule.TargetPath, rawValue, out error))
+            {
+                return false;
+            }
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+
     public bool TryToggleTargetBit(int bitIndex, out string error)
     {
         if (bitIndex < 0)
@@ -2006,14 +2037,14 @@ public sealed class PageItemModel : ObservableObject
 
         var currentValue = ToUInt64ForBitOperations(parameter.Value);
         var updatedValue = currentValue ^ (1UL << bitIndex);
-        return TryUpdateTargetParameterValue((long)updatedValue, out error);
+        return TrySendInput((long)updatedValue, out error);
     }
 
     public bool TryExecuteInteraction(ItemInteractionEvent interactionEvent, MainWindowViewModel? viewModel, out string error)
     {
         error = string.Empty;
         var matchingRules = ItemInteractionRuleCodec.ParseDefinitions(InteractionRules)
-            .Where(rule => rule.Event == interactionEvent)
+            .Where(rule => rule.Event == interactionEvent && rule.Action != ItemInteractionAction.SendInputTo)
             .ToList();
 
         if (matchingRules.Count == 0)

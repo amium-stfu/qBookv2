@@ -14,7 +14,8 @@ public enum ItemInteractionAction
 {
     OpenValueEditor,
     ToggleBool,
-    SetValue
+    SetValue,
+    SendInputTo
 }
 
 public sealed class ItemInteractionRule

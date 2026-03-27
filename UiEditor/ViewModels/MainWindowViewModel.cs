@@ -10,8 +10,10 @@ using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Nodes;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Amium.EditorUi;
 using Amium.Items;
@@ -71,6 +73,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private PageItemModel? _activeValueInputItem;
     private bool _isValueInputOpen;
     private Dock _tabStripPlacement = Dock.Right;
+    protected bool AutoSaveOnEditModeExit { get; set; } = true;
 
     public MainWindowViewModel(bool supportsUdlClientControl = false)
     {
@@ -166,7 +169,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     CancelSelection();
                     CancelEditorDialog();
                     CancelValueInput();
-                    SaveLayout();
+                    if (AutoSaveOnEditModeExit)
+                    {
+                        SaveLayout();
+                    }
                 }
 
                 OnPropertyChanged(nameof(EditModeText));
@@ -209,6 +215,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             if (SetProperty(ref _isDarkTheme, value))
             {
+                UpdateApplicationTheme(value);
                 ApplyThemeToAllItems();
                 OnPropertyChanged(nameof(ThemeModeText));
                 OnPropertyChanged(nameof(WindowBackground));
@@ -246,6 +253,16 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 OnPropertyChanged(nameof(HeaderBadgeForeground));
             }
         }
+    }
+
+    private static void UpdateApplicationTheme(bool isDark)
+    {
+        if (Application.Current is not { } app)
+        {
+            return;
+        }
+
+        app.RequestedThemeVariant = isDark ? ThemeVariant.Dark : ThemeVariant.Light;
     }
 
     public int GridSize
@@ -1477,7 +1494,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Kind = ControlKind.UdlClientControl,
                 Name = "UdlClientControl",
                 ControlCaption = string.Empty,
-                BodyCaption = "UdlClient",
+                BodyCaption = string.Empty,
+                BodyCaptionVisible = false,
+                ShowFooter = false,
                 Footer = "Disconnected",
                 UdlClientHost = "192.168.178.151",
                 UdlClientPort = 9001,
@@ -2892,9 +2911,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return HostRegistries.Data.GetAllKeys()
             .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(key => key[prefix.Length..])
-            .Where(static key => !string.IsNullOrWhiteSpace(key))
+            .Where(static key => IsRootAttachPath(key))
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static bool IsRootAttachPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var normalized = path.Replace('\\', '/').Trim('/');
+        return !normalized.Contains('/');
     }
 
     private static IEnumerable<string> GetFooterSubItemOptions(PageItemModel item)

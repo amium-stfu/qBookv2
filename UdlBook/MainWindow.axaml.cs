@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -17,6 +18,51 @@ public partial class MainWindow : Window
         Core.UiStateChanged += HandleHostUiStateChanged;
     }
 
+    private async void NewBook_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
+        {
+            Title = "Create layout file",
+            SuggestedFileName = "Page.json",
+            DefaultExtension = "json",
+            FileTypeChoices = new[]
+            {
+                new Avalonia.Platform.Storage.FilePickerFileType("JSON layout")
+                {
+                    Patterns = new[] { "*.json" }
+                }
+            }
+        });
+
+        if (file is null)
+        {
+            return;
+        }
+
+        var path = file.Path.LocalPath;
+
+                if (!File.Exists(path))
+                {
+                        var content = @"{
+    ""Page"": ""Page1"",
+    ""Title"": ""New Layout"",
+    ""Layout"": {
+        ""Type"": ""Canvas"",
+        ""Children"": []
+    }
+}";
+
+                        File.WriteAllText(path, content);
+                }
+
+        viewModel.LoadLayoutFromFile(path);
+    }
+
     private async void LoadBook_Click(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)
@@ -24,22 +70,87 @@ public partial class MainWindow : Window
             return;
         }
 
-        var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
+        // Stop all runtime activities before loading a new book.
+        Amium.Host.TasksManager.StopAll();
+        Amium.Host.ThreadsManager.StopAll();
+        Amium.Host.TimerManager.StopAll();
+
+        var file = await StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
         {
-            Title = "Book-Ordner wählen",
-            AllowMultiple = false
+            Title = "Select Book.json",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new Avalonia.Platform.Storage.FilePickerFileType("Book definition")
+                {
+                    Patterns = new[] { "*.json" }
+                }
+            }
         });
 
-        if (folders.Count == 0)
+        if (file.Count == 0)
         {
             return;
         }
 
-        viewModel.BookProjectPath = folders[0].Path.LocalPath;
+        var selectedPath = file[0].Path.LocalPath;
+        // Pass the selected file path to the host; it can resolve the
+        // actual project root (it handles both file and directory paths).
+        viewModel.BookProjectPath = selectedPath;
         if (viewModel.LoadBookCommand.CanExecute(null))
         {
             viewModel.LoadBookCommand.Execute(null);
         }
+    }
+
+    private void SaveLayout_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SaveCurrentLayout();
+    }
+
+    private void SetStartLayout_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SetCurrentLayoutAsStartup();
+    }
+
+    private async void SaveLayoutAs_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
+        {
+            Title = "Save layout as",
+            SuggestedFileName = "Page.json",
+            DefaultExtension = "json",
+            FileTypeChoices = new[]
+            {
+                new Avalonia.Platform.Storage.FilePickerFileType("JSON layout")
+                {
+                    Patterns = new[] { "*.json" }
+                }
+            }
+        });
+
+        if (file is null)
+        {
+            return;
+        }
+
+        var path = file.Path.LocalPath;
+        viewModel.SaveCurrentLayoutAs(path);
     }
 
     private void OnTabPlacementTopClicked(object? sender, RoutedEventArgs e)
@@ -96,6 +207,16 @@ public partial class MainWindow : Window
         _logWindow.Closed += OnLogWindowClosed;
         _logWindow.Show();
         _logWindow.Activate();
+    }
+
+    private void ToggleTheme_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.IsDarkTheme = !viewModel.IsDarkTheme;
     }
 
     private void OnLogWindowClosed(object? sender, EventArgs e)

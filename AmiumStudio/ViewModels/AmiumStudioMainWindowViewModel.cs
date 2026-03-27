@@ -182,7 +182,7 @@ public sealed class AmiumStudioMainWindowViewModel : MainWindowViewModel
         ResetMessages();
         try
         {
-            var result = await Core.LoadAndRunAsync(BookProjectPath);
+            var result = await Core.LoadAndRunStudioProjectAsync(BookProjectPath);
             BookProjectPath = result.Project.RootDirectory;
             ApplyBookTabStripPlacement(result.Project.RootDirectory);
             LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
@@ -227,7 +227,7 @@ public sealed class AmiumStudioMainWindowViewModel : MainWindowViewModel
         ResetMessages();
         try
         {
-            var result = await Core.RebuildAsync(BookProjectPath);
+            var result = await Core.RebuildStudioProjectAsync(BookProjectPath);
             ApplyBookTabStripPlacement(result.Project.RootDirectory);
             SetPages(CreatePagesFromBook(result.Project));
             BookProjectPath = result.Project.RootDirectory;

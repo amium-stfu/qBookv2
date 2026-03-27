@@ -19,8 +19,8 @@ public sealed record ThemePalette(
 {
     public static ThemePalette Light { get; } = new(
         WindowBackground: "#F4F5F7",
-        CardBackground: "#E7E7E7",
-        CardBorderBrush: "#D5D9E0",
+        CardBackground: "#f0af4d",
+        CardBorderBrush: "#ffdca6",
         PrimaryTextBrush: "#111827",
         SecondaryTextBrush: "#5E6777",
         CanvasBackground: "#FCFCFD",
