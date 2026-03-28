@@ -11,7 +11,14 @@
   <Grid>
     <Border Background="{Binding CanvasBackground}" BorderBrush="{Binding CanvasBorderBrush}" BorderThickness="1" CornerRadius="0" ClipToBounds="True">
       <Grid>
-        <Grid x:Name="EditorCanvas" Background="{Binding CanvasBackground}" PointerPressed="OnCanvasPointerPressed" PointerMoved="OnCanvasPointerMoved" PointerReleased="OnCanvasPointerReleased" SizeChanged="OnEditorCanvasSizeChanged">
+        <ScrollViewer x:Name="EditorScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+          <Grid x:Name="EditorCanvas"
+                Width="{Binding WorkspaceWidth}"
+                Height="{Binding WorkspaceHeight}"
+                Background="{Binding CanvasBackground}"
+                PointerPressed="OnCanvasPointerPressed"
+                PointerMoved="OnCanvasPointerMoved"
+                PointerReleased="OnCanvasPointerReleased">
           <ItemsControl x:Name="GridLinesItemsControl" IsHitTestVisible="False" ItemsSource="{Binding GridLines}" IsVisible="{Binding ShowGrid}">
             <ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
             <ItemsControl.Styles>
@@ -46,9 +53,55 @@
                   <controls:EditorLogControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsLogControl}" PageIsActive="{Binding Page.IsSelected, ElementName=Root}" />
                   <controls:RealtimeChartControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsChartControl}" PageIsActive="{Binding Page.IsSelected, ElementName=Root}" />
                   <controls:UdlClientControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsUdlClientControl}" />
-                  <Border BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#F59E0B}" BorderThickness="2" CornerRadius="8" IsHitTestVisible="False" />
-                  <Border BorderBrush="{Binding IsMasterSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#2563EB}" BorderThickness="3" CornerRadius="8" IsHitTestVisible="False" />
-                  <Border Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4" Background="#F59E0B" CornerRadius="4" Cursor="BottomRightCorner" IsVisible="{Binding IsMasterSelected}" PointerPressed="OnResizeHandlePointerPressed" />
+
+                  <!-- Auswahlrahmen nur im EditMode anzeigen -->
+                  <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" IsHitTestVisible="False">
+                    <Border BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#F59E0B}" BorderThickness="2" CornerRadius="8" IsHitTestVisible="False" />
+                  </Border>
+
+                  <!-- Master-Auswahlrahmen nur im EditMode anzeigen -->
+                  <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" IsHitTestVisible="False">
+                    <Border BorderBrush="{Binding IsMasterSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#2563EB}" BorderThickness="3" CornerRadius="8" IsHitTestVisible="False" />
+                  </Border>
+
+                  <!-- Resize-Handle nur im EditMode anzeigen (muss hit-testbar sein) -->
+                  <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" Background="Transparent">
+                    <Border Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4" Background="#F59E0B" CornerRadius="4" Cursor="BottomRightCorner" IsVisible="{Binding IsMasterSelected}" PointerPressed="OnResizeHandlePointerPressed" />
+                  </Border>
+
+                  <!-- Edit/Delete Toolbar fuer das Master-Item im EditMode mit orangefarbenem, abgerundetem Rahmen -->
+                    <Border HorizontalAlignment="Right"
+                      VerticalAlignment="Top"
+                      Margin="4,4,4,0"
+                      Background="#F59E0B"
+                      CornerRadius="8"
+                      Opacity="0.96"
+                      IsVisible="{Binding IsMasterSelected}">
+                    <StackPanel Orientation="Horizontal" Spacing="4" Margin="4,2">
+                      <Button Classes="toolicon"
+                      Width="18" Height="18" MinWidth="18"
+                      Padding="0"
+                      Background="Transparent"
+                      BorderBrush="Transparent"
+                      Click="OnItemSettingsClicked"
+                      ToolTip.Tip="Settings">
+                    <editorUi:ThemeSvgIcon Width="12" Height="12"
+                            IconPath="avares://Amium.Editor/EditorIcons/cog.svg"
+                            TintColor="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+                      </Button>
+                      <Button Classes="toolicon"
+                      Width="18" Height="18" MinWidth="18"
+                      Padding="0"
+                      Background="Transparent"
+                      BorderBrush="Transparent"
+                      Click="OnItemDeleteClicked"
+                      ToolTip.Tip="Delete">
+                    <editorUi:ThemeSvgIcon Width="12" Height="12"
+                            IconPath="avares://Amium.Editor/EditorIcons/remove.svg"
+                            TintColor="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+                      </Button>
+                    </StackPanel>
+                  </Border>
                 </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
@@ -97,7 +150,8 @@
               </StackPanel>
             </Border>
           </Canvas>
-        </Grid>
+          </Grid>
+        </ScrollViewer>
 
         <controls:EditorValueInputControl VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Margin="16" ZIndex="220" />
       </Grid>

@@ -1,0 +1,122 @@
+<Window
+    x:Class="Amium.UiEditor.Widgets.ChartSeriesEditorDialogWindow"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.EditorUi.Controls"
+    xmlns:viewModels="using:Amium.UiEditor.ViewModels"
+    Width="760"
+    MinWidth="720"
+    MinHeight="240"
+    MaxHeight="760"
+    SizeToContent="Height"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    Title="Chart Series Editor"
+    Background="{Binding DialogBackground, ElementName=Root}">
+  <Window.Styles>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="{Binding ButtonBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor, ElementName=Root}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field:pointerover /template/ Border">
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field:focus /template/ Border">
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field /template/ ToggleButton">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field /template/ PathIcon">
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field /template/ Path">
+      <Setter Property="Fill" Value="{Binding InputForeground, ElementName=Root}" />
+    </Style>
+  </Window.Styles>
+  <controls:EditorShellControl
+      Margin="16"
+      ShellBackground="{Binding DialogBackground, ElementName=Root}"
+      ShellBorderBrush="{Binding BorderColor, ElementName=Root}"
+      ShellBorderThickness="1"
+      ShellCornerRadius="10"
+      ShellPadding="14"
+      ShowHeader="True"
+      ShowFooter="True"
+      HeaderPadding="0,0,0,10">
+    <controls:EditorShellControl.HeaderContent>
+      <StackPanel>
+        <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="Chart Series" />
+        <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Configure the series list for the realtime chart." />
+      </StackPanel>
+    </controls:EditorShellControl.HeaderContent>
+
+    <controls:EditorShellControl.BodyContent>
+      <StackPanel>
+        <StackPanel Margin="0,0,0,8" Spacing="4">
+          <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{Binding SectionHeaderForeground, ElementName=Root}" Text="Configured" />
+          <Border Height="1" Background="{Binding SectionBorderBrush, ElementName=Root}" />
+        </StackPanel>
+
+        <Border Background="{Binding EditorDialogSectionContentBackground, ElementName=Root}"
+                BorderBrush="{Binding BorderColor, ElementName=Root}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="10">
+          <ScrollViewer MaxHeight="360" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="viewModels:ChartSeriesEditorRow">
+                <Grid ColumnDefinitions="*,100,100,Auto" Margin="0,0,0,8">
+                  <ComboBox Classes="dialog-field" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding TargetPath, Mode=TwoWay}" />
+                  <ComboBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding AxisOptions}" SelectedItem="{Binding Axis, Mode=TwoWay}" />
+                  <ComboBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding StyleOptions}" SelectedItem="{Binding Style, Mode=TwoWay}" />
+                  <Button Grid.Column="3" Margin="8,0,0,0" Classes="dialog-button" Content="Remove" Click="OnRemoveClicked" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          </ScrollViewer>
+        </Border>
+
+        <StackPanel Margin="0,14,0,0" Spacing="8">
+          <StackPanel Spacing="4">
+            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{Binding SectionHeaderForeground, ElementName=Root}" Text="New" />
+            <Border Height="1" Background="{Binding SectionBorderBrush, ElementName=Root}" />
+          </StackPanel>
+
+          <Grid ColumnDefinitions="*,100,100,Auto">
+            <ComboBox Classes="dialog-field" ItemsSource="{Binding ChartTargetOptions}" SelectedItem="{Binding NewTargetPath, Mode=TwoWay}" />
+            <ComboBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding AxisOptions}" SelectedItem="{Binding NewAxis, Mode=TwoWay}" />
+            <ComboBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding StyleOptions}" SelectedItem="{Binding NewStyle, Mode=TwoWay}" />
+            <Button Grid.Column="3" Margin="8,0,0,0" Classes="dialog-button" Content="Add" Click="OnAddClicked" />
+          </Grid>
+        </StackPanel>
+      </StackPanel>
+    </controls:EditorShellControl.BodyContent>
+
+    <controls:EditorShellControl.FooterContent>
+      <StackPanel Spacing="10">
+        <Border Height="1" Background="{Binding SectionBorderBrush, ElementName=Root}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+          <Button Classes="dialog-button" Content="Save" Click="OnSaveClicked" />
+          <Button Classes="dialog-button" Content="Cancel" Click="OnCancelClicked" />
+        </StackPanel>
+      </StackPanel>
+    </controls:EditorShellControl.FooterContent>
+  </controls:EditorShellControl>
+</Window>

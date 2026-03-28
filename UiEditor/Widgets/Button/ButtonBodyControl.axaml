@@ -1,0 +1,15 @@
+<UserControl
+    x:Class="Amium.UiEditor.Widgets.ButtonBodyControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border x:Name="RootBorder"
+      Margin="0"
+      Padding="0"
+      Background="#F59E0B"
+          BorderBrush="Transparent"
+          BorderThickness="0"
+          CornerRadius="0">
+    <ContentPresenter HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch" />
+  </Border>
+</UserControl>

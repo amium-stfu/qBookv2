@@ -3,7 +3,7 @@
     x:Class="Amium.UiEditor.LogWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Amium.UiEditor.Controls"
+    xmlns:controls="using:Amium.UiEditor.Widgets"
     Background="{Binding WindowBackground}"
     Foreground="{Binding PrimaryTextBrush}"
     Width="900"
@@ -13,9 +13,8 @@
     Title="Host Log">
   <Grid Margin="12">
     <controls:EditorLogControl
-        HorizontalAlignment="Stretch"
-        VerticalAlignment="Stretch"
-        ShowSettingsButton="False"
-        DataContext="{Binding HostLogItem, ElementName=Root}" />
+      HorizontalAlignment="Stretch"
+      VerticalAlignment="Stretch"
+      DataContext="{Binding HostLogItem, ElementName=Root}" />
   </Grid>
 </Window>

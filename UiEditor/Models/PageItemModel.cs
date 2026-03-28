@@ -79,8 +79,9 @@ public sealed class PageItemModel : ObservableObject
     private string _buttonIconAlign = "Left";
     private string _buttonTextAlign = "Center";
     private string _buttonCommand = string.Empty;
-    private string _buttonBodyBackground = "Transparent";
+    private string _buttonBodyBackground = string.Empty;
     private string _buttonBodyForegroundColor = string.Empty;
+    private string _buttonIconColor = string.Empty;
     private bool _useThemeColor = true;
     private string? _backgroundColor;
     private string? _borderColor;
@@ -114,10 +115,12 @@ public sealed class PageItemModel : ObservableObject
     private string _targetParameterFormat = string.Empty;
     private string _unit = string.Empty;
     private string _targetLog = "Logs/Host";
+    private int _view = 1;
     private int _historySeconds = 120;
     private int _viewSeconds = 30;
     private string _chartSeriesDefinitions = string.Empty;
     private string _interactionRules = string.Empty;
+    private bool _enabled = true;
     private string _udlClientHost = "192.168.178.151";
     private int _udlClientPort = 9001;
     private bool _udlClientAutoConnect;
@@ -205,7 +208,7 @@ public sealed class PageItemModel : ObservableObject
                 RaisePropertyChanged(nameof(ItemBodyPresentation));
             }
 
-            RaisePropertyChanged(nameof(ControlCaption));
+            RaisePropertyChanged(nameof(WidgetCaption));
             RaisePropertyChanged(nameof(ShowControlCaption));
         }
     }
@@ -421,6 +424,9 @@ public sealed class PageItemModel : ObservableObject
                 RaisePropertyChanged(nameof(ShowButtonIcon));
                 RaisePropertyChanged(nameof(EffectiveButtonIconPath));
                 RaisePropertyChanged(nameof(ShowButtonText));
+                RaisePropertyChanged(nameof(ShowLeftButtonIcon));
+                RaisePropertyChanged(nameof(ShowCenterButtonIcon));
+                RaisePropertyChanged(nameof(ShowRightButtonIcon));
             }
         }
     }
@@ -435,6 +441,9 @@ public sealed class PageItemModel : ObservableObject
                 RaisePropertyChanged(nameof(ShowButtonText));
                 RaisePropertyChanged(nameof(ShowButtonIcon));
                 RaisePropertyChanged(nameof(EffectiveButtonIconPath));
+                RaisePropertyChanged(nameof(ShowLeftButtonIcon));
+                RaisePropertyChanged(nameof(ShowCenterButtonIcon));
+                RaisePropertyChanged(nameof(ShowRightButtonIcon));
             }
         }
     }
@@ -447,6 +456,9 @@ public sealed class PageItemModel : ObservableObject
             if (SetProperty(ref _buttonIconAlign, NormalizeAlignment(value, "Left")))
             {
                 RaisePropertyChanged(nameof(ButtonIconHorizontalAlignment));
+                RaisePropertyChanged(nameof(ShowLeftButtonIcon));
+                RaisePropertyChanged(nameof(ShowCenterButtonIcon));
+                RaisePropertyChanged(nameof(ShowRightButtonIcon));
             }
         }
     }
@@ -480,10 +492,14 @@ public sealed class PageItemModel : ObservableObject
         get => _buttonBodyBackground;
         set
         {
-            if (SetProperty(ref _buttonBodyBackground, string.IsNullOrWhiteSpace(value) ? "Transparent" : value.Trim()))
+            if (SetProperty(ref _buttonBodyBackground, string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim()))
             {
                 RaisePropertyChanged(nameof(EffectiveButtonBodyBackground));
                 RaisePropertyChanged(nameof(EffectiveButtonBodyBackgroundBrush));
+                RaisePropertyChanged(nameof(EffectiveButtonHoverBackground));
+                RaisePropertyChanged(nameof(EffectiveButtonHoverBackgroundBrush));
+                RaisePropertyChanged(nameof(EffectiveButtonPressBackground));
+                RaisePropertyChanged(nameof(EffectiveButtonPressBackgroundBrush));
             }
         }
     }
@@ -497,6 +513,19 @@ public sealed class PageItemModel : ObservableObject
             {
                 RaisePropertyChanged(nameof(EffectiveButtonBodyForeground));
                 RaisePropertyChanged(nameof(EffectiveButtonBodyForegroundBrush));
+                RaisePropertyChanged(nameof(ButtonIconCss));
+                RaisePropertyChanged(nameof(EffectiveButtonIconTintColor));
+            }
+        }
+    }
+
+    public string ButtonIconColor
+    {
+        get => _buttonIconColor;
+        set
+        {
+            if (SetProperty(ref _buttonIconColor, value ?? string.Empty))
+            {
                 RaisePropertyChanged(nameof(ButtonIconCss));
                 RaisePropertyChanged(nameof(EffectiveButtonIconTintColor));
             }
@@ -555,7 +584,7 @@ public sealed class PageItemModel : ObservableObject
                 SyncDraftListItemHeightText();
                 RaisePropertyChanged(nameof(CurrentListItemHeight));
                 RaisePropertyChanged(nameof(CanEditListHeight));
-                RaisePropertyChanged(nameof(ControlHeight));
+                RaisePropertyChanged(nameof(WidgetHeight));
             }
         }
     }
@@ -571,7 +600,7 @@ public sealed class PageItemModel : ObservableObject
                 ApplyListHeightRules();
                 SyncDraftListItemHeightText();
                 RaisePropertyChanged(nameof(CurrentListItemHeight));
-                RaisePropertyChanged(nameof(ControlHeight));
+                RaisePropertyChanged(nameof(WidgetHeight));
             }
         }
     }
@@ -618,7 +647,7 @@ public sealed class PageItemModel : ObservableObject
                 SyncDraftListItemHeightText();
                 RaisePropertyChanged(nameof(CurrentListItemHeight));
                 RaisePropertyChanged(nameof(CanEditListHeight));
-                RaisePropertyChanged(nameof(ControlHeight));
+                RaisePropertyChanged(nameof(WidgetHeight));
             }
         }
     }
@@ -657,7 +686,7 @@ public sealed class PageItemModel : ObservableObject
             SelectedListItem.Height = System.Math.Max(normalized, SelectedListItem.MinHeight);
             SyncDraftListItemHeightText();
             RaisePropertyChanged(nameof(CurrentListItemHeight));
-            RaisePropertyChanged(nameof(ControlHeight));
+            RaisePropertyChanged(nameof(WidgetHeight));
         }
     }
 
@@ -724,7 +753,7 @@ public sealed class PageItemModel : ObservableObject
         }
     }
 
-    public double ControlBorderWidth
+    public double WidgetBorderWidth
     {
         get => _controlBorderWidth;
         set
@@ -738,6 +767,13 @@ public sealed class PageItemModel : ObservableObject
                 }
             }
         }
+    }
+
+    // Backwards-compatible alias used by existing code and persistence
+    public double ControlBorderWidth
+    {
+        get => WidgetBorderWidth;
+        set => WidgetBorderWidth = value;
     }
 
     public string? ControlBorderColor
@@ -755,7 +791,7 @@ public sealed class PageItemModel : ObservableObject
         }
     }
 
-    public double ControlCornerRadius
+    public double WidgetCornerRadius
     {
         get => _controlCornerRadius;
         set
@@ -769,6 +805,13 @@ public sealed class PageItemModel : ObservableObject
                 }
             }
         }
+    }
+
+    // Backwards-compatible alias used by existing code and persistence
+    public double ControlCornerRadius
+    {
+        get => WidgetCornerRadius;
+        set => WidgetCornerRadius = value;
     }
 
     public string? PrimaryForegroundColor
@@ -1093,6 +1136,12 @@ public sealed class PageItemModel : ObservableObject
         set => SetProperty(ref _historySeconds, value <= 1 ? 1 : value);
     }
 
+    public int View
+    {
+        get => _view;
+        set => SetProperty(ref _view, value <= 0 ? 1 : value);
+    }
+
     public int ViewSeconds
     {
         get => _viewSeconds;
@@ -1109,6 +1158,12 @@ public sealed class PageItemModel : ObservableObject
     {
         get => _interactionRules;
         set => SetProperty(ref _interactionRules, value ?? string.Empty);
+    }
+
+    public bool Enabled
+    {
+        get => _enabled;
+        set => SetProperty(ref _enabled, value);
     }
 
     public string UdlClientHost
@@ -1370,14 +1425,20 @@ public sealed class PageItemModel : ObservableObject
     };
 
     public double ItemTitleFontSize => Height * 0.18;
-
-    public string ControlCaption
+    public string WidgetCaption
     {
         get => Header;
         set => Header = value;
     }
 
-    public bool ShowControlCaption => CaptionVisible && !string.IsNullOrWhiteSpace(ControlCaption);
+    // Backwards-compatible alias: existing code and serialized layouts still use ControlCaption
+    public string ControlCaption
+    {
+        get => WidgetCaption;
+        set => WidgetCaption = value;
+    }
+
+    public bool ShowControlCaption => CaptionVisible && !string.IsNullOrWhiteSpace(WidgetCaption);
 
     public bool ShowTopBodyCaption => BodyCaptionVisible && string.Equals(BodyCaptionPosition, "Top", StringComparison.OrdinalIgnoreCase);
 
@@ -1456,25 +1517,55 @@ public sealed class PageItemModel : ObservableObject
     public string? EffectiveToolTipText => string.IsNullOrWhiteSpace(ToolTipText) ? null : ToolTipText;
 
     public string EffectiveButtonBodyBackground
-        => string.IsNullOrWhiteSpace(ButtonBodyBackground) || string.Equals(ButtonBodyBackground.Trim(), "Transparent", StringComparison.OrdinalIgnoreCase)
-            ? EffectiveBodyBackground
-            : ButtonBodyBackground;
+        => string.IsNullOrWhiteSpace(ButtonBodyBackground)
+            ? (_isDarkThemeApplied ? ThemePalette.Dark.ButtonBackColor : ThemePalette.Light.ButtonBackColor)
+            : (string.Equals(ButtonBodyBackground.Trim(), "Transparent", StringComparison.OrdinalIgnoreCase)
+                ? "Transparent"
+                : ButtonBodyBackground);
 
     public IBrush EffectiveButtonBodyBackgroundBrush => ParseBrush(EffectiveButtonBodyBackground);
+
+    public string EffectiveButtonHoverBackground
+        => string.IsNullOrWhiteSpace(ButtonBodyBackground)
+            ? (_isDarkThemeApplied ? ThemePalette.Dark.ButtonHoverColor : ThemePalette.Light.ButtonHoverColor)
+            : EffectiveButtonBodyBackground;
+
+    public IBrush EffectiveButtonHoverBackgroundBrush => ParseBrush(EffectiveButtonHoverBackground);
+
+    public string EffectiveButtonPressBackground
+        => string.IsNullOrWhiteSpace(ButtonBodyBackground)
+            ? (_isDarkThemeApplied ? ThemePalette.Dark.ButtonPressColor : ThemePalette.Light.ButtonPressColor)
+            : EffectiveButtonBodyBackground;
+
+    public IBrush EffectiveButtonPressBackgroundBrush => ParseBrush(EffectiveButtonPressBackground);
 
     public string EffectiveButtonBodyForeground => string.IsNullOrWhiteSpace(ButtonBodyForegroundColor) ? EffectiveBodyForeground : ButtonBodyForegroundColor;
 
     public IBrush EffectiveButtonBodyForegroundBrush => ParseBrush(EffectiveButtonBodyForeground);
 
-    public string ButtonIconCss => UseThemeColor ? $"path {{ fill: {EffectiveButtonBodyForeground}; }}" : string.Empty;
+    public string ButtonIconCss
+        => !string.IsNullOrWhiteSpace(ButtonIconColor)
+            ? $"path {{ fill: {ButtonIconColor}; }}"
+            : (UseThemeColor
+                ? $"path {{ fill: {EffectiveButtonBodyForeground}; }}"
+                : string.Empty);
 
-    public string EffectiveButtonIconTintColor => UseThemeColor ? EffectiveButtonBodyForeground : string.Empty;
+    public string EffectiveButtonIconTintColor
+        => !string.IsNullOrWhiteSpace(ButtonIconColor)
+            ? ButtonIconColor
+            : (UseThemeColor ? EffectiveButtonBodyForeground : string.Empty);
 
     public bool ShowButtonFooter => ShowFooter && !string.IsNullOrWhiteSpace(Footer);
 
     public HorizontalAlignment ButtonTextHorizontalAlignment => ParseHorizontalAlignment(ButtonTextAlign, HorizontalAlignment.Center);
 
     public HorizontalAlignment ButtonIconHorizontalAlignment => ParseHorizontalAlignment(ButtonIconAlign, HorizontalAlignment.Left);
+
+    public bool ShowLeftButtonIcon => ShowButtonIcon && !ButtonOnlyIcon && ButtonIconHorizontalAlignment == HorizontalAlignment.Left;
+
+    public bool ShowCenterButtonIcon => ShowButtonIcon && ButtonOnlyIcon;
+
+    public bool ShowRightButtonIcon => ShowButtonIcon && !ButtonOnlyIcon && ButtonIconHorizontalAlignment == HorizontalAlignment.Right;
 
     public double ButtonOverlayTopInset => ShowControlCaption ? 0 : 24;
 
@@ -1511,10 +1602,17 @@ public sealed class PageItemModel : ObservableObject
         }
     }
 
-    public double ControlHeight
+    public double WidgetHeight
     {
         get => ListItemHeight;
         set => ListItemHeight = value;
+    }
+
+    // Backwards-compatible alias used by existing code and persistence
+    public double ControlHeight
+    {
+        get => WidgetHeight;
+        set => WidgetHeight = value;
     }
 
     public double ItemBodyHeight
@@ -1820,6 +1918,8 @@ public sealed class PageItemModel : ObservableObject
         RaisePropertyChanged(nameof(EffectiveContainerBackground));
         RaisePropertyChanged(nameof(EffectiveContainerBackgroundBrush));
         RaisePropertyChanged(nameof(EffectiveButtonBodyBackgroundBrush));
+        RaisePropertyChanged(nameof(EffectiveButtonHoverBackgroundBrush));
+        RaisePropertyChanged(nameof(EffectiveButtonPressBackgroundBrush));
         RaisePropertyChanged(nameof(EffectiveButtonBodyForegroundBrush));
         RaisePropertyChanged(nameof(EffectiveButtonIconTintColor));
     }
@@ -1890,11 +1990,11 @@ public sealed class PageItemModel : ObservableObject
             Name = suggestedName;
         }
 
-        if (string.IsNullOrWhiteSpace(ControlCaption)
-            || string.Equals(ControlCaption, previousSuggestedName, StringComparison.Ordinal)
-            || IsAutoGeneratedControlCaption(ControlCaption))
+        if (string.IsNullOrWhiteSpace(WidgetCaption)
+            || string.Equals(WidgetCaption, previousSuggestedName, StringComparison.Ordinal)
+            || IsAutoGeneratedControlCaption(WidgetCaption))
         {
-            ControlCaption = suggestedName;
+            WidgetCaption = suggestedName;
         }
 
         var nextTargetUnit = GetTargetUnitText(selectedItem);
@@ -2262,9 +2362,9 @@ public sealed class PageItemModel : ObservableObject
         }
 
         item.Width = ChildContentWidth;
-        item.BorderWidth = ControlBorderWidth;
+        item.BorderWidth = WidgetBorderWidth;
         item.BorderColor = ControlBorderColor;
-        item.CornerRadius = ControlCornerRadius;
+        item.CornerRadius = WidgetCornerRadius;
         if (IsAutoHeight)
         {
             item.Height = System.Math.Max(ListItemHeight, item.MinHeight);
@@ -2319,7 +2419,7 @@ public sealed class PageItemModel : ObservableObject
 
         SyncDraftListItemHeightText();
         RaisePropertyChanged(nameof(CurrentListItemHeight));
-        RaisePropertyChanged(nameof(ControlHeight));
+        RaisePropertyChanged(nameof(WidgetHeight));
     }
 
     public void ApplyEnteredListHeight(double value)
@@ -2361,7 +2461,7 @@ public sealed class PageItemModel : ObservableObject
             _listItemHeight = normalized;
             RaisePropertyChanged(nameof(ListItemHeight));
             RaisePropertyChanged(nameof(CurrentListItemHeight));
-            RaisePropertyChanged(nameof(ControlHeight));
+            RaisePropertyChanged(nameof(WidgetHeight));
             foreach (var item in Items)
             {
                 item.Height = System.Math.Max(normalized, item.MinHeight);

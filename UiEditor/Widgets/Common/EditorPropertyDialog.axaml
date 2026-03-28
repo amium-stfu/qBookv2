@@ -1,0 +1,421 @@
+<UserControl
+    x:Name="Root"
+    x:Class="Amium.UiEditor.Widgets.EditorPropertyDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.EditorUi.Controls"
+    xmlns:viewModels="using:Amium.UiEditor.ViewModels">
+  <UserControl.Styles>
+    <Style Selector="Border.dialog-section-shell">
+      <Setter Property="Width" Value="396" />
+    </Style>
+    <Style Selector="Button.section-toggle">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Foreground" Value="{Binding EditorDialogSectionHeaderForeground, ElementName=Root}" />
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="Width" Value="28" />
+      <Setter Property="Height" Value="28" />
+    </Style>
+    <Style Selector="Button.section-toggle:pointerover">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.section-toggle:pressed">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{Binding CardBorderBrush, ElementName=Root}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="CaretBrush" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="SelectionBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+      <Setter Property="SelectionForegroundBrush" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field:pointerover">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field:focus">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="CaretBrush" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{Binding CardBorderBrush, ElementName=Root}" />
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field:pointerover">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field:focus">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field /template/ Border">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding CardBorderBrush, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field:focus /template/ Border">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field /template/ ScrollViewer">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ParameterEditForeColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field /template/ Border">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding CardBorderBrush, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field:focus /template/ Border">
+      <Setter Property="Background" Value="{Binding ParameterEditBackgrundColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="{Binding EditPanelButtonBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding EditPanelButtonBorderBrush, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding PrimaryTextBrush, ElementName=Root}" />
+    </Style>
+    <Style Selector="TabItem.dialog-tab">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Background" Value="{Binding TabBackColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding TabForeColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding CardBorderBrush, ElementName=Root}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="12,7" />
+    </Style>
+    <Style Selector="TabItem.dialog-tab:selected">
+      <Setter Property="Background" Value="{Binding TabSelectBackColor, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding TabSelectForeColor, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+  </UserControl.Styles>
+  <Border
+      MinWidth="470"
+      Padding="12"
+      Margin="0"
+      Background="{Binding DialogBackground}"
+      BorderBrush="{Binding CardBorderBrush}"
+      BorderThickness="1"
+      CornerRadius="10"
+      PointerPressed="OnInteractivePointerPressed">
+    <Grid RowDefinitions="*,Auto">
+      <TabControl Grid.Row="0" Margin="0,0,0,12">
+        <TabItem Classes="dialog-tab" Header="Layout">
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" AllowAutoHide="False" Padding="0,0,12,0">
+            <StackPanel Margin="0,0,8,0" Spacing="8">
+              <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="{Binding EditorDialogTitle}" />
+              <ItemsControl ItemsSource="{Binding EditorDialogSections}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="viewModels:EditorDialogSection">
+                    <Border Classes="dialog-section-shell" Background="Transparent">
+                      <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="Auto,*">
+                          <Button Grid.Column="0"
+                                  Classes="section-toggle"
+                                  Background="Transparent"
+                                  BorderBrush="Transparent"
+                                  Foreground="{Binding EditorDialogSectionHeaderForeground, ElementName=Root}"
+                                  Content="{Binding ToggleGlyph}"
+                                  Click="OnSectionToggleClicked" />
+                          <TextBlock Grid.Column="1" Margin="6,0,0,0" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{Binding EditorDialogSectionHeaderForeground, ElementName=Root}" Text="{Binding Title}" />
+                        </Grid>
+                      <Border
+                          IsVisible="{Binding IsExpanded}"
+                          Margin="0,6,0,6"
+                          Padding="10,10,10,8"
+                          Background="{Binding EditorDialogSectionContentBackground, ElementName=Root}"
+                          BorderBrush="{Binding CardBorderBrush, ElementName=Root}"
+                          BorderThickness="1"
+                          CornerRadius="8">
+                        <ItemsControl ItemsSource="{Binding Fields}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="viewModels:EditorDialogField">
+                              <Grid ColumnDefinitions="118,*,Auto,Auto" Margin="0,0,0,6">
+                                <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding Label}" />
+
+                                <TextBox
+                                    Grid.Column="1"
+                                    Classes="dialog-field"
+                                    IsVisible="{Binding IsTextInput}"
+                                    Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                                    Foreground="{Binding ParameterEditForeColor, ElementName=Root}"
+                                  Watermark="{Binding InputWatermark}"
+                                    Text="{Binding Value, Mode=TwoWay}"
+                                    ToolTip.Tip="{Binding ToolTipContent}"
+                                    KeyDown="OnFieldKeyDown"
+                                    PointerPressed="OnInteractivePointerPressed" />
+
+                                <TextBox
+                                    Grid.Column="1"
+                                    Classes="dialog-field"
+                                    IsVisible="{Binding IsMultilineText}"
+                                    AcceptsReturn="True"
+                                    TextWrapping="Wrap"
+                                    MinHeight="96"
+                                    VerticalContentAlignment="Top"
+                                    HorizontalAlignment="Stretch"
+                                    Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                                    Foreground="{Binding ParameterEditForeColor, ElementName=Root}"
+                                    Text="{Binding Value, Mode=TwoWay}"
+                                    ToolTip.Tip="{Binding ToolTipContent}"
+                                    PointerPressed="OnInteractivePointerPressed" />
+
+                                <ComboBox
+                                    Grid.Column="1"
+                                    Classes="dialog-field"
+                                    IsVisible="{Binding IsChoice}"
+                                    Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                                    Foreground="{Binding ParameterEditForeColor, ElementName=Root}"
+                                    ItemsSource="{Binding Options}"
+                                    SelectedItem="{Binding Value, Mode=TwoWay}"
+                                    ToolTip.Tip="{Binding ToolTipContent}"
+                                    PointerPressed="OnInteractivePointerPressed" />
+
+                                <Border
+                                    Grid.Column="1"
+                                    Grid.ColumnSpan="3"
+                                    IsVisible="{Binding IsChartSeriesList}"
+                                    Padding="10"
+                                    Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                                    BorderBrush="{Binding CardBorderBrush, ElementName=Root}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                  <StackPanel Spacing="8">
+                                    <TextBlock IsVisible="{Binding HasToolTipText}" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="{Binding ToolTipText}" TextWrapping="Wrap" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                      <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding StructuredEditorSummary}" TextWrapping="Wrap" />
+                                      <Button Grid.Column="1"
+                                              Margin="10,0,0,0"
+                                              Classes="dialog-button"
+                                              Content="Edit..."
+                                              Click="OnEditStructuredFieldClicked" />
+                                    </Grid>
+                                  </StackPanel>
+                                </Border>
+
+                                <Border
+                                    Grid.Column="1"
+                                    Grid.ColumnSpan="3"
+                                    IsVisible="{Binding IsAttachItemList}"
+                                    Padding="10"
+                                    Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                                    BorderBrush="{Binding CardBorderBrush, ElementName=Root}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                  <StackPanel Spacing="8">
+                                    <TextBlock IsVisible="{Binding HasToolTipText}" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="{Binding ToolTipText}" TextWrapping="Wrap" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                      <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding StructuredEditorSummary}" TextWrapping="Wrap" />
+                                      <Button Grid.Column="1"
+                                              Margin="10,0,0,0"
+                                              Classes="dialog-button"
+                                              Content="Edit..."
+                                              Click="OnEditStructuredFieldClicked" />
+                                    </Grid>
+                                  </StackPanel>
+                                </Border>
+
+                                <Border
+                                    Grid.Column="1"
+                                    Grid.ColumnSpan="3"
+                                    IsVisible="{Binding IsInteractionRuleList}"
+                                    Padding="10"
+                                    Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                                    BorderBrush="{Binding CardBorderBrush, ElementName=Root}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                  <StackPanel Spacing="8">
+                                    <TextBlock IsVisible="{Binding HasToolTipText}" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="{Binding ToolTipText}" TextWrapping="Wrap" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                      <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding StructuredEditorSummary}" TextWrapping="Wrap" />
+                                      <Button Grid.Column="1"
+                                              Margin="10,0,0,0"
+                                              Classes="dialog-button"
+                                              Content="Edit..."
+                                              Click="OnEditStructuredFieldClicked" />
+                                    </Grid>
+                                  </StackPanel>
+                                </Border>
+
+                                <TextBox
+                                    Grid.Column="1"
+                                    Classes="dialog-field"
+                                    IsVisible="{Binding IsReadOnly}"
+                                    IsReadOnly="True"
+                                    Background="{Binding ParameterEditBackgrundColor, ElementName=Root}"
+                                    Foreground="{Binding SecondaryTextBrush, ElementName=Root}"
+                                    Text="{Binding Value}"
+                                    ToolTip.Tip="{Binding ToolTipContent}"
+                                    PointerPressed="OnInteractivePointerPressed" />
+
+                                <Border
+                                    Grid.Column="2"
+                                    Width="28"
+                                    Height="28"
+                                    IsVisible="{Binding IsColor}"
+                                    Background="{Binding PreviewBrush}"
+                                    BorderBrush="{Binding CardBorderBrush, ElementName=Root}"
+                                    BorderThickness="1"
+                                    CornerRadius="6" />
+
+                                <Button
+                                    Grid.Column="3"
+                                    Classes="dialog-button"
+                                    IsVisible="{Binding ShowPickerButton}"
+                                    Background="{Binding EditPanelButtonBackground, ElementName=Root}"
+                                    BorderBrush="{Binding EditPanelButtonBorderBrush, ElementName=Root}"
+                                    Foreground="{Binding PrimaryTextBrush, ElementName=Root}"
+                                    Click="OnOpenColorPickerClicked"
+                                    Margin="0,0,0,0">
+                                  <controls:ThemeSvgIcon
+                                      Width="14"
+                                      Height="14"
+                                      IconPath="avares://Amium.Editor/EditorIcons/pipette.svg"
+                                      TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
+                                </Button>
+
+                                  <Button
+                                    Grid.Column="3"
+                                    Classes="dialog-button"
+                                    IsVisible="{Binding IsIconPathSelector}"
+                                    Background="{Binding EditPanelButtonBackground, ElementName=Root}"
+                                    BorderBrush="{Binding EditPanelButtonBorderBrush, ElementName=Root}"
+                                    Foreground="{Binding PrimaryTextBrush, ElementName=Root}"
+                                    Click="OnOpenIconPickerClicked"
+                                    Margin="0,0,0,0">
+                                    <controls:ThemeSvgIcon
+                                        Width="14"
+                                        Height="14"
+                                        IconPath="avares://Amium.Editor/EditorIcons/list.svg"
+                                        TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
+                                  </Button>
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </Border>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock FontSize="12" Foreground="#B42318" Text="{Binding EditorDialogError}" TextWrapping="Wrap" />
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+
+        <TabItem Classes="dialog-tab" Header="Action">
+          <Border
+              Padding="18"
+              Background="{Binding EditorDialogSectionContentBackground, ElementName=Root}"
+              BorderBrush="{Binding CardBorderBrush, ElementName=Root}"
+              BorderThickness="1"
+              CornerRadius="8">
+            <StackPanel Spacing="10">
+              <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="Action" />
+              <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" TextWrapping="Wrap" Text="Event and Action are fixed enums. Targets are stored as paths and exported/imported as strings." />
+              <ItemsControl IsVisible="{Binding HasEditorDialogActionFields}" ItemsSource="{Binding EditorDialogActionFields}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="viewModels:EditorDialogField">
+                    <Border Padding="12" Background="{Binding ParameterEditBackgrundColor, ElementName=Root}" BorderBrush="{Binding EditorDialogSectionHeaderBorderBrush, ElementName=Root}" BorderThickness="1" CornerRadius="8">
+                      <StackPanel Spacing="8">
+                        <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding Label}" />
+                        <TextBlock IsVisible="{Binding HasToolTipText}" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="{Binding ToolTipText}" TextWrapping="Wrap" />
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding StructuredEditorSummary}" TextWrapping="Wrap" />
+                          <Button Grid.Column="1"
+                                  Margin="10,0,0,0"
+                                  Classes="dialog-button"
+                                  Content="Edit..."
+                                  Click="OnEditStructuredFieldClicked" />
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border IsVisible="{Binding ShowEditorDialogActionPlaceholder}" Padding="12" Background="{Binding ParameterEditBackgrundColor, ElementName=Root}" BorderBrush="{Binding EditorDialogSectionHeaderBorderBrush, ElementName=Root}" BorderThickness="1" CornerRadius="8">
+                <StackPanel Spacing="6">
+                  <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="No action rules for this control type" />
+                  <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Currently, the Action tab is intended for Item and Signal controls." TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Border>
+        </TabItem>
+      </TabControl>
+
+      <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <Button Classes="dialog-button" Click="OnConfirmClicked" Content="Save" />
+        <Button Classes="dialog-button" Click="OnApplyClicked" Content="Apply" />
+        <Button Classes="dialog-button" Click="OnCancelClicked" Content="Cancel" />
+      </StackPanel>
+
+      <Popup
+          x:Name="ColorPopup"
+          Placement="Right"
+          IsLightDismissEnabled="True">
+        <Border
+            Width="248"
+            Padding="12"
+            Background="{Binding DialogBackground}"
+            BorderBrush="{Binding CardBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10"
+            PointerPressed="OnInteractivePointerPressed">
+          <StackPanel Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <controls:ThemeSvgIcon
+                  Width="16"
+                  Height="16"
+                  IconPath="avares://Amium.Editor/EditorIcons/pipette.svg"
+                  TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
+              <TextBlock
+                  VerticalAlignment="Center"
+                  FontSize="12"
+                  FontWeight="SemiBold"
+                  Foreground="{Binding PrimaryTextBrush, ElementName=Root}"
+                  Text="Color Picker" />
+            </StackPanel>
+            <WrapPanel Orientation="Horizontal" ItemWidth="110">
+              <Button Classes="dialog-button" Content="Transparent" PointerPressed="OnInteractivePointerPressed" Click="OnTransparentColorClicked" />
+              <Button Classes="dialog-button" Content="Theme" PointerPressed="OnInteractivePointerPressed" Click="OnDefaultColorClicked" />
+            </WrapPanel>
+            <WrapPanel x:Name="ColorPalettePanel" Orientation="Horizontal" />
+            <Border Height="1" Background="{Binding CardBorderBrush}" />
+            <TextBox x:Name="ColorHexTextBox" Classes="dialog-field" PointerPressed="OnInteractivePointerPressed" KeyDown="OnColorHexTextBoxKeyDown" />
+            <Button Classes="dialog-button" Content="Apply" PointerPressed="OnInteractivePointerPressed" Click="OnApplyHexColorClicked" />
+          </StackPanel>
+        </Border>
+      </Popup>
+    </Grid>
+  </Border>
+</UserControl>
+

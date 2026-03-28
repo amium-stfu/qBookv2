@@ -1,0 +1,207 @@
+<Window
+    x:Class="Amium.UiEditor.Widgets.IconPickerDialogWindow"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.EditorUi.Controls"
+    Width="640"
+    Height="420"
+    MinWidth="520"
+    MinHeight="320"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    Title="Icon Picker"
+    Background="{Binding DialogBackground, ElementName=Root}">
+  <Window.Styles>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="{Binding ButtonBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor, ElementName=Root}" />
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="CaretBrush" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="SelectionBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+      <Setter Property="SelectionForegroundBrush" Value="{Binding InputForeground, ElementName=Root}" />
+    </Style>
+  </Window.Styles>
+
+  <Grid Margin="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="2*" />
+      <ColumnDefinition Width="3*" />
+    </Grid.ColumnDefinitions>
+
+    <Border
+        Grid.Row="0"
+        Grid.Column="0"
+          Background="{Binding EditorDialogSectionContentBackground, ElementName=Root}"
+          BorderBrush="{Binding BorderColor, ElementName=Root}"
+          BorderThickness="1"
+          CornerRadius="8"
+          Padding="8">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <TextBlock
+              Grid.Row="0"
+              FontSize="13"
+              FontWeight="SemiBold"
+              Foreground="{Binding SectionHeaderForeground, ElementName=Root}"
+              Text="Icons" />
+          <Border
+              Grid.Row="0"
+              Height="1"
+              Margin="0,24,0,4"
+              Background="{Binding SectionBorderBrush, ElementName=Root}" />
+
+          <TextBox
+              Grid.Row="1"
+              Margin="0,0,0,4"
+              Classes="dialog-field"
+              Watermark="Filter icons..."
+              Text="{Binding FilterText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+          <ListBox
+              Grid.Row="2"
+              ItemsSource="{Binding IconItems}"
+              SelectedItem="{Binding SelectedIconItem, Mode=TwoWay}"
+              Background="{Binding InputBackground, ElementName=Root}"
+              BorderBrush="{Binding BorderColor, ElementName=Root}"
+              BorderThickness="1"
+              ScrollViewer.VerticalScrollBarVisibility="Auto"
+              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+              DragDrop.AllowDrop="True"
+              DragDrop.DragOver="OnIconListDragOver"
+              DragDrop.Drop="OnIconListDrop">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding DisplayName}" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+    <Border
+        Grid.Row="0"
+        Grid.Column="1"
+          Background="{Binding EditorDialogSectionContentBackground, ElementName=Root}"
+          BorderBrush="{Binding BorderColor, ElementName=Root}"
+          BorderThickness="1"
+          CornerRadius="8"
+          Padding="8">
+        <StackPanel Spacing="8">
+          <TextBlock
+              FontSize="13"
+              FontWeight="SemiBold"
+              Foreground="{Binding SectionHeaderForeground, ElementName=Root}"
+              Text="Preview" />
+          <Border
+              Height="1"
+              Margin="0,4,0,4"
+              Background="{Binding SectionBorderBrush, ElementName=Root}" />
+
+          <Border
+              Height="230"
+              Background="{Binding InputBackground, ElementName=Root}"
+              CornerRadius="8"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Top">
+            <controls:ThemeSvgIcon
+                Width="96"
+                Height="96"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IconPath="{Binding SelectedIconPath}"
+                TintColor="{Binding EffectiveIconColor}" />
+          </Border>
+        </StackPanel>
+      </Border>
+
+    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,12,8,0" Spacing="4">
+      <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="You can also drag and drop SVG files into the icon list." TextWrapping="Wrap" />
+      <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="{Binding InfoMessage}" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Grid Grid.Row="1" Grid.Column="1" Margin="8,12,0,0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" VerticalAlignment="Center">
+      <TextBlock
+          Grid.Column="0"
+          Margin="0,0,8,0"
+          VerticalAlignment="Center"
+          FontSize="12"
+          Foreground="{Binding SecondaryTextBrush, ElementName=Root}"
+          Text="Color" />
+      <TextBox
+          Grid.Column="1"
+          Classes="dialog-field"
+          Text="{Binding IconColor, Mode=TwoWay}"
+          Watermark="Theme" />
+      <Border
+          Grid.Column="2"
+          Width="32"
+          Height="32"
+          Margin="8,0,4,0"
+          Background="{Binding IconColorPreviewBrush}"
+          BorderBrush="{Binding BorderColor, ElementName=Root}"
+          BorderThickness="1"
+          CornerRadius="6" />
+      <Button
+          Grid.Column="3"
+          Classes="dialog-button"
+          Width="32"
+          Height="32"
+          Padding="4"
+          Margin="4,0,8,0"
+          Background="{Binding ButtonBackground, ElementName=Root}"
+          BorderBrush="{Binding ButtonBorderBrush, ElementName=Root}"
+          Foreground="{Binding ButtonForeground, ElementName=Root}"
+          Click="OnOpenColorPickerClicked">
+        <controls:ThemeSvgIcon
+            Width="16"
+            Height="16"
+            IconPath="avares://Amium.Editor/EditorIcons/pipette.svg"
+            TintColor="{Binding ButtonForeground, ElementName=Root}" />
+      </Button>
+      <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+        <Button Classes="dialog-button" Content="Select" IsEnabled="{Binding CanSelect}" Click="OnSelectClicked" />
+        <Button Classes="dialog-button" Content="Cancel" Click="OnCancelClicked" />
+      </StackPanel>
+    </Grid>
+
+    <Popup
+      x:Name="ColorPopup"
+      Grid.Row="1"
+      Grid.Column="1"
+      Placement="Top"
+      IsLightDismissEnabled="True">
+      <Border
+          Width="248"
+          Padding="12"
+          Background="{Binding DialogBackground, ElementName=Root}"
+          BorderBrush="{Binding BorderColor, ElementName=Root}"
+          BorderThickness="1"
+          CornerRadius="10">
+        <StackPanel Spacing="10">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Classes="dialog-button" Content="Transparent" Click="OnTransparentColorClicked" />
+            <Button Classes="dialog-button" Content="Theme" Click="OnDefaultColorClicked" />
+          </StackPanel>
+          <WrapPanel x:Name="ColorPalettePanel" Orientation="Horizontal" />
+          <Border Height="1" Background="{Binding BorderColor, ElementName=Root}" />
+          <TextBox x:Name="ColorHexTextBox" Classes="dialog-field" KeyDown="OnColorHexTextBoxKeyDown" />
+          <Button Classes="dialog-button" Content="Apply" Click="OnApplyHexColorClicked" />
+        </StackPanel>
+      </Border>
+    </Popup>
+  </Grid>
+</Window>

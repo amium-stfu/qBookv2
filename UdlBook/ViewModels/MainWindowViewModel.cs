@@ -39,7 +39,10 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         var defaultLayoutDirectory = Path.Combine(AppContext.BaseDirectory, "DefaultLayout");
         _defaultLayoutPath = Path.Combine(defaultLayoutDirectory, "Page.json");
         EnsureDefaultLayout(defaultLayoutDirectory, _defaultLayoutPath);
-        IsDarkTheme = !string.Equals(_config.DefaultTheme, "Light", StringComparison.OrdinalIgnoreCase);
+        // Always start in Dark theme on app startup.
+        IsDarkTheme = true;
+        _config.DefaultTheme = "Dark";
+        _config.Save(_configPath);
 
         if (string.IsNullOrWhiteSpace(_config.StartLayout))
         {
@@ -71,6 +74,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         LoadBookCommand = new Amium.UiEditor.ViewModels.RelayCommand(LoadBook, CanRunBookAction);
         RebuildBookCommand = new Amium.UiEditor.ViewModels.RelayCommand(RebuildBook, CanRunBookAction);
         RefreshLogCommand = new Amium.UiEditor.ViewModels.RelayCommand(RefreshLog);
+
         _bookProjectPath = Path.GetDirectoryName(_startupPagePath) ?? AppContext.BaseDirectory;
         _loadedBookSummary = "No book loaded";
         _messagesSummary = "Keine Meldungen";

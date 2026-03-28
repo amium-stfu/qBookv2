@@ -1,9 +1,0 @@
-<UserControl
-    x:Class="Amium.UiEditor.Controls.EditorNumericInputPad"
-    xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Grid ColumnDefinitions="Auto,Auto">
-    <UniformGrid x:Name="InputGrid" Grid.Column="0" Columns="3" HorizontalAlignment="Center" />
-    <StackPanel x:Name="ActionPanel" Grid.Column="1" Margin="16,0,0,0" Orientation="Vertical" Spacing="12" />
-  </Grid>
-</UserControl>

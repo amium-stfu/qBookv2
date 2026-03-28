@@ -2,7 +2,7 @@
     x:Class="Amium.UiEditor.MainWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Amium.UiEditor.Controls"
+    xmlns:controls="using:Amium.UiEditor.Widgets"
     xmlns:models="using:Amium.UiEditor.Models"
     xmlns:viewModels="using:Amium.UiEditor.ViewModels"
     xmlns:editorUi="using:Amium.EditorUi.Controls"
@@ -23,6 +23,12 @@
       <Border Classes="card" Padding="12,6" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" IsVisible="{Binding IsHeaderCollapsed, Converter={StaticResource BoolNegationConverter}, FallbackValue=True, TargetNullValue=True}">
         <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,8,0">
+            <Button Classes="headericon" Background="Transparent" BorderBrush="Transparent" ToolTip.Tip="User level">
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <editorUi:ThemeSvgIcon Width="22" Height="22" IconPath="avares://Amium.Editor/EditorIcons/user.svg" TintColor="{Binding CurrentUserColor}" />
+                <TextBlock Width="120" FontSize="14" FontWeight="SemiBold" Foreground="{Binding CurrentUserColor}" Text="{Binding CurrentUserCaption}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
             <Button Classes="headericon" Command="{Binding ToggleHeaderCollapsedCommand}" ToolTip.Tip="Kopfbereich einklappen">
               <TextBlock FontSize="16" FontWeight="Bold" Foreground="{Binding PrimaryTextBrush}" Text="^" />
             </Button>

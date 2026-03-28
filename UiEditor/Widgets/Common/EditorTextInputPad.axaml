@@ -1,0 +1,18 @@
+<UserControl
+    x:Name="Root"
+    x:Class="Amium.UiEditor.Widgets.EditorTextInputPad"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid ColumnDefinitions="Auto,20,Auto,20,Auto" HorizontalAlignment="Center">
+    <StackPanel Grid.Column="0" Spacing="8">
+      <StackPanel x:Name="SpecialRow" Orientation="Horizontal" Spacing="8" />
+      <StackPanel x:Name="QwertzRow" Orientation="Horizontal" Spacing="8" />
+      <StackPanel x:Name="HomeRow" Margin="40,0,0,0" Orientation="Horizontal" Spacing="8" />
+      <StackPanel x:Name="ShiftRow" Orientation="Horizontal" Spacing="8" />
+      <StackPanel x:Name="BottomRow" Orientation="Horizontal" Spacing="8" />
+    </StackPanel>
+
+    <Grid x:Name="NumberPadGrid" Grid.Column="2" />
+    <Grid x:Name="ActionGrid" Grid.Column="4" />
+  </Grid>
+</UserControl>

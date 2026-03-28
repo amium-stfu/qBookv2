@@ -1,0 +1,64 @@
+- Type: Button
+
+  View: 1
+  Enabled: True
+  
+  Identity:
+    Name: Button
+    Path: UdlBook/Page1/Button
+    Id: 31f1e6da8dea4cef89ba0b005110d0a2
+
+  Rect:
+    X: 120
+    Y: 120
+    Width: 200
+    Height: 72
+
+  Design:
+    CornerRadius: 12
+    BorderWidth: 1
+    BorderColor: null        # Theme
+    BackColor: null          # Theme
+    ToolTip: ""
+
+  Header:
+    ControlCaption: m310
+    HeaderForeColor: null    # Theme
+    CaptionVisible: true
+    HeaderCornerRadius: 6
+    HeaderBorderWidth: 0
+    HeaderBorderColor: null  # Theme
+    HeaderBackColor: null    # Theme
+
+  Body:
+    BodyCaption: Value
+    BodyCaptionPosition: Top
+    BodyForeColor: null      # Theme
+    BodyCaptionVisible: false
+    BodyCornerRadius: 8
+    BodyBorderWidth: 0
+    BodyBorderColor: null    # Theme
+    BodyBackColor: null      # Theme
+
+  Footer:
+    ShowFooter: false
+    FooterCornerRadius: 6
+    FooterBorderWidth: 0
+    FooterBorderColor: null  # Theme
+    FooterBackColor: null    # Theme
+
+  InteractionRules:
+    - Event: BodyLeftClick
+      Action: SendInputTo
+      TargetPath: "UdlBook/Page1/udl1/m310/Set/Request"
+      Argument: ""
+
+  Control:
+    ButtonText: "Click me"
+    ButtonIcon: "avares://Amium.Editor/EditorIcons/cog.svg"
+    ButtonIconColor: null   # Theme / default
+    ButtonBackColor: null    # Theme
+    ButtonOnlyIcon: false
+    ButtonIconAlign: Left
+    ButtonTextAlign: Center
+    

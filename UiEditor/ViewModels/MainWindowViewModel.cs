@@ -51,6 +51,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private bool _snapToEdges = true;
     private bool _isDarkTheme;
     private bool _isHeaderCollapsed;
+    private int _viewLimit;
     private int _gridSize = 20;
     private string _statusText;
     private string _dataRegistrySummary;
@@ -59,6 +60,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private PageModel _selectedPage = null!;
     private double _canvasWidth;
     private double _canvasHeight;
+    private double _workspaceWidth;
+    private double _workspaceHeight;
     private PageItemModel? _listPopupTarget;
     private EditorDialogMode _editorDialogMode;
     private PageItemModel? _editorDialogItem;
@@ -72,6 +75,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private int _dataRegistryRefreshQueued;
     private PageItemModel? _activeValueInputItem;
     private bool _isValueInputOpen;
+    private UserLevel _currentUser = UserLevel.Default;
     private Dock _tabStripPlacement = Dock.Right;
     protected bool AutoSaveOnEditModeExit { get; set; } = true;
 
@@ -100,8 +104,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         ToggleHeaderCollapsedCommand = new RelayCommand(ToggleHeaderCollapsed);
         SetTabStripPlacementCommand = new RelayCommand<string>(SetTabStripPlacement);
         _dataRegistrySummary = "HostRegistry: 0 Items";
-        _editorDialogChoiceSummary = "Dialog Choices: geschlossen";
-        _statusText = $"Layout-Datei: {LayoutFilePath}";
+        _editorDialogChoiceSummary = "Dialog Choices: closed";
+        _statusText = $"Layout file: {LayoutFilePath}";
+        _currentUser = UserLevel.Default;
+        _viewLimit = _currentUser.ViewLimit;
         HostRegistries.Data.RegistryChanged += OnDataRegistryStructureChanged;
 
         SetPages(CreateDefaultPages());
@@ -167,6 +173,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 if (!value)
                 {
                     CancelSelection();
+                    ClearItemSelection();
                     CancelEditorDialog();
                     CancelValueInput();
                     if (AutoSaveOnEditModeExit)
@@ -251,6 +258,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 OnPropertyChanged(nameof(EditorDialogSectionContentBackground));
                 OnPropertyChanged(nameof(HeaderBadgeBackground));
                 OnPropertyChanged(nameof(HeaderBadgeForeground));
+                OnPropertyChanged(nameof(CurrentUserColor));
             }
         }
     }
@@ -345,11 +353,28 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     public string EditorDialogSectionContentBackground => CurrentTheme.EditorDialogSectionContentBackground;
     public string HeaderBadgeBackground => CurrentTheme.HeaderBadgeBackground;
     public string HeaderBadgeForeground => CurrentTheme.HeaderBadgeForeground;
+    public int ViewLimit
+    {
+        get => _viewLimit;
+        private set => SetProperty(ref _viewLimit, value);
+    }
+
+    public string CurrentUserCaption => _currentUser.Caption;
+
+    public string CurrentUserColor => string.IsNullOrWhiteSpace(_currentUser.Color)
+        ? PrimaryTextBrush
+        : _currentUser.Color;
+
+    public bool IsLogoutAvailable => _currentUser.Id != UserLevel.Default.Id;
+
+    public bool IsChangePasswordAvailable => _currentUser.Id != UserLevel.Default.Id && _currentUser.Id != 3;
+
+    public bool IsResetPasswordsAvailable => _currentUser.Id == 3;
     public bool HasMultiSelection => _selectedItems.Count > 1;
     public bool ShowAlignmentPanel => IsEditMode && HasMultiSelection;
     public int SelectedItemsCount => _selectedItems.Count;
     public string EditModeText => IsEditMode ? "Edit mode aktiv" : "View mode";
-    public string FooterText => $"{SelectedPage.Name} aktiv | {SelectedPage.Items.Count} Controls | {SelectedItemsCount} ausgewaehlt | {(IsEditMode ? "Edit" : "Navigation")}";
+    public string FooterText => $"{SelectedPage.Name} aktiv | {SelectedPage.Items.Count} Widgets | {SelectedItemsCount} ausgewaehlt | {(IsEditMode ? "Edit" : "Navigation")}";
 
     public string StatusText
     {
@@ -385,6 +410,19 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     public RelayCommand ToggleEditModeCommand { get; }
     public RelayCommand ToggleHeaderCollapsedCommand { get; }
     public RelayCommand<string> SetTabStripPlacementCommand { get; }
+
+    // Logische Groesse des Arbeitsbereichs fuer ScrollViewer
+    public double WorkspaceWidth
+    {
+        get => _workspaceWidth;
+        private set => SetProperty(ref _workspaceWidth, value);
+    }
+
+    public double WorkspaceHeight
+    {
+        get => _workspaceHeight;
+        private set => SetProperty(ref _workspaceHeight, value);
+    }
 
     public bool IsEditorDialogOpen
     {
@@ -545,7 +583,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             }
 
             SelectionState.ShowPicker = false;
-            StatusText = _selectedItems.Count == 1 ? $"{_selectedItems[0].Title} ausgewaehlt" : $"{_selectedItems.Count} Controls ausgewaehlt";
+            StatusText = _selectedItems.Count == 1 ? $"{_selectedItems[0].Title} ausgewaehlt" : $"{_selectedItems.Count} Widgets ausgewaehlt";
             return;
         }
 
@@ -573,7 +611,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         draft.Id = Guid.NewGuid().ToString("N");
         draft.SetHierarchy(SelectedPage.Name, null);
 
-        OpenEditorDialog(EditorDialogMode.AddCanvas, draft, null, SelectionState.PopupX + 16, SelectionState.PopupY + 16, $"{kind} anlegen");
+        OpenEditorDialog(EditorDialogMode.AddCanvas, draft, null, SelectionState.PopupX + 16, SelectionState.PopupY + 16, $"Create {kind}");
         SelectionState.ShowPicker = false;
     }
 
@@ -597,7 +635,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         draft.Id = Guid.NewGuid().ToString("N");
         draft.SetHierarchy(SelectedPage.Name, _listPopupTarget);
 
-        OpenEditorDialog(EditorDialogMode.AddList, draft, _listPopupTarget, SelectionState.ListPopupX + 16, SelectionState.ListPopupY + 16, $"{kind} anlegen");
+        OpenEditorDialog(EditorDialogMode.AddList, draft, _listPopupTarget, SelectionState.ListPopupX + 16, SelectionState.ListPopupY + 16, $"Create {kind}");
         CancelListPopup();
     }
 
@@ -610,7 +648,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return;
         }
 
-        OpenEditorDialog(EditorDialogMode.Edit, item, item.ParentItem, x, y, $"{item.Name} bearbeiten");
+        OpenEditorDialog(EditorDialogMode.Edit, item, item.ParentItem, x, y, $"Edit {item.Name}");
     }
 
     public void OpenValueInput(PageItemModel item)
@@ -622,7 +660,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         ActiveValueInputItem = item;
         IsValueInputOpen = true;
-        StatusText = $"Eingabe aktiv: {item.Title}";
+        StatusText = $"Input active: {item.Title}";
     }
 
     public void OpenValueInputForTargetPath(string? targetPath, PageItemModel sourceItem)
@@ -675,6 +713,50 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         ActiveValueInputItem = null;
         IsValueInputOpen = false;
+    }
+
+    public bool TryChangeCurrentUserPassword(string oldPassword, string newPassword, string repeatPassword, out string error)
+    {
+        if (string.IsNullOrEmpty(newPassword))
+        {
+            error = "New password must not be empty.";
+            return false;
+        }
+
+        if (!string.Equals(newPassword, repeatPassword, StringComparison.Ordinal))
+        {
+            error = "New passwords do not match.";
+            return false;
+        }
+
+        if (!UserLevel.TryChangePassword(_currentUser, oldPassword ?? string.Empty, newPassword, out error))
+        {
+            return false;
+        }
+
+        StatusText = "Password changed.";
+        return true;
+    }
+
+    public void ResetAllUserPasswords()
+    {
+        UserLevel.ResetPasswordsToDefaults();
+        StatusText = "Passwords reset to defaults.";
+    }
+
+    public bool TrySetUserByPassword(string? password)
+    {
+        var user = UserLevel.GetByPasswordOrDefault(password);
+
+        _currentUser = user;
+        ViewLimit = user.ViewLimit;
+        OnPropertyChanged(nameof(CurrentUserCaption));
+        OnPropertyChanged(nameof(CurrentUserColor));
+        OnPropertyChanged(nameof(IsLogoutAvailable));
+        OnPropertyChanged(nameof(IsChangePasswordAvailable));
+        OnPropertyChanged(nameof(IsResetPasswordsAvailable));
+        StatusText = $"User level: {user.Caption}";
+        return true;
     }
 
     private bool TryFindValueInputItem(string targetPath, out PageItemModel? match)
@@ -735,7 +817,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 _editorDialogItem.Height = SnapLength(_editorDialogItem.Height, _editorDialogItem.MinHeight, MaxAvailableHeight(_editorDialogItem.Y));
                 SelectedPage.Items.Add(_editorDialogItem);
                 SelectItem(_editorDialogItem);
-                StatusText = $"{_editorDialogItem.Kind} '{_editorDialogItem.Name}' auf {SelectedPage.Name} eingefuegt";
+                StatusText = $"{_editorDialogItem.Kind} '{_editorDialogItem.Name}' added to {SelectedPage.Name}";
                 CancelSelection();
                 break;
             case EditorDialogMode.AddList:
@@ -745,11 +827,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     _editorDialogItem.SetHierarchy(SelectedPage.Name, _editorDialogParentItem);
                     _editorDialogParentItem.Items.Add(_editorDialogItem);
                     _editorDialogParentItem.ApplyListHeightRules();
-                    StatusText = $"{_editorDialogItem.Kind} '{_editorDialogItem.Name}' in {_editorDialogParentItem.Name} eingefuegt";
+                    StatusText = $"{_editorDialogItem.Kind} '{_editorDialogItem.Name}' added to {_editorDialogParentItem.Name}";
                 }
                 break;
             case EditorDialogMode.Edit:
-                StatusText = $"Control gespeichert: {_editorDialogItem.Path}";
+                StatusText = $"Control saved: {_editorDialogItem.Path}";
                 break;
         }
 
@@ -758,7 +840,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             if (_editorDialogMode is EditorDialogMode.AddCanvas or EditorDialogMode.AddList)
             {
                 _editorDialogMode = EditorDialogMode.Edit;
-                EditorDialogTitle = $"{_editorDialogItem.Name} bearbeiten";
+                EditorDialogTitle = $"Edit {_editorDialogItem.Name}";
             }
 
             EditorDialogError = string.Empty;
@@ -864,6 +946,25 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         _canvasWidth = Math.Max(0, width);
         _canvasHeight = Math.Max(0, height);
         RefreshGridLines();
+
+        // Aktualisiere den logischen Arbeitsbereich fuer ScrollViewer
+        // basierend auf den aktuellen Widget-Positionen.
+        if (Pages.Count > 0)
+        {
+            var page = SelectedPage;
+            double maxRight = 0;
+            double maxBottom = 0;
+
+            foreach (var item in EnumeratePageItems(page.Items))
+            {
+                maxRight = Math.Max(maxRight, item.X + item.Width);
+                maxBottom = Math.Max(maxBottom, item.Y + item.Height);
+            }
+
+            // Immer mindestens so gross wie der sichtbare Bereich.
+            WorkspaceWidth = Math.Max(_canvasWidth, maxRight + 32);
+            WorkspaceHeight = Math.Max(_canvasHeight, maxBottom + 32);
+        }
     }
 
     public double SnapCoordinate(double value, double itemSize, double canvasSize)
@@ -894,8 +995,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             }
 
             StatusText = savedTargets.Count > 0
-                ? $"Gespeichert: {string.Join(" | ", savedTargets)}"
-                : "Keine speicherbaren Book-Dateien gefunden";
+                ? $"Saved: {string.Join(" | ", savedTargets)}"
+                : "No book files to save";
             return;
         }
 
@@ -907,7 +1008,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         var json = JsonSerializer.Serialize(document, _jsonOptions);
         File.WriteAllText(LayoutFilePath, json);
-        StatusText = $"Layout gespeichert: {LayoutFilePath}";
+        StatusText = $"Layout saved: {LayoutFilePath}";
     }
 
     private bool TrySaveSelectedPageUiJson(out string savedTarget)
@@ -1014,6 +1115,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["FooterBorderWidth"] = item.FooterBorderWidth;
         nodeObject["FooterCornerRadius"] = item.FooterCornerRadius;
         nodeObject["ToolTipText"] = item.ToolTipText;
+        nodeObject["View"] = item.View;
+        nodeObject["Enabled"] = item.Enabled;
         nodeObject["ButtonText"] = item.ButtonText;
         SetOptionalJsonValue(nodeObject, "ButtonIcon", item.ButtonIcon);
         nodeObject["ButtonOnlyIcon"] = item.ButtonOnlyIcon;
@@ -1022,6 +1125,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["ButtonCommand"] = item.ButtonCommand;
         nodeObject["ButtonBodyBackground"] = item.ButtonBodyBackground;
         nodeObject["ButtonBodyForegroundColor"] = item.ButtonBodyForegroundColor;
+        SetOptionalJsonValue(nodeObject, "ButtonIconColor", item.ButtonIconColor);
         nodeObject["UseThemeColor"] = item.UseThemeColor;
         SetOptionalJsonValue(nodeObject, "BackgroundColor", item.BackgroundColor);
         SetOptionalJsonValue(nodeObject, "BorderColor", item.BorderColor);
@@ -1102,6 +1206,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         item.Name = GetStringProperty(properties, "Name") ?? item.Name;
         item.Id = GetStringProperty(properties, "Id") ?? item.Id;
+        item.Enabled = GetBoolProperty(properties, "Enabled") ?? item.Enabled;
+        item.View = GetIntProperty(properties, "View") ?? item.View;
         item.ControlCaption = GetFirstStringProperty(properties, "ControlCaption", "Header") ?? item.ControlCaption;
         item.CaptionVisible = GetFirstBoolProperty(properties, "CaptionVisible", "ShowCaption") ?? item.CaptionVisible;
         item.BodyCaption = GetFirstStringProperty(properties, "BodyCaption", "Title") ?? item.BodyCaption;
@@ -1116,8 +1222,19 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.ButtonIconAlign = GetStringProperty(properties, "ButtonIconAlign") ?? item.ButtonIconAlign;
         item.ButtonTextAlign = GetStringProperty(properties, "ButtonTextAlign") ?? item.ButtonTextAlign;
         item.ButtonCommand = GetStringProperty(properties, "ButtonCommand") ?? item.ButtonCommand;
-        item.ButtonBodyBackground = GetStringProperty(properties, "ButtonBodyBackground") ?? item.ButtonBodyBackground;
+
+        var buttonBodyBackground = GetStringProperty(properties, "ButtonBodyBackground");
+        if (buttonBodyBackground is not null)
+        {
+            // Alte Layouts hatten "Transparent" als Platzhalter für "Theme".
+            // Beim Einlesen behandeln wir diesen Wert jetzt wie "leer" (Theme-Default).
+            item.ButtonBodyBackground = string.Equals(buttonBodyBackground.Trim(), "Transparent", StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
+                : buttonBodyBackground;
+        }
+
         item.ButtonBodyForegroundColor = GetStringProperty(properties, "ButtonBodyForegroundColor") ?? item.ButtonBodyForegroundColor;
+        item.ButtonIconColor = GetStringProperty(properties, "ButtonIconColor") ?? item.ButtonIconColor;
         item.UseThemeColor = GetBoolProperty(properties, "UseThemeColor") ?? item.UseThemeColor;
         item.BackgroundColor = GetStringProperty(properties, "BackgroundColor") ?? item.BackgroundColor;
         item.BorderColor = GetStringProperty(properties, "BorderColor") ?? item.BorderColor;
@@ -1339,7 +1456,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private void ToggleHeaderCollapsed()
     {
         IsHeaderCollapsed = !IsHeaderCollapsed;
-        StatusText = IsHeaderCollapsed ? "Kopfbereich eingeklappt" : "Kopfbereich ausgeklappt";
+        StatusText = IsHeaderCollapsed ? "Header collapsed" : "Header expanded";
     }
 
     private void ToggleEditMode()
@@ -1347,7 +1464,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         IsEditMode = !IsEditMode;
         if (IsEditMode)
         {
-            StatusText = "Edit mode aktiviert";
+            StatusText = "Edit mode enabled";
         }
     }
 
@@ -1405,7 +1522,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         if (!File.Exists(LayoutFilePath))
         {
-            StatusText = $"Keine Layout-Datei gefunden: {LayoutFilePath}";
+            StatusText = $"No layout file found: {LayoutFilePath}";
             return;
         }
 
@@ -1414,13 +1531,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         if (document is null || document.Pages.Count == 0)
         {
-            StatusText = "Layout-Datei ist leer oder ungueltig";
+            StatusText = "Layout file is empty or invalid";
             return;
         }
 
         TabStripPlacement = ParseTabStripPlacement(document.TabStripPlacement);
         SetPages(document.Pages.Select(ToModel).ToList());
-        StatusText = $"Layout geladen: {LayoutFilePath}";
+        StatusText = $"Layout loaded: {LayoutFilePath}";
     }
 
     public PageItemModel CreateItem(ControlKind kind, double x, double y, double width, double height)
@@ -1432,11 +1549,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Kind = ControlKind.Button,
                 ControlCaption = string.Empty,
                 BodyCaption = "Button",
+                BodyCaptionVisible = false,
                 Footer = "Action button",
+                ShowFooter = false,
                 ButtonText = "Button",
                 ButtonTextAlign = "Center",
                 ButtonIconAlign = "Left",
-                ButtonBodyBackground = "Transparent",
                 BodyCornerRadius = 8,
                 X = x,
                 Y = y,
@@ -1464,9 +1582,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.LogControl => new PageItemModel
             {
                 Kind = ControlKind.LogControl,
-                ControlCaption = string.Empty,
-                BodyCaption = "ProcessLog",
-                Footer = "Live host log",
+                ControlCaption = "ProcessLog",
+                BodyCaption = string.Empty,
+                Footer = string.Empty,
                 TargetLog = "Logs/Host",
                 X = x,
                 Y = y,
@@ -1854,8 +1972,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         if (targetField is null && targetLogField is null)
         {
             EditorDialogChoiceSummary = IsEditorDialogOpen
-                ? "Dialog Choices: kein Target-Feld"
-                : "Dialog Choices: geschlossen";
+                ? "Dialog Choices: no target field"
+                : "Dialog Choices: closed";
             return;
         }
 
@@ -1906,7 +2024,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 pathField.Value = BuildPreviewPath(_editorDialogItem, field.Value);
             }
 
-            EditorDialogTitle = _editorDialogMode == EditorDialogMode.Edit ? $"{field.Value} bearbeiten" : $"{_editorDialogItem.Kind} anlegen";
+            EditorDialogTitle = _editorDialogMode == EditorDialogMode.Edit
+                ? $"Edit {field.Value}"
+                : $"Create {_editorDialogItem.Kind}";
         }
 
         if (string.Equals(field.Key, "TargetPath", StringComparison.Ordinal))
@@ -1934,7 +2054,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             var nameField = FindDialogField("Name");
             if (nameField is not null)
             {
-                EditorDialogTitle = _editorDialogMode == EditorDialogMode.Edit ? $"{nameField.Value} bearbeiten" : $"{_editorDialogItem.Kind} anlegen";
+                EditorDialogTitle = _editorDialogMode == EditorDialogMode.Edit
+                    ? $"Edit {nameField.Value}"
+                    : $"Create {_editorDialogItem.Kind}";
             }
         }
 
@@ -1998,6 +2120,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 var section = new EditorDialogSection(
                     sectionBinding.Title,
                     isExpanded: string.Equals(sectionBinding.Title, "Identity", StringComparison.Ordinal)
+                        || string.Equals(sectionBinding.Title, "Widget", StringComparison.Ordinal)
                         || string.Equals(sectionBinding.Title, "Control", StringComparison.Ordinal));
                 foreach (var binding in sectionBinding.Bindings)
                 {
@@ -2011,7 +2134,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private IReadOnlyList<EditorDialogField> BuildActionFieldsForItem(PageItemModel item)
     {
-        if (item.Kind is not (ControlKind.Item or ControlKind.Signal))
+        // Allow Action/InteractionRules for Item, Signal and Button controls
+        if (item.Kind is not (ControlKind.Item or ControlKind.Signal or ControlKind.Button))
         {
             return [];
         }
@@ -2027,7 +2151,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     current.InteractionRules = value;
                     return null;
                 },
-                _ => "Default without rules: left click opens the value editor. Event and Action are stored as enum strings in export and import.")
+                _ => "Default without rules: left click opens the value editor or triggers the button action. Event and Action are stored as enum strings in export and import.")
                 .CreateField(item)
         ];
     }
@@ -2036,9 +2160,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         var identity = new List<EditorDialogBindingDefinition>
         {
+            BindInt("View", "View", current => current.View, (current, value) => current.View = value),
             BindText("Name", "Name", current => current.Name, (current, value) => { current.Name = value; return null; }),
             BindReadOnly("Path", "Path", current => current.Path),
-            BindReadOnly("Id", "Id", current => current.Id)
+            BindReadOnly("Id", "Id", current => current.Id),
+            BindChoice("Enabled", "Enabled", current => current.Enabled ? "True" : "False", (current, value) => { current.Enabled = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" })
         };
 
         var design = new List<EditorDialogBindingDefinition>
@@ -2100,17 +2226,15 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         switch (item.Kind)
         {
             case ControlKind.Button:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>
                 {
-                    BindChoice("ButtonCommand", "Command", current => current.ButtonCommand, (current, value) => { current.ButtonCommand = value; return null; }, _ => GetCommandRegistryOptions()),
                     BindText("ButtonText", "ButtonText", current => current.ButtonText, (current, value) => { current.ButtonText = value; return null; }),
                     BindText("ButtonIcon", "Icon", current => current.ButtonIcon, (current, value) => { current.ButtonIcon = value; return null; }),
+                    BindText("ButtonIconColor", "IconColor", current => current.ButtonIconColor, (current, value) => { current.ButtonIconColor = value; return null; }, EditorPropertyType.Color),
+                    BindText("ButtonBackColor", "BackColor", current => current.ButtonBodyBackground, (current, value) => { current.ButtonBodyBackground = value; return null; }, EditorPropertyType.Color),
                     BindChoice("ButtonOnlyIcon", "OnlyIcon", current => current.ButtonOnlyIcon ? "True" : "False", (current, value) => { current.ButtonOnlyIcon = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindChoice("ButtonIconAlign", "IconAlign", current => current.ButtonIconAlign, (current, value) => { current.ButtonIconAlign = value; return null; }, _ => AlignmentOptions),
-                    BindChoice("ButtonTextAlign", "Align", current => current.ButtonTextAlign, (current, value) => { current.ButtonTextAlign = value; return null; }, _ => AlignmentOptions),
-                    BindText("ButtonBodyBackground", "BodyBackground", current => current.ButtonBodyBackground, (current, value) => { current.ButtonBodyBackground = value; return null; }, EditorPropertyType.Color),
-                    BindText("ButtonBodyForegroundColor", "BodyForeColor", current => current.ButtonBodyForegroundColor, (current, value) => { current.ButtonBodyForegroundColor = value; return null; }, EditorPropertyType.Color),
-                    BindChoice("UseThemeColor", "UseThemeColor", current => current.UseThemeColor ? "True" : "False", (current, value) => { current.UseThemeColor = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" })
+                    BindChoice("ButtonTextAlign", "Align", current => current.ButtonTextAlign, (current, value) => { current.ButtonTextAlign = value; return null; }, _ => AlignmentOptions)
                 }));
                 break;
             case ControlKind.Item:
@@ -2126,40 +2250,28 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }));
                 break;
             case ControlKind.ChartControl:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>
                 {
                     BindChartSeriesList("ChartSeriesDefinitions", "Series", current => current.ChartSeriesDefinitions, (current, value) => { current.ChartSeriesDefinitions = value; return null; }, GetChartSeriesToolTip),
-                    BindText("ContainerBorder", "ContainerBorder", current => current.ContainerBorder ?? string.Empty, (current, value) => { current.ContainerBorder = EmptyToNull(value); return null; }, EditorPropertyType.Color),
-                    BindText("ContainerBackgroundColor", "ContainerBg", current => current.ContainerBackgroundColor ?? string.Empty, (current, value) => { current.ContainerBackgroundColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
-                    BindDouble("ContainerBorderWidth", "ContainerBorderWidth", current => current.ContainerBorderWidth, (current, value) => current.ContainerBorderWidth = value),
                     BindInt("RefreshRateMs", "RefreshRate ms", current => current.RefreshRateMs, (current, value) => current.RefreshRateMs = value),
                     BindInt("HistorySeconds", "History s", current => current.HistorySeconds, (current, value) => current.HistorySeconds = value),
                     BindInt("ViewSeconds", "View s", current => current.ViewSeconds, (current, value) => current.ViewSeconds = value)
                 }));
                 break;
             case ControlKind.ListControl:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>
                 {
-                    BindText("ContainerBorder", "ContainerBorder", current => current.ContainerBorder ?? string.Empty, (current, value) => { current.ContainerBorder = EmptyToNull(value); return null; }, EditorPropertyType.Color),
-                    BindText("ContainerBackgroundColor", "ContainerBg", current => current.ContainerBackgroundColor ?? string.Empty, (current, value) => { current.ContainerBackgroundColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
-                    BindDouble("ContainerBorderWidth", "ContainerBorderWidth", current => current.ContainerBorderWidth, (current, value) => current.ContainerBorderWidth = value),
-                    BindDouble("ControlHeight", "ControlHeight", current => current.ControlHeight, (current, value) => current.ControlHeight = value),
-                    BindDouble("ControlBorderWidth", "ControlBorderWidth", current => current.ControlBorderWidth, (current, value) => current.ControlBorderWidth = value),
-                    BindText("ControlBorderColor", "ControlBorderColor", current => current.ControlBorderColor ?? string.Empty, (current, value) => { current.ControlBorderColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
-                    BindDouble("ControlCornerRadius", "ControlCornerRadius", current => current.ControlCornerRadius, (current, value) => current.ControlCornerRadius = value)
+                    BindDouble("ControlHeight", "ControlHeight", current => current.ControlHeight, (current, value) => current.ControlHeight = value)
                 }));
                 break;
             case ControlKind.LogControl:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>
                 {
-                    BindChoice("TargetLog", "TargetLog", current => current.TargetLog, (current, value) => { current.TargetLog = value; return null; }, _ => GetProcessLogTargetOptions()),
-                    BindText("ContainerBorder", "ContainerBorder", current => current.ContainerBorder ?? string.Empty, (current, value) => { current.ContainerBorder = EmptyToNull(value); return null; }, EditorPropertyType.Color),
-                    BindText("ContainerBackgroundColor", "ContainerBg", current => current.ContainerBackgroundColor ?? string.Empty, (current, value) => { current.ContainerBackgroundColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
-                    BindDouble("ContainerBorderWidth", "ContainerBorderWidth", current => current.ContainerBorderWidth, (current, value) => current.ContainerBorderWidth = value)
+                    BindChoice("TargetLog", "TargetLog", current => current.TargetLog, (current, value) => { current.TargetLog = value; return null; }, _ => GetProcessLogTargetOptions())
                 }));
                 break;
             case ControlKind.UdlClientControl:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>
                 {
                     BindText("UdlClientHost", "Host", current => current.UdlClientHost, (current, value) => { current.UdlClientHost = value; return null; }),
                     BindInt("UdlClientPort", "Port", current => current.UdlClientPort, (current, value) => current.UdlClientPort = value),
@@ -2168,6 +2280,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindAttachItemList("UdlAttachedItemPaths", "AttachToUi", current => current.UdlAttachedItemPaths, (current, value) => { current.UdlAttachedItemPaths = value; return null; }, GetUdlAttachItemOptions)
                 }));
                 break;
+        }
+
+        var controlIndex = sections.FindIndex(s => string.Equals(s.Title, "Control", StringComparison.Ordinal));
+        if (controlIndex > 1)
+        {
+            var controlSection = sections[controlIndex];
+            sections.RemoveAt(controlIndex);
+            sections.Insert(1, controlSection);
         }
 
         return sections;
@@ -2286,7 +2406,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         EditorDialogTitle = string.Empty;
         EditorDialogError = string.Empty;
         IsEditorDialogOpen = false;
-        EditorDialogChoiceSummary = "Dialog Choices: geschlossen";
+        EditorDialogChoiceSummary = "Dialog Choices: closed";
         OnPropertyChanged(nameof(HasEditorDialogActionFields));
         OnPropertyChanged(nameof(ShowEditorDialogActionPlaceholder));
     }
@@ -2469,6 +2589,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ButtonCommand = item.ButtonCommand,
             ButtonBodyBackground = item.ButtonBodyBackground,
             ButtonBodyForegroundColor = item.ButtonBodyForegroundColor,
+            ButtonIconColor = item.ButtonIconColor,
             UseThemeColor = item.UseThemeColor,
             BackgroundColor = item.BackgroundColor,
             BorderColor = item.BorderColor,
@@ -2562,6 +2683,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ButtonCommand = item.ButtonCommand,
             ButtonBodyBackground = item.ButtonBodyBackground,
             ButtonBodyForegroundColor = item.ButtonBodyForegroundColor,
+            ButtonIconColor = item.ButtonIconColor,
             UseThemeColor = item.UseThemeColor,
             BackgroundColor = item.BackgroundColor,
             BorderColor = item.BorderColor,
@@ -2604,6 +2726,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         if (string.IsNullOrWhiteSpace(model.Name))
         {
             model.Name = item.Kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", _ => "Item" };
+        }
+
+        if (model.Kind == ControlKind.LogControl
+            && string.IsNullOrWhiteSpace(model.ControlCaption)
+            && !string.IsNullOrWhiteSpace(model.BodyCaption))
+        {
+            model.ControlCaption = model.BodyCaption;
+            model.BodyCaption = string.Empty;
         }
 
         foreach (var child in item.Items)

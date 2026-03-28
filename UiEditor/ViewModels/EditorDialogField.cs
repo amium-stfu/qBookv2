@@ -202,6 +202,8 @@ public sealed class EditorDialogField : ObservableObject
         _ => string.Empty
     };
 
+    public bool IsIconPathSelector => string.Equals(Key, "ButtonIcon", StringComparison.Ordinal);
+
     public IBrush PreviewBrush
     {
         get

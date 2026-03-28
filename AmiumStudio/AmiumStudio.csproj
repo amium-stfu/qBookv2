@@ -36,4 +36,13 @@
   <ItemGroup>
     <None Include="app.manifest" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EditorIcons Include="..\UiEditor\EditorIcons\*.*" />
+  </ItemGroup>
+
+  <Target Name="CopyEditorIcons" AfterTargets="Build">
+    <MakeDir Directories="$(OutputPath)Icons" />
+    <Copy SourceFiles="@(EditorIcons)" DestinationFolder="$(OutputPath)Icons\" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

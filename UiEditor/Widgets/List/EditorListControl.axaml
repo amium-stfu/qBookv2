@@ -1,0 +1,39 @@
+<editorUi:EditorTemplateControl
+    x:Class="Amium.UiEditor.Widgets.EditorListControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.UiEditor.Widgets"
+  xmlns:editorUi="using:Amium.EditorUi.Controls"
+    xmlns:models="using:Amium.UiEditor.Models"
+    Width="{Binding Width}"
+    Height="{Binding Height}">
+
+  <controls:EditorListControl.BodyContent>
+    <Border x:Name="ListViewportBorder" Background="{Binding EffectiveBodyBackgroundBrush}" BorderBrush="{Binding EffectiveBodyBorderBrush}" BorderThickness="{Binding EffectiveBodyBorderThickness}" CornerRadius="{Binding EffectiveBodyCornerRadius}" ClipToBounds="True" Padding="10,0,10,0">
+      <ListBox x:Name="ItemListBox" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" BorderThickness="0" Padding="0" ItemsSource="{Binding Items}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox.Styles>
+          <Style Selector="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,2,16,2" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+          </Style>
+        </ListBox.Styles>
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="models:PageItemModel">
+            <Border Height="{Binding Height}" HorizontalAlignment="Stretch" PointerPressed="OnChildItemPointerPressed">
+              <Grid HorizontalAlignment="Stretch" Height="{Binding Height}">
+                <controls:EditorButtonControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsButton}" />
+                <controls:EditorItemControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />
+                <Border BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#F59E0B}" BorderThickness="2" CornerRadius="{Binding EffectiveCornerRadius}" IsHitTestVisible="False" />
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+  </controls:EditorListControl.BodyContent>
+</editorUi:EditorTemplateControl>
+
+

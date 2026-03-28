@@ -93,11 +93,15 @@ public sealed class PageItemDocument
 
     public string ButtonCommand { get; init; } = string.Empty;
 
-    public string ButtonBodyBackground { get; init; } = "Transparent";
+    public string ButtonBodyBackground { get; init; } = "";
 
     public string ButtonBodyForegroundColor { get; init; } = string.Empty;
 
+    public string ButtonIconColor { get; init; } = string.Empty;
+
     public bool UseThemeColor { get; init; } = true;
+
+    public bool Enabled { get; init; } = true;
 
     public string? BackgroundColor { get; init; }
 

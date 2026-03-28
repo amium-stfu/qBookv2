@@ -1,0 +1,13 @@
+<editorUi:EditorTemplateControl
+    x:Class="Amium.UiEditor.Widgets.EditorProcessLogControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.UiEditor.Widgets"
+    xmlns:editorUi="using:Amium.EditorUi.Controls">
+  <controls:EditorProcessLogControl.BodyContent>
+    <controls:EditorLogControl
+      HorizontalAlignment="Stretch"
+      VerticalAlignment="Stretch"
+      PageIsActive="{Binding PageIsActive, RelativeSource={RelativeSource AncestorType=controls:EditorProcessLogControl}}" />
+  </controls:EditorProcessLogControl.BodyContent>
+</editorUi:EditorTemplateControl>

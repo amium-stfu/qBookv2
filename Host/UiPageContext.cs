@@ -251,7 +251,7 @@ public sealed class UiPageContext : IDisposable
                 return;
             }
 
-            item.Value = value;
+            item.Value = value!;
         }
 
         private static void SetParameterValueIfChanged(Parameter parameter, object? value)
@@ -261,7 +261,7 @@ public sealed class UiPageContext : IDisposable
                 return;
             }
 
-            parameter.Value = value;
+            parameter.Value = value!;
         }
 
         private static bool ValuesEqual(object? left, object? right)
