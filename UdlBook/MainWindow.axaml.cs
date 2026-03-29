@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Amium.Host;
 using Amium.EditorUi.Controls;
 using Amium.UiEditor.Widgets;
+using Amium.UiEditor.Models;
 using UdlBook.ViewModels;
 
 namespace UdlBook;
@@ -25,6 +26,103 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Core.UiStateChanged += HandleHostUiStateChanged;
+    }
+
+    private async void OnViewsButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.DataContext is not PageModel page)
+        {
+            return;
+        }
+
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu();
+        var views = page.Views ?? new System.Collections.Generic.Dictionary<int, string>();
+
+        var orderedViews = views.Count > 0
+            ? views.OrderBy(v => v.Key)
+            : System.Linq.Enumerable.Empty<System.Collections.Generic.KeyValuePair<int, string>>();
+
+        foreach (var kvp in orderedViews)
+        {
+            var viewId = kvp.Key;
+            var header = string.IsNullOrWhiteSpace(kvp.Value) ? $"View {viewId}" : kvp.Value;
+
+            var item = new MenuItem
+            {
+                Header = header,
+                IsChecked = page.ActualViewId == viewId,
+                StaysOpenOnClick = false
+            };
+
+            item.Click += (_, _) =>
+            {
+                page.ActualViewId = viewId;
+            };
+
+            menu.Items.Add(item);
+        }
+
+        if (viewModel.IsEditMode)
+        {
+            if (menu.Items.Count > 0)
+            {
+                menu.Items.Add(new Separator());
+            }
+
+            var addItem = new MenuItem
+            {
+                Header = "Add new view"
+            };
+
+            addItem.Click += async (_, _) =>
+            {
+                var name = await EditorInputDialogs.EditTextAsync(
+                    this,
+                    header: "Add new view",
+                    subHeader: "Enter view name",
+                    initialValue: string.Empty);
+
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    return;
+                }
+
+                var currentViews = page.Views ?? new System.Collections.Generic.Dictionary<int, string>();
+
+                var nextId = currentViews.Count == 0
+                    ? 1
+                    : currentViews.Keys.Max() + 1;
+
+                currentViews[nextId] = name;
+                // Wenn das urspruengliche Dictionary null war, ist CurrentViewCaption ohnehin leer;
+                // die eigentliche Persistierung der Views laeuft ueber das Layout-Speichern.
+                page.ActualViewId = nextId;
+            };
+
+            menu.Items.Add(addItem);
+        }
+
+        // Kontextmenü korrekt an den Button anhängen, damit Avalonia eine
+        // gültige Visual-Root hat und kein ArgumentNullException wirft.
+        menu.PlacementTarget = button;
+        button.ContextMenu = menu;
+
+        void Cleanup(object? _, RoutedEventArgs _e)
+        {
+            menu.Closed -= Cleanup;
+            if (ReferenceEquals(button.ContextMenu, menu))
+            {
+                button.ContextMenu = null;
+            }
+        }
+
+        menu.Closed += Cleanup;
+        menu.Open();
     }
 
     private async void OnDemoTextInputClicked(object? sender, RoutedEventArgs e)
@@ -414,13 +512,13 @@ public partial class MainWindow : Window
         var file = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
         {
             Title = "Select book directory and first page name",
-            SuggestedFileName = "Page.json",
-            DefaultExtension = "json",
+            SuggestedFileName = "Page.yaml",
+            DefaultExtension = "yaml",
             FileTypeChoices = new[]
             {
-                new Avalonia.Platform.Storage.FilePickerFileType("JSON layout")
+                new Avalonia.Platform.Storage.FilePickerFileType("YAML layout")
                 {
-                    Patterns = new[] { "*.json" }
+                    Patterns = new[] { "*.yaml" }
                 }
             }
         });
@@ -434,19 +532,16 @@ public partial class MainWindow : Window
 
         if (!File.Exists(path))
         {
-            var content = @"{
-    ""Page"": ""Page1"",
-    ""Title"": ""New Book"",
-    ""Layout"": {
-        ""Type"": ""Canvas"",
-        ""Children"": []
-    }
-}";
+            var content = "Page: 'Page1'" + Environment.NewLine
+                + "Caption: 'New Book'" + Environment.NewLine
+                + "Views:" + Environment.NewLine
+                + "  1: 'HomeScreen'" + Environment.NewLine
+                + "Controls: []" + Environment.NewLine;
 
             File.WriteAllText(path, content);
         }
 
-        viewModel.LoadLayoutFromFile(path);
+        viewModel.LoadYamlLayoutFromFile(path);
     }
 
     private async void LoadBook_Click(object? sender, RoutedEventArgs e)
@@ -531,13 +626,13 @@ public partial class MainWindow : Window
         var file = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
         {
             Title = "Save layout as",
-            SuggestedFileName = "Page.json",
-            DefaultExtension = "json",
+            SuggestedFileName = "Page.yaml",
+            DefaultExtension = "yaml",
             FileTypeChoices = new[]
             {
-                new Avalonia.Platform.Storage.FilePickerFileType("JSON layout")
+                new Avalonia.Platform.Storage.FilePickerFileType("YAML layout")
                 {
-                    Patterns = new[] { "*.json" }
+                    Patterns = new[] { "*.yaml" }
                 }
             }
         });

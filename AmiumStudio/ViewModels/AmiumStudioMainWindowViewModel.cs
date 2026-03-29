@@ -121,7 +121,7 @@ public sealed class AmiumStudioMainWindowViewModel : MainWindowViewModel
 
     public void ApplyRunningUi(BookProject project)
     {
-        ApplyBookTabStripPlacement(project.RootDirectory);
+        ApplyBookManifestSettings(project.RootDirectory);
         SetPages(CreatePagesFromBook(project));
         BookProjectPath = project.RootDirectory;
         LoadedBookSummary = $"{project.ProjectName} | Pages: {project.Pages.Count} | C#: {project.SourceFiles.Count} | UI: {project.UiFiles.Count}";
@@ -184,7 +184,7 @@ public sealed class AmiumStudioMainWindowViewModel : MainWindowViewModel
         {
             var result = await Core.LoadAndRunStudioProjectAsync(BookProjectPath);
             BookProjectPath = result.Project.RootDirectory;
-            ApplyBookTabStripPlacement(result.Project.RootDirectory);
+            ApplyBookManifestSettings(result.Project.RootDirectory);
             LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
             AddMessage("Load", result.Success ? "Info" : "Error", $"Load {(result.Success ? "erfolgreich" : "fehlgeschlagen")}: {result.Project.ProjectName}", result.Project.RootDirectory);
 
@@ -228,7 +228,7 @@ public sealed class AmiumStudioMainWindowViewModel : MainWindowViewModel
         try
         {
             var result = await Core.RebuildStudioProjectAsync(BookProjectPath);
-            ApplyBookTabStripPlacement(result.Project.RootDirectory);
+            ApplyBookManifestSettings(result.Project.RootDirectory);
             SetPages(CreatePagesFromBook(result.Project));
             BookProjectPath = result.Project.RootDirectory;
             LoadedBookSummary = $"{result.Project.ProjectName} | Pages: {result.Project.Pages.Count} | C#: {result.Project.SourceFiles.Count} | UI: {result.Project.UiFiles.Count}";
@@ -283,31 +283,32 @@ public sealed class AmiumStudioMainWindowViewModel : MainWindowViewModel
     {
         var pageName = string.IsNullOrWhiteSpace(page.Name) ? $"Page{index}" : page.Name;
         var pageDisplayText = GetPageDisplayText(page) ?? pageName;
+        var yamlPath = NormalizeYamlPath(page.UiFile);
 
-        if (string.IsNullOrWhiteSpace(page.UiFile) || !File.Exists(page.UiFile))
+        if (string.IsNullOrWhiteSpace(yamlPath) || !File.Exists(yamlPath))
         {
             var fallbackModel = new PageModel
             {
                 Index = index,
                 Name = pageName,
                 DisplayText = pageDisplayText,
-                UiFilePath = page.UiFile
+                UiFilePath = yamlPath
             };
 
-            fallbackModel.Items.Add(CreateFallbackItem(page.Name, "Keine Page.json gefunden"));
+            fallbackModel.Items.Add(CreateFallbackItem(page.Name, "Keine Page.yaml gefunden"));
             return fallbackModel;
         }
 
         try
         {
-            var layout = BookUiLayoutLoader.Load(page.UiFile, page.Name);
+            var layout = BookUiLayoutLoader.LoadYaml(yamlPath, page.Name);
             var model = new PageModel
             {
                 Index = index,
                 Views = layout.Views.ToDictionary(static entry => entry.Key, static entry => entry.Value),
                 Name = pageName,
                 DisplayText = string.IsNullOrWhiteSpace(layout.Caption) ? pageDisplayText : layout.Caption,
-                UiFilePath = page.UiFile,
+                UiFilePath = yamlPath,
                 UiLayoutDefinition = layout
             };
 
@@ -322,13 +323,13 @@ public sealed class AmiumStudioMainWindowViewModel : MainWindowViewModel
         }
         catch (Exception ex)
         {
-            AddMessage("UI", "Error", ex.Message, page.UiFile);
+            AddMessage("UI", "Error", ex.Message, yamlPath);
             var fallbackModel = new PageModel
             {
                 Index = index,
                 Name = pageName,
                 DisplayText = pageDisplayText,
-                UiFilePath = page.UiFile
+                UiFilePath = yamlPath
             };
             fallbackModel.Items.Add(CreateFallbackItem(page.Name, $"UI-Fehler: {ex.Message}"));
             return fallbackModel;
@@ -475,5 +476,17 @@ public sealed class AmiumStudioMainWindowViewModel : MainWindowViewModel
     private static string GetDefaultTestbookPath()
     {
         return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "dev", "Testbook"));
+    }
+
+    private static string NormalizeYamlPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        return string.Equals(Path.GetExtension(path), ".yaml", StringComparison.OrdinalIgnoreCase)
+            ? path
+            : Path.ChangeExtension(path, ".yaml");
     }
 }

@@ -1,0 +1,52 @@
+Page: 'UdlClient'
+Caption: 'UdlBook - UdlClient'
+Views:
+  1: 'HomeScreen'
+Controls:
+  - Type: 'UdlClientControl'
+    View: 1
+    Enabled: true
+    Identity:
+      Name: 'UdlClient'
+      Path: 'UdlClient.UdlClient'
+      Id: 'default-udlclient'
+    Rect:
+      X: 24
+      Y: 24
+      Width: 520
+      Height: 230
+    Design:
+      CornerRadius: 12
+      BorderWidth: 1
+      BorderColor: null
+      BackColor: null
+      ToolTip: ''
+    Header:
+      ControlCaption: 'UdlClient'
+      HeaderForeColor: null
+      CaptionVisible: true
+      HeaderCornerRadius: 6
+      HeaderBorderWidth: 0
+      HeaderBorderColor: null
+      HeaderBackColor: null
+    Body:
+      BodyCaption: 'Connection'
+      BodyCaptionPosition: 'Top'
+      BodyForeColor: null
+      BodyCaptionVisible: true
+      BodyCornerRadius: 0
+      BodyBorderWidth: 0
+      BodyBorderColor: null
+      BodyBackColor: null
+    Footer:
+      ShowFooter: true
+      FooterCornerRadius: 6
+      FooterBorderWidth: 0
+      FooterBorderColor: null
+      FooterBackColor: null
+    Control:
+      UdlClientHost: '192.168.178.151'
+      UdlClientPort: 9001
+      UdlClientAutoConnect: false
+      UdlClientDebugLogging: false
+      UdlAttachedItemPaths: ''

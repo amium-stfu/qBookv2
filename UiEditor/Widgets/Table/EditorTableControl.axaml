@@ -8,9 +8,9 @@
 
   <controls:EditorTableControl.BodyContent>
     <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" x:Name="TableRoot">
-      <!-- Inhaltliche ItemWidgets (immer sichtbar, nicht klickbar) -->
+    <!-- Inhaltliche ItemWidgets: im View-Mode interaktiv, im EditMode deaktiviert, damit die Zellselektion greift. -->
       <Grid x:Name="ItemContentGrid"
-            IsHitTestVisible="False" />
+      IsHitTestVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}, Converter={StaticResource BoolNegationConverter}}" />
 
       <!--
         Rasterdarstellung fuer den EditMode: ein Klick auf eine Zelle

@@ -378,6 +378,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         ? PrimaryTextBrush
         : _currentUser.Color;
 
+    public bool IsEditModeToggleVisible => _currentUser.Id == 2 || _currentUser.Id == 3;
+
     public bool IsLogoutAvailable => _currentUser.Id != UserLevel.Default.Id;
 
     public bool IsChangePasswordAvailable => _currentUser.Id != UserLevel.Default.Id && _currentUser.Id != 3;
@@ -976,6 +978,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         OnPropertyChanged(nameof(IsLogoutAvailable));
         OnPropertyChanged(nameof(IsChangePasswordAvailable));
         OnPropertyChanged(nameof(IsResetPasswordsAvailable));
+        OnPropertyChanged(nameof(IsEditModeToggleVisible));
         StatusText = $"User level: {user.Caption}";
         return true;
     }
@@ -1205,7 +1208,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         if (Pages.Any(page => !string.IsNullOrWhiteSpace(page.UiFilePath)))
         {
             var savedTargets = new List<string>();
-            if (TrySaveSelectedPageUiJson(out var uiSaveTarget))
+            if (TrySaveSelectedPageYaml(out var uiSaveTarget))
             {
                 savedTargets.Add(uiSaveTarget);
             }
@@ -1227,14 +1230,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             Pages = Pages.Select(ToDocument).ToList()
         };
 
-        var json = JsonSerializer.Serialize(document, _jsonOptions);
-        File.WriteAllText(LayoutFilePath, json);
-        // Optional: parallel YAML-Export des globalen Layouts.
-        TrySaveYamlLayoutFromObject(LayoutFilePath, JsonSerializer.SerializeToNode(document, _jsonOptions) as JsonObject);
-        StatusText = $"Layout saved: {LayoutFilePath}";
+        var yamlTargetPath = Path.ChangeExtension(LayoutFilePath, ".yaml");
+        TrySaveYamlLayoutFromObject(yamlTargetPath, JsonSerializer.SerializeToNode(document, _jsonOptions) as JsonObject);
+        StatusText = $"Layout saved: {yamlTargetPath}";
     }
 
-    private bool TrySaveSelectedPageUiJson(out string savedTarget)
+    private bool TrySaveSelectedPageYaml(out string savedTarget)
     {
         savedTarget = string.Empty;
         var uiFilePath = SelectedPage.UiFilePath;
@@ -1252,17 +1253,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             SelectedPage.Items,
             defaultType: "Canvas");
 
-        var json = JsonSerializer.Serialize(documentObject, _jsonOptions);
         var directory = Path.GetDirectoryName(uiFilePath);
         if (!string.IsNullOrWhiteSpace(directory))
         {
             Directory.CreateDirectory(directory);
         }
 
-        File.WriteAllText(uiFilePath, json);
-        // YAML-Export der Page-Definition im YamlDefinition-Format.
         TrySavePageYaml(uiFilePath, documentObject);
-        savedTarget = $"Page.json: {Path.GetFileName(Path.GetDirectoryName(uiFilePath))}";
+        savedTarget = $"Page.yaml: {Path.GetFileName(Path.GetDirectoryName(uiFilePath))}";
         return true;
     }
 
@@ -1274,26 +1272,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return false;
         }
 
-        var bookJsonPath = GetBookManifestPath();
-        if (string.IsNullOrWhiteSpace(bookJsonPath))
+        var bookManifestPath = GetBookManifestPath();
+        if (string.IsNullOrWhiteSpace(bookManifestPath))
         {
             return false;
         }
 
-        var documentObject = LoadJsonObject(bookJsonPath);
-        documentObject["TabStripPlacement"] = TabStripPlacement.ToString();
-
-        var directory = Path.GetDirectoryName(bookJsonPath);
+        var directory = Path.GetDirectoryName(bookManifestPath);
         if (!string.IsNullOrWhiteSpace(directory))
         {
             Directory.CreateDirectory(directory);
         }
 
-        var json = JsonSerializer.Serialize(documentObject, _jsonOptions);
-        File.WriteAllText(bookJsonPath, json);
-        // Optional: paralleler YAML-Export des Book-Manifests.
-        TrySaveYamlLayoutFromObject(bookJsonPath, documentObject);
-        savedTarget = $"Book.json: {TabStripPlacement}";
+        WriteBookManifest(bookManifestPath);
+        savedTarget = $"Book.udlb: {TabStripPlacement}";
         return true;
     }
 
@@ -1877,14 +1869,19 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
             var root = new JsonObject();
             root["Page"] = SelectedPage.Name;
-            var title = GetStringProperty(documentObject, "Title") ?? SelectedPage.Name;
+            var title = !string.IsNullOrWhiteSpace(SelectedPage.DisplayText)
+                ? SelectedPage.DisplayText
+                : GetStringProperty(documentObject, "Title") ?? SelectedPage.Name;
             // In der YAML-Repräsentation verwenden wir "Caption" als Page-Titel.
             root["Caption"] = title;
 
-            var views = new JsonObject
-            {
-                ["1"] = "HomeScreen"
-            };
+            var pageViews = SelectedPage.Views.Count > 0
+                ? SelectedPage.Views
+                : new Dictionary<int, string> { [1] = "HomeScreen" };
+
+            var views = new JsonObject(pageViews
+                .OrderBy(static entry => entry.Key)
+                .Select(static entry => new KeyValuePair<string, JsonNode?>(entry.Key.ToString(System.Globalization.CultureInfo.InvariantCulture), entry.Value)));
             root["Views"] = views;
 
             var controls = new JsonArray(SelectedPage.Items.Select(item => (JsonNode?)BuildYamlControlDefinition(item)).ToArray());
@@ -2043,10 +2040,15 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    protected void ApplyBookTabStripPlacement(string? bookRootDirectory)
+    protected void ApplyBookManifestSettings(string? bookRootDirectory)
     {
-        var documentObject = LoadJsonObject(GetBookManifestPath(bookRootDirectory));
-        TabStripPlacement = ParseTabStripPlacement(GetStringProperty(documentObject, "TabStripPlacement"));
+        var manifest = ReadBookManifest(GetBookManifestPath(bookRootDirectory));
+        TabStripPlacement = ParseTabStripPlacement(manifest.TabStripPlacement);
+
+        if (!string.IsNullOrWhiteSpace(manifest.Theme))
+        {
+            IsDarkTheme = string.Equals(manifest.Theme, "Dark", StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     protected virtual string? CurrentProjectRootDirectory => null;
@@ -2059,7 +2061,76 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return null;
         }
 
-        return Path.Combine(rootDirectory, "Book.json");
+        return Path.Combine(rootDirectory, "Book.udlb");
+    }
+
+    private void WriteBookManifest(string path)
+    {
+        try
+        {
+            using var writer = new StreamWriter(path, false);
+            writer.WriteLine("Design:");
+            writer.WriteLine($"  TabStripPlacement: {QuoteYamlString(TabStripPlacement.ToString())}");
+            writer.WriteLine($"  SaveDate: {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)}");
+            writer.WriteLine($"  Theme: {(IsDarkTheme ? "Dark" : "Light")}");
+            writer.WriteLine("Passwords:");
+            writer.WriteLine("  Service: \"service\"");
+            writer.WriteLine("  Admin: \"admin\"");
+        }
+        catch
+        {
+            // Manifest persistence is best-effort.
+        }
+    }
+
+    private static BookManifestSettings ReadBookManifest(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return new BookManifestSettings();
+        }
+
+        try
+        {
+            string? tabStripPlacement = null;
+            string? theme = null;
+            var lines = File.ReadAllLines(path);
+            foreach (var rawLine in lines)
+            {
+                var line = rawLine.Trim();
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (line.StartsWith("TabStripPlacement:", StringComparison.OrdinalIgnoreCase))
+                {
+                    tabStripPlacement = line[(line.IndexOf(':') + 1)..].Trim().Trim('\'', '"');
+                    continue;
+                }
+
+                if (line.StartsWith("Theme:", StringComparison.OrdinalIgnoreCase))
+                {
+                    theme = line[(line.IndexOf(':') + 1)..].Trim().Trim('\'', '"');
+                }
+            }
+
+            return new BookManifestSettings
+            {
+                TabStripPlacement = tabStripPlacement,
+                Theme = theme
+            };
+        }
+        catch
+        {
+            return new BookManifestSettings();
+        }
+    }
+
+    private sealed class BookManifestSettings
+    {
+        public string? TabStripPlacement { get; init; }
+        public string? Theme { get; init; }
     }
 
     protected static JsonObject LoadJsonObject(string? path)

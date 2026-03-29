@@ -174,7 +174,6 @@ public partial class EditorTableControl : EditorTemplateWidget
             content.DataContext = child;
             content.HorizontalAlignment = HorizontalAlignment.Stretch;
             content.VerticalAlignment = VerticalAlignment.Stretch;
-            content.IsHitTestVisible = false;
 
             Grid.SetRow(content, row);
             Grid.SetColumn(content, column);
