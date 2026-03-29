@@ -44,6 +44,12 @@ public partial class PageEditorControl : UserControl
         InitializeComponent();
         AttachedToVisualTree += (_, _) =>
         {
+            if (TopLevel.GetTopLevel(this) is IInputElement root)
+            {
+                root.AddHandler(KeyDownEvent, OnRootKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+                root.AddHandler(KeyUpEvent, OnRootKeyUp, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+            }
+
             if (this.FindControl<ScrollViewer>("EditorScrollViewer") is { } sv)
             {
                 sv.PropertyChanged += OnScrollViewerPropertyChanged;
@@ -54,6 +60,12 @@ public partial class PageEditorControl : UserControl
         {
             CloseEditorDialogWindow();
             AttachToViewModel(null);
+            if (TopLevel.GetTopLevel(this) is IInputElement root)
+            {
+                root.RemoveHandler(KeyDownEvent, OnRootKeyDown);
+                root.RemoveHandler(KeyUpEvent, OnRootKeyUp);
+            }
+
             if (this.FindControl<ScrollViewer>("EditorScrollViewer") is { } sv)
             {
                 sv.PropertyChanged -= OnScrollViewerPropertyChanged;
@@ -216,6 +228,32 @@ public partial class PageEditorControl : UserControl
         e.Handled = true;
     }
 
+    private void OnRootKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        if (e.Key == Key.LeftShift || e.Key == Key.RightShift || e.Key == Key.Shift)
+        {
+            ViewModel.IsShiftInteractionMode = true;
+        }
+    }
+
+    private void OnRootKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (ViewModel is null)
+        {
+            return;
+        }
+
+        if (e.Key == Key.LeftShift || e.Key == Key.RightShift || e.Key == Key.Shift)
+        {
+            ViewModel.IsShiftInteractionMode = false;
+        }
+    }
+
     private void OnCanvasPointerMoved(object? sender, PointerEventArgs e)
     {
         if (ViewModel is null)
@@ -332,14 +370,21 @@ public partial class PageEditorControl : UserControl
             return;
         }
 
-        ViewModel.CancelSelection();
-
         // In View-Mode (nicht EditMode) duerfen keine Widgets
         // selektiert oder verschoben werden.
         if (!ViewModel.IsEditMode)
         {
             return;
         }
+
+        // Im Body-Interaktionsmodus (IsShiftInteractionMode) kein Drag/Resize,
+        // Ereignis an den Widget-Body durchreichen (z.B. TableWidget-Zellen).
+        if (ViewModel.IsShiftInteractionMode)
+        {
+            return;
+        }
+
+        ViewModel.CancelSelection();
 
         var point = e.GetCurrentPoint(EditorCanvas);
         if (point.Properties.IsRightButtonPressed && item.IsListControl)

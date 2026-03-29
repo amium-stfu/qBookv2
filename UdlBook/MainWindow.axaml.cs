@@ -66,6 +66,36 @@ public partial class MainWindow : Window
             initialValue: null);
     }
 
+    private void OnStartYamlClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        _ = StartYamlDirectoryAsync(viewModel);
+    }
+
+    private async System.Threading.Tasks.Task StartYamlDirectoryAsync(MainWindowViewModel viewModel)
+    {
+        Amium.Host.TasksManager.StopAll();
+        Amium.Host.ThreadsManager.StopAll();
+        Amium.Host.TimerManager.StopAll();
+
+        var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
+        {
+            Title = "Select YAML book directory",
+            AllowMultiple = false
+        });
+
+        if (folders.Count == 0)
+        {
+            return;
+        }
+
+        viewModel.LoadYamlBookFromDirectory(folders[0].Path.LocalPath);
+    }
+
     private void OnMainMenuButtonClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control control)
@@ -103,7 +133,7 @@ public partial class MainWindow : Window
             return existing;
         }
 
-        var keyboardHeight = Height * 0.28;
+        var keyboardHeight = Height * 0.25;
         var window = new Window
         {
             Width = Width,
@@ -211,12 +241,12 @@ public partial class MainWindow : Window
 
     private async void OnDemoPasswordTextClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var result = await EditorInputDialogs.EditTextAsync(this, header: "Enter password", subHeader: "Demo", initialValue: string.Empty, isPassword: true);
+        var result = await EditorInputDialogs.EditTextAsync(this, "Enter password", "Demo", string.Empty, true);
     }
 
     private async void OnDemoNumericPasswordClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var result = await EditorInputDialogs.EditNumericAsync(this, header: "Enter PIN", subHeader: "Demo", format: "0", initialValue: null, maskInput: true);
+        var result = await EditorInputDialogs.EditNumericAsync(this, "Enter PIN", "Demo", "0", null, true);
     }
 
     private static void InsertTextAtCaret(TextBox input, string value)
@@ -283,138 +313,13 @@ public partial class MainWindow : Window
 
     private async System.Threading.Tasks.Task<string?> ShowUserPasswordDialogAsync()
     {
-        var mainWidth = Width;
-        var mainHeight = Height;
-        var dialogWidth = System.Math.Min(mainWidth * 0.6, 720);
-        var dialogHeight = System.Math.Min(mainHeight * 0.3, 260);
-
-        var dialog = new Window
-        {
-            Title = "User Login",
-            Width = dialogWidth,
-            Height = dialogHeight,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.Manual,
-            ShowInTaskbar = false,
-            SystemDecorations = SystemDecorations.None,
-            Topmost = true
-        };
-
-        var leftOffset = (mainWidth - dialogWidth) / 2;
-        if (leftOffset < 0)
-        {
-            leftOffset = 0;
-        }
-
-        var topOffset = mainHeight * 0.15;
-        dialog.Position = new PixelPoint(Position.X + (int)leftOffset, Position.Y + (int)topOffset);
-
-        var passwordInput = new TextBox
-        {
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            PasswordChar = '\u2022',
-            FontSize = 24,
-            HorizontalContentAlignment = HorizontalAlignment.Center
-        };
-
-        var okButton = new Button
-        {
-            Content = "Check",
-            Width = 90,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            IsDefault = true
-        };
-
-        var cancelButton = new Button
-        {
-            Content = "Cancel",
-            Width = 90,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            IsCancel = true
-        };
-
-        void Apply()
-            => dialog.Close(passwordInput.Text);
-
-        void Cancel()
-            => dialog.Close(null);
-
-        okButton.Click += (_, _) =>
-        {
-            HideKeyboard();
-            Apply();
-        };
-
-        cancelButton.Click += (_, _) =>
-        {
-            HideKeyboard();
-            Cancel();
-        };
-
-        passwordInput.GotFocus += (_, _) => ShowKeyboard(passwordInput, Apply, Cancel);
-
-        var buttonPanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Children = { cancelButton, okButton }
-        };
-
-        var rootBorder = new Border
-        {
-            Margin = new Thickness(32, 16),
-            Padding = new Thickness(24),
-            Background = Avalonia.Media.Brushes.Gainsboro,
-            CornerRadius = new CornerRadius(16),
-            BorderThickness = new Thickness(2),
-            BorderBrush = Avalonia.Media.Brushes.DarkSlateGray
-        };
-
-        var content = new Grid
-        {
-            RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto")
-        };
-
-        var headerPanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 12,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        var userIcon = new ThemeSvgIcon
-        {
-            Width = 32,
-            Height = 32,
-            IconPath = "avares://Amium.Editor/EditorIcons/user.svg"
-        };
-
-        var headerText = new TextBlock
-        {
-            Text = "Login",
-            FontSize = 28,
-            FontWeight = Avalonia.Media.FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        headerPanel.Children.Add(userIcon);
-        headerPanel.Children.Add(headerText);
-
-        content.Children.Add(headerPanel);
-        Grid.SetRow(headerPanel, 0);
-
-        content.Children.Add(passwordInput);
-        Grid.SetRow(passwordInput, 1);
-
-        content.Children.Add(buttonPanel);
-        Grid.SetRow(buttonPanel, 3);
-
-        rootBorder.Child = content;
-        dialog.Content = rootBorder;
-
-        return await dialog.ShowDialog<string?>(this);
+        // Verwende den neuen, gemeinsamen Text-Dialog im Passwortmodus.
+        return await EditorInputDialogs.EditTextAsync(
+            this,
+            header: "User login",
+            subHeader: "Enter password",
+            initialValue: string.Empty,
+            isPassword: true);
     }
 
     private async void ChangePassword_Click(object? sender, RoutedEventArgs e)
@@ -429,201 +334,54 @@ public partial class MainWindow : Window
 
     private async System.Threading.Tasks.Task ShowChangePasswordDialogAsync(MainWindowViewModel viewModel)
     {
-        var mainWidth = Width;
-        var mainHeight = Height;
-        var dialogWidth = System.Math.Min(mainWidth * 0.6, 720);
-        var dialogHeight = System.Math.Min(mainHeight * 0.35, 320);
+        // Verwende hintereinander die neuen Passwort-Dialoge
+        // für Alt-Kennwort, neues Kennwort und Wiederholung.
 
-        var dialog = new Window
-        {
-            Title = "Change Password",
-            Width = dialogWidth,
-            Height = dialogHeight,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.Manual,
-            ShowInTaskbar = false,
-            SystemDecorations = SystemDecorations.None,
-            Topmost = true
-        };
+        var oldPassword = await EditorInputDialogs.EditTextAsync(
+            this,
+            header: "Change password",
+            subHeader: "Enter old password",
+            initialValue: string.Empty,
+            isPassword: true);
 
-        var leftOffset = (mainWidth - dialogWidth) / 2;
-        if (leftOffset < 0)
+        if (oldPassword is null)
         {
-            leftOffset = 0;
+            return;
         }
 
-        var topOffset = mainHeight * 0.15;
-        dialog.Position = new PixelPoint(Position.X + (int)leftOffset, Position.Y + (int)topOffset);
+        var newPassword = await EditorInputDialogs.EditTextAsync(
+            this,
+            header: "Change password",
+            subHeader: "Enter new password",
+            initialValue: string.Empty,
+            isPassword: true);
 
-        var oldPassword = new TextBox
+        if (newPassword is null)
         {
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            PasswordChar = '\u2022'
-        };
-
-        var newPassword = new TextBox
-        {
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            PasswordChar = '\u2022'
-        };
-
-        var repeatPassword = new TextBox
-        {
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            PasswordChar = '\u2022'
-        };
-
-        var errorText = new TextBlock
-        {
-            Foreground = Avalonia.Media.Brushes.OrangeRed,
-            Margin = new Thickness(0, 6, 0, 0)
-        };
-
-        var saveButton = new Button
-        {
-            Content = "Check",
-            Width = 90,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            IsDefault = true
-        };
-
-        var cancelButton = new Button
-        {
-            Content = "Cancel",
-            Width = 90,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            IsCancel = true
-        };
-
-        void TrySave()
-        {
-            var oldPwd = oldPassword.Text ?? string.Empty;
-            var newPwd = newPassword.Text ?? string.Empty;
-            var repeatPwd = repeatPassword.Text ?? string.Empty;
-
-            if (!viewModel.TryChangeCurrentUserPassword(oldPwd, newPwd, repeatPwd, out var error))
-            {
-                errorText.Text = error;
-                return;
-            }
-
-            HideKeyboard();
-            dialog.Close();
+            return;
         }
 
-        saveButton.Click += (_, _) => TrySave();
+        var repeatPassword = await EditorInputDialogs.EditTextAsync(
+            this,
+            header: "Change password",
+            subHeader: "Repeat new password",
+            initialValue: string.Empty,
+            isPassword: true);
 
-        cancelButton.Click += (_, _) =>
+        if (repeatPassword is null)
         {
-            HideKeyboard();
-            dialog.Close();
-        };
-
-        var buttonPanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Children = { cancelButton, saveButton }
-        };
-
-        var rootBorder = new Border
-        {
-            Margin = new Thickness(32, 16),
-            Padding = new Thickness(24),
-            Background = Avalonia.Media.Brushes.Gainsboro,
-            CornerRadius = new CornerRadius(16),
-            BorderThickness = new Thickness(2),
-            BorderBrush = Avalonia.Media.Brushes.DarkSlateGray
-        };
-
-        var grid = new Grid
-        {
-            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,Auto"),
-            ColumnDefinitions = new ColumnDefinitions("Auto,*")
-        };
-
-        void AddLabeledRow(int row, string labelText, Control input)
-        {
-            var label = new TextBlock
-            {
-                Text = labelText,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 4, 8, 4)
-            };
-
-            Grid.SetRow(label, row);
-            Grid.SetColumn(label, 0);
-            grid.Children.Add(label);
-
-            Grid.SetRow(input, row);
-            Grid.SetColumn(input, 1);
-            grid.Children.Add(input);
+            return;
         }
 
-        AddLabeledRow(0, "Old password:", oldPassword);
-        AddLabeledRow(1, "New password:", newPassword);
-        AddLabeledRow(2, "Repeat password:", repeatPassword);
-
-        void ShowPwKeyboard(TextBox target)
-            => ShowKeyboard(target, TrySave, () => dialog.Close());
-
-        oldPassword.GotFocus += (_, _) => ShowPwKeyboard(oldPassword);
-        newPassword.GotFocus += (_, _) => ShowPwKeyboard(newPassword);
-        repeatPassword.GotFocus += (_, _) => ShowPwKeyboard(repeatPassword);
-
-        Grid.SetRow(errorText, 3);
-        Grid.SetColumnSpan(errorText, 2);
-        grid.Children.Add(errorText);
-
-        Grid.SetRow(buttonPanel, 5);
-        Grid.SetColumnSpan(buttonPanel, 2);
-        grid.Children.Add(buttonPanel);
-
-        var headerPanel = new StackPanel
+        if (!viewModel.TryChangeCurrentUserPassword(oldPassword, newPassword, repeatPassword, out var error))
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 8)
-        };
-
-        var userIcon = new ThemeSvgIcon
-        {
-            Width = 32,
-            Height = 32,
-            IconPath = "avares://Amium.Editor/EditorIcons/user.svg"
-        };
-
-        var headerText = new TextBlock
-        {
-            Text = "Change Password",
-            FontSize = 28,
-            FontWeight = Avalonia.Media.FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        headerPanel.Children.Add(userIcon);
-        headerPanel.Children.Add(headerText);
-
-        var rootGrid = new Grid
-        {
-            RowDefinitions = new RowDefinitions("Auto,*")
-        };
-
-        rootGrid.Children.Add(headerPanel);
-        Grid.SetRow(headerPanel, 0);
-
-        rootGrid.Children.Add(grid);
-        Grid.SetRow(grid, 1);
-
-        rootBorder.Child = rootGrid;
-        dialog.Content = rootBorder;
-
-        await dialog.ShowDialog(this);
+            // Fehlertext kurz anzeigen, ohne eigenen Spezialdialog zu bauen.
+            await EditorInputDialogs.EditTextAsync(
+                this,
+                header: "Change password failed",
+                subHeader: error,
+                initialValue: string.Empty);
+        }
     }
 
     private void ResetPasswords_Click(object? sender, RoutedEventArgs e)

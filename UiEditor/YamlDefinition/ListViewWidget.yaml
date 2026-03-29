@@ -108,10 +108,5 @@
           Argument: ""
 
       Control:
-        Unit: ""
-        TargetPath: ""
-        TargetParameterPath: ""
-        TargetParameterFormat: "b4"
-        FormatParameter: ""
-        IsReadOnly: false
-        RefreshRateMs: 100
+        ListItemHeight: 72
+        Children: []

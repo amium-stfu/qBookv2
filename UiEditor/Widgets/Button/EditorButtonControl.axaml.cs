@@ -35,7 +35,7 @@ public partial class EditorButtonControl : EditorTemplateWidget
         }
 
         var viewModel = ViewModel;
-        if (viewModel?.IsEditMode == true)
+        if (viewModel is { IsEditMode: true, IsShiftInteractionMode: false })
         {
             return;
         }

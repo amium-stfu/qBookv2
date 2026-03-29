@@ -329,7 +329,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         {
             if (Directory.Exists(BookProjectPath))
             {
-                StartBookWatcher(BookProjectPath);
+                StartBookWatcher(BookProjectPath, GetActiveBookWatcherFilter());
             }
         }
     }
@@ -638,6 +638,132 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         }
     }
 
+    public void LoadYamlLayoutFromFile(string yamlFilePath)
+    {
+        ResetMessages();
+
+        if (!File.Exists(yamlFilePath))
+        {
+            LoadedBookSummary = "YAML file missing";
+            AddMessage("UI", "Warning", "YAML layout file not found.", yamlFilePath);
+            StatusText = $"No YAML layout file found: {yamlFilePath}";
+            HasLayout = false;
+            IsDefaultLayout = false;
+            HeaderTitle = "UdlBook";
+            return;
+        }
+
+        try
+        {
+            var fallbackName = Path.GetFileNameWithoutExtension(yamlFilePath);
+            var layout = BookUiLayoutLoader.LoadYaml(yamlFilePath, fallbackName);
+            var pageName = string.IsNullOrWhiteSpace(layout.PageName) ? fallbackName : layout.PageName;
+            var model = CreatePageModelFromLayout(yamlFilePath, layout, 1, pageName);
+
+            var rootDirectory = Path.GetDirectoryName(yamlFilePath) ?? AppContext.BaseDirectory;
+            ApplyBookTabStripPlacement(rootDirectory);
+            SetPages([model]);
+            BookProjectPath = rootDirectory;
+            _currentLayoutFilePath = yamlFilePath;
+            HasLayout = true;
+            IsDefaultLayout = false;
+            HeaderTitle = Path.GetFileNameWithoutExtension(yamlFilePath) ?? "UdlBook";
+            LoadedBookSummary = $"YAML layout | {Path.GetFileName(yamlFilePath)}";
+            StatusText = $"YAML layout loaded: {yamlFilePath}";
+            OnPropertyChanged(nameof(IsCurrentLayoutStartLayout));
+            OnPropertyChanged(nameof(StartLayoutIconColor));
+        }
+        catch (Exception ex)
+        {
+            LoadedBookSummary = "YAML invalid";
+            AddMessage("UI", "Error", ex.Message, yamlFilePath);
+            StatusText = $"YAML layout could not be loaded: {ex.Message}";
+            HasLayout = false;
+            IsDefaultLayout = false;
+            HeaderTitle = "UdlBook";
+        }
+    }
+
+    public void LoadYamlBookFromDirectory(string directoryPath)
+    {
+        try
+        {
+            var fullDirectory = Path.GetFullPath(directoryPath);
+            if (!Directory.Exists(fullDirectory))
+            {
+                LoadedBookSummary = "YAML directory not found";
+                AddMessage("Load", "Warning", "YAML book directory not found.", fullDirectory);
+                StatusText = $"No YAML book directory found: {fullDirectory}";
+                HasLayout = false;
+                IsDefaultLayout = false;
+                HeaderTitle = "UdlBook";
+                return;
+            }
+
+            StopBookWatcher();
+            _watchedPages.Clear();
+
+            var yamlFiles = Directory.GetFiles(fullDirectory, "*.yaml", SearchOption.TopDirectoryOnly);
+            foreach (var filePath in yamlFiles)
+            {
+                try
+                {
+                    var fallbackName = Path.GetFileNameWithoutExtension(filePath);
+                    var layout = BookUiLayoutLoader.LoadYaml(filePath, fallbackName);
+                    var pageName = string.IsNullOrWhiteSpace(layout.PageName) ? fallbackName : layout.PageName;
+                    var pageIndex = GetPageIndex(layout) ?? int.MaxValue;
+                    var watchedPage = new WatchedPage
+                    {
+                        FilePath = filePath,
+                        PageIndex = pageIndex,
+                        PageName = pageName,
+                        Layout = layout
+                    };
+
+                    _watchedPages[filePath] = watchedPage;
+                }
+                catch (Exception ex)
+                {
+                    AddMessage("UI", "Error", ex.Message, filePath);
+                }
+            }
+
+            UpdatePagesFromWatchedPages(fullDirectory);
+            StartBookWatcher(fullDirectory, "*.yaml");
+            BookProjectPath = fullDirectory;
+            LoadedBookSummary = $"YAML directory book | {fullDirectory}";
+            StatusText = $"YAML book directory loaded: {fullDirectory}";
+        }
+        catch (Exception ex)
+        {
+            LoadedBookSummary = "YAML book could not be loaded";
+            AddMessage("Load", "Error", ex.Message, directoryPath);
+            StatusText = $"YAML load failed: {ex.Message}";
+            HasLayout = false;
+            IsDefaultLayout = false;
+            HeaderTitle = "UdlBook";
+        }
+    }
+
+    public void LoadYamlVersionFromCurrentLayout()
+    {
+        var basePath = !string.IsNullOrWhiteSpace(_currentLayoutFilePath)
+            ? _currentLayoutFilePath
+            : _startupPagePath;
+
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            StatusText = "No current layout available for YAML start";
+            return;
+        }
+
+        var yamlPath = string.Equals(Path.GetExtension(basePath), ".yaml", StringComparison.OrdinalIgnoreCase)
+            ? basePath
+            : Path.ChangeExtension(basePath, ".yaml");
+
+        LoadYamlLayoutFromFile(yamlPath);
+    }
+
     private void AddMessage(string source, string severity, string message, string? location = null)
     {
         Messages.Add(new HostMessageEntry
@@ -696,7 +822,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             }
 
             UpdatePagesFromWatchedPages(fullDirectory);
-            StartBookWatcher(fullDirectory);
+            StartBookWatcher(fullDirectory, "*.json");
         }
         catch (Exception ex)
         {
@@ -1012,6 +1138,11 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return ControlKind.ListControl;
         }
 
+        if (string.Equals(type, "TableControl", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.TableControl;
+        }
+
         if (string.Equals(type, "LogControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "ProcessLog", StringComparison.OrdinalIgnoreCase))
         {
             return ControlKind.LogControl;
@@ -1083,8 +1214,9 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         var model = new PageModel
         {
             Index = index,
+            Views = layout.Views.ToDictionary(static entry => entry.Key, static entry => entry.Value),
             Name = pageName,
-            DisplayText = string.IsNullOrWhiteSpace(layout.Title) ? pageName : layout.Title,
+            DisplayText = string.IsNullOrWhiteSpace(layout.Caption) ? (string.IsNullOrWhiteSpace(layout.Title) ? pageName : layout.Title) : layout.Caption,
             UiFilePath = uiFilePath,
             UiLayoutDefinition = layout
         };
@@ -1097,14 +1229,14 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         return model;
     }
 
-    private void StartBookWatcher(string directory)
+    private void StartBookWatcher(string directory, string filter)
     {
         try
         {
             var watcher = new FileSystemWatcher(directory)
             {
                 IncludeSubdirectories = false,
-                Filter = "*.json",
+                Filter = filter,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime
             };
 
@@ -1120,6 +1252,16 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         {
             AddMessage("Watch", "Error", ex.Message, directory);
         }
+    }
+
+    private string GetActiveBookWatcherFilter()
+    {
+        if (_watchedPages.Keys.Any(path => string.Equals(Path.GetExtension(path), ".yaml", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "*.yaml";
+        }
+
+        return "*.json";
     }
 
     private void StopBookWatcher()
@@ -1197,7 +1339,9 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         try
         {
             var fallbackName = Path.GetFileNameWithoutExtension(filePath);
-            var layout = BookUiLayoutLoader.Load(filePath, fallbackName);
+            var layout = string.Equals(Path.GetExtension(filePath), ".yaml", StringComparison.OrdinalIgnoreCase)
+                ? BookUiLayoutLoader.LoadYaml(filePath, fallbackName)
+                : BookUiLayoutLoader.Load(filePath, fallbackName);
             var pageName = string.IsNullOrWhiteSpace(layout.PageName) ? fallbackName : layout.PageName;
             var pageIndex = GetPageIndex(layout) ?? int.MaxValue;
             var watchedPage = new WatchedPage

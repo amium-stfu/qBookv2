@@ -1,0 +1,146 @@
+- Type: TableControl
+
+  View: 1
+  Enabled: True
+  
+  Identity:
+    Name: Table
+    Path: UdlBook/Page1/Table1
+    Id: demo-table-1
+
+  Rect:
+    X: 100
+    Y: 100
+    Width: 360
+    Height: 220
+
+  Design:
+    CornerRadius: 12
+    BorderWidth: 1
+    BorderColor: null        # Theme
+    BackColor: null          # Theme
+    ToolTip: ""
+
+  Header:
+    ControlCaption: Table
+    HeaderForeColor: null    # Theme
+    CaptionVisible: true
+    HeaderCornerRadius: 6
+    HeaderBorderWidth: 0
+    HeaderBorderColor: null  # Theme
+    HeaderBackColor: null    # Theme
+
+  Body:
+    BodyCaption: ""
+    BodyCaptionPosition: Top
+    BodyForeColor: null      # Theme
+    BodyCaptionVisible: false
+    BodyCornerRadius: 8
+    BodyBorderWidth: 0
+    BodyBorderColor: null    # Theme
+    BodyBackColor: null      # Theme
+
+  Footer:
+    ShowFooter: false
+    FooterCornerRadius: 6
+    FooterBorderWidth: 0
+    FooterBorderColor: null  # Theme
+    FooterBackColor: null    # Theme
+
+  InteractionRules: []
+
+  Control:
+    Rows: 2          # Zeilen
+    Columns: 2       # Spalten
+
+    Cells:
+      # Zellen 1,1 & 1,2 = Item1 (ColSpan = 2)
+      - Row: 1
+        Column: 1
+        RowSpan: 1
+        ColumnSpan: 2
+        Child:
+          Type: Item
+          Identity:
+            Name: Item1
+            Path: UdlBook/Page1/udl1/m310
+            Id: item-1
+
+          Rect:
+            X: 0
+            Y: 0
+            Width: 160
+            Height: 72
+
+          Design:
+            CornerRadius: 12
+            BorderWidth: 1
+            BorderColor: null
+            BackColor: null
+            ToolTip: ""
+
+          Header:
+            ControlCaption: Item1
+            HeaderForeColor: null
+            CaptionVisible: true
+            HeaderCornerRadius: 6
+            HeaderBorderWidth: 0
+            HeaderBorderColor: null
+            HeaderBackColor: null
+
+          Body:
+            BodyCaption: Value
+            BodyCaptionPosition: Top
+            BodyForeColor: null
+            BodyCaptionVisible: true
+            BodyCornerRadius: 8
+            BodyBorderWidth: 0
+            BodyBorderColor: null
+            BodyBackColor: null
+
+          Footer:
+            ShowFooter: false
+            FooterCornerRadius: 6
+            FooterBorderWidth: 0
+            FooterBorderColor: null
+            FooterBackColor: null
+
+          InteractionRules:
+            - Event: BodyLeftClick
+              Action: SendInputTo
+              TargetPath: "UdlBook/Page1/udl1/m310/Set/Request"
+              Argument: ""
+
+          Control:
+            ListItemHeight: 72
+            Children: []
+
+      # Zelle 2,1 = Item2
+      - Row: 2
+        Column: 1
+        RowSpan: 1
+        ColumnSpan: 1
+        Child:
+          Type: Item
+          Identity:
+            Name: Item2
+            Path: UdlBook/Page1/udl1/m320
+            Id: item-2
+          Control:
+            ListItemHeight: 72
+            Children: []
+
+      # Zelle 2,2 = Item3
+      - Row: 2
+        Column: 2
+        RowSpan: 1
+        ColumnSpan: 1
+        Child:
+          Type: Item
+          Identity:
+            Name: Item3
+            Path: UdlBook/Page1/udl1/m330
+            Id: item-3
+          Control:
+            ListItemHeight: 72
+            Children: []

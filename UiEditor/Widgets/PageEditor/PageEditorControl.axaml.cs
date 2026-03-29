@@ -193,15 +193,25 @@ public partial class PageEditorControl : UserControl
             return;
         }
 
-        ViewModel.CancelSelection();
-        ViewModel.CancelEditorDialog();
-        ViewModel.CancelValueInput();
-
         if (!ViewModel.IsEditMode)
         {
+            ViewModel.CancelSelection();
+            ViewModel.CancelEditorDialog();
+            ViewModel.CancelValueInput();
             ViewModel.ClearItemSelection();
             return;
         }
+
+        // Im Body-Interaktionsmodus: Klicks auf die freie Flaeche sollen die
+        // aktuelle Auswahl nicht aufheben, damit der Body-Toggle erreichbar bleibt.
+        if (ViewModel.IsShiftInteractionMode)
+        {
+            return;
+        }
+
+        ViewModel.CancelSelection();
+        ViewModel.CancelEditorDialog();
+        ViewModel.CancelValueInput();
 
         _addToSelection = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         if (!_addToSelection)
@@ -332,14 +342,21 @@ public partial class PageEditorControl : UserControl
             return;
         }
 
-        ViewModel.CancelSelection();
-
         // In View-Mode (nicht EditMode) duerfen keine Widgets
         // selektiert oder verschoben werden.
         if (!ViewModel.IsEditMode)
         {
             return;
         }
+
+        // Wenn der Body-Interaktionsmodus aktiv ist, kein Drag/Resize,
+        // sondern das Ereignis an den Widget-Body durchreichen.
+        if (ViewModel.IsShiftInteractionMode)
+        {
+            return;
+        }
+
+        ViewModel.CancelSelection();
 
         var point = e.GetCurrentPoint(EditorCanvas);
         if (point.Properties.IsRightButtonPressed && item.IsListControl)
@@ -510,6 +527,7 @@ public partial class PageEditorControl : UserControl
     private void OnBeginAddButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.Button);
     private void OnBeginAddItemClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.Item);
     private void OnBeginAddListControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.ListControl);
+    private void OnBeginAddTableControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.TableControl);
     private void OnBeginAddLogControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.LogControl);
     private void OnBeginAddChartControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.ChartControl);
     private void OnBeginAddUdlClientControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.UdlClientControl);

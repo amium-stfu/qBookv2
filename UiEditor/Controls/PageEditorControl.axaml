@@ -100,6 +100,17 @@
                             IconPath="avares://Amium.Editor/EditorIcons/remove.svg"
                             TintColor="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
                       </Button>
+                      <ToggleButton Classes="toolicon"
+                                    Width="40" Height="18" MinWidth="40"
+                                    Padding="2,0,2,0"
+                                    Background="Transparent"
+                                    BorderBrush="Transparent"
+                                    IsChecked="{Binding DataContext.IsShiftInteractionMode, Mode=TwoWay, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
+                                    ToolTip.Tip="Body-Interaktion an/aus">
+                        <TextBlock FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
+                                   Text="Body" />
+                      </ToggleButton>
                     </StackPanel>
                   </Border>
                 </Grid>

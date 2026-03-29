@@ -15,9 +15,8 @@ public sealed class PageModel : ObservableObject
     }
 
     public int Index { get; init; }
-
+    public Dictionary<int, string> Views { get; init; } = new();
     public string Name { get; init; } = string.Empty;
-
     public string DisplayText { get; init; } = string.Empty;
 
     public string? UiFilePath { get; init; }

@@ -1,5 +1,7 @@
 using System;
+using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -31,9 +33,10 @@ public partial class EditorItemControl : EditorTemplateWidget
         HandleInteractivePointerPressed(e);
     }
 
-    private void OnParameterPressed(object? sender, PointerPressedEventArgs e)
+    private async void OnParameterPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (ViewModel?.IsEditMode == true || Item is null)
+        var viewModel = ViewModel;
+        if ((viewModel is { IsEditMode: true, IsShiftInteractionMode: false }) || Item is null)
         {
             return;
         }
@@ -44,7 +47,6 @@ public partial class EditorItemControl : EditorTemplateWidget
             return;
         }
 
-        var viewModel = ViewModel;
         if (viewModel is null)
         {
             return;
@@ -53,6 +55,19 @@ public partial class EditorItemControl : EditorTemplateWidget
         var interactionEvent = GetInteractionEvent(e, sender as Control);
         if (interactionEvent is not null)
         {
+            // First: Interaction rule "OpenValueEditor" -> use new dialogs based on Format / FormatParameter
+            if (Item.TryGetOpenValueEditorTarget(interactionEvent.Value, out var explicitTargetPath))
+            {
+                if (TopLevel.GetTopLevel(this) is Window owner)
+                {
+                    await OpenValueDialogForTargetAsync(owner, viewModel, Item, explicitTargetPath);
+                    e.Handled = true;
+                }
+
+                return;
+            }
+
+            // Other interaction rules (ToggleBool, SetValue, ...)
             if (Item.TryExecuteInteraction(interactionEvent.Value, viewModel, out _))
             {
                 e.Handled = true;
@@ -70,13 +85,23 @@ public partial class EditorItemControl : EditorTemplateWidget
             return;
         }
 
+        // Default: BodyLeftClick ohne spezielle InteractionRules -> neue Dialoge benutzen
+        if (TopLevel.GetTopLevel(this) is Window defaultOwner)
+        {
+            await OpenValueDialogForTargetAsync(defaultOwner, viewModel, Item, null);
+            e.Handled = true;
+            return;
+        }
+
+        // Fallback, falls kein Window gefunden wird
         viewModel.OpenValueInput(Item);
         e.Handled = true;
     }
 
     private void OnBitChoiceClicked(object? sender, BitChoiceClickedEventArgs e)
     {
-        if (Item is null || ViewModel?.IsEditMode == true)
+        var viewModel = ViewModel;
+        if (Item is null || viewModel is { IsEditMode: true, IsShiftInteractionMode: false })
         {
             return;
         }
@@ -86,7 +111,8 @@ public partial class EditorItemControl : EditorTemplateWidget
 
     private void OnBoolChoiceClicked(object? sender, BoolChoiceClickedEventArgs e)
     {
-        if (Item is null || ViewModel?.IsEditMode == true)
+        var viewModel = ViewModel;
+        if (Item is null || viewModel is { IsEditMode: true, IsShiftInteractionMode: false })
         {
             return;
         }
@@ -107,6 +133,115 @@ public partial class EditorItemControl : EditorTemplateWidget
             PointerUpdateKind.LeftButtonPressed => ItemInteractionEvent.BodyLeftClick,
             PointerUpdateKind.RightButtonPressed => ItemInteractionEvent.BodyRightClick,
             _ => null
+        };
+    }
+
+    private static async Task OpenValueDialogForTargetAsync(Window owner, MainWindowViewModel viewModel, PageItemModel sourceItem, string? targetPath)
+    {
+        var target = viewModel.ResolveValueInputTarget(targetPath, sourceItem);
+        if (target is null || !target.CanOpenValueEditor)
+        {
+            return;
+        }
+
+        var presentation = target.TargetParameterView;
+        var definition = presentation.Definition;
+        var header = target.ValueEditorTitle;
+        var subHeader = presentation.UnitText ?? string.Empty;
+
+        switch (definition.Kind)
+        {
+            case ParameterVisualKind.Text:
+            {
+                var initialText = presentation.Parameter?.Value?.ToString() ?? string.Empty;
+                var result = await EditorInputDialogs.EditTextAsync(owner, header, subHeader, initialText);
+                if (result is not null)
+                {
+                    string error;
+                    target.TrySendInput(result, out error);
+                }
+
+                break;
+            }
+
+            case ParameterVisualKind.Numeric:
+            {
+                double? initial = null;
+                if (presentation.Parameter?.Value is IConvertible convertible)
+                {
+                    try
+                    {
+                        initial = Convert.ToDouble(convertible, CultureInfo.InvariantCulture);
+                    }
+                    catch
+                    {
+                        initial = null;
+                    }
+                }
+
+                var format = string.IsNullOrWhiteSpace(definition.PatternOrOptionsText)
+                    ? "0.##"
+                    : definition.PatternOrOptionsText;
+
+                var result = await EditorInputDialogs.EditNumericAsync(owner, header, subHeader, format, initial);
+                if (result.HasValue)
+                {
+                    string error;
+                    target.TrySendInput(result.Value, out error);
+                }
+
+                break;
+            }
+
+            case ParameterVisualKind.Hex:
+            {
+                ulong? initial = null;
+                if (presentation.Parameter?.Value is { } raw)
+                {
+                    initial = ToUInt64(raw);
+                }
+
+                var digits = 0;
+                if (!string.IsNullOrWhiteSpace(definition.PatternOrOptionsText)
+                    && int.TryParse(definition.PatternOrOptionsText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedDigits)
+                    && parsedDigits > 0)
+                {
+                    digits = parsedDigits;
+                }
+
+                var result = await EditorInputDialogs.EditHexAsync(owner, header, subHeader, digits, initial);
+                if (result.HasValue)
+                {
+                    string error;
+                    target.TrySendInput(result.Value, out error);
+                }
+
+                break;
+            }
+
+            default:
+                // Bool, Bits, Color etc. bleiben beim bisherigen Verhalten (kein Dialog)
+                break;
+        }
+    }
+
+    private static ulong ToUInt64(object value)
+    {
+        return value switch
+        {
+            byte byteValue => byteValue,
+            sbyte sbyteValue => unchecked((ulong)sbyteValue),
+            short shortValue => unchecked((ulong)shortValue),
+            ushort ushortValue => ushortValue,
+            int intValue => unchecked((ulong)intValue),
+            uint uintValue => uintValue,
+            long longValue => unchecked((ulong)longValue),
+            ulong ulongValue => ulongValue,
+            float floatValue => unchecked((ulong)floatValue),
+            double doubleValue => unchecked((ulong)doubleValue),
+            decimal decimalValue => unchecked((ulong)decimalValue),
+            string text when ulong.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) => parsed,
+            _ => 0UL
         };
     }
 }

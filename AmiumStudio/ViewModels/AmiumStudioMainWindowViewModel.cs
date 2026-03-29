@@ -304,8 +304,9 @@ public sealed class AmiumStudioMainWindowViewModel : MainWindowViewModel
             var model = new PageModel
             {
                 Index = index,
+                Views = layout.Views.ToDictionary(static entry => entry.Key, static entry => entry.Value),
                 Name = pageName,
-                DisplayText = pageDisplayText,
+                DisplayText = string.IsNullOrWhiteSpace(layout.Caption) ? pageDisplayText : layout.Caption,
                 UiFilePath = page.UiFile,
                 UiLayoutDefinition = layout
             };
@@ -426,6 +427,11 @@ public sealed class AmiumStudioMainWindowViewModel : MainWindowViewModel
         if (string.Equals(type, "ListControl", StringComparison.OrdinalIgnoreCase))
         {
             return ControlKind.ListControl;
+        }
+
+        if (string.Equals(type, "TableControl", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.TableControl;
         }
 
         if (string.Equals(type, "LogControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "ProcessLog", StringComparison.OrdinalIgnoreCase))

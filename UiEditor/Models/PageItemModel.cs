@@ -18,6 +18,7 @@ public enum ControlKind
     Signal,
     Item,
     ListControl,
+    TableControl,
     LogControl,
     ChartControl,
     UdlClientControl
@@ -154,11 +155,19 @@ public sealed class PageItemModel : ObservableObject
     private string _path = string.Empty;
     private string _pageName = string.Empty;
     private PageItemModel? _parentItem;
+    private int _tableRows = 2;
+    private int _tableColumns = 2;
+    private int _tableCellRow = 1;
+    private int _tableCellColumn = 1;
+    private int _tableCellRowSpan = 1;
+    private int _tableCellColumnSpan = 1;
 
     public PageItemModel()
     {
         HostRegistries.Data.ItemChanged += OnDataRegistryChanged;
         Items.CollectionChanged += OnItemsCollectionChanged;
+        // Ensure table controls start with an initialized cell grid.
+        RefreshTableCellSlots();
     }
 
     public ControlKind Kind { get; init; }
@@ -195,6 +204,102 @@ public sealed class PageItemModel : ObservableObject
     {
         get => _pageName;
         private set => SetProperty(ref _pageName, value);
+    }
+
+    public int TableRows
+    {
+        get => _tableRows;
+        set
+        {
+            var normalized = System.Math.Max(1, value);
+            if (SetProperty(ref _tableRows, normalized))
+            {
+                RefreshTableCellSlots();
+            }
+        }
+    }
+
+    public int TableColumns
+    {
+        get => _tableColumns;
+        set
+        {
+            var normalized = System.Math.Max(1, value);
+            if (SetProperty(ref _tableColumns, normalized))
+            {
+                RefreshTableCellSlots();
+            }
+        }
+    }
+
+    // Positionierung eines Kindes innerhalb eines TableControl
+    public int TableCellRow
+    {
+        get => _tableCellRow;
+        set => SetProperty(ref _tableCellRow, System.Math.Max(1, value));
+    }
+
+    public int TableCellColumn
+    {
+        get => _tableCellColumn;
+        set => SetProperty(ref _tableCellColumn, System.Math.Max(1, value));
+    }
+
+    public int TableCellRowSpan
+    {
+        get => _tableCellRowSpan;
+        set => SetProperty(ref _tableCellRowSpan, System.Math.Max(1, value));
+    }
+
+    public int TableCellColumnSpan
+    {
+        get => _tableCellColumnSpan;
+        set => SetProperty(ref _tableCellColumnSpan, System.Math.Max(1, value));
+    }
+
+    public void RefreshTableCellSlots()
+    {
+        TableCellSlots.Clear();
+        for (var row = 1; row <= TableRows; row++)
+        {
+            for (var column = 1; column <= TableColumns; column++)
+            {
+                TableCellSlots.Add(new TableCellSlot(this) { Row = row, Column = column });
+            }
+        }
+
+        UpdateTableCellContentFromChildren();
+    }
+
+    public void UpdateTableCellContentFromChildren()
+    {
+        if (!IsTableControl)
+        {
+            return;
+        }
+
+        foreach (var slot in TableCellSlots)
+        {
+            slot.ContentLabel = null;
+        }
+
+        foreach (var child in Items)
+        {
+            var maxRow = System.Math.Min(TableRows, child.TableCellRow + child.TableCellRowSpan - 1);
+            var maxColumn = System.Math.Min(TableColumns, child.TableCellColumn + child.TableCellColumnSpan - 1);
+
+            for (var row = child.TableCellRow; row <= maxRow; row++)
+            {
+                for (var column = child.TableCellColumn; column <= maxColumn; column++)
+                {
+                    var slot = TableCellSlots.FirstOrDefault(s => s.Row == row && s.Column == column);
+                    if (slot is not null)
+                    {
+                        slot.ContentLabel = string.IsNullOrWhiteSpace(child.Name) ? "Item" : child.Name;
+                    }
+                }
+            }
+        }
     }
 
     public string Header
@@ -546,6 +651,7 @@ public sealed class PageItemModel : ObservableObject
     }
 
     public ObservableCollection<PageItemModel> Items { get; } = [];
+    public ObservableCollection<TableCellSlot> TableCellSlots { get; } = new ObservableCollection<TableCellSlot>();
 
     public bool IsButton => Kind == ControlKind.Button;
 
@@ -555,11 +661,21 @@ public sealed class PageItemModel : ObservableObject
 
     public bool IsListControl => Kind == ControlKind.ListControl;
 
+    public bool IsTableControl => Kind == ControlKind.TableControl;
+
     public bool IsLogControl => Kind == ControlKind.LogControl;
 
     public bool IsChartControl => Kind == ControlKind.ChartControl;
 
     public bool IsUdlClientControl => Kind == ControlKind.UdlClientControl;
+
+    // Controls, die als Child in einem Table gerendert und selektiert werden duerfen.
+    public bool IsTableChildControl => Kind is ControlKind.Item
+        or ControlKind.Signal
+        or ControlKind.Button
+        or ControlKind.LogControl
+        or ControlKind.ChartControl
+        or ControlKind.UdlClientControl;
 
     public bool IsSelected
     {
@@ -1461,40 +1577,16 @@ public sealed class PageItemModel : ObservableObject
 
     public bool ShowItemFooterPanel => IsItem && ShowFooter;
 
-    public bool HasFooterSubItems => IsItem && Items.Count > 0;
+    // Footer-Subitems werden im ItemWidget nicht mehr verwendet.
+    public bool HasFooterSubItems => false;
 
-    public int FooterSubItemRowCount => !HasFooterSubItems ? 0 : (Items.Count + FooterSubItemColumns - 1) / FooterSubItemColumns;
+    public int FooterSubItemRowCount => 0;
 
-    public double FooterSubItemWidth
-    {
-        get
-        {
-            var availableWidth = System.Math.Max(Width - FooterHorizontalPadding - FooterSubItemRowSpacing, 100);
-            return System.Math.Max(availableWidth / FooterSubItemColumns, 50);
-        }
-    }
+    public double FooterSubItemWidth => 0;
 
     public double FooterSubItemHeight => FooterSubItemDesiredHeight;
 
-    public double FooterPanelHeight
-    {
-        get
-        {
-            if (!ShowItemFooterPanel)
-            {
-                return 0;
-            }
-
-            if (!HasFooterSubItems)
-            {
-                return ItemFooterFontSize + 8;
-            }
-
-            return (FooterSubItemRowCount * FooterSubItemHeight)
-                + (System.Math.Max(FooterSubItemRowCount - 1, 0) * FooterSubItemRowSpacing)
-                + 8;
-        }
-    }
+    public double FooterPanelHeight => ShowItemFooterPanel ? ItemFooterFontSize + 8 : 0;
 
     public double ItemControlCaptionFontSize => System.Math.Clamp(Height * 0.13, 10, 18);
 
@@ -1725,6 +1817,22 @@ public sealed class PageItemModel : ObservableObject
     public bool HasInteractionRules => ItemInteractionRuleCodec.ParseDefinitions(InteractionRules)
         .Any(rule => rule.Action != ItemInteractionAction.SendInputTo);
 
+    public bool TryGetOpenValueEditorTarget(ItemInteractionEvent interactionEvent, out string? targetPath)
+    {
+        var rules = ItemInteractionRuleCodec.ParseDefinitions(InteractionRules)
+            .Where(rule => rule.Event == interactionEvent && rule.Action == ItemInteractionAction.OpenValueEditor)
+            .ToList();
+
+        if (rules.Count == 0)
+        {
+            targetPath = null;
+            return false;
+        }
+
+        targetPath = rules[0].TargetPath;
+        return true;
+    }
+
     public bool CanOpenValueEditor
     {
         get
@@ -1777,6 +1885,7 @@ public sealed class PageItemModel : ObservableObject
         ControlKind.Signal => 50,
         ControlKind.Item => 50,
         ControlKind.ListControl => 240,
+        ControlKind.TableControl => 240,
         ControlKind.LogControl => 320,
         ControlKind.ChartControl => 360,
         _ => 140
@@ -1788,6 +1897,7 @@ public sealed class PageItemModel : ObservableObject
         ControlKind.Signal => 1,
         ControlKind.Item => 1,
         ControlKind.ListControl => 180,
+        ControlKind.TableControl => 180,
         ControlKind.LogControl => 220,
         ControlKind.ChartControl => 220,
         _ => 72
@@ -1825,10 +1935,7 @@ public sealed class PageItemModel : ObservableObject
                     SyncChildWidths();
                 }
 
-                if (IsItem)
-                {
-                    SyncFooterSubItemLayout();
-                }
+                // Footer-Subitems werden nicht mehr skaliert.
             }
         }
     }
@@ -1860,6 +1967,12 @@ public sealed class PageItemModel : ObservableObject
                 RaisePropertyChanged(nameof(ButtonBodyFontSize));
                 RaisePropertyChanged(nameof(ButtonIconSize));
                 RaisePropertyChanged(nameof(FooterPanelHeight));
+
+                // Tabelle: Kinder proportional mitskalieren, damit Schriftgroesse zum Zellenbereich passt.
+                if (IsTableControl)
+                {
+                    SyncTableChildHeights();
+                }
 
                 if (ParentListControl?.IsListControl == true && ParentListControl.IsAutoHeight && !ParentListControl._isApplyingListHeight)
                 {
@@ -2178,20 +2291,7 @@ public sealed class PageItemModel : ObservableObject
 
     public void SyncFooterSubItemLayout()
     {
-        if (!IsItem)
-        {
-            return;
-        }
-
-        var childWidth = FooterSubItemWidth;
-        var childHeight = FooterSubItemHeight;
-
-        foreach (var item in Items)
-        {
-            item.SetHierarchy(PageName, this);
-            item.Width = System.Math.Max(childWidth, item.MinWidth);
-            item.Height = System.Math.Max(childHeight, item.MinHeight);
-        }
+        // Footer-Subitems werden nicht mehr verwendet.
     }
 
     private bool TryExecuteInteractionRule(ItemInteractionRule rule, MainWindowViewModel? viewModel, out string error)
@@ -2655,7 +2755,6 @@ public sealed class PageItemModel : ObservableObject
 
         if (IsItem)
         {
-            SyncFooterSubItemLayout();
             RaisePropertyChanged(nameof(HasFooterSubItems));
             RaisePropertyChanged(nameof(FooterSubItemRowCount));
             RaisePropertyChanged(nameof(FooterSubItemWidth));
@@ -2667,6 +2766,31 @@ public sealed class PageItemModel : ObservableObject
             RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
             RaisePropertyChanged(nameof(ItemValueFontSize));
             RaisePropertyChanged(nameof(ItemUnitFontSize));
+        }
+
+        if (IsTableControl)
+        {
+            UpdateTableCellContentFromChildren();
+        }
+    }
+
+    private void SyncTableChildHeights()
+    {
+        if (!IsTableControl || TableRows <= 0)
+        {
+            return;
+        }
+
+        var baseCellHeight = Height / TableRows;
+        foreach (var child in Items)
+        {
+            if (!child.IsTableChildControl)
+            {
+                continue;
+            }
+
+            var span = System.Math.Max(1, child.TableCellRowSpan);
+            child.Height = System.Math.Max(baseCellHeight * span, child.MinHeight);
         }
     }
 
@@ -3103,6 +3227,53 @@ public sealed class PageItemModel : ObservableObject
             return Brushes.Transparent;
         }
     }
+
+    public sealed class TableCellSlot : ObservableObject
+    {
+        private readonly PageItemModel _owner;
+        private bool _isSelected;
+        private string? _contentLabel;
+        private bool _isLastSelected;
+
+        public TableCellSlot(PageItemModel owner)
+        {
+            _owner = owner;
+        }
+
+        public int Row { get; init; }
+
+        public int Column { get; init; }
+
+        public string Label => string.IsNullOrWhiteSpace(ContentLabel) ? $"{Row},{Column}" : ContentLabel!;
+
+        public string? ContentLabel
+        {
+            get => _contentLabel;
+            set => SetProperty(ref _contentLabel, value);
+        }
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set => SetProperty(ref _isSelected, value);
+        }
+
+        public bool IsLastSelected
+        {
+            get => _isLastSelected;
+            set => SetProperty(ref _isLastSelected, value);
+        }
+
+        // Bezieht ein evtl. vorhandenes Child-Widget fuer alle belegten Zellen mit ein,
+        // auch wenn das Widget ueber mehrere Zeilen/Spalten geht.
+        public PageItemModel? ChildItem
+            => _owner.Items.FirstOrDefault(c => c.IsTableChildControl
+                                                && Row >= c.TableCellRow
+                                                && Row < c.TableCellRow + System.Math.Max(1, c.TableCellRowSpan)
+                                                && Column >= c.TableCellColumn
+                                                && Column < c.TableCellColumn + System.Math.Max(1, c.TableCellColumnSpan));
+    }
+
     private string BuildPath()
     {
         var segments = new List<string>();

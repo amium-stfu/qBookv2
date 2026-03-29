@@ -45,18 +45,7 @@
   </controls:EditorShellControl.SubHeaderContent>
 
   <controls:EditorShellControl.FooterContent>
-    <ItemsControl IsVisible="{Binding HasFooterSubItems}" ItemsSource="{Binding Items}">
-      <ItemsControl.ItemsPanel>
-        <ItemsPanelTemplate>
-          <UniformGrid Columns="2" />
-        </ItemsPanelTemplate>
-      </ItemsControl.ItemsPanel>
-      <ItemsControl.ItemTemplate>
-        <DataTemplate DataType="uiModels:PageItemModel">
-          <uiControls:EditorItemControl Margin="0,0,6,6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" />
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+    <!-- Footer-Subitems im ItemWidget sind deaktiviert; FooterContent bleibt leer. -->
   </controls:EditorShellControl.FooterContent>
 
   <controls:EditorShellControl.OverlayContent>

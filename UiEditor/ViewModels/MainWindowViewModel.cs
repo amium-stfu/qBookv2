@@ -170,6 +170,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             if (SetProperty(ref _isEditMode, value))
             {
+                // Beim Umschalten des EditMode immer den Body-Interaktionsmodus
+                // zuruecksetzen, damit man sich nicht "aussperrt".
+                if (!value)
+                {
+                    IsShiftInteractionMode = false;
+                }
+
                 if (!value)
                 {
                     CancelSelection();
@@ -288,6 +295,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     }
 
     public bool ShowGridOptions => IsEditMode;
+    private bool _isShiftInteractionMode;
+    public bool IsShiftInteractionMode
+    {
+        get => _isShiftInteractionMode;
+        set => SetProperty(ref _isShiftInteractionMode, value);
+    }
     private ThemePalette CurrentTheme => IsDarkTheme ? ThemePalette.Dark : ThemePalette.Light;
     public Dock TabStripPlacement
     {
@@ -639,6 +652,205 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         CancelListPopup();
     }
 
+    public void ToggleTableCellSelection(PageItemModel table, int row, int column, bool toggle)
+    {
+        if (table is null || !table.IsTableControl)
+        {
+            return;
+        }
+
+        var target = table.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == column);
+        if (target is null)
+        {
+            return;
+        }
+
+        // Zellen mit bereits platziertem Widget sind nicht mehr selektierbar.
+        if (target.ChildItem is not null)
+        {
+            return;
+        }
+
+        // Ohne Toggle: nur diese Zelle auswaehlen.
+        if (!toggle)
+        {
+            foreach (var cell in table.TableCellSlots)
+            {
+                cell.IsSelected = ReferenceEquals(cell, target);
+            }
+            UpdateLastSelectedTableCell(table, row, column);
+            return;
+        }
+
+        // Mit Toggle (Strg/Shift): nur zusammenhaengende rechteckige Bereiche erlauben.
+        var currentlySelected = table.TableCellSlots.Where(c => c.IsSelected).ToList();
+
+        // Wenn noch nichts ausgewaehlt ist, wie Single-Select verhalten.
+        if (currentlySelected.Count == 0)
+        {
+            target.IsSelected = true;
+            UpdateLastSelectedTableCell(table, row, column);
+            return;
+        }
+
+        // Wenn die Zielzelle bereits selektiert ist: Deselektieren nur, wenn dadurch kein Loch entsteht.
+        if (target.IsSelected)
+        {
+            target.IsSelected = false;
+            if (!IsContiguousRectangle(table))
+            {
+                // Rueckgaengig machen, Selektion unveraendert lassen.
+                target.IsSelected = true;
+            }
+            UpdateLastSelectedTableCell(table, row, column);
+            return;
+        }
+
+        // Neue Zelle hinzunehmen und pruefen, ob Gesamtmenge noch ein Rechteck ohne Luecken ist.
+        target.IsSelected = true;
+        if (!IsContiguousRectangle(table))
+        {
+            // Ungueltige Kombination (nicht zusammenhaengend oder mit Luecken), wieder entfernen.
+            target.IsSelected = false;
+        }
+
+        UpdateLastSelectedTableCell(table, row, column);
+    }
+
+    public void AddItemToSelectedTableCells(PageItemModel table)
+        => AddControlToSelectedTableCells(table, ControlKind.Item);
+
+    public void AddControlToSelectedTableCells(PageItemModel table, ControlKind kind)
+    {
+        if (table is null || !table.IsTableControl)
+        {
+            return;
+        }
+
+        // Keine verschachtelten Container-Controls im Table zulassen.
+        if (kind == ControlKind.TableControl || kind == ControlKind.ListControl)
+        {
+            return;
+        }
+
+        var selected = table.TableCellSlots.Where(c => c.IsSelected).ToList();
+        if (selected.Count == 0)
+        {
+            return;
+        }
+
+        var minRow = selected.Min(c => c.Row);
+        var maxRow = selected.Max(c => c.Row);
+        var minColumn = selected.Min(c => c.Column);
+        var maxColumn = selected.Max(c => c.Column);
+
+        var rowSpan = Math.Max(1, maxRow - minRow + 1);
+        var columnSpan = Math.Max(1, maxColumn - minColumn + 1);
+
+        var baseCellHeight = table.Height / Math.Max(1, table.TableRows);
+        var draftHeight = Math.Max(baseCellHeight * rowSpan, table.ListItemHeight);
+        var draft = CreateItem(kind, 0, 0, table.ChildContentWidth, draftHeight);
+        draft.Name = GetSuggestedControlName(kind, SelectedPage, table, null);
+        draft.Id = Guid.NewGuid().ToString("N");
+        draft.TableCellRow = minRow;
+        draft.TableCellColumn = minColumn;
+        draft.TableCellRowSpan = rowSpan;
+        draft.TableCellColumnSpan = columnSpan;
+        draft.SetHierarchy(SelectedPage.Name, table);
+
+        table.Items.Add(draft);
+        table.UpdateTableCellContentFromChildren();
+
+        // Neues Control im Editor sichtbar machen: selektieren und Status aktualisieren.
+        SelectItem(draft);
+        StatusText = $"Control '{draft.Name}' ({kind}) in Table '{table.Name}' hinzugefuegt ({minRow},{minColumn}..{maxRow},{maxColumn})";
+
+        // Theme-Regeln auch fuer neu hinzugefuegte Table-Widgets sofort anwenden.
+        draft.ApplyTheme(IsDarkTheme);
+
+        // Nach dem Hinzufuegen die bisherige Zellselektion vollstaendig zuruecksetzen.
+        foreach (var cell in table.TableCellSlots)
+        {
+            cell.IsSelected = false;
+            cell.IsLastSelected = false;
+        }
+    }
+
+    public void SelectTableRectangle(PageItemModel table, int startRow, int startColumn, int endRow, int endColumn)
+    {
+        if (table is null || !table.IsTableControl)
+        {
+            return;
+        }
+
+        var minRow = Math.Min(startRow, endRow);
+        var maxRow = Math.Max(startRow, endRow);
+        var minColumn = Math.Min(startColumn, endColumn);
+        var maxColumn = Math.Max(startColumn, endColumn);
+
+        // Keine Auswahl-Rechtecke zulassen, die belegte Zellen enthalten.
+        for (var row = minRow; row <= maxRow; row++)
+        {
+            for (var col = minColumn; col <= maxColumn; col++)
+            {
+                var slot = table.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == col);
+                if (slot is null || slot.ChildItem is not null)
+                {
+                    return;
+                }
+            }
+        }
+
+        foreach (var cell in table.TableCellSlots)
+        {
+            cell.IsSelected = cell.Row >= minRow && cell.Row <= maxRow
+                               && cell.Column >= minColumn && cell.Column <= maxColumn;
+        }
+
+        UpdateLastSelectedTableCell(table, endRow, endColumn);
+    }
+
+    private static bool IsContiguousRectangle(PageItemModel table)
+    {
+        var selected = table.TableCellSlots.Where(c => c.IsSelected).ToList();
+        if (selected.Count == 0)
+        {
+            return true;
+        }
+
+        var minRow = selected.Min(c => c.Row);
+        var maxRow = selected.Max(c => c.Row);
+        var minColumn = selected.Min(c => c.Column);
+        var maxColumn = selected.Max(c => c.Column);
+
+        // Alle Zellen im Rechteck [minRow..maxRow] x [minColumn..maxColumn] muessen selektiert sein.
+        for (var row = minRow; row <= maxRow; row++)
+        {
+            for (var col = minColumn; col <= maxColumn; col++)
+            {
+                var cell = table.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == col);
+                if (cell is null || !cell.IsSelected)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static void UpdateLastSelectedTableCell(PageItemModel table, int row, int column)
+    {
+        // Wenn die angeklickte Zelle nicht selektiert ist, suche eine beliebige andere selektierte Zelle.
+        var target = table.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == column && c.IsSelected)
+                     ?? table.TableCellSlots.FirstOrDefault(c => c.IsSelected);
+
+        foreach (var cell in table.TableCellSlots)
+        {
+            cell.IsLastSelected = ReferenceEquals(cell, target);
+        }
+    }
+
     public void OpenItemEditor(PageItemModel item, double x, double y)
     {
         if (IsEditorDialogOpen
@@ -663,28 +875,26 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         StatusText = $"Input active: {item.Title}";
     }
 
-    public void OpenValueInputForTargetPath(string? targetPath, PageItemModel sourceItem)
+    public PageItemModel? ResolveValueInputTarget(string? targetPath, PageItemModel sourceItem)
     {
         if (sourceItem is null)
         {
-            return;
+            return null;
         }
 
         if (string.IsNullOrWhiteSpace(targetPath) || string.Equals(targetPath, "this", StringComparison.OrdinalIgnoreCase))
         {
-            OpenValueInput(sourceItem);
-            return;
+            return sourceItem;
         }
 
         if (TryFindValueInputItem(targetPath, out var existingItem) && existingItem is not null)
         {
-            OpenValueInput(existingItem);
-            return;
+            return existingItem;
         }
 
         if (!TryResolveDataTargetItem(targetPath, out var targetItem) || targetItem is null)
         {
-            return;
+            return null;
         }
 
         var targetText = targetItem.Params.Has("Text")
@@ -706,7 +916,18 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         };
 
         proxy.ApplyTargetSelection(targetItem.Path ?? targetPath);
-        OpenValueInput(proxy);
+        return proxy;
+    }
+
+    public void OpenValueInputForTargetPath(string? targetPath, PageItemModel sourceItem)
+    {
+        var target = ResolveValueInputTarget(targetPath, sourceItem);
+        if (target is null)
+        {
+            return;
+        }
+
+        OpenValueInput(target);
     }
 
     public void CancelValueInput()
@@ -1008,6 +1229,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         var json = JsonSerializer.Serialize(document, _jsonOptions);
         File.WriteAllText(LayoutFilePath, json);
+        // Optional: parallel YAML-Export des globalen Layouts.
+        TrySaveYamlLayoutFromObject(LayoutFilePath, JsonSerializer.SerializeToNode(document, _jsonOptions) as JsonObject);
         StatusText = $"Layout saved: {LayoutFilePath}";
     }
 
@@ -1037,6 +1260,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         File.WriteAllText(uiFilePath, json);
+        // YAML-Export der Page-Definition im YamlDefinition-Format.
+        TrySavePageYaml(uiFilePath, documentObject);
         savedTarget = $"Page.json: {Path.GetFileName(Path.GetDirectoryName(uiFilePath))}";
         return true;
     }
@@ -1066,6 +1291,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         var json = JsonSerializer.Serialize(documentObject, _jsonOptions);
         File.WriteAllText(bookJsonPath, json);
+        // Optional: paralleler YAML-Export des Book-Manifests.
+        TrySaveYamlLayoutFromObject(bookJsonPath, documentObject);
         savedTarget = $"Book.json: {TabStripPlacement}";
         return true;
     }
@@ -1164,6 +1391,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["IsAutoHeight"] = item.IsAutoHeight;
         nodeObject["ListItemHeight"] = item.ListItemHeight;
         nodeObject["ControlHeight"] = item.ControlHeight;
+        // Table layout
+        nodeObject["Rows"] = item.TableRows;
+        nodeObject["Columns"] = item.TableColumns;
+        nodeObject["TableCellRow"] = item.TableCellRow;
+        nodeObject["TableCellColumn"] = item.TableCellColumn;
+        nodeObject["TableCellRowSpan"] = item.TableCellRowSpan;
+        nodeObject["TableCellColumnSpan"] = item.TableCellColumnSpan;
         nodeObject["ControlBorderWidth"] = item.ControlBorderWidth;
         SetOptionalJsonValue(nodeObject, "ControlBorderColor", item.ControlBorderColor);
 
@@ -1177,6 +1411,178 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         return nodeObject;
+    }
+
+    private static JsonObject BuildYamlControlDefinition(PageItemModel item)
+    {
+        var node = new JsonObject
+        {
+            ["Type"] = !string.IsNullOrWhiteSpace(item.UiNodeType) ? item.UiNodeType : GetDefaultUiType(item.Kind),
+            ["View"] = item.View,
+            ["Enabled"] = item.Enabled
+        };
+
+        var identity = new JsonObject
+        {
+            ["Name"] = item.Name,
+            ["Path"] = item.Path,
+            ["Id"] = item.Id
+        };
+        node["Identity"] = identity;
+
+        var rect = new JsonObject
+        {
+            ["X"] = item.X,
+            ["Y"] = item.Y,
+            ["Width"] = item.Width,
+            ["Height"] = item.Height
+        };
+        node["Rect"] = rect;
+
+        var design = new JsonObject
+        {
+            ["CornerRadius"] = item.CornerRadius,
+            ["BorderWidth"] = item.BorderWidth,
+            ["BorderColor"] = item.BorderColor is null ? null : JsonValue.Create(item.BorderColor),
+            ["BackColor"] = item.BackgroundColor is null ? null : JsonValue.Create(item.BackgroundColor),
+            ["ToolTip"] = item.ToolTipText
+        };
+        node["Design"] = design;
+
+        var header = new JsonObject
+        {
+            ["ControlCaption"] = item.ControlCaption,
+            ["HeaderForeColor"] = item.HeaderForeColor is null ? null : JsonValue.Create(item.HeaderForeColor),
+            ["CaptionVisible"] = item.CaptionVisible,
+            ["HeaderCornerRadius"] = item.HeaderCornerRadius,
+            ["HeaderBorderWidth"] = item.HeaderBorderWidth,
+            ["HeaderBorderColor"] = item.HeaderBorderColor is null ? null : JsonValue.Create(item.HeaderBorderColor),
+            ["HeaderBackColor"] = item.HeaderBackColor is null ? null : JsonValue.Create(item.HeaderBackColor)
+        };
+        node["Header"] = header;
+
+        var body = new JsonObject
+        {
+            ["BodyCaption"] = item.BodyCaption,
+            ["BodyCaptionPosition"] = item.BodyCaptionPosition,
+            ["BodyForeColor"] = item.BodyForeColor is null ? null : JsonValue.Create(item.BodyForeColor),
+            ["BodyCaptionVisible"] = item.BodyCaptionVisible,
+            ["BodyCornerRadius"] = item.BodyCornerRadius,
+            ["BodyBorderWidth"] = item.BodyBorderWidth,
+            ["BodyBorderColor"] = item.BodyBorderColor is null ? null : JsonValue.Create(item.BodyBorderColor),
+            ["BodyBackColor"] = item.BodyBackColor is null ? null : JsonValue.Create(item.BodyBackColor)
+        };
+        node["Body"] = body;
+
+        var footer = new JsonObject
+        {
+            ["ShowFooter"] = item.ShowFooter,
+            ["FooterCornerRadius"] = item.FooterCornerRadius,
+            ["FooterBorderWidth"] = item.FooterBorderWidth,
+            ["FooterBorderColor"] = item.FooterBorderColor is null ? null : JsonValue.Create(item.FooterBorderColor),
+            ["FooterBackColor"] = item.FooterBackColor is null ? null : JsonValue.Create(item.FooterBackColor)
+        };
+        node["Footer"] = footer;
+
+        if (TryBuildInteractionRulesJson(item.InteractionRules, out var interactionRules))
+        {
+            node["InteractionRules"] = interactionRules;
+        }
+
+        var control = new JsonObject();
+
+        switch (item.Kind)
+        {
+            case ControlKind.Item or ControlKind.Signal:
+                control["Unit"] = item.Unit;
+                control["TargetPath"] = item.TargetPath;
+                control["TargetParameterPath"] = item.TargetParameterPath;
+                control["TargetParameterFormat"] = item.TargetParameterFormat;
+                control["IsReadOnly"] = item.IsReadOnly;
+                control["RefreshRateMs"] = item.RefreshRateMs;
+                control["Children"] = new JsonArray();
+                break;
+            case ControlKind.Button:
+                control["ButtonText"] = item.ButtonText;
+                control["ButtonIcon"] = item.ButtonIcon;
+                control["ButtonIconColor"] = item.ButtonIconColor is null ? null : JsonValue.Create(item.ButtonIconColor);
+                control["ButtonBackColor"] = item.ButtonBodyBackground is null ? null : JsonValue.Create(item.ButtonBodyBackground);
+                control["ButtonOnlyIcon"] = item.ButtonOnlyIcon;
+                control["ButtonIconAlign"] = item.ButtonIconAlign;
+                control["ButtonTextAlign"] = item.ButtonTextAlign;
+                break;
+            case ControlKind.ListControl:
+                control["ControlHeight"] = item.ControlHeight;
+                var listChildren = new JsonArray(item.Items.Select(child => (JsonNode?)BuildYamlControlDefinition(child)).ToArray());
+                control["Children"] = listChildren;
+                break;
+            case ControlKind.TableControl:
+                control["Rows"] = item.TableRows;
+                control["Columns"] = item.TableColumns;
+                var cells = new JsonArray();
+                foreach (var child in item.Items.Where(c => c.IsTableChildControl))
+                {
+                    var cell = new JsonObject
+                    {
+                        ["Row"] = child.TableCellRow,
+                        ["Column"] = child.TableCellColumn,
+                        ["RowSpan"] = child.TableCellRowSpan,
+                        ["ColumnSpan"] = child.TableCellColumnSpan,
+                        ["Child"] = BuildYamlControlDefinition(child)
+                    };
+                    cells.Add(cell);
+                }
+
+                control["Cells"] = cells;
+                break;
+            case ControlKind.LogControl:
+                control["TargetLog"] = item.TargetLog;
+                break;
+            case ControlKind.ChartControl:
+                control["RefreshRateMs"] = item.RefreshRateMs;
+                control["HistorySeconds"] = item.HistorySeconds;
+                control["ViewSeconds"] = item.ViewSeconds;
+                if (!string.IsNullOrWhiteSpace(item.ChartSeriesDefinitions))
+                {
+                    control["ChartSeriesDefinitions"] = BuildChartSeriesDefinitionsArray(item.ChartSeriesDefinitions);
+                }
+
+                break;
+            case ControlKind.UdlClientControl:
+                control["UdlClientHost"] = item.UdlClientHost;
+                control["UdlClientPort"] = item.UdlClientPort;
+                control["UdlClientAutoConnect"] = item.UdlClientAutoConnect;
+                control["UdlClientDebugLogging"] = item.UdlClientDebugLogging;
+                control["UdlAttachedItemPaths"] = item.UdlAttachedItemPaths;
+                break;
+        }
+
+        if (control.Count > 0)
+        {
+            node["Control"] = control;
+        }
+
+        return node;
+    }
+
+    private static JsonArray BuildChartSeriesDefinitionsArray(string definitions)
+    {
+        var array = new JsonArray();
+        if (string.IsNullOrWhiteSpace(definitions))
+        {
+            return array;
+        }
+
+        var lines = definitions
+            .Replace("\r", string.Empty)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var line in lines)
+        {
+            array.Add(line);
+        }
+
+        return array;
     }
 
     private static string GetUiText(PageItemModel item)
@@ -1195,6 +1601,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             ControlKind.Button => "Button",
             ControlKind.ListControl => "ListControl",
+            ControlKind.TableControl => "TableControl",
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClient",
@@ -1281,6 +1688,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.IsAutoHeight = GetBoolProperty(properties, "IsAutoHeight") ?? item.IsAutoHeight;
         item.ListItemHeight = GetDoubleProperty(properties, "ListItemHeight") ?? item.ListItemHeight;
         item.ControlHeight = GetDoubleProperty(properties, "ControlHeight") ?? item.ControlHeight;
+        // Table layout
+        item.TableRows = GetIntProperty(properties, "Rows") ?? item.TableRows;
+        item.TableColumns = GetIntProperty(properties, "Columns") ?? item.TableColumns;
+        item.TableCellRow = GetIntProperty(properties, "TableCellRow") ?? item.TableCellRow;
+        item.TableCellColumn = GetIntProperty(properties, "TableCellColumn") ?? item.TableCellColumn;
+        item.TableCellRowSpan = GetIntProperty(properties, "TableCellRowSpan") ?? item.TableCellRowSpan;
+        item.TableCellColumnSpan = GetIntProperty(properties, "TableCellColumnSpan") ?? item.TableCellColumnSpan;
         item.ControlBorderWidth = GetDoubleProperty(properties, "ControlBorderWidth") ?? item.ControlBorderWidth;
         item.ControlBorderColor = GetStringProperty(properties, "ControlBorderColor") ?? item.ControlBorderColor;
         item.ControlCornerRadius = GetDoubleProperty(properties, "ControlCornerRadius") ?? item.ControlCornerRadius;
@@ -1436,6 +1850,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             ControlKind.Button => "Button",
             ControlKind.ListControl => "ListControl",
+            ControlKind.TableControl => "TableControl",
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClientControl",
@@ -1446,6 +1861,166 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     protected static JsonObject CloneJsonObject(JsonObject? source)
     {
         return source?.DeepClone() as JsonObject ?? new JsonObject();
+    }
+
+    private void TrySavePageYaml(string uiFilePath, JsonObject documentObject)
+    {
+        var yamlPath = Path.ChangeExtension(uiFilePath, ".yaml");
+
+        try
+        {
+            var directory = Path.GetDirectoryName(yamlPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var root = new JsonObject();
+            root["Page"] = SelectedPage.Name;
+            var title = GetStringProperty(documentObject, "Title") ?? SelectedPage.Name;
+            // In der YAML-Repräsentation verwenden wir "Caption" als Page-Titel.
+            root["Caption"] = title;
+
+            var views = new JsonObject
+            {
+                ["1"] = "HomeScreen"
+            };
+            root["Views"] = views;
+
+            var controls = new JsonArray(SelectedPage.Items.Select(item => (JsonNode?)BuildYamlControlDefinition(item)).ToArray());
+            root["Controls"] = controls;
+
+            using var writer = new StreamWriter(yamlPath, append: false);
+            WriteYamlObject(root, writer, indent: 0);
+        }
+        catch
+        {
+            // YAML ist ein optionales Begleitformat; IO-Fehler werden ignoriert.
+        }
+    }
+
+    private static void TrySaveYamlLayoutFromObject(string jsonPath, JsonObject? rootObject)
+    {
+        if (string.IsNullOrWhiteSpace(jsonPath) || rootObject is null)
+        {
+            return;
+        }
+
+        var yamlPath = Path.ChangeExtension(jsonPath, ".yaml");
+
+        try
+        {
+            var directory = Path.GetDirectoryName(yamlPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using var writer = new StreamWriter(yamlPath, append: false);
+            WriteYamlObject(rootObject, writer, indent: 0);
+        }
+        catch
+        {
+            // YAML ist aktuell ein optionales Begleitformat; IO-Fehler werden ignoriert.
+        }
+    }
+
+    private static void WriteYamlObject(JsonObject obj, TextWriter writer, int indent)
+    {
+        foreach (var property in obj)
+        {
+            WriteYamlProperty(property.Key, property.Value, writer, indent);
+        }
+    }
+
+    private static void WriteYamlProperty(string key, JsonNode? value, TextWriter writer, int indent)
+    {
+        var indentText = new string(' ', indent);
+        switch (value)
+        {
+            case JsonObject childObj:
+                writer.WriteLine($"{indentText}{key}:");
+                WriteYamlObject(childObj, writer, indent + 2);
+                break;
+            case JsonArray array:
+                writer.WriteLine($"{indentText}{key}:");
+                WriteYamlArray(array, writer, indent + 2);
+                break;
+            default:
+                writer.WriteLine($"{indentText}{key}: {FormatYamlScalar(value)}");
+                break;
+        }
+    }
+
+    private static void WriteYamlArray(JsonArray array, TextWriter writer, int indent)
+    {
+        var indentText = new string(' ', indent);
+        foreach (var element in array)
+        {
+            switch (element)
+            {
+                case JsonObject obj:
+                    writer.WriteLine($"{indentText}-");
+                    WriteYamlObject(obj, writer, indent + 2);
+                    break;
+                case JsonArray nestedArray:
+                    writer.WriteLine($"{indentText}-");
+                    WriteYamlArray(nestedArray, writer, indent + 2);
+                    break;
+                default:
+                    writer.WriteLine($"{indentText}- {FormatYamlScalar(element)}");
+                    break;
+            }
+        }
+    }
+
+    private static string FormatYamlScalar(JsonNode? value)
+    {
+        if (value is null)
+        {
+            return "null";
+        }
+
+        if (value is JsonValue jsonValue)
+        {
+            if (jsonValue.TryGetValue<bool>(out var boolResult))
+            {
+                return boolResult ? "true" : "false";
+            }
+
+            if (jsonValue.TryGetValue<long>(out var longResult))
+            {
+                return longResult.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            if (jsonValue.TryGetValue<double>(out var doubleResult))
+            {
+                return doubleResult.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            if (jsonValue.TryGetValue<string>(out var stringResult))
+            {
+                return QuoteYamlString(stringResult);
+            }
+        }
+
+        return QuoteYamlString(value.ToJsonString());
+    }
+
+    private static string QuoteYamlString(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return "''";
+        }
+
+        var normalized = text
+            .Replace("\r\n", "\\n")
+            .Replace("\r", "\\n")
+            .Replace("\n", "\\n");
+
+        normalized = normalized.Replace("'", "''");
+        return $"'{normalized}'";
     }
 
     private void SetTabStripPlacement(string? placement)
@@ -1575,6 +2150,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Height = Math.Max(height, 220),
                 IsAutoHeight = true,
                 ListItemHeight = 72,
+                ContainerBorderWidth = 0,
+                ControlBorderWidth = 0,
+                ControlCornerRadius = 0
+            },
+            ControlKind.TableControl => new PageItemModel
+            {
+                Kind = ControlKind.TableControl,
+                ControlCaption = string.Empty,
+                BodyCaption = "TableControl",
+                Footer = string.Empty,
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 260),
+                Height = Math.Max(height, 220),
                 ContainerBorderWidth = 0,
                 ControlBorderWidth = 0,
                 ControlCornerRadius = 0
@@ -2202,7 +2791,6 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var footer = new List<EditorDialogBindingDefinition>
         {
             BindChoice("ShowFooter", "FooterVisible", current => current.ShowFooter ? "True" : "False", (current, value) => { current.ShowFooter = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" }),
-            BindAttachItemList("FooterSubItems", "SubItems", GetFooterSubItemSelection, ApplyFooterSubItems, GetFooterSubItemOptions),
             BindDouble("FooterCornerRadius", "CornerRadius", current => current.FooterCornerRadius, (current, value) => current.FooterCornerRadius = value),
             BindDouble("FooterBorderWidth", "BorderWidth", current => current.FooterBorderWidth, (current, value) => current.FooterBorderWidth = value),
             BindText("FooterBorderColor", "BorderColor", current => current.FooterBorderColor ?? string.Empty, (current, value) => { current.FooterBorderColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
@@ -2262,6 +2850,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 sections.Add(("Control", new List<EditorDialogBindingDefinition>
                 {
                     BindDouble("ControlHeight", "ControlHeight", current => current.ControlHeight, (current, value) => current.ControlHeight = value)
+                }));
+                break;
+            case ControlKind.TableControl:
+                sections.Add(("Control", new List<EditorDialogBindingDefinition>
+                {
+                    BindInt("Rows", "Rows", current => current.TableRows, (current, value) => current.TableRows = value),
+                    BindInt("Columns", "Columns", current => current.TableColumns, (current, value) => current.TableColumns = value)
                 }));
                 break;
             case ControlKind.LogControl:
@@ -2720,12 +3315,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             X = item.X,
             Y = item.Y,
             Width = Math.Max(item.Width, item.Kind switch { ControlKind.Button => 140, ControlKind.Signal => 150, ControlKind.Item => 150, ControlKind.ListControl => 240, ControlKind.LogControl => 320, ControlKind.ChartControl => 360, _ => 140 }),
-            Height = Math.Max(item.Height, item.Kind switch { ControlKind.Button => 56, ControlKind.Signal => 72, ControlKind.Item => 72, ControlKind.ListControl => 180, ControlKind.LogControl => 220, ControlKind.ChartControl => 220, _ => 72 })
+            Height = Math.Max(item.Height, item.Kind switch { ControlKind.Button => 56, ControlKind.Signal => 72, ControlKind.Item => 72, ControlKind.ListControl => 180, ControlKind.TableControl => 180, ControlKind.LogControl => 220, ControlKind.ChartControl => 220, _ => 72 })
         };
 
         if (string.IsNullOrWhiteSpace(model.Name))
         {
-            model.Name = item.Kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", _ => "Item" };
+            model.Name = item.Kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", _ => "Item" };
         }
 
         if (model.Kind == ControlKind.LogControl
@@ -2767,7 +3362,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             Argument = rule.Argument
         }));
 
-    private static (string Kind, string Parameter) SplitParameterFormat(string? format)
+    internal static (string Kind, string Parameter) SplitParameterFormat(string? format)
     {
         if (string.IsNullOrWhiteSpace(format))
         {
@@ -2988,7 +3583,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private string GetSuggestedControlName(ControlKind kind, PageModel page, PageItemModel? parentItem, PageItemModel? excludeItem)
     {
-        var baseName = kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", _ => "Item" };
+        var baseName = kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", _ => "Item" };
         var candidate = baseName;
         var index = 1;
         while (!IsControlNameUnique(page, candidate, excludeItem))
