@@ -29,8 +29,22 @@ public sealed class PageModel : ObservableObject
             }
         }
     }
+
     public string Name { get; init; } = string.Empty;
-    public string DisplayText { get; init; } = string.Empty;
+
+    private string _displayText = string.Empty;
+
+    public string DisplayText
+    {
+        get => _displayText;
+        set
+        {
+            if (SetProperty(ref _displayText, value))
+            {
+                OnPropertyChanged(nameof(TabTitle));
+            }
+        }
+    }
 
     public string? UiFilePath { get; init; }
 
@@ -69,6 +83,21 @@ public sealed class PageModel : ObservableObject
     }
 
     public string ItemSummary => $"{Items.Count} Controls";
+
+    public void UpdateViewCaption(int id, string caption)
+    {
+        if (id <= 0)
+        {
+            return;
+        }
+
+        Views[id] = caption;
+
+        if (id == ActualViewId)
+        {
+            OnPropertyChanged(nameof(CurrentViewCaption));
+        }
+    }
 
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         => RaisePropertyChanged(nameof(ItemSummary));

@@ -155,21 +155,52 @@
                           <Button Grid.Column="1"
                                   Width="40"
                                   Padding="0"
-                                  Margin="4,6,4,6"
+                                  Margin="4,4,4,4"
                                   Background="Transparent"
                                   BorderThickness="0"
                                   Click="OnViewsButtonClick"
                                   ToolTip.Tip="View auswaehlen">
-                            <editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" />
                           </Button>
 
                           <!-- Textbereich: Zeile 1 = Page Title, Zeile 2 = aktueller View-Name -->
-                          <Grid Grid.Column="2" Margin="4,4,2,4" RowDefinitions="Auto,Auto">
-                            <TextBlock Grid.Row="0" FontSize="16" FontWeight="SemiBold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding TabTitle}" />
-                            <TextBlock Grid.Row="0" FontSize="16" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
+                          <!-- In EditMode weiss hinterlegt -->
+                          <Border Grid.Column="2"
+                                  Margin="4,4,2,4"
+                                  Background="White"
+                                  CornerRadius="2"
+                                  IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=Window}}" />
 
-                            <TextBlock Grid.Row="1" Margin="0,2,0,0" FontSize="13" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding CurrentViewCaption}" />
-                            <TextBlock Grid.Row="1" Margin="0,2,0,0" FontSize="13" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding CurrentViewCaption}" />
+                          <Grid Grid.Column="2" Margin="4,4,2,4" RowDefinitions="Auto,Auto">
+                            <TextBlock Grid.Row="0"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                       IsVisible="{Binding IsNotSelected}"
+                                       Text="{Binding TabTitle}"
+                                       PointerPressed="OnPageTitlePointerPressed" />
+                            <TextBlock Grid.Row="0"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                       IsVisible="{Binding IsSelected}"
+                                       Text="{Binding TabTitle}"
+                                       PointerPressed="OnPageTitlePointerPressed" />
+
+                            <TextBlock Grid.Row="1"
+                                       Margin="0,2,0,0"
+                                       FontSize="13"
+                                       Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                       IsVisible="{Binding IsNotSelected}"
+                                       Text="{Binding CurrentViewCaption}"
+                                       PointerPressed="OnViewCaptionPointerPressed" />
+                            <TextBlock Grid.Row="1"
+                                       Margin="0,2,0,0"
+                                       FontSize="13"
+                                       Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                       IsVisible="{Binding IsSelected}"
+                                       Text="{Binding CurrentViewCaption}"
+                                       PointerPressed="OnViewCaptionPointerPressed" />
                           </Grid>
 
                           <!-- Edit-Mode-Toggle im Tab, nur fuer Admin/Root und selektierten Tab -->
@@ -186,7 +217,7 @@
                                     Command="{Binding DataContext.ToggleEditModeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                     IsVisible="{Binding IsSelected}"
                                     ToolTip.Tip="Edit mode umschalten">
-                              <editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.LegendEditIconColor, RelativeSource={RelativeSource AncestorType=Window}}" />
+                              <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.LegendEditIconColor, RelativeSource={RelativeSource AncestorType=Window}}" />
                             </Button>
                           </Border>
                         </Grid>
@@ -237,20 +268,51 @@
                             <Button Grid.Column="1"
                                     Width="40"
                                     Padding="0"
-                                    Margin="4,6,4,6"
+                                    Margin="4,4,4,4"
                                     Background="Transparent"
                                     BorderThickness="0"
                                     Click="OnViewsButtonClick"
                                     ToolTip.Tip="View auswaehlen">
-                              <editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" />
+                              <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" />
                             </Button>
 
-                            <Grid Grid.Column="2" Margin="4,4,2,4" RowDefinitions="Auto,Auto">
-                              <TextBlock Grid.Row="0" FontSize="16" FontWeight="SemiBold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding TabTitle}" />
-                              <TextBlock Grid.Row="0" FontSize="16" FontWeight="SemiBold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding TabTitle}" />
+                            <!-- In EditMode weiss hinterlegter Textbereich -->
+                            <Border Grid.Column="2"
+                                    Margin="4,4,2,4"
+                                    Background="White"
+                                    CornerRadius="2"
+                                    IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=Window}}" />
 
-                              <TextBlock Grid.Row="1" Margin="0,2,0,0" FontSize="13" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding CurrentViewCaption}" />
-                              <TextBlock Grid.Row="1" Margin="0,2,0,0" FontSize="13" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding CurrentViewCaption}" />
+                            <Grid Grid.Column="2" Margin="4,4,2,4" RowDefinitions="Auto,Auto">
+                              <TextBlock Grid.Row="0"
+                                         FontSize="16"
+                                         FontWeight="SemiBold"
+                                         Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                         IsVisible="{Binding IsNotSelected}"
+                                         Text="{Binding TabTitle}"
+                                         PointerPressed="OnPageTitlePointerPressed" />
+                              <TextBlock Grid.Row="0"
+                                         FontSize="16"
+                                         FontWeight="SemiBold"
+                                         Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                         IsVisible="{Binding IsSelected}"
+                                         Text="{Binding TabTitle}"
+                                         PointerPressed="OnPageTitlePointerPressed" />
+
+                              <TextBlock Grid.Row="1"
+                                         Margin="0,2,0,0"
+                                         FontSize="13"
+                                         Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                         IsVisible="{Binding IsNotSelected}"
+                                         Text="{Binding CurrentViewCaption}"
+                                         PointerPressed="OnViewCaptionPointerPressed" />
+                              <TextBlock Grid.Row="1"
+                                         Margin="0,2,0,0"
+                                         FontSize="13"
+                                         Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                         IsVisible="{Binding IsSelected}"
+                                         Text="{Binding CurrentViewCaption}"
+                                         PointerPressed="OnViewCaptionPointerPressed" />
                             </Grid>
 
                             <Border Grid.Column="3"
@@ -266,7 +328,7 @@
                                       Command="{Binding DataContext.ToggleEditModeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                       IsVisible="{Binding IsSelected}"
                                       ToolTip.Tip="Edit mode umschalten">
-                                <editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.LegendEditIconColor, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.LegendEditIconColor, RelativeSource={RelativeSource AncestorType=Window}}" />
                               </Button>
                             </Border>
                           </Grid>

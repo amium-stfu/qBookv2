@@ -3,6 +3,7 @@ using System.IO;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -74,16 +75,11 @@ public partial class MainWindow : Window
                 menu.Items.Add(new Separator());
             }
 
-            var addItem = new MenuItem
-            {
-                Header = "Add new view"
-            };
-
-            addItem.Click += async (_, _) =>
+            async System.Threading.Tasks.Task AddViewInRangeAsync(string header, int startIdInclusive, int endIdInclusive)
             {
                 var name = await EditorInputDialogs.EditTextAsync(
                     this,
-                    header: "Add new view",
+                    header: header,
                     subHeader: "Enter view name",
                     initialValue: string.Empty);
 
@@ -92,19 +88,48 @@ public partial class MainWindow : Window
                     return;
                 }
 
-                var currentViews = page.Views ?? new System.Collections.Generic.Dictionary<int, string>();
+                if (page.Views is null)
+                {
+                    return;
+                }
 
-                var nextId = currentViews.Count == 0
-                    ? 1
-                    : currentViews.Keys.Max() + 1;
+                int? freeId = null;
+                for (var id = startIdInclusive; id <= endIdInclusive; id++)
+                {
+                    if (!page.Views.ContainsKey(id))
+                    {
+                        freeId = id;
+                        break;
+                    }
+                }
 
-                currentViews[nextId] = name;
-                // Wenn das urspruengliche Dictionary null war, ist CurrentViewCaption ohnehin leer;
-                // die eigentliche Persistierung der Views laeuft ueber das Layout-Speichern.
-                page.ActualViewId = nextId;
-            };
+                if (freeId is null)
+                {
+                    return;
+                }
 
-            menu.Items.Add(addItem);
+                page.UpdateViewCaption(freeId.Value, name);
+                page.ActualViewId = freeId.Value;
+            }
+
+            void AddRangeMenuItem(string header, int startIdInclusive, int endIdInclusive)
+            {
+                var item = new MenuItem
+                {
+                    Header = header
+                };
+
+                item.Click += async (_, _) =>
+                {
+                    await AddViewInRangeAsync(header, startIdInclusive, endIdInclusive);
+                };
+
+                menu.Items.Add(item);
+            }
+
+            AddRangeMenuItem("Add new user view", 1, 10);
+            AddRangeMenuItem("Add new service view", 11, 20);
+            AddRangeMenuItem("Add new admin view", 20, 30);
         }
 
         // Kontextmenü korrekt an den Button anhängen, damit Avalonia eine
@@ -123,6 +148,68 @@ public partial class MainWindow : Window
 
         menu.Closed += Cleanup;
         menu.Open();
+    }
+
+    private async void OnPageTitlePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || !viewModel.IsEditMode)
+        {
+            return;
+        }
+
+        if (sender is not TextBlock textBlock || textBlock.DataContext is not PageModel page)
+        {
+            return;
+        }
+
+        var currentTitle = page.TabTitle;
+
+        var newTitle = await EditorInputDialogs.EditTextAsync(
+            this,
+            header: "Page title bearbeiten",
+            subHeader: "Title",
+            initialValue: currentTitle);
+
+        if (string.IsNullOrWhiteSpace(newTitle))
+        {
+            return;
+        }
+
+        page.DisplayText = newTitle;
+    }
+
+    private async void OnViewCaptionPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || !viewModel.IsEditMode)
+        {
+            return;
+        }
+
+        if (sender is not TextBlock textBlock || textBlock.DataContext is not PageModel page)
+        {
+            return;
+        }
+
+        var viewId = page.ActualViewId;
+        if (viewId <= 0)
+        {
+            return;
+        }
+
+        page.Views.TryGetValue(viewId, out var currentCaption);
+
+        var newCaption = await EditorInputDialogs.EditTextAsync(
+            this,
+            header: "View-Text bearbeiten",
+            subHeader: "View caption",
+            initialValue: currentCaption ?? string.Empty);
+
+        if (string.IsNullOrWhiteSpace(newCaption))
+        {
+            return;
+        }
+
+        page.UpdateViewCaption(viewId, newCaption);
     }
 
     private async void OnDemoTextInputClicked(object? sender, RoutedEventArgs e)
