@@ -8,7 +8,7 @@
     Path: UdlBook/Page1/udl1
     Id: demo-udl-1
 
-  Rect:
+  Bounds:
     X: 40
     Y: 100
     Width: 460
@@ -53,7 +53,7 @@
       TargetPath: "this"
       Argument: ""
 
-  Control:
+  Properties:
     UdlClientHost: 192.168.178.151
     UdlClientPort: 9001
     UdlClientAutoConnect: false

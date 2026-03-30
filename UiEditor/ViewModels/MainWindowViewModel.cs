@@ -19,6 +19,7 @@ using Amium.EditorUi;
 using Amium.Items;
 using Amium.Host;
 using Amium.Logging;
+using Amium.UiEditor.Helpers;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.Persistence;
 
@@ -1367,7 +1368,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         SetOptionalJsonValue(nodeObject, "SecondaryForegroundColor", item.SecondaryForegroundColor);
         SetOptionalJsonValue(nodeObject, "AccentBackgroundColor", item.AccentBackgroundColor);
         SetOptionalJsonValue(nodeObject, "AccentForegroundColor", item.AccentForegroundColor);
-        nodeObject["TargetPath"] = item.TargetPath;
+        nodeObject["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath);
         nodeObject["TargetParameterPath"] = item.TargetParameterPath;
         nodeObject["TargetParameterFormat"] = item.TargetParameterFormat;
             nodeObject["Unit"] = item.Unit;
@@ -1375,7 +1376,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["RefreshRateMs"] = item.RefreshRateMs;
         nodeObject["HistorySeconds"] = item.HistorySeconds;
         nodeObject["ViewSeconds"] = item.ViewSeconds;
-        nodeObject["ChartSeriesDefinitions"] = item.ChartSeriesDefinitions;
+        nodeObject["ChartSeriesDefinitions"] = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions);
         if (TryBuildInteractionRulesJson(item.InteractionRules, out var interactionRulesJson))
         {
             nodeObject["InteractionRules"] = interactionRulesJson;
@@ -1439,7 +1440,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ["Width"] = item.Width,
             ["Height"] = item.Height
         };
-        node["Rect"] = rect;
+        node["Bounds"] = rect;
 
         var design = new JsonObject
         {
@@ -1497,7 +1498,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             case ControlKind.Item or ControlKind.Signal:
                 control["Unit"] = item.Unit;
-                control["TargetPath"] = item.TargetPath;
+                control["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath);
                 control["TargetParameterPath"] = item.TargetParameterPath;
                 control["TargetParameterFormat"] = item.TargetParameterFormat;
                 control["IsReadOnly"] = item.IsReadOnly;
@@ -1561,7 +1562,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         if (control.Count > 0)
         {
-            node["Control"] = control;
+            node["Properties"] = control;
         }
 
         return node;
@@ -1575,7 +1576,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return array;
         }
 
-        var lines = definitions
+        var lines = TargetPathHelper.ToPersistedChartSeriesDefinitions(definitions)
             .Replace("\r", string.Empty)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -1671,7 +1672,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.FooterBorderColor = GetStringProperty(properties, "FooterBorderColor") ?? item.FooterBorderColor;
         item.FooterBorderWidth = GetDoubleProperty(properties, "FooterBorderWidth") ?? item.FooterBorderWidth;
         item.FooterCornerRadius = GetDoubleProperty(properties, "FooterCornerRadius") ?? item.FooterCornerRadius;
-        item.TargetPath = GetStringProperty(properties, "TargetPath") ?? item.TargetPath;
+        item.TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(GetStringProperty(properties, "TargetPath") ?? item.TargetPath);
         item.TargetParameterPath = GetStringProperty(properties, "TargetParameterPath") ?? item.TargetParameterPath;
         item.TargetParameterFormat = GetStringProperty(properties, "TargetParameterFormat") ?? item.TargetParameterFormat;
             item.Unit = GetFirstStringProperty(properties, "Unit", "Footer") ?? item.Unit;
@@ -1679,7 +1680,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.RefreshRateMs = GetIntProperty(properties, "RefreshRateMs") ?? item.RefreshRateMs;
         item.HistorySeconds = GetIntProperty(properties, "HistorySeconds") ?? item.HistorySeconds;
         item.ViewSeconds = GetIntProperty(properties, "ViewSeconds") ?? item.ViewSeconds;
-        item.ChartSeriesDefinitions = GetStringProperty(properties, "ChartSeriesDefinitions") ?? item.ChartSeriesDefinitions;
+        item.ChartSeriesDefinitions = TargetPathHelper.NormalizeChartSeriesDefinitions(GetStringProperty(properties, "ChartSeriesDefinitions") ?? item.ChartSeriesDefinitions);
         item.InteractionRules = ReadInteractionRulesProperty(properties) ?? item.InteractionRules;
         item.UdlClientHost = GetStringProperty(properties, "UdlClientHost") ?? item.UdlClientHost;
         item.UdlClientPort = GetIntProperty(properties, "UdlClientPort") ?? item.UdlClientPort;
@@ -1715,7 +1716,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             ["Event"] = rule.Event.ToString(),
             ["Action"] = rule.Action.ToString(),
-            ["TargetPath"] = rule.TargetPath,
+            ["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath),
             ["Argument"] = rule.Argument
         }).ToArray());
 
@@ -1732,7 +1733,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 {
                     Event = Enum.TryParse<ItemInteractionEvent>(GetStringValue(ruleObject, "Event"), ignoreCase: true, out var eventKind) ? eventKind : ItemInteractionEvent.BodyLeftClick,
                     Action = Enum.TryParse<ItemInteractionAction>(GetStringValue(ruleObject, "Action"), ignoreCase: true, out var actionKind) ? actionKind : ItemInteractionAction.OpenValueEditor,
-                    TargetPath = GetStringValue(ruleObject, "TargetPath") ?? "this",
+                    TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(GetStringValue(ruleObject, "TargetPath") ?? "this"),
                     Argument = GetStringValue(ruleObject, "Argument") ?? string.Empty
                 }));
         }
@@ -2822,7 +2823,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     sectionBinding.Title,
                     isExpanded: string.Equals(sectionBinding.Title, "Identity", StringComparison.Ordinal)
                         || string.Equals(sectionBinding.Title, "Widget", StringComparison.Ordinal)
-                        || string.Equals(sectionBinding.Title, "Control", StringComparison.Ordinal));
+                        || string.Equals(sectionBinding.Title, "Properties", StringComparison.Ordinal));
                 foreach (var binding in sectionBinding.Bindings)
                 {
                     section.Fields.Add(binding.CreateField(item));
@@ -2926,7 +2927,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         switch (item.Kind)
         {
             case ControlKind.Button:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
                     BindText("ButtonText", "ButtonText", current => current.ButtonText, (current, value) => { current.ButtonText = value; return null; }),
                     BindText("ButtonIcon", "Icon", current => current.ButtonIcon, (current, value) => { current.ButtonIcon = value; return null; }),
@@ -2939,7 +2940,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 break;
             case ControlKind.Item:
             case ControlKind.Signal:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
                     BindTargetTree("TargetPath", "Target", current => current.TargetPath, (current, value) => { current.ApplyTargetSelection(value); return null; }, current => GetSelectableTargetOptions(current)),
                     BindChoice("TargetParameterPath", "TargetParameter", current => current.TargetParameterPath, (current, value) => { current.TargetParameterPath = value; return null; }, current => GetTargetParameterOptions(current.TargetPath)),
@@ -2950,7 +2951,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }));
                 break;
             case ControlKind.ChartControl:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
                     BindChartSeriesList("ChartSeriesDefinitions", "Series", current => current.ChartSeriesDefinitions, (current, value) => { current.ChartSeriesDefinitions = value; return null; }, GetChartSeriesToolTip),
                     BindInt("RefreshRateMs", "RefreshRate ms", current => current.RefreshRateMs, (current, value) => current.RefreshRateMs = value),
@@ -2959,26 +2960,26 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }));
                 break;
             case ControlKind.ListControl:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
                     BindDouble("ControlHeight", "ControlHeight", current => current.ControlHeight, (current, value) => current.ControlHeight = value)
                 }));
                 break;
             case ControlKind.TableControl:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
                     BindInt("Rows", "Rows", current => current.TableRows, (current, value) => current.TableRows = value),
                     BindInt("Columns", "Columns", current => current.TableColumns, (current, value) => current.TableColumns = value)
                 }));
                 break;
             case ControlKind.LogControl:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
                     BindChoice("TargetLog", "TargetLog", current => current.TargetLog, (current, value) => { current.TargetLog = value; return null; }, _ => GetProcessLogTargetOptions())
                 }));
                 break;
             case ControlKind.UdlClientControl:
-                sections.Add(("Control", new List<EditorDialogBindingDefinition>
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
                     BindText("UdlClientHost", "Host", current => current.UdlClientHost, (current, value) => { current.UdlClientHost = value; return null; }),
                     BindInt("UdlClientPort", "Port", current => current.UdlClientPort, (current, value) => current.UdlClientPort = value),
@@ -2989,7 +2990,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 break;
         }
 
-        var controlIndex = sections.FindIndex(s => string.Equals(s.Title, "Control", StringComparison.Ordinal));
+        var controlIndex = sections.FindIndex(s => string.Equals(s.Title, "Properties", StringComparison.Ordinal));
         if (controlIndex > 1)
         {
             var controlSection = sections[controlIndex];
@@ -3395,7 +3396,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             SecondaryForegroundColor = item.SecondaryForegroundColor,
             AccentBackgroundColor = item.AccentBackgroundColor,
             AccentForegroundColor = item.AccentForegroundColor,
-            TargetPath = item.TargetPath,
+            TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath),
             TargetParameterPath = item.TargetParameterPath,
             TargetParameterFormat = item.TargetParameterFormat,
             Unit = item.Unit,
@@ -3403,7 +3404,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             RefreshRateMs = item.RefreshRateMs,
             HistorySeconds = item.HistorySeconds,
             ViewSeconds = item.ViewSeconds,
-            ChartSeriesDefinitions = item.ChartSeriesDefinitions,
+            ChartSeriesDefinitions = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions),
             InteractionRules = ToInteractionRuleDocuments(item.InteractionRules),
             UdlClientHost = item.UdlClientHost,
             UdlClientPort = item.UdlClientPort,
@@ -3489,7 +3490,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             SecondaryForegroundColor = item.SecondaryForegroundColor,
             AccentBackgroundColor = item.AccentBackgroundColor,
             AccentForegroundColor = item.AccentForegroundColor,
-            TargetPath = item.TargetPath,
+            TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(item.TargetPath),
             TargetParameterPath = item.TargetParameterPath,
             TargetParameterFormat = item.TargetParameterFormat,
             Unit = item.Unit,
@@ -3497,7 +3498,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             RefreshRateMs = item.RefreshRateMs,
             HistorySeconds = item.HistorySeconds,
             ViewSeconds = item.ViewSeconds,
-            ChartSeriesDefinitions = item.ChartSeriesDefinitions,
+            ChartSeriesDefinitions = TargetPathHelper.NormalizeChartSeriesDefinitions(item.ChartSeriesDefinitions),
             InteractionRules = FromInteractionRuleDocuments(item.InteractionRules),
             UdlClientHost = item.UdlClientHost,
             UdlClientPort = item.UdlClientPort,
@@ -3546,7 +3547,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             {
                 Event = rule.Event,
                 Action = rule.Action,
-                TargetPath = rule.TargetPath,
+                TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath),
                 Argument = rule.Argument
             })
             .ToList();
@@ -3556,7 +3557,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             Event = rule.Event,
             Action = rule.Action,
-            TargetPath = rule.TargetPath,
+            TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(rule.TargetPath),
             Argument = rule.Argument
         }));
 
@@ -4027,9 +4028,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private IEnumerable<string> GetSelectableTargetOptions(PageItemModel? item = null)
     {
+        var excludedPrefixes = GetNonSelectableTargetPrefixes();
         var allOptions = HostRegistries.Data.GetAllKeys()
             .SelectMany(static key => EnumerateSelectablePaths(key))
             .Where(static key => !key.StartsWith("Runtime/UdlClient/", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !HasExcludedTargetPrefix(path, excludedPrefixes))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -4043,6 +4046,58 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return allOptions
             .Where(path => path.StartsWith(filterPrefix, StringComparison.OrdinalIgnoreCase))
             .ToArray();
+    }
+
+    private HashSet<string> GetNonSelectableTargetPrefixes()
+    {
+        var prefixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var page in Pages)
+        {
+            var pageName = NormalizeTargetPathSegment(page.Name);
+            if (string.IsNullOrWhiteSpace(pageName))
+            {
+                continue;
+            }
+
+            foreach (var pageItem in EnumeratePageItems(page.Items))
+            {
+                if (pageItem.Kind != ControlKind.UdlClientControl)
+                {
+                    continue;
+                }
+
+                var itemName = NormalizeTargetPathSegment(pageItem.Name);
+                if (string.IsNullOrWhiteSpace(itemName))
+                {
+                    continue;
+                }
+
+                prefixes.Add($"UdlBook/{pageName}/{itemName}/Status");
+            }
+        }
+
+        return prefixes;
+    }
+
+    private static bool HasExcludedTargetPrefix(string path, IReadOnlyCollection<string> excludedPrefixes)
+    {
+        if (string.IsNullOrWhiteSpace(path) || excludedPrefixes.Count == 0)
+        {
+            return false;
+        }
+
+        var normalizedPath = path.Replace('\\', '/').Trim('/');
+        foreach (var prefix in excludedPrefixes)
+        {
+            if (string.Equals(normalizedPath, prefix, StringComparison.OrdinalIgnoreCase)
+                || normalizedPath.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private string GetTargetTreeFilterPrefix(PageItemModel item, IReadOnlyList<string> allOptions)
@@ -4128,22 +4183,25 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private static bool TryResolveDataItem(string targetPath, out Item? item)
     {
-        if (HostRegistries.Data.TryGet(targetPath, out item) && item is not null)
+        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath))
         {
-            return true;
-        }
+            if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
+            {
+                return true;
+            }
 
-        var rootKey = HostRegistries.Data.GetAllKeys()
-            .Where(key => targetPath.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(key => key.Length)
-            .FirstOrDefault();
+            var rootKey = HostRegistries.Data.GetAllKeys()
+                .Where(key => candidatePath.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(key => key.Length)
+                .FirstOrDefault();
 
-        if (rootKey is not null
-            && HostRegistries.Data.TryGet(rootKey, out var rootItem)
-            && rootItem is not null
-            && TryResolveRelativeChild(rootItem, targetPath[(rootKey.Length + 1)..], out item))
-        {
-            return true;
+            if (rootKey is not null
+                && HostRegistries.Data.TryGet(rootKey, out var rootItem)
+                && rootItem is not null
+                && TryResolveRelativeChild(rootItem, candidatePath[(rootKey.Length + 1)..], out item))
+            {
+                return true;
+            }
         }
 
         item = null;

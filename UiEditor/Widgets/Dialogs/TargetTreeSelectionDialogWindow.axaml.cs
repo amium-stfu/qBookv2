@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Amium.UiEditor.Helpers;
 using Amium.UiEditor.ViewModels;
 
 namespace Amium.UiEditor.Widgets;
@@ -278,7 +279,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
             .OrderBy(static option => option, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (!string.IsNullOrWhiteSpace(selectedValue) && !sourceOptions.Contains(selectedValue, StringComparer.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(selectedValue) && !ContainsEquivalentPath(sourceOptions, selectedValue))
         {
             sourceOptions.Add(selectedValue);
             sourceOptions = sourceOptions
@@ -384,9 +385,15 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
             return null;
         }
 
+        var candidatePaths = TargetPathHelper.EnumerateResolutionCandidates(fullPath)
+            .Select(NormalizePath)
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         foreach (var node in nodes)
         {
-            if (string.Equals(node.FullPath, NormalizePath(fullPath), StringComparison.OrdinalIgnoreCase))
+            if (candidatePaths.Contains(node.FullPath, StringComparer.OrdinalIgnoreCase))
             {
                 return node;
             }
@@ -399,6 +406,25 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
         }
 
         return null;
+    }
+
+    private static bool ContainsEquivalentPath(IEnumerable<string> options, string selectedValue)
+    {
+        var normalizedOptions = options
+            .Select(NormalizePath)
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .ToArray();
+
+        foreach (var candidate in TargetPathHelper.EnumerateResolutionCandidates(selectedValue))
+        {
+            var normalizedCandidate = NormalizePath(candidate);
+            if (normalizedOptions.Contains(normalizedCandidate, StringComparer.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string DetermineDisplayPrefix(IReadOnlyList<string> options, string? currentValue, string pageName)

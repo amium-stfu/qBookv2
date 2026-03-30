@@ -25,6 +25,7 @@ namespace Amium.UiEditor.Widgets;
 
 public partial class UdlClientControl : EditorTemplateControl
 {
+    private static readonly string[] PublishedStatusNames = ["Endpoint", "Connection", "ItemCount", "MessageCounter", "AutoConnect"];
     public static readonly DirectProperty<UdlClientControl, string> SocketTextProperty =
         AvaloniaProperty.RegisterDirect<UdlClientControl, string>(nameof(SocketText), control => control.SocketText);
 
@@ -89,6 +90,7 @@ public partial class UdlClientControl : EditorTemplateControl
     private IBrush _connectionStatusHoverBackground = Brushes.DimGray;
     private bool _canToggleConnection = true;
     private string _connectionToggleText = "Connect";
+    private string _publishedStatusBasePath = string.Empty;
 
     public UdlClientControl()
     {
@@ -176,6 +178,8 @@ public partial class UdlClientControl : EditorTemplateControl
 
     private PageItemModel? Item => DataContext as PageItemModel;
 
+    private static bool IsUdlClientItem(PageItemModel? item) => item?.IsUdlClientControl == true;
+
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
         _attachPopup = this.FindControl<Popup>("AttachPopup");
@@ -189,6 +193,7 @@ public partial class UdlClientControl : EditorTemplateControl
         TearDownClient();
         CancelAttachedItemsRefresh();
         ReleaseUiPageContext();
+        RemovePublishedStatusItems();
         UnhookObservedItem();
         foreach (var row in AttachRows)
         {
@@ -208,13 +213,27 @@ public partial class UdlClientControl : EditorTemplateControl
 
     private void HookObservedItem()
     {
-        if (ReferenceEquals(_observedItem, Item))
+        var item = Item;
+        if (!IsUdlClientItem(item))
+        {
+            if (_observedItem is not null)
+            {
+                TearDownClient();
+            }
+
+            RemovePublishedStatusItems();
+            UnhookObservedItem();
+            RebuildAttachRows();
+            return;
+        }
+
+        if (ReferenceEquals(_observedItem, item))
         {
             return;
         }
 
         UnhookObservedItem();
-        _observedItem = Item;
+        _observedItem = item;
         if (_observedItem is not null)
         {
             _observedItem.PropertyChanged += OnObservedItemPropertyChanged;
@@ -279,7 +298,7 @@ public partial class UdlClientControl : EditorTemplateControl
 
     private async System.Threading.Tasks.Task EnsureAutoConnectAsync()
     {
-        if (Item?.UdlClientAutoConnect != true || _client is not null)
+        if (!IsUdlClientItem(Item) || Item?.UdlClientAutoConnect != true || _client is not null)
         {
             return;
         }
@@ -913,6 +932,24 @@ public partial class UdlClientControl : EditorTemplateControl
         }
 
         var item = Item;
+        if (!IsUdlClientItem(item))
+        {
+            SocketText = string.Empty;
+            AutoConnectText = "False";
+            ConnectionStateText = string.Empty;
+            ItemCountText = "0";
+            CanConnect = false;
+            CanDisconnect = false;
+            CanToggleConnection = false;
+            ConnectionToggleText = "Connect";
+            ConnectionStatusBackground = Brushes.Black;
+            ConnectionStatusForeground = Brushes.White;
+            ConnectionStatusHoverBackground = CreateHoverBrush(ConnectionStatusBackground);
+            _verboseDiagnosticsEnabled = false;
+            RemovePublishedStatusItems();
+            return;
+        }
+
         SocketText = item is null ? string.Empty : $"{item.UdlClientHost}:{item.UdlClientPort}";
         AutoConnectText = item?.UdlClientAutoConnect == true ? "True" : "False";
         ConnectionStateText = _connectionState.ToString();
@@ -1025,11 +1062,28 @@ public partial class UdlClientControl : EditorTemplateControl
     private void PublishStatusItems(PageItemModel item)
     {
         var statusBasePath = GetStatusBasePath(item);
+        if (!string.Equals(_publishedStatusBasePath, statusBasePath, StringComparison.OrdinalIgnoreCase))
+        {
+            RemovePublishedStatusItems();
+            _publishedStatusBasePath = statusBasePath;
+        }
+
         PublishStatusValue(statusBasePath, "Endpoint", SocketText, "UdlClient endpoint");
         PublishStatusValue(statusBasePath, "Connection", ConnectionStateText, "Connection state");
         PublishStatusValue(statusBasePath, "ItemCount", GetRootItemCount(), "Discovered items");
         PublishStatusValue(statusBasePath, "MessageCounter", Interlocked.Read(ref _messageCounter), "Received messages");
         PublishStatusValue(statusBasePath, "AutoConnect", item.UdlClientAutoConnect, "AutoConnect");
+    }
+
+    private void RemovePublishedStatusItems()
+    {
+        foreach (var path in _publishedStatusValues.Keys.ToArray())
+        {
+            HostRegistries.Data.Remove(path);
+        }
+
+        _publishedStatusValues.Clear();
+        _publishedStatusBasePath = string.Empty;
     }
 
     private void PublishStatusValue(string statusBasePath, string name, object? value, string title)

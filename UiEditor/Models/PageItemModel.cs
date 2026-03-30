@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Amium.Items;
 using Amium.Host;
+using Amium.UiEditor.Helpers;
 using Amium.UiEditor.ViewModels;
 
 namespace Amium.UiEditor.Models;
@@ -2858,22 +2859,25 @@ public sealed class PageItemModel : ObservableObject
 
     private static bool TryResolveTargetItem(string targetPath, out Item? item)
     {
-        if (HostRegistries.Data.TryGet(targetPath, out item) && item is not null)
+        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath))
         {
-            return true;
-        }
+            if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
+            {
+                return true;
+            }
 
-        var rootKey = HostRegistries.Data.GetAllKeys()
-            .Where(key => targetPath.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(key => key.Length)
-            .FirstOrDefault();
+            var rootKey = HostRegistries.Data.GetAllKeys()
+                .Where(key => candidatePath.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(key => key.Length)
+                .FirstOrDefault();
 
-        if (rootKey is not null
-            && HostRegistries.Data.TryGet(rootKey, out var rootItem)
-            && rootItem is not null
-            && TryResolveRelativeChild(rootItem, targetPath[(rootKey.Length + 1)..], out item))
-        {
-            return true;
+            if (rootKey is not null
+                && HostRegistries.Data.TryGet(rootKey, out var rootItem)
+                && rootItem is not null
+                && TryResolveRelativeChild(rootItem, candidatePath[(rootKey.Length + 1)..], out item))
+            {
+                return true;
+            }
         }
 
         item = null;

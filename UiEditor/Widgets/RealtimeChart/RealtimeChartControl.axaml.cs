@@ -13,6 +13,7 @@ using Avalonia.VisualTree;
 using Amium.EditorUi.Controls;
 using Amium.Host;
 using Amium.Items;
+using Amium.UiEditor.Helpers;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 using ScottPlot;
@@ -512,7 +513,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             }
 
             var connectStyle = parts.Length > 2 ? ParseConnectStyle(parts[2]) : ConnectStyle.Straight;
-            result.Add(CreateSeriesConfiguration(parts[0], axisIndex, connectStyle));
+            result.Add(CreateSeriesConfiguration(TargetPathHelper.NormalizeConfiguredTargetPath(parts[0]), axisIndex, connectStyle));
         }
 
         return result;
@@ -520,6 +521,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
 
     private static ChartSeriesConfiguration CreateSeriesConfiguration(string targetPath, int axisIndex, ConnectStyle connectStyle = ConnectStyle.Straight)
     {
+        targetPath = TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
         var normalizedAxis = Math.Clamp(axisIndex, 1, 4);
         var displayName = targetPath.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? targetPath;
         var styleKey = connectStyle switch
@@ -926,7 +928,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             var samples = new List<(ChartSeriesConfiguration Configuration, double Value)>();
             foreach (var configuration in configurations)
             {
-                if (!HostRegistries.Data.TryGet(configuration.TargetPath, out var item) || item is null)
+                if (!TryResolveSeriesItem(configuration.TargetPath, out var item) || item is null)
                 {
                     continue;
                 }
@@ -959,6 +961,20 @@ public partial class RealtimeChartControl : EditorTemplateWidget
 
                 TrimSeriesLocked(sampledAt);
             }
+        }
+
+        private static bool TryResolveSeriesItem(string targetPath, out Item? item)
+        {
+            foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath))
+            {
+                if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
+                {
+                    return true;
+                }
+            }
+
+            item = null;
+            return false;
         }
 
         public List<ChartSeriesSnapshot> GetSeriesSnapshots()

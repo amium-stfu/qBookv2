@@ -6,6 +6,7 @@ using System.Linq;
 using Avalonia.Media;
 using Amium.Host;
 using Amium.Items;
+using Amium.UiEditor.Helpers;
 using Amium.UiEditor.Models;
 
 namespace Amium.UiEditor.ViewModels;
@@ -536,7 +537,7 @@ public sealed class EditorDialogField : ObservableObject
             .Where(row => !string.IsNullOrWhiteSpace(row.TargetPath))
             .Select(row => SerializeChartSeriesEntry(row)));
 
-        Parameter.Value = serialized;
+        Parameter.Value = TargetPathHelper.NormalizeChartSeriesDefinitions(serialized);
         RaisePropertyChanged(nameof(Value));
     }
 

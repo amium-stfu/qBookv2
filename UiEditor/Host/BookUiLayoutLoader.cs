@@ -190,7 +190,7 @@ public static class BookUiLayoutLoader
             SetPropertyIfPresent(properties, "Id", GetScalarJsonNode(identity, "Id"));
         }
 
-        if (GetMapping(node, "Rect") is { } rect)
+        if (GetBoundsMapping(node) is { } rect)
         {
             SetPropertyIfPresent(properties, "X", GetScalarJsonNode(rect, "X"));
             SetPropertyIfPresent(properties, "Y", GetScalarJsonNode(rect, "Y"));
@@ -258,7 +258,7 @@ public static class BookUiLayoutLoader
         }
 
         var children = new List<BookUiNode>();
-        if (GetMapping(node, "Control") is { } control)
+        if (GetWidgetPropertiesMapping(node) is { } control)
         {
             ReadYamlControlProperties(type, control, properties, children);
         }
@@ -355,6 +355,16 @@ public static class BookUiLayoutLoader
                 });
             }
         }
+    }
+
+    private static YamlMappingNode? GetWidgetPropertiesMapping(YamlMappingNode node)
+    {
+        return GetMapping(node, "Properties") ?? GetMapping(node, "Control");
+    }
+
+    private static YamlMappingNode? GetBoundsMapping(YamlMappingNode node)
+    {
+        return GetMapping(node, "Bounds") ?? GetMapping(node, "Rect");
     }
 
     private static void SetPropertyIfPresent(JsonObject target, string propertyName, JsonNode? value)

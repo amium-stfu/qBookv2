@@ -8,7 +8,7 @@
     Path: UdlBook/Page1/udl1/chart1
     Id: demo-chart-1
 
-  Rect:
+  Bounds:
     X: 100
     Y: 100
     Width: 360
@@ -53,7 +53,7 @@
       TargetPath: "this"
       Argument: ""
 
-  Control:
+  Properties:
     RefreshRateMs: 100
     HistorySeconds: 120
     ViewSeconds: 30

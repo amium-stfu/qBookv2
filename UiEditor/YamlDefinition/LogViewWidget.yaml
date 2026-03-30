@@ -8,7 +8,7 @@
     Path: UdlBook/Page1/udl1/log1
     Id: demo-log-1
 
-  Rect:
+  Bounds:
     X: 100
     Y: 100
     Width: 360
@@ -53,5 +53,5 @@
       TargetPath: "this"
       Argument: ""
 
-  Control:
+  Properties:
     TargetLog: Logs/Host

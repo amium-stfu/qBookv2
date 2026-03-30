@@ -10,7 +10,7 @@ Controls:
       Name: 'UdlClient'
       Path: 'UdlClient.UdlClient'
       Id: 'default-udlclient'
-    Rect:
+    Bounds:
       X: 24
       Y: 24
       Width: 520
@@ -44,7 +44,7 @@ Controls:
       FooterBorderWidth: 0
       FooterBorderColor: null
       FooterBackColor: null
-    Control:
+    Properties:
       UdlClientHost: '192.168.178.151'
       UdlClientPort: 9001
       UdlClientAutoConnect: false
