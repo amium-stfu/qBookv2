@@ -22,11 +22,36 @@ public partial class MainWindow : Window
     private TextBox? _keyboardTarget;
     private Action? _keyboardApplyAction;
     private Action? _keyboardCancelAction;
+    private MainWindowViewModel? _boundViewModel;
 
     public MainWindow()
     {
         InitializeComponent();
         Core.UiStateChanged += HandleHostUiStateChanged;
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (_boundViewModel is not null)
+        {
+            _boundViewModel.ResolveDuplicatePageNameAsync = null;
+        }
+
+        _boundViewModel = DataContext as MainWindowViewModel;
+        if (_boundViewModel is not null)
+        {
+            _boundViewModel.ResolveDuplicatePageNameAsync = PromptForDuplicatePageNameAsync;
+        }
+    }
+
+    private async System.Threading.Tasks.Task<string?> PromptForDuplicatePageNameAsync(string currentName, string message)
+    {
+        return await EditorInputDialogs.EditTextAsync(
+            this,
+            header: "Duplicate page name",
+            subHeader: message,
+            initialValue: currentName);
     }
 
     private async void OnViewsButtonClick(object? sender, RoutedEventArgs e)
@@ -162,11 +187,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!page.IsSelected)
+        {
+            return;
+        }
+
         var currentTitle = page.TabTitle;
 
         var newTitle = await EditorInputDialogs.EditTextAsync(
             this,
-            header: "Page title bearbeiten",
+            header: "Edit page title",
             subHeader: "Title",
             initialValue: currentTitle);
 
@@ -190,6 +220,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!page.IsSelected)
+        {
+            return;
+        }
+
         var viewId = page.ActualViewId;
         if (viewId <= 0)
         {
@@ -200,8 +235,8 @@ public partial class MainWindow : Window
 
         var newCaption = await EditorInputDialogs.EditTextAsync(
             this,
-            header: "View-Text bearbeiten",
-            subHeader: "View caption",
+            header: "Edit view text",
+            subHeader: "View text",
             initialValue: currentCaption ?? string.Empty);
 
         if (string.IsNullOrWhiteSpace(newCaption))
@@ -212,73 +247,32 @@ public partial class MainWindow : Window
         page.UpdateViewCaption(viewId, newCaption);
     }
 
-    private async void OnDemoTextInputClicked(object? sender, RoutedEventArgs e)
-    {
-        await EditorInputDialogs.EditTextAsync(
-            this,
-            "Namen eintragen",
-            "Username",
-            string.Empty);
-    }
-
-    private async void OnDemoHexInputClicked(object? sender, RoutedEventArgs e)
-    {
-        await EditorInputDialogs.EditHexAsync(
-            this,
-            "Hex-Wert eingeben",
-            "Demo",
-            digits: 8,
-            initialValue: null);
-    }
-
-    private async void OnDemoNumericIntClicked(object? sender, RoutedEventArgs e)
-    {
-        await EditorInputDialogs.EditNumericAsync(
-            this,
-            "Nummer eingeben",
-            "Durchlauf",
-            format: "0",
-            initialValue: null);
-    }
-
-    private async void OnDemoNumericDoubleClicked(object? sender, RoutedEventArgs e)
-    {
-        await EditorInputDialogs.EditNumericAsync(
-            this,
-            "Wert eingeben",
-            "Messwert",
-            format: "0.00",
-            initialValue: null);
-    }
-
-    private void OnStartYamlClicked(object? sender, RoutedEventArgs e)
+    private async void OnAddNewPageClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)
         {
             return;
         }
 
-        _ = StartYamlDirectoryAsync(viewModel);
-    }
+        var pageName = await EditorInputDialogs.EditTextAsync(
+            this,
+            header: "Add new page",
+            subHeader: "Page name",
+            initialValue: string.Empty);
 
-    private async System.Threading.Tasks.Task StartYamlDirectoryAsync(MainWindowViewModel viewModel)
-    {
-        Amium.Host.TasksManager.StopAll();
-        Amium.Host.ThreadsManager.StopAll();
-        Amium.Host.TimerManager.StopAll();
-
-        var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
-        {
-            Title = "Select YAML book directory",
-            AllowMultiple = false
-        });
-
-        if (folders.Count == 0)
+        if (string.IsNullOrWhiteSpace(pageName))
         {
             return;
         }
 
-        viewModel.LoadYamlBookFromDirectory(folders[0].Path.LocalPath);
+        if (!viewModel.TryCreateNewPage(pageName, out _, out var errorMessage) && !string.IsNullOrWhiteSpace(errorMessage))
+        {
+            await EditorInputDialogs.EditTextAsync(
+                this,
+                header: "Page creation blocked",
+                subHeader: errorMessage,
+                initialValue: string.Empty);
+        }
     }
 
     private void OnMainMenuButtonClick(object? sender, RoutedEventArgs e)
@@ -422,16 +416,6 @@ public partial class MainWindow : Window
                 _keyboardCancelAction?.Invoke();
                 break;
         }
-    }
-
-    private async void OnDemoPasswordTextClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var result = await EditorInputDialogs.EditTextAsync(this, "Enter password", "Demo", string.Empty, true);
-    }
-
-    private async void OnDemoNumericPasswordClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var result = await EditorInputDialogs.EditNumericAsync(this, "Enter PIN", "Demo", "0", null, true);
     }
 
     private static void InsertTextAtCaret(TextBox input, string value)

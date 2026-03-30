@@ -2,13 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.VisualTree;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 
@@ -42,34 +38,11 @@ public partial class PageEditorControl : UserControl
     public PageEditorControl()
     {
         InitializeComponent();
-        AttachedToVisualTree += (_, _) =>
-        {
-            if (TopLevel.GetTopLevel(this) is IInputElement root)
-            {
-                root.AddHandler(KeyDownEvent, OnRootKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
-                root.AddHandler(KeyUpEvent, OnRootKeyUp, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
-            }
-
-            if (this.FindControl<ScrollViewer>("EditorScrollViewer") is { } sv)
-            {
-                sv.PropertyChanged += OnScrollViewerPropertyChanged;
-            }
-        };
         DataContextChanged += OnDataContextChanged;
         DetachedFromVisualTree += (_, _) =>
         {
             CloseEditorDialogWindow();
             AttachToViewModel(null);
-            if (TopLevel.GetTopLevel(this) is IInputElement root)
-            {
-                root.RemoveHandler(KeyDownEvent, OnRootKeyDown);
-                root.RemoveHandler(KeyUpEvent, OnRootKeyUp);
-            }
-
-            if (this.FindControl<ScrollViewer>("EditorScrollViewer") is { } sv)
-            {
-                sv.PropertyChanged -= OnScrollViewerPropertyChanged;
-            }
         };
     }
 
@@ -184,20 +157,6 @@ public partial class PageEditorControl : UserControl
         }
     }
 
-    private void OnScrollViewerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (ViewModel is null || e.Property != ScrollViewer.ViewportProperty || sender is not ScrollViewer sv)
-        {
-            return;
-        }
-
-        var viewport = sv.Viewport;
-        if (viewport.Width > 0 && viewport.Height > 0)
-        {
-            ViewModel.UpdateCanvasSize(viewport.Width, viewport.Height);
-        }
-    }
-
     private void OnCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (ViewModel is null)
@@ -226,32 +185,6 @@ public partial class PageEditorControl : UserControl
         e.Pointer.Capture(EditorCanvas);
         ViewModel.StartSelection(position.X, position.Y);
         e.Handled = true;
-    }
-
-    private void OnRootKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (ViewModel is null)
-        {
-            return;
-        }
-
-        if (e.Key == Key.LeftShift || e.Key == Key.RightShift || e.Key == Key.Shift)
-        {
-            ViewModel.IsShiftInteractionMode = true;
-        }
-    }
-
-    private void OnRootKeyUp(object? sender, KeyEventArgs e)
-    {
-        if (ViewModel is null)
-        {
-            return;
-        }
-
-        if (e.Key == Key.LeftShift || e.Key == Key.RightShift || e.Key == Key.Shift)
-        {
-            ViewModel.IsShiftInteractionMode = false;
-        }
     }
 
     private void OnCanvasPointerMoved(object? sender, PointerEventArgs e)
@@ -370,20 +303,6 @@ public partial class PageEditorControl : UserControl
             return;
         }
 
-        // In View-Mode (nicht EditMode) duerfen keine Widgets
-        // selektiert oder verschoben werden.
-        if (!ViewModel.IsEditMode)
-        {
-            return;
-        }
-
-        // Im Body-Interaktionsmodus (IsShiftInteractionMode) kein Drag/Resize,
-        // Ereignis an den Widget-Body durchreichen (z.B. TableWidget-Zellen).
-        if (ViewModel.IsShiftInteractionMode)
-        {
-            return;
-        }
-
         ViewModel.CancelSelection();
 
         var point = e.GetCurrentPoint(EditorCanvas);
@@ -411,8 +330,12 @@ public partial class PageEditorControl : UserControl
             ViewModel.SelectItem(item);
         }
 
-        StartDragSelection(item, e.GetPosition(EditorCanvas));
-        e.Pointer.Capture(EditorCanvas);
+        if (ViewModel.IsEditMode)
+        {
+            StartDragSelection(item, e.GetPosition(EditorCanvas));
+            e.Pointer.Capture(EditorCanvas);
+        }
+
         e.Handled = true;
     }
 
@@ -448,108 +371,6 @@ public partial class PageEditorControl : UserControl
         _dragStart = null;
         e.Pointer.Capture(EditorCanvas);
         e.Handled = true;
-    }
-
-    private void OnItemSettingsClicked(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Control { DataContext: PageItemModel item } || ViewModel is null)
-        {
-            return;
-        }
-
-        var owner = TopLevel.GetTopLevel(this) as Window;
-        var anchorTarget = owner as Visual ?? this;
-        var localPoint = new Point(item.X + item.Width + 8, item.Y);
-        var translated = EditorCanvas.TranslatePoint(localPoint, anchorTarget) ?? new Point(24, 24);
-
-        ViewModel.OpenItemEditor(item, translated.X, translated.Y);
-        e.Handled = true;
-    }
-
-    private async void OnItemDeleteClicked(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Control { DataContext: PageItemModel item } || ViewModel is null)
-        {
-            return;
-        }
-
-        var owner = TopLevel.GetTopLevel(this) as Window;
-        if (owner is null)
-        {
-            return;
-        }
-
-        var confirmed = await ShowDeleteDialogAsync(owner);
-        if (!confirmed)
-        {
-            e.Handled = true;
-            return;
-        }
-
-        ViewModel.DeleteItem(item);
-        e.Handled = true;
-    }
-
-    private static async Task<bool> ShowDeleteDialogAsync(Window owner)
-    {
-        var dialog = new Window
-        {
-            Title = "Delete",
-            Width = 320,
-            Height = 140,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            ShowInTaskbar = false,
-            SystemDecorations = SystemDecorations.Full
-        };
-
-        var text = new TextBlock
-        {
-            Text = "Really delete?",
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-
-        var yesButton = new Button
-        {
-            Content = "Yes",
-            Width = 90,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-
-        var noButton = new Button
-        {
-            Content = "No",
-            Width = 90,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-
-        yesButton.Click += (_, _) => dialog.Close(true);
-        noButton.Click += (_, _) => dialog.Close(false);
-
-        var buttonPanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Children = { noButton, yesButton }
-        };
-
-        dialog.Content = new Grid
-        {
-            Margin = new Thickness(16),
-            RowDefinitions = new RowDefinitions("*,Auto"),
-            Children =
-            {
-                text,
-                buttonPanel
-            }
-        };
-
-        Grid.SetRow(text, 0);
-        Grid.SetRow(buttonPanel, 1);
-
-        return await dialog.ShowDialog<bool>(owner);
     }
 
     private void OnBeginAddButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.Button);
@@ -596,6 +417,7 @@ public partial class PageEditorControl : UserControl
             .Where(item => item.IsListControl && !ReferenceEquals(item, draggedItem))
             .FirstOrDefault(item => centerX >= item.X && centerX <= item.X + item.Width && centerY >= item.Y && centerY <= item.Y + item.Height);
     }
+
     private (double X, double Y) SnapGroupToEdges(double x, double y, double width, double height)
     {
         var snappedX = x;
@@ -702,10 +524,6 @@ public partial class PageEditorControl : UserControl
 
         return System.Math.Max(min, System.Math.Min(max, value));
     }
-}
-
-public partial class PageEditorWidget : PageEditorControl
-{
 }
 
 

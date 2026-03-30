@@ -2,6 +2,7 @@ using System;
 using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
@@ -174,6 +175,7 @@ public partial class EditorTableControl : EditorTemplateWidget
             content.DataContext = child;
             content.HorizontalAlignment = HorizontalAlignment.Stretch;
             content.VerticalAlignment = VerticalAlignment.Stretch;
+            content.Bind(Control.IsVisibleProperty, new Binding(nameof(PageItemModel.IsVisibleInActiveView)));
 
             Grid.SetRow(content, row);
             Grid.SetColumn(content, column);
@@ -189,6 +191,7 @@ public partial class EditorTableControl : EditorTemplateWidget
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch
             };
+            overlay.Bind(IsVisibleProperty, new Binding(nameof(PageItemModel.IsVisibleInActiveView)));
 
             var toolbar = new Border
             {

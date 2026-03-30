@@ -266,6 +266,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 OnPropertyChanged(nameof(HeaderBadgeBackground));
                 OnPropertyChanged(nameof(HeaderBadgeForeground));
                 OnPropertyChanged(nameof(CurrentUserColor));
+                OnPropertyChanged(nameof(FooterPanelBackground));
+                OnPropertyChanged(nameof(FooterPanelForeground));
             }
         }
     }
@@ -366,6 +368,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     public string EditorDialogSectionContentBackground => CurrentTheme.EditorDialogSectionContentBackground;
     public string HeaderBadgeBackground => CurrentTheme.HeaderBadgeBackground;
     public string HeaderBadgeForeground => CurrentTheme.HeaderBadgeForeground;
+    public string FooterPanelBackground => string.IsNullOrWhiteSpace(_currentUser.Color)
+        ? CardBackground
+        : _currentUser.Color;
+    public string FooterPanelForeground => string.IsNullOrWhiteSpace(_currentUser.Color)
+        ? SecondaryTextBrush
+        : "Black";
     public int ViewLimit
     {
         get => _viewLimit;
@@ -975,6 +983,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         ViewLimit = user.ViewLimit;
         OnPropertyChanged(nameof(CurrentUserCaption));
         OnPropertyChanged(nameof(CurrentUserColor));
+        OnPropertyChanged(nameof(FooterPanelBackground));
+        OnPropertyChanged(nameof(FooterPanelForeground));
         OnPropertyChanged(nameof(IsLogoutAvailable));
         OnPropertyChanged(nameof(IsChangePasswordAvailable));
         OnPropertyChanged(nameof(IsResetPasswordsAvailable));
@@ -2188,7 +2198,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public PageItemModel CreateItem(ControlKind kind, double x, double y, double width, double height)
     {
-        return kind switch
+        var item = kind switch
         {
             ControlKind.Button => new PageItemModel
             {
@@ -2288,6 +2298,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             },
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
         };
+
+        item.View = SelectedPage.ActualViewId;
+        return item;
     }
 
     private static PageItemModel CreateDefaultItem(double x, double y, double width, double height)
@@ -2565,38 +2578,56 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private void RefreshEditorDialogChoiceOptions(PageItemModel item)
     {
-        foreach (var field in EnumerateEditorDialogFields())
+        var wasRefreshing = _isRefreshingEditorDialogFields;
+        _isRefreshingEditorDialogFields = true;
+        try
         {
-            if (field.IsAttachItemList)
+            foreach (var field in EnumerateEditorDialogFields())
             {
-                var attachOptions = field.Definition.OptionsFactory is null
-                    ? []
-                    : field.Definition.OptionsFactory(item);
-                field.RefreshAttachItemOptions(attachOptions);
-                continue;
+                if (field.IsAttachItemList)
+                {
+                    var attachOptions = field.Definition.OptionsFactory is null
+                        ? []
+                        : field.Definition.OptionsFactory(item);
+                    field.RefreshAttachItemOptions(attachOptions);
+                    continue;
+                }
+
+                if (field.IsTargetTree)
+                {
+                    var targetOptions = field.Definition.OptionsFactory is null
+                        ? []
+                        : field.Definition.OptionsFactory(item);
+                    field.RefreshTargetTreeOptions(targetOptions);
+                    continue;
+                }
+
+                if (field.IsInteractionRuleList)
+                {
+                    field.RefreshInteractionRuleTargetOptions(GetSelectableTargetOptions(item));
+                    continue;
+                }
+
+                if (!field.IsChoice)
+                {
+                    continue;
+                }
+
+                var selectedTargetPath = GetSelectedTargetPath(item);
+                var choiceOptions = field.Key switch
+                {
+                    "TargetParameterPath" => GetTargetParameterOptions(selectedTargetPath),
+                    _ when field.Definition.OptionsFactory is not null => field.Definition.OptionsFactory(item),
+                    _ => []
+                };
+
+                var selectFirstWhenInvalid = field.Key == "TargetParameterPath" && !string.IsNullOrWhiteSpace(selectedTargetPath);
+                RefreshDialogFieldOptions(field, choiceOptions, selectFirstWhenInvalid);
             }
-
-            if (field.IsInteractionRuleList)
-            {
-                field.RefreshInteractionRuleTargetOptions(GetSelectableTargetOptions());
-                continue;
-            }
-
-            if (!field.IsChoice)
-            {
-                continue;
-            }
-
-            var selectedTargetPath = GetSelectedTargetPath(item);
-            var choiceOptions = field.Key switch
-            {
-                "TargetParameterPath" => GetTargetParameterOptions(selectedTargetPath),
-                _ when field.Definition.OptionsFactory is not null => field.Definition.OptionsFactory(item),
-                _ => []
-            };
-
-            var selectFirstWhenInvalid = field.Key == "TargetParameterPath" && !string.IsNullOrWhiteSpace(selectedTargetPath);
-            RefreshDialogFieldOptions(field, choiceOptions, selectFirstWhenInvalid);
+        }
+        finally
+        {
+            _isRefreshingEditorDialogFields = wasRefreshing;
         }
 
         UpdateEditorDialogChoiceDiagnostics();
@@ -2661,7 +2692,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         var hasCurrentValue = normalizedOptions.Contains(currentValue, StringComparer.OrdinalIgnoreCase);
-        if (!hasCurrentValue && selectFirstWhenInvalid)
+        if (hasCurrentValue)
+        {
+            var preservedValue = normalizedOptions.First(option => string.Equals(option, currentValue, StringComparison.OrdinalIgnoreCase));
+            if (!string.Equals(field.Value, preservedValue, StringComparison.Ordinal))
+            {
+                field.Value = preservedValue;
+            }
+            return;
+        }
+
+        if (selectFirstWhenInvalid)
         {
             field.Value = normalizedOptions.FirstOrDefault() ?? string.Empty;
         }
@@ -2820,7 +2861,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         var identity = new List<EditorDialogBindingDefinition>
         {
-            BindInt("View", "View", current => current.View, (current, value) => current.View = value),
+            BindChoice("View", "View", GetViewOptionLabel, ApplyViewOption, GetViewOptions),
             BindText("Name", "Name", current => current.Name, (current, value) => { current.Name = value; return null; }),
             BindReadOnly("Path", "Path", current => current.Path),
             BindReadOnly("Id", "Id", current => current.Id),
@@ -2900,7 +2941,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             case ControlKind.Signal:
                 sections.Add(("Control", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
-                    BindChoice("TargetPath", "Target", current => current.TargetPath, (current, value) => { current.ApplyTargetSelection(value); return null; }, _ => GetSelectableTargetOptions()),
+                    BindTargetTree("TargetPath", "Target", current => current.TargetPath, (current, value) => { current.ApplyTargetSelection(value); return null; }, current => GetSelectableTargetOptions(current)),
                     BindChoice("TargetParameterPath", "TargetParameter", current => current.TargetParameterPath, (current, value) => { current.TargetParameterPath = value; return null; }, current => GetTargetParameterOptions(current.TargetPath)),
                     BindChoice("TargetParameterFormatKind", "Format", current => SplitParameterFormat(current.TargetParameterFormat).Kind, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(value, SplitParameterFormat(current.TargetParameterFormat).Parameter); return null; }, _ => ParameterFormatOptions),
                     BindText("TargetParameterFormatParameter", "FormatParameter", current => SplitParameterFormat(current.TargetParameterFormat).Parameter, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(SplitParameterFormat(current.TargetParameterFormat).Kind, value); return null; }, EditorPropertyType.Text, GetFormatParameterToolTip),
@@ -2977,8 +3018,89 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static EditorDialogBindingDefinition BindInteractionRuleList(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, string>? toolTipFactory = null)
         => new(key, label, EditorPropertyType.InteractionRuleList, read, apply, toolTipFactory: toolTipFactory);
 
+    private static EditorDialogBindingDefinition BindTargetTree(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, IEnumerable<string>> optionsFactory)
+        => new(key, label, EditorPropertyType.TargetTree, read, apply, optionsFactory: optionsFactory);
+
     private static EditorDialogBindingDefinition BindChoice(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.Choice, read, apply, optionsFactory: optionsFactory);
+
+    private IEnumerable<string> GetViewOptions(PageItemModel item)
+    {
+        var page = FindOwningPage(item) ?? SelectedPage;
+        var options = page.Views.Count > 0
+            ? page.Views.OrderBy(static entry => entry.Key).Select(static entry => FormatViewOption(entry.Key, entry.Value)).ToList()
+            : new List<string>();
+
+        var currentOption = GetViewOptionLabel(item);
+        if (!options.Contains(currentOption, StringComparer.Ordinal))
+        {
+            options.Add(currentOption);
+        }
+
+        return options;
+    }
+
+    private string GetViewOptionLabel(PageItemModel item)
+    {
+        var page = FindOwningPage(item) ?? SelectedPage;
+        page.Views.TryGetValue(item.View, out var caption);
+        return FormatViewOption(item.View, caption);
+    }
+
+    private string? ApplyViewOption(PageItemModel item, string raw)
+    {
+        if (!TryParseViewOption(raw, item, out var viewId))
+        {
+            return "Invalid view selection.";
+        }
+
+        item.View = viewId;
+        return null;
+    }
+
+    private bool TryParseViewOption(string? raw, PageItemModel item, out int viewId)
+    {
+        viewId = 1;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var trimmed = raw.Trim();
+        if (int.TryParse(trimmed, out viewId))
+        {
+            return viewId > 0;
+        }
+
+        if (trimmed.StartsWith("View ", StringComparison.OrdinalIgnoreCase))
+        {
+            var suffix = trimmed.Substring(5);
+            var separatorIndex = suffix.IndexOf(" - ", StringComparison.Ordinal);
+            var numberText = separatorIndex >= 0 ? suffix[..separatorIndex] : suffix;
+            if (int.TryParse(numberText, out viewId))
+            {
+                return viewId > 0;
+            }
+        }
+
+        var page = FindOwningPage(item) ?? SelectedPage;
+        var match = page.Views.FirstOrDefault(entry => string.Equals(entry.Value, trimmed, StringComparison.Ordinal));
+        if (match.Key > 0)
+        {
+            viewId = match.Key;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string FormatViewOption(int viewId, string? caption)
+    {
+        var safeViewId = viewId <= 0 ? 1 : viewId;
+        return string.IsNullOrWhiteSpace(caption)
+            ? $"View {safeViewId}"
+            : $"View {safeViewId} - {caption}";
+    }
 
     private static EditorDialogBindingDefinition BindDouble(string key, string label, Func<PageItemModel, double> read, Action<PageItemModel, double> apply)
         => new(key, label, EditorPropertyType.Double, current => read(current).ToString("0.##"), (current, raw) => TryApplyDouble(raw, current, apply));
@@ -3172,7 +3294,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private static void AttachHierarchy(string pageName, PageItemModel? parentItem, PageItemModel item)
     {
-        item.SetHierarchy(pageName, parentItem);
+        item.SetHierarchy(pageName, parentItem, parentItem?.ActiveViewId ?? 1);
         foreach (var child in item.Items)
         {
             AttachHierarchy(pageName, item, child);
@@ -3196,6 +3318,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private static bool IntersectsSelection(PageItemModel item, double selectionX, double selectionY, double selectionWidth, double selectionHeight)
     {
+        if (!item.IsVisibleInActiveView)
+        {
+            return false;
+        }
+
         var selectionRight = selectionX + selectionWidth;
         var selectionBottom = selectionY + selectionHeight;
         var itemRight = item.X + item.Width;
@@ -3898,14 +4025,79 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    private static IEnumerable<string> GetSelectableTargetOptions()
+    private IEnumerable<string> GetSelectableTargetOptions(PageItemModel? item = null)
     {
-        return HostRegistries.Data.GetAllKeys()
+        var allOptions = HostRegistries.Data.GetAllKeys()
             .SelectMany(static key => EnumerateSelectablePaths(key))
             .Where(static key => !key.StartsWith("Runtime/UdlClient/", StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        var filterPrefix = item is null ? string.Empty : GetTargetTreeFilterPrefix(item, allOptions);
+        if (string.IsNullOrWhiteSpace(filterPrefix))
+        {
+            return allOptions;
+        }
+
+        return allOptions
+            .Where(path => path.StartsWith(filterPrefix, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+
+    private string GetTargetTreeFilterPrefix(PageItemModel item, IReadOnlyList<string> allOptions)
+    {
+        var pageName = NormalizeTargetPathSegment(item.PageName);
+        if (string.IsNullOrWhiteSpace(pageName))
+        {
+            var owningPage = FindOwningPage(item) ?? SelectedPage;
+            pageName = NormalizeTargetPathSegment(owningPage.Name);
+        }
+
+        if (string.IsNullOrWhiteSpace(pageName))
+        {
+            return string.Empty;
+        }
+
+        var currentPrefix = TryExtractPageTargetPrefix(item.TargetPath, pageName);
+        if (!string.IsNullOrWhiteSpace(currentPrefix))
+        {
+            return currentPrefix;
+        }
+
+        return allOptions
+            .Select(path => TryExtractPageTargetPrefix(path, pageName))
+            .Where(static prefix => !string.IsNullOrWhiteSpace(prefix))
+            .GroupBy(static prefix => prefix!, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(static group => group.Count())
+            .ThenBy(static group => group.Key.Length)
+            .Select(static group => group.Key)
+            .FirstOrDefault() ?? string.Empty;
+    }
+
+    private static string NormalizeTargetPathSegment(string? value)
+        => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().Trim('/');
+
+    private static string? TryExtractPageTargetPrefix(string? path, string pageName)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(pageName))
+        {
+            return null;
+        }
+
+        var segments = path
+            .Replace('\\', '/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        for (var index = 1; index < segments.Length; index++)
+        {
+            if (string.Equals(segments[index], pageName, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Join('/', segments.Take(index + 1)) + "/";
+            }
+        }
+
+        return null;
     }
 
     private static IEnumerable<string> EnumerateSelectablePaths(string key)

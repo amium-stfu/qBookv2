@@ -46,7 +46,7 @@
             </ItemsControl.Styles>
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="models:PageItemModel">
-                <Grid Width="{Binding Width}" Height="{Binding Height}" PointerPressed="OnItemPointerPressed" ToolTip.Tip="{Binding EffectiveToolTipText}">
+                <Grid Width="{Binding Width}" Height="{Binding Height}" IsVisible="{Binding IsVisibleInActiveView}" PointerPressed="OnItemPointerPressed" ToolTip.Tip="{Binding EffectiveToolTipText}">
                   <controls:EditorButtonControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsButton}" />
                   <controls:EditorItemControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />
                   <controls:EditorListControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsListControl}" />

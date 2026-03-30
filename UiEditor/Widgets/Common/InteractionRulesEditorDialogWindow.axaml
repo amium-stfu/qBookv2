@@ -50,6 +50,10 @@
     <Style Selector="TextBox.dialog-field:focus /template/ Border">
       <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
     </Style>
+    <Style Selector="TextBox.dialog-field:readonly /template/ Border">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor, ElementName=Root}" />
+    </Style>
     <Style Selector="ComboBox.dialog-field /template/ ToggleButton">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
@@ -98,7 +102,12 @@
                   <Grid ColumnDefinitions="170,170,*,150,Auto" Margin="0,0,0,8">
                     <ComboBox Classes="dialog-field" ItemsSource="{Binding EventOptions}" SelectedItem="{Binding EventName, Mode=TwoWay}" />
                     <ComboBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding ActionName, Mode=TwoWay}" />
-                    <ComboBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding TargetPath, Mode=TwoWay}" />
+                    <Grid Grid.Column="2" Margin="8,0,0,0" ColumnDefinitions="*,Auto">
+                      <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding TargetPath, Mode=TwoWay}" />
+                      <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" ToolTip.Tip="Browse targets" Click="OnBrowseRowTargetClicked">
+                        <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
+                      </Button>
+                    </Grid>
                     <TextBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" Text="{Binding Argument, Mode=TwoWay}" Watermark="Argument" />
                     <Button Grid.Column="4" Margin="8,0,0,0" Classes="dialog-button" Content="Remove" Click="OnRemoveClicked" />
                   </Grid>
@@ -114,12 +123,22 @@
             <Border Height="1" Background="{Binding SectionBorderBrush, ElementName=Root}" />
           </StackPanel>
 
-          <Grid ColumnDefinitions="170,170,*,150,Auto">
-            <ComboBox Classes="dialog-field" ItemsSource="{Binding EventOptions}" SelectedItem="{Binding NewEventName, Mode=TwoWay}" />
-            <ComboBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding NewActionName, Mode=TwoWay}" />
-            <ComboBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding NewTargetPath, Mode=TwoWay}" />
-            <TextBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" Text="{Binding NewArgument, Mode=TwoWay}" Watermark="Argument" />
-            <Button Grid.Column="4" Margin="8,0,0,0" Classes="dialog-button" Content="Add" Click="OnAddClicked" />
+          <Grid ColumnDefinitions="170,170,*,150,Auto" RowDefinitions="Auto,Auto">
+            <TextBlock Grid.Row="0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Event" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Action" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Target" />
+            <TextBlock Grid.Row="0" Grid.Column="3" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Argument" />
+
+            <ComboBox Grid.Row="1" Margin="0,6,0,0" Classes="dialog-field" ItemsSource="{Binding EventOptions}" SelectedItem="{Binding NewEventName, Mode=TwoWay}" />
+            <ComboBox Grid.Row="1" Grid.Column="1" Margin="8,6,0,0" Classes="dialog-field" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding NewActionName, Mode=TwoWay}" />
+            <Grid Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" ColumnDefinitions="*,Auto">
+              <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding NewTargetPath, Mode=TwoWay}" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" ToolTip.Tip="Browse targets" Click="OnBrowseNewTargetClicked">
+                <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
+              </Button>
+            </Grid>
+            <TextBox Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" Text="{Binding NewArgument, Mode=TwoWay}" Watermark="Argument" />
+            <Button Grid.Row="1" Grid.Column="4" Margin="8,6,0,0" Classes="dialog-button" Content="Add" Click="OnAddClicked" />
           </Grid>
         </StackPanel>
       </StackPanel>

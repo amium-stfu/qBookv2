@@ -26,7 +26,7 @@ public sealed class UserLevel
         // 0,User,,10, null //Theme gesteuert
         new(0, "User", string.Empty, 10, null),
         // 1,Service,service,20,Blue
-        new(1, "Service", "service", 20, "Blue"),
+        new(1, "Service", "service", 20, "Green"),
         // 2,Admin,admin,30, Red
         new(2, "Admin", "admin", 30, "Red"),
         // 3,Root,root#,100,#ff8c00

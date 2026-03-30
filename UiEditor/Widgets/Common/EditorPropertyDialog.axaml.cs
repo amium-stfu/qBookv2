@@ -401,6 +401,7 @@ public partial class EditorPropertyDialog : UserControl
 
         Window? editorWindow = field.PropertyType switch
         {
+            EditorPropertyType.TargetTree => new TargetTreeSelectionDialogWindow(ViewModel, field),
             EditorPropertyType.ChartSeriesList => new ChartSeriesEditorDialogWindow(ViewModel, field),
             EditorPropertyType.AttachItemList => new AttachItemsEditorDialogWindow(ViewModel, field),
             EditorPropertyType.InteractionRuleList => new InteractionRulesEditorDialogWindow(ViewModel, field),

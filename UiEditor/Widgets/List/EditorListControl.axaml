@@ -22,7 +22,7 @@
         </ListBox.Styles>
         <ListBox.ItemTemplate>
           <DataTemplate DataType="models:PageItemModel">
-            <Border Height="{Binding Height}" HorizontalAlignment="Stretch" PointerPressed="OnChildItemPointerPressed">
+            <Border Height="{Binding Height}" HorizontalAlignment="Stretch" IsVisible="{Binding IsVisibleInActiveView}" PointerPressed="OnChildItemPointerPressed">
               <Grid HorizontalAlignment="Stretch" Height="{Binding Height}">
                 <controls:EditorButtonControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsButton}" />
                 <controls:EditorItemControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />

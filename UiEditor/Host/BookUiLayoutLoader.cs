@@ -434,7 +434,22 @@ public static class BookUiLayoutLoader
             return JsonValue.Create(doubleResult);
         }
 
-        return JsonValue.Create(value);
+        return JsonValue.Create(DecodeSerializedString(value));
+    }
+
+    private static string DecodeSerializedString(string value)
+    {
+        if (string.IsNullOrEmpty(value)
+            || (value.IndexOf("\\n", StringComparison.Ordinal) < 0
+                && value.IndexOf("\\r", StringComparison.Ordinal) < 0))
+        {
+            return value;
+        }
+
+        return value
+            .Replace("\\r\\n", "\n", StringComparison.Ordinal)
+            .Replace("\\n", "\n", StringComparison.Ordinal)
+            .Replace("\\r", "\r", StringComparison.Ordinal);
     }
 
     private static string? GetStringValue(JsonObject properties, string propertyName)

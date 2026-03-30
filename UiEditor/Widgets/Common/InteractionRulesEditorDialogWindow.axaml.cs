@@ -187,6 +187,34 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         e.Handled = true;
     }
 
+    private async void OnBrowseRowTargetClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: ItemInteractionEditorRow row })
+        {
+            return;
+        }
+
+        var selectedTarget = await SelectTargetAsync(row.TargetOptions, row.TargetPath);
+        if (!string.IsNullOrWhiteSpace(selectedTarget))
+        {
+            row.TargetPath = selectedTarget;
+        }
+
+        e.Handled = true;
+    }
+
+    private async void OnBrowseNewTargetClicked(object? sender, RoutedEventArgs e)
+    {
+        var selectedTarget = await SelectTargetAsync(TargetOptions, NewTargetPath);
+        if (!string.IsNullOrWhiteSpace(selectedTarget))
+        {
+            NewTargetPath = selectedTarget;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewTargetPath)));
+        }
+
+        e.Handled = true;
+    }
+
     private void OnRemoveClicked(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: ItemInteractionEditorRow row })
@@ -266,6 +294,32 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         EditorDialogSectionContentBackground = _viewModel?.EditorDialogSectionContentBackground ?? "#EEF3F8";
         SectionBorderBrush = _viewModel?.EditorDialogSectionHeaderBorderBrush ?? "#CBD5E1";
         SectionHeaderForeground = _viewModel?.EditorDialogSectionHeaderForeground ?? "#111827";
+    }
+
+    private async Task<string?> SelectTargetAsync(IEnumerable<string> options, string currentSelection)
+    {
+        var pageName = ExtractPageName(_field?.Parameter.Path);
+        var owner = this;
+        var dialog = new TargetTreeSelectionDialogWindow(_viewModel, options, currentSelection, pageName);
+        await dialog.ShowDialog(owner);
+        return string.IsNullOrWhiteSpace(dialog.CommittedSelection) ? null : dialog.CommittedSelection;
+    }
+
+    private static string ExtractPageName(string? parameterPath)
+    {
+        if (string.IsNullOrWhiteSpace(parameterPath))
+        {
+            return string.Empty;
+        }
+
+        var normalizedPath = parameterPath.Replace('/', '.').Trim();
+        var firstSeparator = normalizedPath.IndexOf('.');
+        if (firstSeparator <= 0)
+        {
+            return normalizedPath;
+        }
+
+        return normalizedPath[..firstSeparator].Trim();
     }
 
     private void SetAndRaise(ref string field, string value, string propertyName)

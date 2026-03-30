@@ -7,6 +7,7 @@ public enum EditorPropertyType
     Double,
     Color,
     Choice,
+    TargetTree,
     MultilineText,
     ChartSeriesList,
     AttachItemList,

@@ -25,6 +25,7 @@ public sealed class PageModel : ObservableObject
         {
             if (SetProperty(ref _actualViewId, value))
             {
+                ApplyActiveViewToItems(_actualViewId);
                 OnPropertyChanged(nameof(CurrentViewCaption));
             }
         }
@@ -100,5 +101,16 @@ public sealed class PageModel : ObservableObject
     }
 
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-        => RaisePropertyChanged(nameof(ItemSummary));
+    {
+        ApplyActiveViewToItems(ActualViewId);
+        RaisePropertyChanged(nameof(ItemSummary));
+    }
+
+    private void ApplyActiveViewToItems(int activeViewId)
+    {
+        foreach (var item in Items)
+        {
+            item.ApplyActiveView(activeViewId);
+        }
+    }
 }

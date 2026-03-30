@@ -117,6 +117,7 @@ public sealed class PageItemModel : ObservableObject
     private string _unit = string.Empty;
     private string _targetLog = "Logs/Host";
     private int _view = 1;
+    private int _activeViewId = 1;
     private int _historySeconds = 120;
     private int _viewSeconds = 30;
     private string _chartSeriesDefinitions = string.Empty;
@@ -307,14 +308,34 @@ public sealed class PageItemModel : ObservableObject
         get => _header;
         set
         {
-            if (SetProperty(ref _header, value) && Target is null)
+            var hadControlCaption = ShowControlCaption;
+            if (!SetProperty(ref _header, value))
+            {
+                return;
+            }
+
+            if (Target is null)
             {
                 RaisePropertyChanged(nameof(TargetParameterView));
                 RaisePropertyChanged(nameof(ItemBodyPresentation));
             }
 
             RaisePropertyChanged(nameof(WidgetCaption));
+            RaisePropertyChanged(nameof(ControlCaption));
             RaisePropertyChanged(nameof(ShowControlCaption));
+
+            if (hadControlCaption != ShowControlCaption)
+            {
+                RaisePropertyChanged(nameof(ItemHeaderHeight));
+                RaisePropertyChanged(nameof(ItemBodyHeight));
+                RaisePropertyChanged(nameof(AvailableBodyHeight));
+                RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemValueFontSize));
+                RaisePropertyChanged(nameof(ItemUnitFontSize));
+                RaisePropertyChanged(nameof(ButtonAvailableBodyHeight));
+                RaisePropertyChanged(nameof(ButtonBodyFontSize));
+                RaisePropertyChanged(nameof(ButtonIconSize));
+            }
         }
     }
 
@@ -1255,8 +1276,28 @@ public sealed class PageItemModel : ObservableObject
     public int View
     {
         get => _view;
-        set => SetProperty(ref _view, value <= 0 ? 1 : value);
+        set
+        {
+            if (SetProperty(ref _view, value <= 0 ? 1 : value))
+            {
+                RaisePropertyChanged(nameof(IsVisibleInActiveView));
+            }
+        }
     }
+
+    public int ActiveViewId
+    {
+        get => _activeViewId;
+        private set
+        {
+            if (SetProperty(ref _activeViewId, value <= 0 ? 1 : value))
+            {
+                RaisePropertyChanged(nameof(IsVisibleInActiveView));
+            }
+        }
+    }
+
+    public bool IsVisibleInActiveView => View == ActiveViewId;
 
     public int ViewSeconds
     {
@@ -2485,16 +2526,28 @@ public sealed class PageItemModel : ObservableObject
         item.ParentListControl = this;
         item.ParentItem = this;
         item.PageName = PageName;
+        item.ApplyActiveView(ActiveViewId);
         item.RefreshPathRecursive();
         ApplyListControlDefaultsToChild(item);
     }
 
-    public void SetHierarchy(string pageName, PageItemModel? parentItem)
+    public void SetHierarchy(string pageName, PageItemModel? parentItem, int activeViewId = 1)
     {
         PageName = pageName;
         ParentItem = parentItem;
         ParentListControl = parentItem?.IsListControl == true ? parentItem : null;
+        ApplyActiveView(parentItem?.ActiveViewId ?? activeViewId);
         RefreshPathRecursive();
+    }
+
+    public void ApplyActiveView(int activeViewId)
+    {
+        ActiveViewId = activeViewId;
+
+        foreach (var child in Items)
+        {
+            child.ApplyActiveView(ActiveViewId);
+        }
     }
 
     public void ApplyListHeightRules()
@@ -2742,12 +2795,21 @@ public sealed class PageItemModel : ObservableObject
             child.PageName = PageName;
             child.ParentItem = this;
             child.ParentListControl = IsListControl ? this : null;
+            child.ApplyActiveView(ActiveViewId);
             child.RefreshPathRecursive();
         }
     }
 
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        foreach (var child in Items)
+        {
+            child.PageName = PageName;
+            child.ParentItem = this;
+            child.ParentListControl = IsListControl ? this : null;
+            child.ApplyActiveView(ActiveViewId);
+        }
+
         if (IsListControl)
         {
             SyncChildWidths();

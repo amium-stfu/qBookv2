@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 using Amium.Host;
 using Amium.Logging;
@@ -16,6 +17,8 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
     private readonly string _configPath;
     private readonly string _defaultLayoutPath;
     private readonly Dictionary<string, WatchedPage> _watchedPages = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _watcherSuppressedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _watcherUpsertsInProgress = new(StringComparer.OrdinalIgnoreCase);
     private FileSystemWatcher? _bookWatcher;
     private readonly UdlBookAppConfig _config;
     private string _startupPagePath;
@@ -249,7 +252,83 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
     public Amium.UiEditor.ViewModels.RelayCommand RefreshLogCommand { get; }
 
+    public Func<string, string, Task<string?>>? ResolveDuplicatePageNameAsync { get; set; }
+
     public bool IsDirectoryBook => _watchedPages.Count > 0;
+
+    public bool TryCreateNewPage(string rawPageName, out string createdFilePath, out string errorMessage)
+    {
+        createdFilePath = string.Empty;
+        errorMessage = string.Empty;
+
+        var trimmedName = rawPageName?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(trimmedName))
+        {
+            errorMessage = "Page name must not be empty.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        if (Pages.Any(page => string.Equals(page.Name, trimmedName, StringComparison.OrdinalIgnoreCase)))
+        {
+            errorMessage = $"A page named '{trimmedName}' already exists.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        var targetDirectory = string.IsNullOrWhiteSpace(BookProjectPath)
+            ? string.Empty
+            : Path.GetFullPath(BookProjectPath);
+
+        if (string.IsNullOrWhiteSpace(targetDirectory) || !Directory.Exists(targetDirectory))
+        {
+            errorMessage = "No valid book directory loaded.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        var safeFileName = BuildSafePageFileName(trimmedName);
+        if (string.IsNullOrWhiteSpace(safeFileName))
+        {
+            errorMessage = "Page name contains no valid file name characters.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        var fullPath = Path.Combine(targetDirectory, $"{safeFileName}.yaml");
+        if (File.Exists(fullPath))
+        {
+            errorMessage = $"A page file named '{Path.GetFileName(fullPath)}' already exists.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        var pageIndex = Pages.Count + 1;
+        var yamlContent = BuildNewPageYaml(trimmedName, pageIndex);
+
+        try
+        {
+            File.WriteAllText(fullPath, yamlContent);
+            LoadYamlBookFromDirectory(targetDirectory);
+
+            var createdPage = Pages.FirstOrDefault(page => string.Equals(page.UiFilePath, fullPath, StringComparison.OrdinalIgnoreCase));
+            if (createdPage is not null)
+            {
+                SelectedPage = createdPage;
+            }
+
+            createdFilePath = fullPath;
+            StatusText = $"New page created: {Path.GetFileName(fullPath)}";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AddMessage("CreatePage", "Error", ex.Message, fullPath);
+            errorMessage = $"Could not create page: {ex.Message}";
+            StatusText = errorMessage;
+            return false;
+        }
+    }
 
     public void SetCurrentLayoutAsStartup()
     {
@@ -511,6 +590,32 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             // startet UdlBook trotzdem, meldet aber später fehlende Layouts.
         }
     }
+
+    private static string BuildSafePageFileName(string name)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var sanitized = new string(name
+            .Trim()
+            .Select(ch => invalidChars.Contains(ch) ? '_' : ch)
+            .ToArray())
+            .Trim();
+
+        return sanitized.Trim('.');
+    }
+
+    private static string BuildNewPageYaml(string pageName, int pageIndex)
+    {
+        var escapedName = EscapeYamlSingleQuoted(pageName);
+        return $"Page: '{escapedName}'{Environment.NewLine}"
+            + $"Caption: '{escapedName}'{Environment.NewLine}"
+            + $"PageIndex: {Math.Max(1, pageIndex)}{Environment.NewLine}"
+            + "Views:" + Environment.NewLine
+            + "  1: 'HomeScreen'" + Environment.NewLine
+            + "Controls: []" + Environment.NewLine;
+    }
+
+    private static string EscapeYamlSingleQuoted(string value)
+        => (value ?? string.Empty).Replace("'", "''", StringComparison.Ordinal);
 
                 private static void CopyDirectory(string sourceDirectory, string targetDirectory)
                 {
@@ -1144,7 +1249,12 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         {
             if (e.ChangeType is WatcherChangeTypes.Created or WatcherChangeTypes.Changed)
             {
-                HandleBookFileUpsert(fullPath);
+                if (_watcherSuppressedPaths.Remove(fullPath))
+                {
+                    return;
+                }
+
+                _ = HandleBookFileUpsertAsync(fullPath);
             }
         });
     }
@@ -1170,13 +1280,18 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         Dispatcher.UIThread.Post(() =>
         {
             _watchedPages.Remove(oldFullPath);
-            HandleBookFileUpsert(newFullPath);
+            _ = HandleBookFileUpsertAsync(newFullPath);
         });
     }
 
-    private void HandleBookFileUpsert(string filePath)
+    private async Task HandleBookFileUpsertAsync(string filePath)
     {
         if (!File.Exists(filePath))
+        {
+            return;
+        }
+
+        if (!_watcherUpsertsInProgress.Add(filePath))
         {
             return;
         }
@@ -1186,6 +1301,20 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             var fallbackName = Path.GetFileNameWithoutExtension(filePath);
             var layout = BookUiLayoutLoader.LoadYaml(filePath, fallbackName);
             var pageName = string.IsNullOrWhiteSpace(layout.PageName) ? fallbackName : layout.PageName;
+            var resolvedPageName = await ResolveWatchedPageNameConflictAsync(filePath, pageName);
+            if (string.IsNullOrWhiteSpace(resolvedPageName))
+            {
+                StatusText = $"Page import skipped for duplicate name: {pageName}";
+                return;
+            }
+
+            if (!string.Equals(resolvedPageName, pageName, StringComparison.Ordinal))
+            {
+                UpdateYamlPageName(filePath, resolvedPageName);
+                layout = BookUiLayoutLoader.LoadYaml(filePath, fallbackName);
+            }
+
+            pageName = string.IsNullOrWhiteSpace(layout.PageName) ? resolvedPageName : layout.PageName;
             var pageIndex = GetPageIndex(layout) ?? int.MaxValue;
             var watchedPage = new WatchedPage
             {
@@ -1202,6 +1331,78 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         {
             AddMessage("UI", "Error", ex.Message, filePath);
         }
+        finally
+        {
+            _watcherUpsertsInProgress.Remove(filePath);
+        }
+    }
+
+    private async Task<string?> ResolveWatchedPageNameConflictAsync(string filePath, string requestedPageName)
+    {
+        var candidate = string.IsNullOrWhiteSpace(requestedPageName)
+            ? Path.GetFileNameWithoutExtension(filePath)
+            : requestedPageName.Trim();
+
+        while (HasDuplicatePageName(filePath, candidate))
+        {
+            if (ResolveDuplicatePageNameAsync is null)
+            {
+                AddMessage("Watch", "Warning", $"Duplicate page name detected: {candidate}", filePath);
+                return null;
+            }
+
+            var prompt = $"A page named '{candidate}' already exists. Enter a new page name.";
+            var replacement = await ResolveDuplicatePageNameAsync(candidate, prompt);
+            if (string.IsNullOrWhiteSpace(replacement))
+            {
+                return null;
+            }
+
+            candidate = replacement.Trim();
+        }
+
+        return candidate;
+    }
+
+    private bool HasDuplicatePageName(string filePath, string pageName)
+    {
+        if (string.IsNullOrWhiteSpace(pageName))
+        {
+            return false;
+        }
+
+        return _watchedPages.Values.Any(page => !string.Equals(page.FilePath, filePath, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(page.PageName, pageName, StringComparison.OrdinalIgnoreCase))
+            || Pages.Any(page => !string.Equals(page.UiFilePath, filePath, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(page.Name, pageName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void UpdateYamlPageName(string filePath, string pageName)
+    {
+        var lines = File.ReadAllLines(filePath);
+        var escapedPageName = EscapeYamlSingleQuoted(pageName);
+        var updatedLine = $"Page: '{escapedPageName}'";
+        var replaced = false;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (lines[i].StartsWith("Page:", StringComparison.Ordinal))
+            {
+                lines[i] = updatedLine;
+                replaced = true;
+                break;
+            }
+        }
+
+        if (!replaced)
+        {
+            var newLines = new List<string>(lines.Length + 1) { updatedLine };
+            newLines.AddRange(lines);
+            lines = newLines.ToArray();
+        }
+
+        _watcherSuppressedPaths.Add(Path.GetFullPath(filePath));
+        File.WriteAllLines(filePath, lines);
     }
 
     private static string NormalizeYamlPath(string? path)
