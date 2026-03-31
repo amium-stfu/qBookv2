@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>UdlBook</AssemblyName>
     <RootNamespace>UdlBook</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,6 +19,19 @@
     <ProjectReference Include="..\Editor\Amium.Editor.csproj" />
     <ProjectReference Include="..\Shared\AmiumItem\AmiumItem.csproj" />
     <ProjectReference Include="..\Extension\UdlClient\UdlClient.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="App.axaml.cs" />
+    <Compile Include="LogWindow.axaml.cs" />
+    <Compile Include="MainWindow.axaml.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="UdlBookAppConfig.cs" />
+    <Compile Include="ViewModels\MainWindowViewModel.cs" />
+    <Compile Include="ViewModels\ObservableObject.cs" />
+    <Compile Include="ViewModels\RelayCommand.cs" />
+    <Compile Include="ViewModels\ThemePalette.cs" />
+    <Compile Include="ViewModels\UdlBookPageViewModel.cs" />
   </ItemGroup>
 
   <ItemGroup>

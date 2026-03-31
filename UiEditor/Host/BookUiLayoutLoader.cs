@@ -62,8 +62,9 @@ public static class BookUiLayoutLoader
             throw new InvalidDataException("Page.yaml does not contain a valid root mapping.");
         }
 
-        var pageName = GetScalar(root, "Page") ?? fallbackPageName;
-        var caption = GetScalar(root, "Caption") ?? GetScalar(root, "Title") ?? pageName;
+        var legacyPageName = GetScalar(root, "Page");
+        var pageName = fallbackPageName;
+        var caption = GetScalar(root, "Caption") ?? GetScalar(root, "Title") ?? legacyPageName ?? pageName;
         var views = ReadViews(root);
         var controls = GetSequence(root, "Controls");
 
@@ -78,7 +79,6 @@ public static class BookUiLayoutLoader
 
         var documentProperties = new JsonObject
         {
-            ["Page"] = pageName,
             ["Title"] = caption,
             ["Caption"] = caption,
             ["Views"] = new JsonObject(views.Select(static entry => new KeyValuePair<string, JsonNode?>(entry.Key.ToString(CultureInfo.InvariantCulture), entry.Value)))

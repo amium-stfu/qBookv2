@@ -21,7 +21,7 @@ internal static class TargetPathHelper
             : normalized;
     }
 
-    public static string ToPersistedLayoutTargetPath(string? path)
+    public static string ToPersistedLayoutTargetPath(string? path, string? pageName = null)
     {
         var normalized = NormalizeConfiguredTargetPath(path);
         if (string.IsNullOrWhiteSpace(normalized) || string.Equals(normalized, "this", StringComparison.OrdinalIgnoreCase))
@@ -29,12 +29,17 @@ internal static class TargetPathHelper
             return normalized;
         }
 
-        return normalized.StartsWith(BookRootPrefix, StringComparison.OrdinalIgnoreCase)
-            ? normalized[BookRootPrefix.Length..]
-            : normalized;
+        var pageRootPrefix = GetPageRootPrefix(pageName);
+        if (!string.IsNullOrWhiteSpace(pageRootPrefix)
+            && normalized.StartsWith(pageRootPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return normalized[pageRootPrefix.Length..];
+        }
+
+        return normalized;
     }
 
-    public static IEnumerable<string> EnumerateResolutionCandidates(string? path)
+    public static IEnumerable<string> EnumerateResolutionCandidates(string? path, string? pageName = null)
     {
         var normalized = NormalizeConfiguredTargetPath(path);
         if (string.IsNullOrWhiteSpace(normalized))
@@ -42,19 +47,39 @@ internal static class TargetPathHelper
             yield break;
         }
 
-        yield return normalized;
+        var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (yielded.Add(normalized))
+        {
+            yield return normalized;
+        }
+
+        var pageRootPrefix = GetPageRootPrefix(pageName);
+        if (!string.IsNullOrWhiteSpace(pageRootPrefix)
+            && ShouldResolveAgainstPageRoot(normalized))
+        {
+            var pageScopedPath = pageRootPrefix + normalized;
+            if (yielded.Add(pageScopedPath))
+            {
+                yield return pageScopedPath;
+            }
+        }
 
         if (ShouldPrependBookRoot(normalized))
         {
-            yield return BookRootPrefix + normalized;
+            var bookScopedPath = BookRootPrefix + normalized;
+            if (yielded.Add(bookScopedPath))
+            {
+                yield return bookScopedPath;
+            }
         }
     }
 
     public static string NormalizeChartSeriesDefinitions(string? definitions)
         => TransformChartSeriesDefinitions(definitions, NormalizeConfiguredTargetPath);
 
-    public static string ToPersistedChartSeriesDefinitions(string? definitions)
-        => TransformChartSeriesDefinitions(definitions, ToPersistedLayoutTargetPath);
+    public static string ToPersistedChartSeriesDefinitions(string? definitions, string? pageName = null)
+        => TransformChartSeriesDefinitions(definitions, path => ToPersistedLayoutTargetPath(path, pageName));
 
     private static string TransformChartSeriesDefinitions(string? definitions, Func<string?, string> transformPath)
     {
@@ -106,5 +131,35 @@ internal static class TargetPathHelper
         }
 
         return true;
+    }
+
+    private static bool ShouldResolveAgainstPageRoot(string path)
+    {
+        if (string.Equals(path, "this", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(BookRootPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        foreach (var prefix in NonBookRootPrefixes)
+        {
+            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string GetPageRootPrefix(string? pageName)
+    {
+        var normalizedPageName = string.IsNullOrWhiteSpace(pageName)
+            ? string.Empty
+            : pageName.Trim().Replace('\\', '/').Trim('/');
+
+        return string.IsNullOrWhiteSpace(normalizedPageName)
+            ? string.Empty
+            : $"{BookRootPrefix}{normalizedPageName}/";
     }
 }

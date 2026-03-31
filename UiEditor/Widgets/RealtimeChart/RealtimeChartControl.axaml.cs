@@ -485,7 +485,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             : CreateChartStateConfiguration(_chartItem).SeriesConfigurations;
     }
 
-    private static List<ChartSeriesConfiguration> ParseSeriesDefinitions(string? raw)
+    private static List<ChartSeriesConfiguration> ParseSeriesDefinitions(string? raw, string? pageName)
     {
         var result = new List<ChartSeriesConfiguration>();
         if (string.IsNullOrWhiteSpace(raw))
@@ -513,13 +513,13 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             }
 
             var connectStyle = parts.Length > 2 ? ParseConnectStyle(parts[2]) : ConnectStyle.Straight;
-            result.Add(CreateSeriesConfiguration(TargetPathHelper.NormalizeConfiguredTargetPath(parts[0]), axisIndex, connectStyle));
+            result.Add(CreateSeriesConfiguration(TargetPathHelper.NormalizeConfiguredTargetPath(parts[0]), pageName, axisIndex, connectStyle));
         }
 
         return result;
     }
 
-    private static ChartSeriesConfiguration CreateSeriesConfiguration(string targetPath, int axisIndex, ConnectStyle connectStyle = ConnectStyle.Straight)
+    private static ChartSeriesConfiguration CreateSeriesConfiguration(string targetPath, string? pageName, int axisIndex, ConnectStyle connectStyle = ConnectStyle.Straight)
     {
         targetPath = TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
         var normalizedAxis = Math.Clamp(axisIndex, 1, 4);
@@ -530,7 +530,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             ConnectStyle.StepVertical => "StepVertical",
             _ => "Line"
         };
-        return new ChartSeriesConfiguration(targetPath, normalizedAxis, connectStyle, $"{targetPath}|Y{normalizedAxis}|{styleKey}", $"Y{normalizedAxis} {displayName}");
+        return new ChartSeriesConfiguration(targetPath, pageName ?? string.Empty, normalizedAxis, connectStyle, $"{targetPath}|Y{normalizedAxis}|{styleKey}", $"Y{normalizedAxis} {displayName}");
     }
 
     private static ConnectStyle ParseConnectStyle(string? style)
@@ -829,7 +829,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
 
     private readonly record struct ChartPoint(DateTime Timestamp, double Value);
 
-    private sealed record ChartSeriesConfiguration(string TargetPath, int AxisIndex, ConnectStyle ConnectStyle, string Key, string DisplayName);
+    private sealed record ChartSeriesConfiguration(string TargetPath, string PageName, int AxisIndex, ConnectStyle ConnectStyle, string Key, string DisplayName);
 
     private sealed record ChartSeriesSnapshot(ChartSeriesConfiguration Configuration, ChartPoint[] Points);
 
@@ -855,10 +855,10 @@ public partial class RealtimeChartControl : EditorTemplateWidget
 
     private static ChartStateConfiguration CreateChartStateConfiguration(PageItemModel item)
     {
-        var seriesConfigurations = ParseSeriesDefinitions(item.ChartSeriesDefinitions);
+        var seriesConfigurations = ParseSeriesDefinitions(item.ChartSeriesDefinitions, item.PageName);
         if (seriesConfigurations.Count == 0 && !string.IsNullOrWhiteSpace(item.TargetPath))
         {
-            seriesConfigurations = [CreateSeriesConfiguration(item.TargetPath, 1)];
+            seriesConfigurations = [CreateSeriesConfiguration(item.TargetPath, item.PageName, 1)];
         }
 
         return new ChartStateConfiguration(
@@ -928,7 +928,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             var samples = new List<(ChartSeriesConfiguration Configuration, double Value)>();
             foreach (var configuration in configurations)
             {
-                if (!TryResolveSeriesItem(configuration.TargetPath, out var item) || item is null)
+                if (!TryResolveSeriesItem(configuration.TargetPath, configuration.PageName, out var item) || item is null)
                 {
                     continue;
                 }
@@ -963,9 +963,9 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             }
         }
 
-        private static bool TryResolveSeriesItem(string targetPath, out Item? item)
+        private static bool TryResolveSeriesItem(string targetPath, string? pageName, out Item? item)
         {
-            foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath))
+            foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath, pageName))
             {
                 if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
                 {

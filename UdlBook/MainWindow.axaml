@@ -93,7 +93,7 @@
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="models:PageModel">
+                    <DataTemplate>
                       <Grid ColumnDefinitions="Auto">
                         <Button Grid.Column="0"
                                 Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -241,7 +241,7 @@
                       </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
-                      <DataTemplate DataType="models:PageModel">
+                      <DataTemplate>
                         <Grid ColumnDefinitions="Auto">
                           <Button Grid.Column="0"
                                   Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=Window}}"

@@ -279,7 +279,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
             .OrderBy(static option => option, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (!string.IsNullOrWhiteSpace(selectedValue) && !ContainsEquivalentPath(sourceOptions, selectedValue))
+        if (!string.IsNullOrWhiteSpace(selectedValue) && !ContainsEquivalentPath(sourceOptions, selectedValue, pageName))
         {
             sourceOptions.Add(selectedValue);
             sourceOptions = sourceOptions
@@ -305,7 +305,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
             RootNodes.Add(node);
         }
 
-        SelectedNode = FindNodeByFullPath(RootNodes, selectedValue);
+        SelectedNode = FindNodeByFullPath(RootNodes, selectedValue, pageName);
     }
 
     private static IReadOnlyList<TargetSelectionTreeNode> BuildTree(IReadOnlyList<string> paths, string displayPrefix)
@@ -378,14 +378,14 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
         }
     }
 
-    private static TargetSelectionTreeNode? FindNodeByFullPath(IEnumerable<TargetSelectionTreeNode> nodes, string? fullPath)
+    private static TargetSelectionTreeNode? FindNodeByFullPath(IEnumerable<TargetSelectionTreeNode> nodes, string? fullPath, string pageName)
     {
         if (string.IsNullOrWhiteSpace(fullPath))
         {
             return null;
         }
 
-        var candidatePaths = TargetPathHelper.EnumerateResolutionCandidates(fullPath)
+        var candidatePaths = TargetPathHelper.EnumerateResolutionCandidates(fullPath, pageName)
             .Select(NormalizePath)
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -398,7 +398,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
                 return node;
             }
 
-            var match = FindNodeByFullPath(node.Children, fullPath);
+            var match = FindNodeByFullPath(node.Children, fullPath, pageName);
             if (match is not null)
             {
                 return match;
@@ -408,14 +408,14 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
         return null;
     }
 
-    private static bool ContainsEquivalentPath(IEnumerable<string> options, string selectedValue)
+    private static bool ContainsEquivalentPath(IEnumerable<string> options, string selectedValue, string pageName)
     {
         var normalizedOptions = options
             .Select(NormalizePath)
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .ToArray();
 
-        foreach (var candidate in TargetPathHelper.EnumerateResolutionCandidates(selectedValue))
+        foreach (var candidate in TargetPathHelper.EnumerateResolutionCandidates(selectedValue, pageName))
         {
             var normalizedCandidate = NormalizePath(candidate);
             if (normalizedOptions.Contains(normalizedCandidate, StringComparer.OrdinalIgnoreCase))

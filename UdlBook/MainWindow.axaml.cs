@@ -580,39 +580,26 @@ public partial class MainWindow : Window
             return;
         }
 
-        var file = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
+        var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
         {
-            Title = "Select book directory and first page name",
-            SuggestedFileName = "Page.yaml",
-            DefaultExtension = "yaml",
-            FileTypeChoices = new[]
-            {
-                new Avalonia.Platform.Storage.FilePickerFileType("YAML layout")
-                {
-                    Patterns = new[] { "*.yaml" }
-                }
-            }
+            Title = "Select folder for new UdlBook",
+            AllowMultiple = false
         });
 
-        if (file is null)
+        if (folders.Count == 0)
         {
             return;
         }
 
-        var path = file.Path.LocalPath;
-
-        if (!File.Exists(path))
+        var path = Path.Combine(folders[0].Path.LocalPath, "Book.udlb");
+        if (!viewModel.CreateNewBook(path, out var errorMessage) && !string.IsNullOrWhiteSpace(errorMessage))
         {
-            var content = "Page: 'Page1'" + Environment.NewLine
-                + "Caption: 'New Book'" + Environment.NewLine
-                + "Views:" + Environment.NewLine
-                + "  1: 'HomeScreen'" + Environment.NewLine
-                + "Controls: []" + Environment.NewLine;
-
-            File.WriteAllText(path, content);
+            await EditorInputDialogs.EditTextAsync(
+                this,
+                header: "Book creation blocked",
+                subHeader: errorMessage,
+                initialValue: string.Empty);
         }
-
-        viewModel.LoadYamlLayoutFromFile(path);
     }
 
     private async void LoadBook_Click(object? sender, RoutedEventArgs e)
@@ -627,19 +614,25 @@ public partial class MainWindow : Window
         Amium.Host.ThreadsManager.StopAll();
         Amium.Host.TimerManager.StopAll();
 
-        // Verzeichnis direkt wählen: ein Ordner entspricht einem „Buch“.
-        var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
+        var files = await StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
         {
-            Title = "Select book directory",
-            AllowMultiple = false
+            Title = "Open UdlBook",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new Avalonia.Platform.Storage.FilePickerFileType("UdlBook entry")
+                {
+                    Patterns = new[] { "*.udlb" }
+                }
+            }
         });
 
-        if (folders.Count == 0)
+        if (files.Count == 0)
         {
             return;
         }
 
-        viewModel.BookProjectPath = folders[0].Path.LocalPath;
+        viewModel.BookProjectPath = files[0].Path.LocalPath;
         if (viewModel.LoadBookCommand.CanExecute(null))
         {
             viewModel.LoadBookCommand.Execute(null);
@@ -673,28 +666,33 @@ public partial class MainWindow : Window
             return;
         }
 
-        // In directory-book mode, Save As should only copy the book
-        // directory – the user chooses a target folder, not a file.
         if (viewModel.IsDirectoryBook)
         {
-            var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
+            var bookFile = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
             {
-                Title = "Save book as",
-                AllowMultiple = false
+                Title = "Save UdlBook as",
+                SuggestedFileName = "Book.udlb",
+                DefaultExtension = "udlb",
+                FileTypeChoices = new[]
+                {
+                    new Avalonia.Platform.Storage.FilePickerFileType("UdlBook entry")
+                    {
+                        Patterns = new[] { "*.udlb" }
+                    }
+                }
             });
 
-            if (folders.Count == 0)
+            if (bookFile is null)
             {
                 return;
             }
 
-            var targetDirectory = folders[0].Path.LocalPath;
-            viewModel.SaveCurrentLayoutAs(targetDirectory);
+            var targetPath = bookFile.Path.LocalPath;
+            viewModel.SaveCurrentLayoutAs(targetPath);
             return;
         }
 
-        // Single-layout mode keeps the file-based Save As behavior.
-        var file = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
+        var layoutFile = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
         {
             Title = "Save layout as",
             SuggestedFileName = "Page.yaml",
@@ -708,12 +706,12 @@ public partial class MainWindow : Window
             }
         });
 
-        if (file is null)
+        if (layoutFile is null)
         {
             return;
         }
 
-        var path = file.Path.LocalPath;
+        var path = layoutFile.Path.LocalPath;
         viewModel.SaveCurrentLayoutAs(path);
     }
 

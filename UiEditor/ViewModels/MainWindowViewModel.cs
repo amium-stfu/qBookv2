@@ -898,12 +898,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return sourceItem;
         }
 
-        if (TryFindValueInputItem(targetPath, out var existingItem) && existingItem is not null)
+        if (TryFindValueInputItem(targetPath, sourceItem.PageName, out var existingItem) && existingItem is not null)
         {
             return existingItem;
         }
 
-        if (!TryResolveDataTargetItem(targetPath, out var targetItem) || targetItem is null)
+        if (!TryResolveDataTargetItem(targetPath, sourceItem.PageName, out var targetItem) || targetItem is null)
         {
             return null;
         }
@@ -994,11 +994,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return true;
     }
 
-    private bool TryFindValueInputItem(string targetPath, out PageItemModel? match)
+    private bool TryFindValueInputItem(string targetPath, string? pageName, out PageItemModel? match)
     {
         match = null;
         var resolvedTargetPath = targetPath;
-        if (TryResolveDataTargetItem(targetPath, out var resolvedItem) && !string.IsNullOrWhiteSpace(resolvedItem?.Path))
+        if (TryResolveDataTargetItem(targetPath, pageName, out var resolvedItem) && !string.IsNullOrWhiteSpace(resolvedItem?.Path))
         {
             resolvedTargetPath = resolvedItem.Path!;
         }
@@ -1012,9 +1012,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return match is not null;
     }
 
-    private static bool TryResolveDataTargetItem(string targetPath, out Item? item)
+    private static bool TryResolveDataTargetItem(string targetPath, string? pageName, out Item? item)
     {
-        return TryResolveDataItem(targetPath, out item);
+        return TryResolveDataItem(targetPath, pageName, out item);
     }
 
     public void CommitEditorDialog()
@@ -1257,7 +1257,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         var template = SelectedPage.UiLayoutDefinition;
         var documentObject = CloneJsonObject(template?.DocumentProperties);
-        documentObject["Page"] = SelectedPage.Name;
+        documentObject.Remove("Page");
         documentObject["Title"] = !string.IsNullOrWhiteSpace(template?.Title) ? template!.Title : SelectedPage.Name;
         documentObject["Layout"] = ToUiNodeDocument(
             template?.Layout,
@@ -1368,7 +1368,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         SetOptionalJsonValue(nodeObject, "SecondaryForegroundColor", item.SecondaryForegroundColor);
         SetOptionalJsonValue(nodeObject, "AccentBackgroundColor", item.AccentBackgroundColor);
         SetOptionalJsonValue(nodeObject, "AccentForegroundColor", item.AccentForegroundColor);
-        nodeObject["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath);
+        nodeObject["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.PageName);
         nodeObject["TargetParameterPath"] = item.TargetParameterPath;
         nodeObject["TargetParameterFormat"] = item.TargetParameterFormat;
             nodeObject["Unit"] = item.Unit;
@@ -1376,8 +1376,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["RefreshRateMs"] = item.RefreshRateMs;
         nodeObject["HistorySeconds"] = item.HistorySeconds;
         nodeObject["ViewSeconds"] = item.ViewSeconds;
-        nodeObject["ChartSeriesDefinitions"] = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions);
-        if (TryBuildInteractionRulesJson(item.InteractionRules, out var interactionRulesJson))
+        nodeObject["ChartSeriesDefinitions"] = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions, item.PageName);
+        if (TryBuildInteractionRulesJson(item.InteractionRules, item.PageName, out var interactionRulesJson))
         {
             nodeObject["InteractionRules"] = interactionRulesJson;
         }
@@ -1487,7 +1487,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         };
         node["Footer"] = footer;
 
-        if (TryBuildInteractionRulesJson(item.InteractionRules, out var interactionRules))
+        if (TryBuildInteractionRulesJson(item.InteractionRules, item.PageName, out var interactionRules))
         {
             node["InteractionRules"] = interactionRules;
         }
@@ -1498,7 +1498,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             case ControlKind.Item or ControlKind.Signal:
                 control["Unit"] = item.Unit;
-                control["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath);
+                control["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.PageName);
                 control["TargetParameterPath"] = item.TargetParameterPath;
                 control["TargetParameterFormat"] = item.TargetParameterFormat;
                 control["IsReadOnly"] = item.IsReadOnly;
@@ -1547,7 +1547,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 control["ViewSeconds"] = item.ViewSeconds;
                 if (!string.IsNullOrWhiteSpace(item.ChartSeriesDefinitions))
                 {
-                    control["ChartSeriesDefinitions"] = BuildChartSeriesDefinitionsArray(item.ChartSeriesDefinitions);
+                    control["ChartSeriesDefinitions"] = BuildChartSeriesDefinitionsArray(item.ChartSeriesDefinitions, item.PageName);
                 }
 
                 break;
@@ -1568,7 +1568,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return node;
     }
 
-    private static JsonArray BuildChartSeriesDefinitionsArray(string definitions)
+    private static JsonArray BuildChartSeriesDefinitionsArray(string definitions, string? pageName)
     {
         var array = new JsonArray();
         if (string.IsNullOrWhiteSpace(definitions))
@@ -1576,7 +1576,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return array;
         }
 
-        var lines = TargetPathHelper.ToPersistedChartSeriesDefinitions(definitions)
+        var lines = TargetPathHelper.ToPersistedChartSeriesDefinitions(definitions, pageName)
             .Replace("\r", string.Empty)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -1709,14 +1709,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    private static bool TryBuildInteractionRulesJson(string definitions, out JsonArray array)
+    private static bool TryBuildInteractionRulesJson(string definitions, string? pageName, out JsonArray array)
     {
         var rules = ItemInteractionRuleCodec.ParseDefinitions(definitions);
-        array = new JsonArray(rules.Select(static rule => (JsonNode?)new JsonObject
+        array = new JsonArray(rules.Select(rule => (JsonNode?)new JsonObject
         {
             ["Event"] = rule.Event.ToString(),
             ["Action"] = rule.Action.ToString(),
-            ["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath),
+            ["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath, pageName),
             ["Argument"] = rule.Argument
         }).ToArray());
 
@@ -1879,7 +1879,6 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             }
 
             var root = new JsonObject();
-            root["Page"] = SelectedPage.Name;
             var title = !string.IsNullOrWhiteSpace(SelectedPage.DisplayText)
                 ? SelectedPage.DisplayText
                 : GetStringProperty(documentObject, "Title") ?? SelectedPage.Name;
@@ -2617,7 +2616,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 var selectedTargetPath = GetSelectedTargetPath(item);
                 var choiceOptions = field.Key switch
                 {
-                    "TargetParameterPath" => GetTargetParameterOptions(selectedTargetPath),
+                    "TargetParameterPath" => GetTargetParameterOptions(selectedTargetPath, item.PageName),
                     _ when field.Definition.OptionsFactory is not null => field.Definition.OptionsFactory(item),
                     _ => []
                 };
@@ -2739,7 +2738,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             if (parameterField is not null)
             {
                 parameterField.Options.Clear();
-                foreach (var option in GetTargetParameterOptions(field.Value))
+                foreach (var option in GetTargetParameterOptions(field.Value, _editorDialogItem.PageName))
                 {
                     parameterField.Options.Add(option);
                 }
@@ -2942,8 +2941,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             case ControlKind.Signal:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
-                    BindTargetTree("TargetPath", "Target", current => current.TargetPath, (current, value) => { current.ApplyTargetSelection(value); return null; }, current => GetSelectableTargetOptions(current)),
-                    BindChoice("TargetParameterPath", "TargetParameter", current => current.TargetParameterPath, (current, value) => { current.TargetParameterPath = value; return null; }, current => GetTargetParameterOptions(current.TargetPath)),
+                    BindTargetTree("TargetPath", "Target", current => TargetPathHelper.ToPersistedLayoutTargetPath(current.TargetPath, current.PageName), (current, value) => { current.ApplyTargetSelection(value); return null; }, current => GetSelectableTargetOptions(current)),
+                    BindChoice("TargetParameterPath", "TargetParameter", current => current.TargetParameterPath, (current, value) => { current.TargetParameterPath = value; return null; }, current => GetTargetParameterOptions(current.TargetPath, current.PageName)),
                     BindChoice("TargetParameterFormatKind", "Format", current => SplitParameterFormat(current.TargetParameterFormat).Kind, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(value, SplitParameterFormat(current.TargetParameterFormat).Parameter); return null; }, _ => ParameterFormatOptions),
                     BindText("TargetParameterFormatParameter", "FormatParameter", current => SplitParameterFormat(current.TargetParameterFormat).Parameter, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(SplitParameterFormat(current.TargetParameterFormat).Kind, value); return null; }, EditorPropertyType.Text, GetFormatParameterToolTip),
                     BindChoice("IsReadOnly", "Readonly", current => current.IsReadOnly ? "True" : "False", (current, value) => { current.IsReadOnly = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
@@ -3396,7 +3395,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             SecondaryForegroundColor = item.SecondaryForegroundColor,
             AccentBackgroundColor = item.AccentBackgroundColor,
             AccentForegroundColor = item.AccentForegroundColor,
-            TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath),
+            TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.PageName),
             TargetParameterPath = item.TargetParameterPath,
             TargetParameterFormat = item.TargetParameterFormat,
             Unit = item.Unit,
@@ -3404,8 +3403,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             RefreshRateMs = item.RefreshRateMs,
             HistorySeconds = item.HistorySeconds,
             ViewSeconds = item.ViewSeconds,
-            ChartSeriesDefinitions = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions),
-            InteractionRules = ToInteractionRuleDocuments(item.InteractionRules),
+            ChartSeriesDefinitions = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions, item.PageName),
+            InteractionRules = ToInteractionRuleDocuments(item.InteractionRules, item.PageName),
             UdlClientHost = item.UdlClientHost,
             UdlClientPort = item.UdlClientPort,
             UdlClientAutoConnect = item.UdlClientAutoConnect,
@@ -3541,13 +3540,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return model;
     }
 
-    private static List<ItemInteractionRuleDocument> ToInteractionRuleDocuments(string definitions)
+    private static List<ItemInteractionRuleDocument> ToInteractionRuleDocuments(string definitions, string? pageName)
         => ItemInteractionRuleCodec.ParseDefinitions(definitions)
-            .Select(static rule => new ItemInteractionRuleDocument
+            .Select(rule => new ItemInteractionRuleDocument
             {
                 Event = rule.Event,
                 Action = rule.Action,
-                TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath),
+                TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath, pageName),
                 Argument = rule.Argument
             })
             .ToList();
@@ -3728,14 +3727,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             : string.Empty;
     }
 
-    private static IEnumerable<string> GetTargetParameterOptions(string targetPath)
+    private static IEnumerable<string> GetTargetParameterOptions(string targetPath, string? pageName = null)
     {
         if (string.IsNullOrWhiteSpace(targetPath))
         {
             return [];
         }
 
-        if (!TryResolveDataItem(targetPath, out var item) || item is null)
+        if (!TryResolveDataItem(targetPath, pageName, out var item) || item is null)
         {
             return [];
         }
@@ -3853,7 +3852,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private static IEnumerable<string> GetFooterSubItemOptions(PageItemModel item)
     {
-        if (string.IsNullOrWhiteSpace(item.TargetPath) || !TryResolveDataItem(item.TargetPath, out var targetItem) || targetItem is null)
+        if (string.IsNullOrWhiteSpace(item.TargetPath) || !TryResolveDataItem(item.TargetPath, item.PageName, out var targetItem) || targetItem is null)
         {
             return [];
         }
@@ -3883,7 +3882,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private string? ApplyFooterSubItems(PageItemModel item, string value)
     {
-        if (string.IsNullOrWhiteSpace(item.TargetPath) || !TryResolveDataItem(item.TargetPath, out var targetRoot) || targetRoot is null)
+        if (string.IsNullOrWhiteSpace(item.TargetPath) || !TryResolveDataItem(item.TargetPath, item.PageName, out var targetRoot) || targetRoot is null)
         {
             item.Items.Clear();
             return null;
@@ -4182,8 +4181,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     }
 
     private static bool TryResolveDataItem(string targetPath, out Item? item)
+        => TryResolveDataItem(targetPath, null, out item);
+
+    private static bool TryResolveDataItem(string targetPath, string? pageName, out Item? item)
     {
-        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath))
+        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath, pageName))
         {
             if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
             {

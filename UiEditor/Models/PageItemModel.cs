@@ -2529,6 +2529,7 @@ public sealed class PageItemModel : ObservableObject
         item.PageName = PageName;
         item.ApplyActiveView(ActiveViewId);
         item.RefreshPathRecursive();
+        item.ResolveTarget();
         ApplyListControlDefaultsToChild(item);
     }
 
@@ -2539,6 +2540,7 @@ public sealed class PageItemModel : ObservableObject
         ParentListControl = parentItem?.IsListControl == true ? parentItem : null;
         ApplyActiveView(parentItem?.ActiveViewId ?? activeViewId);
         RefreshPathRecursive();
+        ResolveTarget();
     }
 
     public void ApplyActiveView(int activeViewId)
@@ -2857,9 +2859,9 @@ public sealed class PageItemModel : ObservableObject
         }
     }
 
-    private static bool TryResolveTargetItem(string targetPath, out Item? item)
+    private bool TryResolveTargetItem(string targetPath, out Item? item)
     {
-        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath))
+        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath, PageName))
         {
             if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
             {
