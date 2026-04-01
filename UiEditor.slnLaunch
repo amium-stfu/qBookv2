@@ -1,0 +1,11 @@
+[
+  {
+    "Name": "AutomationExplorer",
+    "Projects": [
+      {
+        "Path": "AutomationExplorer\\AutomationExplorer.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

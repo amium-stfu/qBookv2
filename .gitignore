@@ -6,7 +6,10 @@ _buildcheck/
 
 # IDE and local workspace files
 .vs/
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
 *.suo
 *.user
 *.userosscache
