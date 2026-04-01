@@ -49,6 +49,10 @@
 
                   <!-- Gruppe 3: Theme, Log -->
                   <MenuItem Header="Theme switch" Click="ToggleTheme_Click" />
+                  <MenuItem Header="TabPosition">
+                    <MenuItem Header="Top" Click="OnTabPlacementTopClicked" />
+                    <MenuItem Header="Right" Click="OnTabPlacementRightClicked" />
+                  </MenuItem>
                   <MenuItem Header="Open log" Click="OpenLogWindow_Click" />
                   <Separator />
 
@@ -104,8 +108,7 @@
                                 Margin="0">
                           <Button.ContextMenu>
                             <ContextMenu>
-                              <MenuItem Header="Top" Click="OnTabPlacementTopClicked" />
-                              <MenuItem Header="Right" Click="OnTabPlacementRightClicked" />
+                              <MenuItem Header="Open Folder" Click="OnOpenFolderClicked" CommandParameter="{Binding}" />
                             </ContextMenu>
                           </Button.ContextMenu>
                           <Grid ColumnDefinitions="48,40,168,32">
@@ -252,8 +255,7 @@
                                   Margin="0">
                             <Button.ContextMenu>
                               <ContextMenu>
-                                <MenuItem Header="Top" Click="OnTabPlacementTopClicked" />
-                                <MenuItem Header="Right" Click="OnTabPlacementRightClicked" />
+                                <MenuItem Header="Open Folder" Click="OnOpenFolderClicked" CommandParameter="{Binding}" />
                               </ContextMenu>
                             </Button.ContextMenu>
                             <Grid ColumnDefinitions="48,40,168,32">

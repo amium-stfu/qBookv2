@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using Avalonia;
 using Avalonia.Controls;
@@ -756,6 +757,39 @@ public partial class MainWindow : Window
         {
             viewModel.SetTabStripPlacementCommand.Execute("Right");
         }
+    }
+
+    private void OnOpenFolderClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem)
+        {
+            return;
+        }
+
+        var page = menuItem.CommandParameter as FolderModel ?? menuItem.DataContext as FolderModel;
+        if (page is null)
+        {
+            return;
+        }
+
+        var uiFilePath = page.UiFilePath;
+        if (string.IsNullOrWhiteSpace(uiFilePath))
+        {
+            return;
+        }
+
+        var directoryPath = Path.GetDirectoryName(uiFilePath);
+        if (string.IsNullOrWhiteSpace(directoryPath) || !Directory.Exists(directoryPath))
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            Arguments = $"\"{directoryPath}\"",
+            UseShellExecute = true
+        });
     }
 
     private void OpenLogWindow_Click(object? sender, RoutedEventArgs e)
