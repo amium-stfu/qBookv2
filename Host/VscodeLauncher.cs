@@ -15,12 +15,12 @@ public static class VsCodeLauncher
         string targetRootDirectory = Path.GetFullPath(folderPath);
         try
         {
-            var project = BookProjectLoader.Load(folderPath);
+            var project = ProjectLoader.Load(folderPath);
             targetRootDirectory = project.RootDirectory;
         }
         catch (Exception ex)
         {
-            Core.LogWarn($"BookProjectLoader.Load failed for {folderPath}. Falling back to directory path.", ex);
+            Core.LogWarn($"ProjectLoader.Load failed for {folderPath}. Falling back to directory path.", ex);
         }
 
         try

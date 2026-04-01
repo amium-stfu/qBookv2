@@ -10,5 +10,5 @@ public interface IEditorUiHost
 
     bool DeleteItem(object item);
 
-    void RefreshPageBindings(string pageName);
+    void RefreshFolderBindings(string pageName);
 }

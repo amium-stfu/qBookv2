@@ -8,7 +8,7 @@
 
   <controls:EditorTableControl.BodyContent>
     <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" x:Name="TableRoot">
-    <!-- Inhaltliche ItemWidgets: im View-Mode interaktiv, im EditMode deaktiviert, damit die Zellselektion greift. -->
+    <!-- Inhaltliche SignalWidgets: im View-Mode interaktiv, im EditMode deaktiviert, damit die Zellselektion greift. -->
       <Grid x:Name="ItemContentGrid"
       IsHitTestVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}, Converter={StaticResource BoolNegationConverter}}" />
 
@@ -52,7 +52,7 @@
                         Click="OnAddItemClicked">
                   <Button.ContextMenu>
                     <ContextMenu>
-                      <MenuItem Header="Item" Click="OnAddItemMenuClicked" />
+                      <MenuItem Header="Signal" Click="OnAddItemMenuClicked" />
                       <MenuItem Header="Button" Click="OnAddButtonMenuClicked" />
                       <MenuItem Header="Realtime Chart" Click="OnAddChartMenuClicked" />
                       <MenuItem Header="Log" Click="OnAddLogMenuClicked" />

@@ -45,7 +45,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
     private static readonly Dictionary<string, ChartRuntimeState> ChartStates = new(StringComparer.Ordinal);
 
     private DispatcherTimer? _renderTimer;
-    private PageItemModel? _chartItem;
+    private FolderItemModel? _chartItem;
     private ChartRuntimeState? _chartState;
     private AvaPlot? _avaPlot;
     private Grid? _plotHost;
@@ -95,7 +95,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         _crosshairInfoTextBlock = this.FindControl<TextBlock>("CrosshairInfoTextBlock");
 
         ConfigurePlot();
-        HookChartItem(DataContext as PageItemModel);
+        HookChartItem(DataContext as FolderItemModel);
         UpdateRenderActivity();
         if (PageIsActive && IsVisible)
         {
@@ -123,7 +123,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
-        HookChartItem(DataContext as PageItemModel);
+        HookChartItem(DataContext as FolderItemModel);
         if (PageIsActive && IsVisible)
         {
             RenderPlot();
@@ -158,7 +158,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         }
     }
 
-    private void HookChartItem(PageItemModel? nextItem)
+    private void HookChartItem(FolderItemModel? nextItem)
     {
         if (ReferenceEquals(_chartItem, nextItem))
         {
@@ -191,11 +191,11 @@ public partial class RealtimeChartControl : EditorTemplateWidget
 
     private void OnChartItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(PageItemModel.TargetPath)
-            or nameof(PageItemModel.ChartSeriesDefinitions)
-            or nameof(PageItemModel.HistorySeconds)
-            or nameof(PageItemModel.ViewSeconds)
-            or nameof(PageItemModel.Id))
+        if (e.PropertyName is nameof(FolderItemModel.TargetPath)
+            or nameof(FolderItemModel.ChartSeriesDefinitions)
+            or nameof(FolderItemModel.HistorySeconds)
+            or nameof(FolderItemModel.ViewSeconds)
+            or nameof(FolderItemModel.Id))
         {
             if (_chartItem is not null)
             {
@@ -211,7 +211,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             }
         }
 
-        if (e.PropertyName is nameof(PageItemModel.RefreshRateMs))
+        if (e.PropertyName is nameof(FolderItemModel.RefreshRateMs))
         {
             if (_chartItem is not null)
             {
@@ -222,13 +222,13 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             StartRenderTimer();
         }
 
-        if (e.PropertyName is nameof(PageItemModel.EffectiveBackground)
-            or nameof(PageItemModel.EffectiveContainerBackground)
-            or nameof(PageItemModel.EffectivePrimaryForeground)
-            or nameof(PageItemModel.EffectiveSecondaryForeground)
-            or nameof(PageItemModel.EffectiveContainerBorderBrush)
-            or nameof(PageItemModel.Title)
-            or nameof(PageItemModel.Footer))
+        if (e.PropertyName is nameof(FolderItemModel.EffectiveBackground)
+            or nameof(FolderItemModel.EffectiveContainerBackground)
+            or nameof(FolderItemModel.EffectivePrimaryForeground)
+            or nameof(FolderItemModel.EffectiveSecondaryForeground)
+            or nameof(FolderItemModel.EffectiveContainerBorderBrush)
+            or nameof(FolderItemModel.Title)
+            or nameof(FolderItemModel.Footer))
         {
             UpdateStatusText();
             if (PageIsActive && IsVisible)
@@ -835,7 +835,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
 
     private sealed record ChartStateConfiguration(int HistorySeconds, int RefreshRateMs, List<ChartSeriesConfiguration> SeriesConfigurations);
 
-    private static ChartRuntimeState GetOrCreateChartState(PageItemModel item)
+    private static ChartRuntimeState GetOrCreateChartState(FolderItemModel item)
     {
         lock (ChartStatesLock)
         {
@@ -853,12 +853,12 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         }
     }
 
-    private static ChartStateConfiguration CreateChartStateConfiguration(PageItemModel item)
+    private static ChartStateConfiguration CreateChartStateConfiguration(FolderItemModel item)
     {
-        var seriesConfigurations = ParseSeriesDefinitions(item.ChartSeriesDefinitions, item.PageName);
+        var seriesConfigurations = ParseSeriesDefinitions(item.ChartSeriesDefinitions, item.FolderName);
         if (seriesConfigurations.Count == 0 && !string.IsNullOrWhiteSpace(item.TargetPath))
         {
-            seriesConfigurations = [CreateSeriesConfiguration(item.TargetPath, item.PageName, 1)];
+            seriesConfigurations = [CreateSeriesConfiguration(item.TargetPath, item.FolderName, 1)];
         }
 
         return new ChartStateConfiguration(
@@ -876,13 +876,13 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         private int _historySeconds;
         private int _refreshRateMs;
 
-        public ChartRuntimeState(PageItemModel item)
+        public ChartRuntimeState(FolderItemModel item)
         {
             UpdateConfiguration(CreateChartStateConfiguration(item));
             SampleCurrentValues();
         }
 
-        public void Attach(PageItemModel item)
+        public void Attach(FolderItemModel item)
         {
             UpdateConfiguration(CreateChartStateConfiguration(item));
         }

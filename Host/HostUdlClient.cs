@@ -48,6 +48,7 @@ public sealed class HostUdlClient : IHostUdlClient
     private readonly Dictionary<uint, PendingCommand> _pendingCommands = new();
     private CancellationTokenSource? _lifetime;
     private CanHub? _hub;
+    private long _receivedFrameLogCount;
     private long _ignoredFrameLogCount;
     private readonly IPEndPoint _remoteEndpoint;
     private Task? _heartbeatTask;
@@ -179,8 +180,11 @@ public sealed class HostUdlClient : IHostUdlClient
             return;
         }
 
-        // Minimaldiagnostik, um zu sehen, ob Frames ankommen.
-        RaiseDiagnostic($"[HostUdlClient:{Name}] frame received from={remoteEndpoint} id=0x{id:X3} dlc={dlc}");
+        var current = Interlocked.Increment(ref _receivedFrameLogCount);
+        if (current <= 3 || current % 500 == 0)
+        {
+            RaiseDiagnostic($"[HostUdlClient:{Name}] frame received from={remoteEndpoint} id=0x{id:X3} dlc={dlc} count={current}");
+        }
 
         ProcessFrame(id, dlc, data);
         RaiseFrame(id, dlc, data);

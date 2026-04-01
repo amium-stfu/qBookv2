@@ -1,4 +1,4 @@
-# Interface Architecture Notes
+﻿# Interface Architecture Notes
 
 ## Ziel
 
@@ -39,7 +39,7 @@ UiPublisher.Publish(myS1);
 Das bedeutet:
 
 - `CanBus` hat eine eigene kleine Registry oder Item-Sammlung
-- `Page` oder andere Runtime-Komponenten holen sich daraus gezielt ein `Item`
+- `Folder` oder andere Runtime-Komponenten holen sich daraus gezielt ein `Item`
 - die zentrale UI-Registry bleibt weiterhin `HostRegistries.Data`
 
 ## Warum das wichtig ist
@@ -47,7 +47,7 @@ Das bedeutet:
 Wenn jede Schnittstelle direkt dieselbe globale Struktur verwaltet, entstehen spaeter schnell Probleme:
 
 - mehrere Instanzen eines Plugins lassen sich schwer trennen
-- Namen wie `S1` kollidieren zwischen verschiedenen Pages oder Bussen
+- Namen wie `S1` kollidieren zwischen verschiedenen Folders oder Bussen
 - Runtime-Verantwortung und UI-Verantwortung vermischen sich
 - die UI muss plugin-spezifische Sonderfaelle kennen
 
@@ -180,9 +180,9 @@ public sealed class CanBus
 Dann koennen z.B. folgende Pfade entstehen:
 
 ```text
-Testbook/Page1/CanBus
-Testbook/Page1/CanBus/S1
-Testbook/Page1/CanBus/S2
+TestProject/Folder1/CanBus
+TestProject/Folder1/CanBus/S1
+TestProject/Folder1/CanBus/S2
 ```
 
 Das heisst:
@@ -210,7 +210,7 @@ var myS1 = CanBus.Items["S1"];
 Eine statische globale Sammlung wird spaeter problematisch, wenn:
 
 - mehrere `CanBus`-Instanzen existieren
-- mehrere Pages dieselbe Schnittstelle nutzen
+- mehrere Folders dieselbe Schnittstelle nutzen
 - mehrere Verbindungen parallel laufen
 
 ## Konsequenz fuer Path
@@ -226,8 +226,8 @@ S1
 Besser:
 
 ```text
-Testbook/Page1/CanBus/S1
-Testbook/Page2/CanBus/S1
+TestProject/Folder1/CanBus/S1
+TestProject/Folder2/CanBus/S1
 ```
 
 Dadurch bleiben mehrere Instanzen trennbar.
@@ -261,8 +261,8 @@ Ein Plugin-Objekt ist nicht automatisch selbst ein UI-Knoten.
 
 Pfadsegmente sollten den fachlichen Kontext enthalten:
 
-- Book
-- Page
+- Project
+- Folder
 - Plugin-Instanz oder Plugin-Typ
 - Signal- oder Item-Name
 
@@ -288,3 +288,4 @@ HostRegistries.Data = zentrale UI-Registry
 - Schnittstellen sollten meist nicht von `Item` ableiten
 - besser ist Komposition: Schnittstelle hat oder erzeugt `Item`s
 - publiziert wird nur explizit ueber `UiPublisher.Publish(...)`
+

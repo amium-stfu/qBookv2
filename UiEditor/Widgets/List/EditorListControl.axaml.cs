@@ -20,7 +20,7 @@ public partial class EditorListControl : EditorTemplateWidget
     private ScrollViewer? _listScrollViewer;
     private INotifyCollectionChanged? _itemsCollection;
 
-    private PageItemModel? Item => DataContext as PageItemModel;
+    private FolderItemModel? Item => DataContext as FolderItemModel;
 
     private MainWindowViewModel? ViewModel
         => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
@@ -33,11 +33,11 @@ public partial class EditorListControl : EditorTemplateWidget
         DataContextChanged += OnDataContextChanged;
     }
 
-    private PageItemModel? ListItem => Item;
+    private FolderItemModel? ListItem => Item;
 
     private void OnChildItemPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Control { DataContext: PageItemModel childItem } || ListItem is null || ViewModel?.IsEditMode != true)
+        if (sender is not Control { DataContext: FolderItemModel childItem } || ListItem is null || ViewModel?.IsEditMode != true)
         {
             return;
         }

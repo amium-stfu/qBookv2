@@ -60,7 +60,7 @@
         RowSpan: 1
         ColumnSpan: 2
         Child:
-          Type: Item
+          Type: Signal
           Identity:
             Name: Item1
             Path: UdlBook/Page1/udl1/m310
@@ -121,7 +121,7 @@
         RowSpan: 1
         ColumnSpan: 1
         Child:
-          Type: Item
+          Type: Signal
           Identity:
             Name: Item2
             Path: UdlBook/Page1/udl1/m320
@@ -136,7 +136,7 @@
         RowSpan: 1
         ColumnSpan: 1
         Child:
-          Type: Item
+          Type: Signal
           Identity:
             Name: Item3
             Path: UdlBook/Page1/udl1/m330

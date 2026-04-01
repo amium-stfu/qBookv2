@@ -10,7 +10,7 @@ using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 using System.Text.Json.Nodes;
 
-namespace UdlBook.ViewModels;
+namespace AutomationExplorer.ViewModels;
 
 public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowViewModel
 {
@@ -26,7 +26,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
     private readonly HashSet<string> _watcherSuppressedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _watcherUpsertsInProgress = new(StringComparer.OrdinalIgnoreCase);
     private FileSystemWatcher? _bookWatcher;
-    private readonly UdlBookAppConfig _config;
+    private readonly AutomationExplorerAppConfig _config;
     private string _startupPagePath;
     private string _currentLayoutFilePath = string.Empty;
     private string _currentBookEntryPath = string.Empty;
@@ -34,7 +34,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
     private string _loadedBookSummary;
     private string _messagesSummary;
     private string _currentLogText;
-    private string _headerTitle = "UdlBook";
+    private string _headerTitle = "AutomationExplorer";
     private bool _hasLayout;
     private bool _isDefaultLayout;
     private bool _isBookOperationRunning;
@@ -44,8 +44,8 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         : base(true)
     {
         AutoSaveOnEditModeExit = false;
-        _configPath = Path.Combine(AppContext.BaseDirectory, "UdlBook.config.yaml");
-        _config = UdlBookAppConfig.Load(_configPath);
+        _configPath = Path.Combine(AppContext.BaseDirectory, "AutomationExplorer.config.yaml");
+        _config = AutomationExplorerAppConfig.Load(_configPath);
 
         var defaultLayoutDirectory = Path.Combine(AppContext.BaseDirectory, "DefaultLayout");
         _defaultLayoutPath = Path.Combine(defaultLayoutDirectory, "Page.yaml");
@@ -125,7 +125,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         public string FilePath { get; set; } = string.Empty;
         public int PageIndex { get; set; }
         public string PageName { get; set; } = string.Empty;
-        public BookUiPageLayout Layout { get; set; } = default!;
+        public ProjectFolderLayout Layout { get; set; } = default!;
     }
 
     protected override string? CurrentProjectRootDirectory => BookProjectPath;
@@ -335,7 +335,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return false;
         }
 
-        if (Pages.Any(page => string.Equals(page.Name, trimmedName, StringComparison.OrdinalIgnoreCase)))
+        if (Folders.Any(page => string.Equals(page.Name, trimmedName, StringComparison.OrdinalIgnoreCase)))
         {
             errorMessage = $"A page named '{trimmedName}' already exists.";
             StatusText = errorMessage;
@@ -355,7 +355,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
         if (!IsDirectoryBook)
         {
-            errorMessage = "New pages are only supported for loaded UdlBook directories.";
+            errorMessage = "New pages are only supported for loaded book directories.";
             StatusText = errorMessage;
             return false;
         }
@@ -380,7 +380,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return false;
         }
 
-        var pageIndex = Pages.Count + 1;
+        var pageIndex = Folders.Count + 1;
         var yamlContent = BuildNewPageYaml(trimmedName, pageIndex);
 
         try
@@ -390,10 +390,10 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             EnsureBookEntryFile(GetBookEntryPath(targetDirectory), targetDirectory);
             LoadStructuredBookFromDirectory(targetDirectory, GetBookEntryPath(targetDirectory));
 
-            var createdPage = Pages.FirstOrDefault(page => string.Equals(page.UiFilePath, fullPath, StringComparison.OrdinalIgnoreCase));
+            var createdPage = Folders.FirstOrDefault(page => string.Equals(page.UiFilePath, fullPath, StringComparison.OrdinalIgnoreCase));
             if (createdPage is not null)
             {
-                SelectedPage = createdPage;
+                SelectedFolder = createdPage;
             }
 
             createdFilePath = fullPath;
@@ -468,7 +468,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         StopBookWatcher();
         try
         {
-            var pagesToSave = Pages
+            var pagesToSave = Folders
                 .Where(page => !string.IsNullOrWhiteSpace(page.UiFilePath))
                 .ToList();
 
@@ -478,17 +478,17 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                 return;
             }
 
-            var originalSelectedPage = SelectedPage;
+            var originalSelectedPage = SelectedFolder;
 
             foreach (var page in pagesToSave)
             {
-                SelectedPage = page;
+                SelectedFolder = page;
                 SaveLayout();
             }
 
             if (originalSelectedPage is not null)
             {
-                SelectedPage = originalSelectedPage;
+                SelectedFolder = originalSelectedPage;
             }
 
             StatusText = $"Saved {pagesToSave.Count} pages in directory: {BookProjectPath}";
@@ -513,7 +513,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             var sourceLayoutPath = _currentLayoutFilePath;
             if (string.IsNullOrWhiteSpace(sourceLayoutPath))
             {
-                sourceLayoutPath = SelectedPage.UiFilePath ?? string.Empty;
+                sourceLayoutPath = SelectedFolder.UiFilePath ?? string.Empty;
             }
 
             if (string.IsNullOrWhiteSpace(sourceLayoutPath) || !File.Exists(sourceLayoutPath))
@@ -599,12 +599,12 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
     public void ApplyDestroyedUi(BookProject? project)
     {
         var pages = project is not null
-            ? project.Pages.Select((page, index) => new PageModel
+            ? project.Pages.Select((page, index) => new FolderModel
             {
                 Index = index + 1,
                 Name = string.IsNullOrWhiteSpace(page.Name) ? $"Page{index + 1}" : page.Name
             }).ToList()
-            : Pages.Select(page => new PageModel
+            : Folders.Select(page => new FolderModel
             {
                 Index = page.Index,
                 Name = page.Name
@@ -681,7 +681,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         catch
         {
             // Best-effort only; falls die DefaultLayout-Erzeugung fehlschlägt,
-            // startet UdlBook trotzdem, meldet aber später fehlende Layouts.
+	    // startet AutomationExplorer trotzdem, meldet aber später fehlende Layouts.
         }
     }
 
@@ -785,7 +785,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
     private static string BuildBookEntryContent(string bookRootPath)
     {
         var bookName = Path.GetFileName(bookRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        return $"# UdlBook entry{Environment.NewLine}"
+        return $"# AutomationExplorer book entry{Environment.NewLine}"
             + $"FormatVersion: 1{Environment.NewLine}"
             + $"Book: '{EscapeYamlSingleQuoted(bookName)}'{Environment.NewLine}";
     }
@@ -926,7 +926,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             StatusText = $"No startup page found: {_startupPagePath}";
             HasLayout = false;
             IsDefaultLayout = false;
-            HeaderTitle = "UdlBook";
+            HeaderTitle = "AutomationExplorer";
             return;
         }
 
@@ -938,7 +938,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
         try
         {
-            var layout = BookUiLayoutLoader.LoadYaml(_startupPagePath, "UdlClient");
+            var layout = ProjectUiLayoutLoader.LoadYaml(_startupPagePath, "UdlClient");
             var pageName = GetTechnicalPageName(_startupPagePath);
             var model = CreatePageModelFromLayout(_startupPagePath, layout, 1, pageName);
 
@@ -950,7 +950,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             _isStructuredBook = false;
             HasLayout = true;
             IsDefaultLayout = string.Equals(_startupPagePath, _defaultLayoutPath, StringComparison.OrdinalIgnoreCase);
-            HeaderTitle = Path.GetFileNameWithoutExtension(_startupPagePath) ?? "UdlBook";
+            HeaderTitle = Path.GetFileNameWithoutExtension(_startupPagePath) ?? "AutomationExplorer";
             LoadedBookSummary = $"Default layout | {Path.GetFileName(_startupPagePath)}";
             StatusText = $"Default layout loaded: {_startupPagePath}";
             OnPropertyChanged(nameof(IsCurrentLayoutStartLayout));
@@ -963,7 +963,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             StatusText = $"Default layout could not be loaded: {ex.Message}";
             HasLayout = false;
             IsDefaultLayout = false;
-            HeaderTitle = "UdlBook";
+            HeaderTitle = "AutomationExplorer";
         }
     }
 
@@ -985,14 +985,14 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             StatusText = $"No YAML layout file found: {yamlFilePath}";
             HasLayout = false;
             IsDefaultLayout = false;
-            HeaderTitle = "UdlBook";
+            HeaderTitle = "AutomationExplorer";
             return;
         }
 
         try
         {
             var fallbackName = Path.GetFileNameWithoutExtension(yamlFilePath);
-            var layout = BookUiLayoutLoader.LoadYaml(yamlFilePath, fallbackName);
+            var layout = ProjectUiLayoutLoader.LoadYaml(yamlFilePath, fallbackName);
             var pageName = GetTechnicalPageName(yamlFilePath);
             var model = CreatePageModelFromLayout(yamlFilePath, layout, 1, pageName);
 
@@ -1005,7 +1005,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             _isStructuredBook = false;
             HasLayout = true;
             IsDefaultLayout = false;
-            HeaderTitle = Path.GetFileNameWithoutExtension(yamlFilePath) ?? "UdlBook";
+            HeaderTitle = Path.GetFileNameWithoutExtension(yamlFilePath) ?? "AutomationExplorer";
             LoadedBookSummary = $"YAML layout | {Path.GetFileName(yamlFilePath)}";
             StatusText = $"YAML layout loaded: {yamlFilePath}";
             OnPropertyChanged(nameof(IsCurrentLayoutStartLayout));
@@ -1018,7 +1018,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             StatusText = $"YAML layout could not be loaded: {ex.Message}";
             HasLayout = false;
             IsDefaultLayout = false;
-            HeaderTitle = "UdlBook";
+            HeaderTitle = "AutomationExplorer";
         }
     }
 
@@ -1047,7 +1047,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                 StatusText = $"No YAML book directory found: {fullDirectory}";
                 HasLayout = false;
                 IsDefaultLayout = false;
-                HeaderTitle = "UdlBook";
+                HeaderTitle = "AutomationExplorer";
                 return;
             }
 
@@ -1062,7 +1062,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                 try
                 {
                     var fallbackName = GetPageNameFallback(filePath);
-                    var layout = BookUiLayoutLoader.LoadYaml(filePath, fallbackName);
+                    var layout = ProjectUiLayoutLoader.LoadYaml(filePath, fallbackName);
                     var pageName = GetTechnicalPageName(filePath);
                     var pageIndex = GetPageIndex(layout) ?? int.MaxValue;
                     var watchedPage = new WatchedPage
@@ -1094,7 +1094,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             StatusText = $"YAML load failed: {ex.Message}";
             HasLayout = false;
             IsDefaultLayout = false;
-            HeaderTitle = "UdlBook";
+            HeaderTitle = "AutomationExplorer";
         }
     }
 
@@ -1108,7 +1108,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             StatusText = $"No .udlb file found: {fullEntryPath}";
             HasLayout = false;
             IsDefaultLayout = false;
-            HeaderTitle = "UdlBook";
+            HeaderTitle = "AutomationExplorer";
             return;
         }
 
@@ -1123,11 +1123,11 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             if (!Directory.Exists(fullDirectory))
             {
                 LoadedBookSummary = "Book directory not found";
-                AddMessage("Load", "Warning", "UdlBook root directory not found.", fullDirectory);
-                StatusText = $"No UdlBook directory found: {fullDirectory}";
+                AddMessage("Load", "Warning", "AutomationExplorer book root directory not found.", fullDirectory);
+                StatusText = $"No AutomationExplorer book directory found: {fullDirectory}";
                 HasLayout = false;
                 IsDefaultLayout = false;
-                HeaderTitle = "UdlBook";
+                HeaderTitle = "AutomationExplorer";
                 return;
             }
 
@@ -1151,8 +1151,8 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             {
                 HasLayout = false;
                 IsDefaultLayout = false;
-                HeaderTitle = Path.GetFileName(fullDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "UdlBook";
-                SetPages(Array.Empty<PageModel>());
+                HeaderTitle = Path.GetFileName(fullDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "AutomationExplorer";
+                SetPages(Array.Empty<FolderModel>());
                 LoadedBookSummary = "Pages directory missing";
                 StatusText = $"Pages directory missing: {pagesDirectory}";
                 AddMessage("Load", "Warning", "Pages directory not found.", pagesDirectory);
@@ -1179,7 +1179,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                 {
                     ValidatePageMetadataScripts(pageDirectory);
                     var fallbackName = GetPageNameFallback(filePath);
-                    var layout = BookUiLayoutLoader.LoadYaml(filePath, fallbackName);
+                    var layout = ProjectUiLayoutLoader.LoadYaml(filePath, fallbackName);
                     var pageName = GetTechnicalPageName(filePath);
                     if (!usedPageNames.Add(pageName))
                     {
@@ -1204,17 +1204,17 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
             UpdatePagesFromWatchedPages(fullDirectory);
             StartBookWatcher(pagesDirectory, PageLayoutFileName, true);
-            LoadedBookSummary = $"UdlBook | Pages: {_watchedPages.Count}";
-            StatusText = $"UdlBook loaded: {fullDirectory}";
+            LoadedBookSummary = $"AutomationExplorer | Pages: {_watchedPages.Count}";
+            StatusText = $"AutomationExplorer loaded: {fullDirectory}";
         }
         catch (Exception ex)
         {
-            LoadedBookSummary = "UdlBook could not be loaded";
+            LoadedBookSummary = "AutomationExplorer could not be loaded";
             AddMessage("Load", "Error", ex.Message, bookRootPath);
-            StatusText = $"UdlBook load failed: {ex.Message}";
+            StatusText = $"AutomationExplorer load failed: {ex.Message}";
             HasLayout = false;
             IsDefaultLayout = false;
-            HeaderTitle = "UdlBook";
+            HeaderTitle = "AutomationExplorer";
         }
     }
 
@@ -1271,10 +1271,10 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                 LoadYamlBookFromDirectory(BookProjectPath);
                 BookProjectPath = Path.GetFullPath(BookProjectPath);
                 LoadedBookSummary = _isStructuredBook
-                    ? $"UdlBook | {BookProjectPath}"
+                    ? $"AutomationExplorer | {BookProjectPath}"
                     : $"Directory book | {BookProjectPath}";
                 StatusText = _isStructuredBook
-                    ? $"UdlBook loaded: {BookProjectPath}"
+                    ? $"AutomationExplorer loaded: {BookProjectPath}"
                     : $"Book directory loaded: {BookProjectPath}";
                 return;
             }
@@ -1292,7 +1292,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                 var entryPath = Path.GetFullPath(BookProjectPath);
                 LoadStructuredBookFromEntryFile(entryPath);
                 BookProjectPath = Path.GetDirectoryName(entryPath) ?? AppContext.BaseDirectory;
-                LoadedBookSummary = $"UdlBook | {Path.GetFileName(entryPath)}";
+                LoadedBookSummary = $"AutomationExplorer | {Path.GetFileName(entryPath)}";
                 StatusText = $"Book loaded: {entryPath}";
                 return;
             }
@@ -1343,7 +1343,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                         ? GetBookEntryPath(BookProjectPath)
                         : _currentBookEntryPath;
                     LoadStructuredBookFromDirectory(BookProjectPath, entryPath);
-                    StatusText = $"UdlBook reloaded: {BookProjectPath}";
+                    StatusText = $"AutomationExplorer reloaded: {BookProjectPath}";
                 }
                 else
                 {
@@ -1375,7 +1375,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         }
     }
 
-    private IReadOnlyList<PageModel> CreatePagesFromBook(BookProject project)
+    private IReadOnlyList<FolderModel> CreatePagesFromBook(BookProject project)
     {
         var pages = project.Pages
             .Select((page, index) => CreatePageFromBook(page, index + 1))
@@ -1383,7 +1383,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
         if (pages.Count == 0)
         {
-            pages.Add(new PageModel
+            pages.Add(new FolderModel
             {
                 Index = 1,
                 Name = project.ProjectName
@@ -1393,7 +1393,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         return pages;
     }
 
-    private PageModel CreatePageFromBook(BookProjectPage page, int index)
+    private FolderModel CreatePageFromBook(BookProjectPage page, int index)
     {
         var pageName = string.IsNullOrWhiteSpace(page.Name) ? $"Page{index}" : page.Name;
         var pageDisplayText = GetPageDisplayText(page) ?? pageName;
@@ -1401,7 +1401,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
         if (string.IsNullOrWhiteSpace(yamlPath) || !File.Exists(yamlPath))
         {
-            var fallbackModel = new PageModel
+            var fallbackModel = new FolderModel
             {
                 Index = index,
                 Name = pageName,
@@ -1415,8 +1415,8 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
         try
         {
-            var layout = BookUiLayoutLoader.LoadYaml(yamlPath, page.Name);
-            var model = new PageModel
+            var layout = ProjectUiLayoutLoader.LoadYaml(yamlPath, page.Name);
+            var model = new FolderModel
             {
                 Index = index,
                 Name = pageName,
@@ -1437,7 +1437,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         catch (Exception ex)
         {
             AddMessage("UI", "Error", ex.Message, yamlPath);
-            var fallbackModel = new PageModel
+            var fallbackModel = new FolderModel
             {
                 Index = index,
                 Name = pageName,
@@ -1449,7 +1449,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         }
     }
 
-    private IEnumerable<PageItemModel> CreateItemsFromNode(string pageName, BookUiNode node, double defaultX, double defaultY)
+    private IEnumerable<FolderItemModel> CreateItemsFromNode(string pageName, ProjectUiNode node, double defaultX, double defaultY)
     {
         if (IsContainerNode(node))
         {
@@ -1473,7 +1473,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         yield return CreateItemFromUiNode(pageName, node, defaultX, defaultY);
     }
 
-    private PageItemModel CreateItemFromUiNode(string pageName, BookUiNode node, double defaultX, double defaultY)
+    private FolderItemModel CreateItemFromUiNode(string pageName, ProjectUiNode node, double defaultX, double defaultY)
     {
         var type = node.Type;
         var text = string.IsNullOrWhiteSpace(node.Text) ? type : node.Text;
@@ -1481,7 +1481,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         var isButton = kind == ControlKind.Button;
         var isListControl = kind == ControlKind.ListControl;
         var isChartControl = kind == ControlKind.ChartControl;
-        var item = new PageItemModel
+        var item = new FolderItemModel
         {
             Kind = kind,
             Name = text,
@@ -1523,7 +1523,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         return item;
     }
 
-    private static bool IsContainerNode(BookUiNode node)
+    private static bool IsContainerNode(ProjectUiNode node)
     {
         return string.Equals(node.Type, "StackPanel", StringComparison.OrdinalIgnoreCase)
             || string.Equals(node.Type, "Canvas", StringComparison.OrdinalIgnoreCase)
@@ -1565,9 +1565,9 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         return ControlKind.Item;
     }
 
-    private PageItemModel CreateFallbackItem(string pageName, string message)
+    private FolderItemModel CreateFallbackItem(string pageName, string message)
     {
-        var item = new PageItemModel
+        var item = new FolderItemModel
         {
             Kind = ControlKind.Item,
             Name = message,
@@ -1585,7 +1585,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         return item;
     }
 
-    private static int? GetPageIndex(BookUiPageLayout layout)
+    private static int? GetPageIndex(ProjectFolderLayout layout)
     {
         try
         {
@@ -1613,9 +1613,9 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         return null;
     }
 
-    private PageModel CreatePageModelFromLayout(string uiFilePath, BookUiPageLayout layout, int index, string pageName)
+    private FolderModel CreatePageModelFromLayout(string uiFilePath, ProjectFolderLayout layout, int index, string pageName)
     {
-        var model = new PageModel
+        var model = new FolderModel
         {
             Index = index,
             Views = layout.Views.ToDictionary(static entry => entry.Key, static entry => entry.Value),
@@ -1764,7 +1764,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         try
         {
             var fallbackName = GetPageNameFallback(filePath);
-            var layout = BookUiLayoutLoader.LoadYaml(filePath, fallbackName);
+            var layout = ProjectUiLayoutLoader.LoadYaml(filePath, fallbackName);
             var pageName = GetTechnicalPageName(filePath);
             var resolvedPageName = await ResolveWatchedPageNameConflictAsync(filePath, pageName);
             if (string.IsNullOrWhiteSpace(resolvedPageName))
@@ -1778,7 +1778,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             {
                 effectivePath = RenamePageStorage(filePath, resolvedPageName);
                 fallbackName = GetPageNameFallback(effectivePath);
-                layout = BookUiLayoutLoader.LoadYaml(effectivePath, fallbackName);
+                layout = ProjectUiLayoutLoader.LoadYaml(effectivePath, fallbackName);
             }
 
             pageName = GetTechnicalPageName(effectivePath);
@@ -1840,7 +1840,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
         return _watchedPages.Values.Any(page => !string.Equals(page.FilePath, filePath, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(page.PageName, pageName, StringComparison.OrdinalIgnoreCase))
-            || Pages.Any(page => !string.Equals(page.UiFilePath, filePath, StringComparison.OrdinalIgnoreCase)
+            || Folders.Any(page => !string.Equals(page.UiFilePath, filePath, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(page.Name, pageName, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -1923,8 +1923,8 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             _currentLayoutFilePath = string.Empty;
             HasLayout = false;
             IsDefaultLayout = false;
-            HeaderTitle = Path.GetFileName(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "UdlBook";
-            SetPages(Array.Empty<PageModel>());
+            HeaderTitle = Path.GetFileName(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "AutomationExplorer";
+            SetPages(Array.Empty<FolderModel>());
             LoadedBookSummary = "No pages found";
             StatusText = $"No pages found in directory: {directory}";
             OnPropertyChanged(nameof(IsCurrentLayoutStartLayout));
@@ -1932,7 +1932,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return;
         }
 
-        var pages = new List<PageModel>(orderedPages.Count);
+        var pages = new List<FolderModel>(orderedPages.Count);
         for (var i = 0; i < orderedPages.Count; i++)
         {
             var watched = orderedPages[i];
@@ -1946,12 +1946,12 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         _currentLayoutFilePath = orderedPages[0].FilePath;
         HasLayout = true;
         IsDefaultLayout = false;
-        HeaderTitle = Path.GetFileName(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "UdlBook";
+        HeaderTitle = Path.GetFileName(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "AutomationExplorer";
         LoadedBookSummary = _isStructuredBook
-            ? $"UdlBook | Pages: {pages.Count}"
+            ? $"AutomationExplorer | Pages: {pages.Count}"
             : $"Directory book | Pages: {pages.Count}";
         StatusText = _isStructuredBook
-            ? $"UdlBook loaded: {directory}"
+            ? $"AutomationExplorer loaded: {directory}"
             : $"Directory loaded: {directory}";
         OnPropertyChanged(nameof(IsCurrentLayoutStartLayout));
         OnPropertyChanged(nameof(StartLayoutIconColor));

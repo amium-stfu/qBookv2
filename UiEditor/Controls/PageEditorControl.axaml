@@ -1,6 +1,6 @@
 <UserControl
   x:Name="Root"
-    x:Class="Amium.UiEditor.Controls.PageEditorControl"
+    x:Class="Amium.UiEditor.Controls.FolderEditorControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Controls"
@@ -29,7 +29,7 @@
             </ItemsControl.Styles>
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="viewModels:EditorGridLine">
-                <Border Width="{Binding Width}" Height="{Binding Height}" Background="{Binding GridLineBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+                <Border Width="{Binding Width}" Height="{Binding Height}" Background="{Binding GridLineBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
@@ -45,27 +45,27 @@
               </Style>
             </ItemsControl.Styles>
             <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="models:PageItemModel">
+              <DataTemplate DataType="models:FolderItemModel">
                 <Grid Width="{Binding Width}" Height="{Binding Height}" IsVisible="{Binding IsVisibleInActiveView}" PointerPressed="OnItemPointerPressed" ToolTip.Tip="{Binding EffectiveToolTipText}">
                   <controls:EditorButtonControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsButton}" />
-                  <controls:EditorItemControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />
+                  <controls:EditorSignalControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />
                   <controls:EditorListControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsListControl}" />
                   <controls:EditorLogControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsLogControl}" PageIsActive="{Binding Page.IsSelected, ElementName=Root}" />
                   <controls:RealtimeChartControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsChartControl}" PageIsActive="{Binding Page.IsSelected, ElementName=Root}" />
                   <controls:UdlClientControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsUdlClientControl}" />
 
                   <!-- Auswahlrahmen nur im EditMode anzeigen -->
-                  <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" IsHitTestVisible="False">
+                  <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" IsHitTestVisible="False">
                     <Border BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#F59E0B}" BorderThickness="2" CornerRadius="8" IsHitTestVisible="False" />
                   </Border>
 
                   <!-- Master-Auswahlrahmen nur im EditMode anzeigen -->
-                  <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" IsHitTestVisible="False">
+                  <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" IsHitTestVisible="False">
                     <Border BorderBrush="{Binding IsMasterSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#2563EB}" BorderThickness="3" CornerRadius="8" IsHitTestVisible="False" />
                   </Border>
 
                   <!-- Resize-Handle nur im EditMode anzeigen (muss hit-testbar sein) -->
-                  <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" Background="Transparent">
+                  <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" Background="Transparent">
                     <Border Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4" Background="#F59E0B" CornerRadius="4" Cursor="BottomRightCorner" IsVisible="{Binding IsMasterSelected}" PointerPressed="OnResizeHandlePointerPressed" />
                   </Border>
 
@@ -87,7 +87,7 @@
                       ToolTip.Tip="Settings">
                     <editorUi:ThemeSvgIcon Width="12" Height="12"
                             IconPath="avares://Amium.Editor/EditorIcons/cog.svg"
-                            TintColor="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+                            TintColor="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
                       </Button>
                       <Button Classes="toolicon"
                       Width="18" Height="18" MinWidth="18"
@@ -98,17 +98,17 @@
                       ToolTip.Tip="Delete">
                     <editorUi:ThemeSvgIcon Width="12" Height="12"
                             IconPath="avares://Amium.Editor/EditorIcons/remove.svg"
-                            TintColor="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}" />
+                            TintColor="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
                       </Button>
                       <ToggleButton Classes="toolicon"
                                     Width="40" Height="18" MinWidth="40"
                                     Padding="2,0,2,0"
                                     Background="Transparent"
                                     BorderBrush="Transparent"
-                                    IsChecked="{Binding DataContext.IsShiftInteractionMode, Mode=TwoWay, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
+                                    IsChecked="{Binding DataContext.IsShiftInteractionMode, Mode=TwoWay, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}"
                                     ToolTip.Tip="Body-Interaktion an/aus">
                         <TextBlock FontSize="11" FontWeight="SemiBold"
-                                   Foreground="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
+                                   Foreground="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}"
                                    Text="Body" />
                       </ToggleButton>
                     </StackPanel>
@@ -143,7 +143,7 @@
               <StackPanel Margin="10" Spacing="8">
                 <TextBlock FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Control platzieren" />
                 <Button Classes="toolbar" Click="OnBeginAddButtonClicked" Content="Button" />
-                <Button Classes="toolbar" Click="OnBeginAddItemClicked" Content="Item" />
+                <Button Classes="toolbar" Click="OnBeginAddSignalClicked" Content="Signal" />
                 <Button Classes="toolbar" Click="OnBeginAddListControlClicked" Content="ListControl" />
                 <Button Classes="toolbar" Click="OnBeginAddLogControlClicked" Content="LogControl" />
                 <Button Classes="toolbar" Click="OnBeginAddChartControlClicked" Content="ChartControl" />
@@ -156,7 +156,7 @@
               <StackPanel Margin="10" Spacing="8">
                 <TextBlock FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="In Liste einfuegen" />
                 <Button Classes="toolbar" Click="OnBeginAddButtonToListClicked" Content="Button" />
-                <Button Classes="toolbar" Click="OnBeginAddItemToListClicked" Content="Item" />
+                <Button Classes="toolbar" Click="OnBeginAddSignalToListClicked" Content="Signal" />
                 <Button Click="OnCancelListSelectionClicked" Content="Abbrechen" />
               </StackPanel>
             </Border>

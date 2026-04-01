@@ -33,7 +33,7 @@ public partial class EditorLogControl : UserControl
     private ListBox? _logListBox;
     private ScrollViewer? _scrollViewer;
     private ProcessLog? _processLog;
-    private PageItemModel? _observedLogItem;
+    private FolderItemModel? _observedLogItem;
     private MainWindowViewModel? _observedViewModel;
     private Button? _debugButton;
     private Button? _infoButton;
@@ -61,7 +61,7 @@ public partial class EditorLogControl : UserControl
         set => SetValue(PageIsActiveProperty, value);
     }
 
-    private PageItemModel? LogItem => DataContext as PageItemModel;
+    private FolderItemModel? LogItem => DataContext as FolderItemModel;
 
     private MainWindowViewModel? ViewModel
         => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
@@ -223,7 +223,7 @@ public partial class EditorLogControl : UserControl
 
     private void OnLogItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(PageItemModel.TargetLog))
+        if (e.PropertyName == nameof(FolderItemModel.TargetLog))
         {
             ResolveProcessLog();
             ReloadEntries();
@@ -231,13 +231,13 @@ public partial class EditorLogControl : UserControl
             return;
         }
 
-        if (e.PropertyName is nameof(PageItemModel.EffectiveBackground)
-            or nameof(PageItemModel.EffectiveBorderBrush)
-            or nameof(PageItemModel.EffectivePrimaryForeground)
-            or nameof(PageItemModel.EffectiveSecondaryForeground)
-            or nameof(PageItemModel.EffectiveMutedForeground)
-            or nameof(PageItemModel.EffectiveContainerBackground)
-            or nameof(PageItemModel.EffectiveContainerBorderBrush))
+        if (e.PropertyName is nameof(FolderItemModel.EffectiveBackground)
+            or nameof(FolderItemModel.EffectiveBorderBrush)
+            or nameof(FolderItemModel.EffectivePrimaryForeground)
+            or nameof(FolderItemModel.EffectiveSecondaryForeground)
+            or nameof(FolderItemModel.EffectiveMutedForeground)
+            or nameof(FolderItemModel.EffectiveContainerBackground)
+            or nameof(FolderItemModel.EffectiveContainerBorderBrush))
         {
             Dispatcher.UIThread.Post(() =>
             {

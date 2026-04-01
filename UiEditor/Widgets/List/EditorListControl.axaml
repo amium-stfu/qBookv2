@@ -21,11 +21,11 @@
           </Style>
         </ListBox.Styles>
         <ListBox.ItemTemplate>
-          <DataTemplate DataType="models:PageItemModel">
+          <DataTemplate DataType="models:FolderItemModel">
             <Border Height="{Binding Height}" HorizontalAlignment="Stretch" IsVisible="{Binding IsVisibleInActiveView}" PointerPressed="OnChildItemPointerPressed">
               <Grid HorizontalAlignment="Stretch" Height="{Binding Height}">
                 <controls:EditorButtonControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsButton}" />
-                <controls:EditorItemControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />
+                <controls:EditorSignalControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />
                 <Border BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#F59E0B}" BorderThickness="2" CornerRadius="{Binding EffectiveCornerRadius}" IsHitTestVisible="False" />
               </Grid>
             </Border>

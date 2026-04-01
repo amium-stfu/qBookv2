@@ -5,12 +5,12 @@ using Amium.UiEditor.ViewModels;
 
 namespace Amium.UiEditor.Models;
 
-public sealed class PageModel : ObservableObject
+public sealed class FolderModel : ObservableObject
 {
     private bool _isSelected;
     private int _actualViewId = 1;
 
-    public PageModel()
+    public FolderModel()
     {
         Items.CollectionChanged += OnItemsCollectionChanged;
     }
@@ -49,9 +49,9 @@ public sealed class PageModel : ObservableObject
 
     public string? UiFilePath { get; init; }
 
-    public BookUiPageLayout? UiLayoutDefinition { get; init; }
+    public ProjectFolderLayout? UiLayoutDefinition { get; init; }
 
-    public ObservableCollection<PageItemModel> Items { get; } = [];
+    public ObservableCollection<FolderItemModel> Items { get; } = [];
 
     public bool IsSelected
     {

@@ -10,13 +10,13 @@ using Amium.UiEditor.ViewModels;
 
 namespace Amium.UiEditor.Controls;
 
-public partial class PageEditorControl : UserControl
+public partial class FolderEditorControl : UserControl
 {
     public static readonly StyledProperty<string> GridLineBrushProperty =
-        AvaloniaProperty.Register<PageEditorControl, string>(nameof(GridLineBrush), "#E9EEF5");
+        AvaloniaProperty.Register<FolderEditorControl, string>(nameof(GridLineBrush), "#E9EEF5");
 
-    public static readonly StyledProperty<PageModel?> PageProperty =
-        AvaloniaProperty.Register<PageEditorControl, PageModel?>(nameof(Page));
+    public static readonly StyledProperty<FolderModel?> FolderProperty =
+        AvaloniaProperty.Register<FolderEditorControl, FolderModel?>(nameof(Folder));
 
     private const double EdgeSnapDistance = 8;
 
@@ -24,18 +24,18 @@ public partial class PageEditorControl : UserControl
     private Point? _resizeStart;
     private Point? _selectionStart;
     private bool _addToSelection;
-    private PageItemModel? _dragItem;
-    private readonly Dictionary<PageItemModel, Point> _dragOrigins = [];
+    private FolderItemModel? _dragItem;
+    private readonly Dictionary<FolderItemModel, Point> _dragOrigins = [];
     private double _dragGroupMinX;
     private double _dragGroupMinY;
     private double _dragGroupWidth;
     private double _dragGroupHeight;
     private double _resizeOriginWidth;
     private double _resizeOriginHeight;
-    private readonly Dictionary<PageItemModel, Size> _resizeOrigins = [];
+    private readonly Dictionary<FolderItemModel, Size> _resizeOrigins = [];
     private EditorPropertyDialogWindow? _editorDialogWindow;
 
-    public PageEditorControl()
+    public FolderEditorControl()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
@@ -56,13 +56,13 @@ public partial class PageEditorControl : UserControl
         private set => SetValue(GridLineBrushProperty, value);
     }
 
-    public PageModel? Page
+    public FolderModel? Folder
     {
-        get => GetValue(PageProperty);
-        set => SetValue(PageProperty, value);
+        get => GetValue(FolderProperty);
+        set => SetValue(FolderProperty, value);
     }
 
-    private PageModel? CurrentPage => Page ?? ViewModel?.SelectedPage;
+    private FolderModel? CurrentPage => Folder ?? ViewModel?.SelectedFolder;
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
@@ -298,7 +298,7 @@ public partial class PageEditorControl : UserControl
 
     private void OnItemPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Control { DataContext: PageItemModel item } || ViewModel is null)
+        if (sender is not Control { DataContext: FolderItemModel item } || ViewModel is null)
         {
             return;
         }
@@ -341,7 +341,7 @@ public partial class PageEditorControl : UserControl
 
     private void OnResizeHandlePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Control { DataContext: PageItemModel item } || ViewModel?.IsEditMode != true)
+        if (sender is not Control { DataContext: FolderItemModel item } || ViewModel?.IsEditMode != true)
         {
             return;
         }
@@ -374,18 +374,18 @@ public partial class PageEditorControl : UserControl
     }
 
     private void OnBeginAddButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.Button);
-    private void OnBeginAddItemClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.Item);
+    private void OnBeginAddSignalClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.Signal);
     private void OnBeginAddListControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.ListControl);
     private void OnBeginAddLogControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.LogControl);
     private void OnBeginAddChartControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.ChartControl);
     private void OnBeginAddUdlClientControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.UdlClientControl);
     private void OnBeginAddButtonToListClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginListAdd(ControlKind.Button);
-    private void OnBeginAddItemToListClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginListAdd(ControlKind.Item);
+    private void OnBeginAddSignalToListClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginListAdd(ControlKind.Signal);
     private void OnCancelSelectionClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.CancelSelection();
     private void OnCancelListSelectionClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.CancelListPopup();
     private void OnEditorCanvasSizeChanged(object? sender, SizeChangedEventArgs e) => ViewModel?.UpdateCanvasSize(e.NewSize.Width, e.NewSize.Height);
 
-    private void StartDragSelection(PageItemModel anchorItem, Point startPosition)
+    private void StartDragSelection(FolderItemModel anchorItem, Point startPosition)
     {
         var items = ViewModel?.GetSelectedItems() ?? [];
         if (items.Count == 0)
@@ -408,7 +408,7 @@ public partial class PageEditorControl : UserControl
         _dragGroupHeight = items.Max(item => item.Y + item.Height) - _dragGroupMinY;
     }
 
-    private PageItemModel? FindDropListTarget(PageItemModel draggedItem)
+    private FolderItemModel? FindDropListTarget(FolderItemModel draggedItem)
     {
         var centerX = draggedItem.X + draggedItem.Width / 2;
         var centerY = draggedItem.Y + draggedItem.Height / 2;
@@ -467,7 +467,7 @@ public partial class PageEditorControl : UserControl
         return (Clamp(snappedX, 0, MaxCanvasX(width)), Clamp(snappedY, 0, MaxCanvasY(height)));
     }
 
-    private (double Width, double Height) SnapResizeToEdges(PageItemModel item, double width, double height)
+    private (double Width, double Height) SnapResizeToEdges(FolderItemModel item, double width, double height)
     {
         var snappedWidth = width;
         var snappedHeight = height;

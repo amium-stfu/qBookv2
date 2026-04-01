@@ -4,7 +4,7 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:controls="using:Amium.UiEditor.Widgets"
-  DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}">
+  DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}">
   <UserControl.Styles>
     <Style Selector="TextBox.input-field">
       <Setter Property="BorderThickness" Value="1" />

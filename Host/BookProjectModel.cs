@@ -7,18 +7,18 @@ using System.Text.Json;
 
 namespace Amium.Host;
 
-public sealed class BookProject
+public sealed class ProjectModel
 {
-    public BookProject(
+    public ProjectModel(
         string rootDirectory,
         string projectName,
         string assemblyName,
         string targetFramework,
-        string pagesDirectory,
+        string foldersDirectory,
         string programFile,
         string globalUsingsFile,
         string projectFile,
-        IReadOnlyList<BookProjectPage> pages,
+        IReadOnlyList<ProjectFolder> folders,
         IReadOnlyList<string> uiFiles,
         IReadOnlyList<string> sourceFiles)
     {
@@ -26,11 +26,11 @@ public sealed class BookProject
         ProjectName = projectName;
         AssemblyName = assemblyName;
         TargetFramework = targetFramework;
-        PagesDirectory = pagesDirectory;
+        FoldersDirectory = foldersDirectory;
         ProgramFile = programFile;
         GlobalUsingsFile = globalUsingsFile;
         ProjectFile = projectFile;
-        Pages = pages;
+        Folders = folders;
         UiFiles = uiFiles;
         SourceFiles = sourceFiles;
     }
@@ -39,18 +39,18 @@ public sealed class BookProject
     public string ProjectName { get; }
     public string AssemblyName { get; }
     public string TargetFramework { get; }
-    public string PagesDirectory { get; }
+    public string FoldersDirectory { get; }
     public string ProgramFile { get; }
     public string GlobalUsingsFile { get; }
     public string ProjectFile { get; }
-    public IReadOnlyList<BookProjectPage> Pages { get; }
+    public IReadOnlyList<ProjectFolder> Folders { get; }
     public IReadOnlyList<string> UiFiles { get; }
     public IReadOnlyList<string> SourceFiles { get; }
 }
 
-public sealed class BookProjectPage
+public sealed class ProjectFolder
 {
-    public BookProjectPage(string name, string directory, string? metadataFile, string? uiFile, IReadOnlyList<string> sourceFiles)
+    public ProjectFolder(string name, string directory, string? metadataFile, string? uiFile, IReadOnlyList<string> sourceFiles)
     {
         Name = name;
         Directory = directory;
@@ -66,17 +66,17 @@ public sealed class BookProjectPage
     public IReadOnlyList<string> SourceFiles { get; }
 }
 
-public sealed class BookManifest
+public sealed class ProjectManifest
 {
-    public string ProjectName { get; set; } = "Book";
+    public string ProjectName { get; set; } = "Project";
     public string? TargetFramework { get; set; }
 }
 
-public static class BookProjectLoader
+public static class ProjectLoader
 {
     public static Func<string, IReadOnlyList<string>> ReferencePathResolver { get; set; } = static _ => Array.Empty<string>();
 
-    public static BookProject Load(string rootDirectory)
+    public static ProjectModel Load(string rootDirectory)
     {
         if (string.IsNullOrWhiteSpace(rootDirectory))
         {
@@ -98,10 +98,15 @@ public static class BookProjectLoader
             ? manifest!.TargetFramework!
             : "net9.0-windows";
 
-        var pagesDirectory = Path.Combine(fullRoot, "Pages");
-        if (!Directory.Exists(pagesDirectory))
+        var foldersDirectory = Path.Combine(fullRoot, "Folders");
+        if (!Directory.Exists(foldersDirectory))
         {
-            throw new DirectoryNotFoundException($"Pages directory not found: {pagesDirectory}");
+            foldersDirectory = Path.Combine(fullRoot, "Pages");
+        }
+
+        if (!Directory.Exists(foldersDirectory))
+        {
+            throw new DirectoryNotFoundException($"Folders directory not found: {foldersDirectory}");
         }
 
         var programFile = Path.Combine(fullRoot, "Program.cs");
@@ -113,24 +118,24 @@ public static class BookProjectLoader
         }
 
         var projectFile = Path.Combine(fullRoot, projectName + ".csproj");
-        var pages = LoadPages(pagesDirectory);
-        var uiFiles = pages
-            .Select(page => page.UiFile)
+        var folders = LoadFolders(foldersDirectory);
+        var uiFiles = folders
+            .Select(folder => folder.UiFile)
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .Cast<string>()
             .ToArray();
-        var sourceFiles = CollectSourceFiles(fullRoot, pagesDirectory, programFile, globalUsingsFile, pages);
+        var sourceFiles = CollectSourceFiles(fullRoot, foldersDirectory, programFile, globalUsingsFile, folders);
 
-        var project = new BookProject(
+        var project = new ProjectModel(
             fullRoot,
             projectName,
             projectName,
             targetFramework,
-            pagesDirectory,
+            foldersDirectory,
             programFile,
             globalUsingsFile,
             projectFile,
-            pages,
+            folders,
             uiFiles,
             sourceFiles);
 
@@ -138,62 +143,74 @@ public static class BookProjectLoader
         return project;
     }
 
-    private static BookManifest? ReadManifest(string rootDirectory)
+    private static ProjectManifest? ReadManifest(string rootDirectory)
     {
-        var manifestPath = Path.Combine(rootDirectory, "Book.json");
+        var manifestPath = Path.Combine(rootDirectory, "Project.json");
         if (!File.Exists(manifestPath))
         {
-            return null;
+            manifestPath = Path.Combine(rootDirectory, "Book.json");
+            if (!File.Exists(manifestPath))
+            {
+                return null;
+            }
         }
 
         var json = File.ReadAllText(manifestPath);
-        return JsonSerializer.Deserialize<BookManifest>(json, new JsonSerializerOptions
+        return JsonSerializer.Deserialize<ProjectManifest>(json, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         });
     }
 
-    private static IReadOnlyList<BookProjectPage> LoadPages(string pagesDirectory)
+    private static IReadOnlyList<ProjectFolder> LoadFolders(string foldersDirectory)
     {
-        var pages = new List<BookProjectPage>();
-        foreach (var pageDirectory in Directory.GetDirectories(pagesDirectory).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+        var folders = new List<ProjectFolder>();
+        foreach (var folderDirectory in Directory.GetDirectories(foldersDirectory).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
         {
-            var pageName = Path.GetFileName(pageDirectory);
-            if (string.IsNullOrWhiteSpace(pageName))
+            var folderName = Path.GetFileName(folderDirectory);
+            if (string.IsNullOrWhiteSpace(folderName))
             {
                 continue;
             }
 
-            var metadataFile = Path.Combine(pageDirectory, "oPage.json");
+            var metadataFile = Path.Combine(folderDirectory, "oFolder.json");
             if (!File.Exists(metadataFile))
             {
-                metadataFile = null;
+                metadataFile = Path.Combine(folderDirectory, "oPage.json");
+                if (!File.Exists(metadataFile))
+                {
+                    metadataFile = null;
+                }
             }
 
-            var uiFile = Path.Combine(pageDirectory, "Page.json");
+            var uiFile = Path.Combine(folderDirectory, "Folder.json");
             if (!File.Exists(uiFile))
             {
-                uiFile = null;
+                uiFile = Path.Combine(folderDirectory, "Page.json");
+                if (!File.Exists(uiFile))
+                {
+                    uiFile = null;
+                }
             }
 
             var sourceFiles = Directory
-                .EnumerateFiles(pageDirectory, "*.cs", SearchOption.AllDirectories)
+                .EnumerateFiles(folderDirectory, "*.cs", SearchOption.AllDirectories)
                 .Where(path => !IsIgnoredPath(path))
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            pages.Add(new BookProjectPage(pageName, pageDirectory, metadataFile, uiFile, sourceFiles));
+            folders.Add(new ProjectFolder(folderName, folderDirectory, metadataFile, uiFile, sourceFiles));
         }
 
-        return pages;
+        return folders;
     }
 
     private static IReadOnlyList<string> CollectSourceFiles(
         string rootDirectory,
-        string pagesDirectory,
+        string foldersDirectory,
         string programFile,
         string globalUsingsFile,
-        IReadOnlyList<BookProjectPage> pages)
+        IReadOnlyList<ProjectFolder> folders)
     {
         var files = new List<string>();
 
@@ -207,7 +224,7 @@ public static class BookProjectLoader
             files.Add(globalUsingsFile);
         }
 
-        files.AddRange(pages.SelectMany(page => page.SourceFiles));
+        files.AddRange(folders.SelectMany(folder => folder.SourceFiles));
 
         files.AddRange(
             Directory.EnumerateFiles(rootDirectory, "*.cs", SearchOption.TopDirectoryOnly)
@@ -229,14 +246,14 @@ public static class BookProjectLoader
             || path.Contains($"{Path.DirectorySeparatorChar}.vscode{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void EnsureProjectFile(BookProject project)
+    private static void EnsureProjectFile(ProjectModel project)
     {
         Directory.CreateDirectory(project.RootDirectory);
         var content = CreateProjectFileContent(project);
         File.WriteAllText(project.ProjectFile, content, Encoding.UTF8);
     }
 
-    private static string CreateProjectFileContent(BookProject project)
+    private static string CreateProjectFileContent(ProjectModel project)
     {
         var references = ReferencePathResolver(project.RootDirectory);
 
@@ -266,6 +283,7 @@ public static class BookProjectLoader
         sb.AppendLine("  </ItemGroup>");
 
         var contentFiles = project.UiFiles
+            .Append(Path.Combine(project.RootDirectory, "Project.json"))
             .Append(Path.Combine(project.RootDirectory, "Book.json"))
             .Append(Path.Combine(project.RootDirectory, "pipes.json"))
             .Where(File.Exists)

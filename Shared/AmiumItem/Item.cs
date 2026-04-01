@@ -71,7 +71,7 @@ namespace Amium.Items
 
         public Item(string name)
         {
-            _path = _path + "/" + name;
+            _path = CombinePath(_path, name);
             Params = new ParameterDictionary(_path, OnParameterChanged);
             Params["Name"].Value = name;
             Params["Path"].Value = _path;
@@ -93,7 +93,7 @@ namespace Amium.Items
             }
             else
             {
-                _path = path + "/" + name;
+                _path = CombinePath(path, name);
             }
             Params = new ParameterDictionary(_path, OnParameterChanged);
             Params["Name"].Value = name;
@@ -125,6 +125,28 @@ namespace Amium.Items
         private void OnParameterChanged(Parameter parameter)
         {
             Changed?.Invoke(this, new ItemChangedEventArgs(this, parameter.Name));
+        }
+
+        private static string CombinePath(string? path, string name)
+        {
+            var normalizedParent = string.IsNullOrWhiteSpace(path)
+                ? string.Empty
+                : path.Replace('/', '.').Replace('\\', '.').Trim('.');
+            var normalizedName = string.IsNullOrWhiteSpace(name)
+                ? string.Empty
+                : name.Replace('/', '.').Replace('\\', '.').Trim('.');
+
+            if (string.IsNullOrWhiteSpace(normalizedParent))
+            {
+                return normalizedName;
+            }
+
+            if (string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return normalizedParent;
+            }
+
+            return normalizedParent + "." + normalizedName;
         }
     }
 
@@ -239,7 +261,7 @@ namespace Amium.Items
         {
             get
             {
-                string path = _path + "/" + id;
+                string path = string.IsNullOrWhiteSpace(_path) ? id : _path + "." + id;
                 return Dictionary.GetOrAdd(id, key =>
                 {
                     var parameter = new Parameter(key, null, path);

@@ -1,8 +1,8 @@
-# UI Path Architecture Notes
+﻿# UI Path Architecture Notes
 
 ## Ziel
 
-Der zentrale Punkt ist nicht, dass `Book` und `Page` unbedingt selbst `Item` sein muessen.
+Der zentrale Punkt ist nicht, dass `Project` und `Folder` unbedingt selbst `Item` sein muessen.
 
 Der eigentliche Zweck ist:
 
@@ -17,7 +17,7 @@ Nicht alles muss ein `Item` werden.
 
 Stattdessen:
 
-- `Book` und `Page` liefern den Hierarchie-Kontext
+- `Project` und `Folder` liefern den Hierarchie-Kontext
 - `Item` bleibt das publizierbare UI-Objekt
 - `Path` wird aus der Hierarchie abgeleitet
 - `Publish(...)` passiert nur explizit
@@ -27,18 +27,18 @@ Stattdessen:
 Beispielhierarchie:
 
 ```text
-Testbook
-Testbook/Page1
-Testbook/Page1/Sinus
-Testbook/Page1/Timer
-Testbook/Page1/Logs/Page1Demo
+TestProject
+TestProject/Folder1
+TestProject/Folder1/Sinus
+TestProject/Folder1/Timer
+TestProject/Folder1/Logs/Folder1Demo
 ```
 
 Oder technisch formuliert:
 
-- `Book.Name` ist das Root-Segment
-- `Page.Name` haengt unter `Book`
-- `Item.Name` haengt unter `Page` oder unter einem Parent-`Item`
+- `Project.Name` ist das Root-Segment
+- `Folder.Name` haengt unter `Project`
+- `Item.Name` haengt unter `Folder` oder unter einem Parent-`Item`
 - `Path` entsteht automatisch aus Parent + Name
 
 ## Warum das wichtig ist
@@ -48,9 +48,9 @@ Die `Path`-Syntax ist nicht zufaellig.
 Sie soll spaeter direkt als MQTT-kompatible Adressstruktur nutzbar sein, z.B.:
 
 ```text
-Testbook/Page1/Sinus
-Testbook/Page1/Task
-Testbook/Page1/Logs/Page1Demo
+TestProject/Folder1/Sinus
+TestProject/Folder1/Task
+TestProject/Folder1/Logs/Folder1Demo
 ```
 
 Wenn Pfade von Hand geschrieben werden:
@@ -66,16 +66,16 @@ Wenn Pfade automatisch erzeugt werden:
 - UI und Transport koennen dieselbe Adresslogik nutzen
 - Refactorings werden einfacher
 
-## Konsequenz fuer Book und Page
+## Konsequenz fuer Project und Folder
 
-`Book` und `Page` muessen nicht zu `Item` gezwungen werden.
+`Project` und `Folder` muessen nicht zu `Item` gezwungen werden.
 
 Das ist optional und aktuell nicht der eigentliche Bedarf.
 
 Wichtiger ist:
 
-- `Book` ist Root-Kontext
-- `Page` ist Child-Kontext
+- `Project` ist Root-Kontext
+- `Folder` ist Child-Kontext
 - beide helfen beim automatischen Aufbau des finalen `Path`
 
 ## Konsequenz fuer Publishing
@@ -94,7 +94,7 @@ Deshalb:
 Die neue Richtung ist:
 
 - `ProcessLog` wird fuer die UI als `Item` unter einem stabilen Pfad publiziert
-- Beispiel: `Logs/Host`, `Logs/Page1Demo`
+- Beispiel: `Logs/Host`, `Logs/Folder1Demo`
 - `EditorLogControl` loest den Log nicht mehr primaer aus einer Sonderregistry auf, sondern ueber ein `Item` in `HostRegistries.Data`
 
 Das ist ein Schritt in Richtung eines einheitlicheren UI-Modells.
@@ -103,14 +103,14 @@ Das ist ein Schritt in Richtung eines einheitlicheren UI-Modells.
 
 Nicht:
 
-- `Book` muss ein `Item` sein
-- `Page` muss ein `Item` sein
+- `Project` muss ein `Item` sein
+- `Folder` muss ein `Item` sein
 
 Sondern:
 
 1. zentrale Path-Erzeugung
-2. `Book` als Root-Kontext
-3. `Page` als Child-Kontext
+2. `Project` als Root-Kontext
+3. `Folder` als Child-Kontext
 4. `Item` als publizierbares UI-Objekt
 5. explizites `Publish(...)`
 
@@ -140,18 +140,18 @@ Falls kein Parent vorhanden ist:
 Path = Name
 ```
 
-### 3. Book und Page geben Kontext
+### 3. Project und Folder geben Kontext
 
 Beispiel:
 
-- `Book.Name = Testbook`
-- `Page.Name = Page1`
+- `Project.Name = TestProject`
+- `Folder.Name = Folder1`
 - `Item.Name = Sinus`
 
 Dann wird automatisch:
 
 ```text
-Testbook/Page1/Sinus
+TestProject/Folder1/Sinus
 ```
 
 ### 4. Publish bleibt explizit
@@ -159,14 +159,14 @@ Testbook/Page1/Sinus
 Beispiel:
 
 ```csharp
-page.Attach(item);
+Folder.Attach(item);
 UiPublisher.Publish(item);
 ```
 
 Oder spaeter:
 
 ```csharp
-page.PublishItem(item);
+Folder.PublishItem(item);
 ```
 
 Aber nur als expliziter Aufruf, nicht implizit beim Erzeugen.
@@ -176,43 +176,43 @@ Aber nur als expliziter Aufruf, nicht implizit beim Erzeugen.
 ### Variante A: zentraler Path-Builder
 
 ```csharp
-UiPath.ForPage(book.Name, page.Name)
-UiPath.ForItem(book.Name, page.Name, item.Name)
+UiPath.ForFolder(Project.Name, Folder.Name)
+UiPath.ForItem(Project.Name, Folder.Name, item.Name)
 UiPath.ForChild(parent.Path, child.Name)
 ```
 
 ### Variante B: Kontext ueber Parent/Attach
 
 ```csharp
-page.Attach(item);
-page.AttachProcessLog(log, "Page1Demo");
+Folder.Attach(item);
+Folder.AttachProcessLog(log, "Folder1Demo");
 ```
 
 Dann berechnet `Attach(...)` intern den finalen Pfad.
 
-## Empfehlung fuer Page
+## Empfehlung fuer Folder
 
-Wenn `Page` Lifecycle hat wie:
+Wenn `Folder` Lifecycle hat wie:
 
 - `Initialize()`
 - `Run()`
 - `Destroy()`
 
-dann ist eine spezialisierte Page-Klasse sinnvoll.
+dann ist eine spezialisierte Folder-Klasse sinnvoll.
 
 Aber:
 
-- nicht primaer, damit `Page` ein `Item` wird
-- sondern weil `Page` Verhalten/Lifecycle besitzt
+- nicht primaer, damit `Folder` ein `Item` wird
+- sondern weil `Folder` Verhalten/Lifecycle besitzt
 
 Das Path-Thema ist davon getrennt.
 
 ## Kurzfassung
 
-- `Book` und `Page` muessen nicht zwingend `Item` sein
+- `Project` und `Folder` muessen nicht zwingend `Item` sein
 - entscheidend ist die automatische, kanonische `Path`-Erzeugung
-- `Book.Name` ist Root
-- `Page.Name` dockt darunter an
+- `Project.Name` ist Root
+- `Folder.Name` dockt darunter an
 - alle UI-`Item`s docken daran an
 - `Publish(...)` bleibt explizit
 - die Path-Struktur soll MQTT-kompatibel und stabil sein
@@ -220,9 +220,10 @@ Das Path-Thema ist davon getrennt.
 ## Gute Zielvorstellung
 
 ```text
-Book = Root-Kontext
-Page = Sub-Kontext
+Project = Root-Kontext
+Folder = Sub-Kontext
 Item = publizierbares UI-Objekt
 Path = automatisch aus der Hierarchie erzeugt
 Publish = explizit, nicht automatisch
 ```
+

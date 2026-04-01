@@ -56,7 +56,7 @@ public partial class EditorValueInputControl : UserControl
     private const double ButtonSpacing = 12;
 
     private ValueInputMode _mode;
-    private PageItemModel? _item;
+    private FolderItemModel? _item;
     private int _maxDecimalDigits;
     private int _maxHexDigits = 16;
     private MainWindowViewModel? _subscribedViewModel;
@@ -214,7 +214,7 @@ public partial class EditorValueInputControl : UserControl
         OpenFor(_item);
     }
 
-    private void OpenFor(PageItemModel item)
+    private void OpenFor(FolderItemModel item)
     {
         ResetState();
         ApplyInputTheme();

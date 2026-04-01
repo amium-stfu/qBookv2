@@ -45,7 +45,7 @@
   </controls:EditorShellControl.SubHeaderContent>
 
   <controls:EditorShellControl.FooterContent>
-    <!-- Footer-Subitems im ItemWidget sind deaktiviert; FooterContent bleibt leer. -->
+    <!-- Footer-Subitems im SignalWidget sind deaktiviert; FooterContent bleibt leer. -->
   </controls:EditorShellControl.FooterContent>
 
   <controls:EditorShellControl.OverlayContent>

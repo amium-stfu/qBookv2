@@ -21,17 +21,17 @@ Widget type for buttons:
 
 - EditorButtonControl.axaml(.cs) – presentation and behavior of a button in the editor (including header, actions, click handling)
 
-## Item
+## Signal
 
-Widget type for single items (parameters/status displays, etc.):
+Widget type for individual signals (parameters/status displays, etc.):
 
-- EditorItemControl.axaml(.cs) – presentation and interaction logic of a single item widget
+- Signal/EditorSignalControl.axaml(.cs) – presentation and interaction logic of a single signal widget
 
 ## List
 
 Widget type for lists of items/buttons:
 
-- EditorListControl.axaml(.cs) – list container for multiple editor items/buttons, including selection and layout
+- EditorListControl.axaml(.cs) – list container for multiple signal/button widgets, including selection and layout
 
 ## Log
 
@@ -45,12 +45,12 @@ Widget for value input (value editor):
 
 - EditorValueInputControl.axaml(.cs) – overlay/dialog widget for editing parameter values (text, numeric, hex, bitmask) including on-screen keyboard
 
-## PageEditor
+## FolderEditor
 
-Widgets related to page editing in the editor:
+Widgets related to folder editing in the editor:
 
-- PageEditorControl.axaml(.cs) – main drawing surface for placing, moving, and scaling widgets on a page
-- CachedPageHostControl.axaml(.cs) – host that caches one PageEditorControl per page and synchronizes visibility
+- FolderEditorControl.axaml(.cs) – main drawing surface for placing, moving, and scaling widgets in a folder
+- CachedFolderHostControl.axaml(.cs) – host that caches one FolderEditorControl per folder and synchronizes visibility
 
 ## Parameter
 
@@ -82,4 +82,4 @@ This layout is chosen so that:
 
 - **Common** contains all reusable building blocks,
 - each concrete widget type has its own subfolder,
-- aliases like `*Widget` (e.g. EditorButtonWidget) live in the same namespace Amium.UiEditor.Widgets and simply inherit from the corresponding `*Control` classes.
+- aliases like `*Widget` (e.g. EditorButtonWidget) live in the same namespace Amium.UiEditor.Widgets and simply inherit from the corresponding `*Control` classes. Legacy `EditorItem*` aliases still point to the signal control.

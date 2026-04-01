@@ -11,9 +11,9 @@ using Amium.Host;
 using Amium.EditorUi.Controls;
 using Amium.UiEditor.Widgets;
 using Amium.UiEditor.Models;
-using UdlBook.ViewModels;
+using AutomationExplorer.ViewModels;
 
-namespace UdlBook;
+namespace AutomationExplorer;
 
 public partial class MainWindow : Window
 {
@@ -56,7 +56,7 @@ public partial class MainWindow : Window
 
     private async void OnViewsButtonClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button button || button.DataContext is not PageModel page)
+        if (sender is not Button button || button.DataContext is not FolderModel page)
         {
             return;
         }
@@ -182,7 +182,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (sender is not TextBlock textBlock || textBlock.DataContext is not PageModel page)
+        if (sender is not TextBlock textBlock || textBlock.DataContext is not FolderModel page)
         {
             return;
         }
@@ -215,7 +215,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (sender is not TextBlock textBlock || textBlock.DataContext is not PageModel page)
+        if (sender is not TextBlock textBlock || textBlock.DataContext is not FolderModel page)
         {
             return;
         }
@@ -582,7 +582,7 @@ public partial class MainWindow : Window
 
         var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
         {
-            Title = "Select folder for new UdlBook",
+            Title = "Select folder for new AutomationExplorer book",
             AllowMultiple = false
         });
 
@@ -616,11 +616,11 @@ public partial class MainWindow : Window
 
         var files = await StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
         {
-            Title = "Open UdlBook",
+            Title = "Open AutomationExplorer book",
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
-                new Avalonia.Platform.Storage.FilePickerFileType("UdlBook entry")
+                new Avalonia.Platform.Storage.FilePickerFileType("Book entry")
                 {
                     Patterns = new[] { "*.udlb" }
                 }
@@ -670,12 +670,12 @@ public partial class MainWindow : Window
         {
             var bookFile = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
             {
-                Title = "Save UdlBook as",
+                Title = "Save AutomationExplorer book as",
                 SuggestedFileName = "Book.udlb",
                 DefaultExtension = "udlb",
                 FileTypeChoices = new[]
                 {
-                    new Avalonia.Platform.Storage.FilePickerFileType("UdlBook entry")
+                    new Avalonia.Platform.Storage.FilePickerFileType("Book entry")
                     {
                         Patterns = new[] { "*.udlb" }
                     }

@@ -12,7 +12,7 @@ namespace Amium.UiEditor.Widgets;
 
 public partial class EditorButtonControl : EditorTemplateWidget
 {
-    private PageItemModel? Item => DataContext as PageItemModel;
+    private FolderItemModel? Item => DataContext as FolderItemModel;
 
     private MainWindowViewModel? ViewModel
         => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;

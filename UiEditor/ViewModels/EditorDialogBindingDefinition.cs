@@ -11,11 +11,11 @@ public sealed class EditorDialogBindingDefinition
         string key,
         string label,
         EditorPropertyType propertyType,
-        Func<PageItemModel, string> readValue,
-        Func<PageItemModel, string, string?>? applyValue = null,
+        Func<FolderItemModel, string> readValue,
+        Func<FolderItemModel, string, string?>? applyValue = null,
         bool isReadOnly = false,
-        Func<PageItemModel, IEnumerable<string>>? optionsFactory = null,
-        Func<PageItemModel, string>? toolTipFactory = null)
+        Func<FolderItemModel, IEnumerable<string>>? optionsFactory = null,
+        Func<FolderItemModel, string>? toolTipFactory = null)
     {
         Key = key;
         Label = label;
@@ -35,15 +35,15 @@ public sealed class EditorDialogBindingDefinition
 
     public bool IsReadOnly { get; }
 
-    public Func<PageItemModel, string> ReadValue { get; }
+    public Func<FolderItemModel, string> ReadValue { get; }
 
-    public Func<PageItemModel, string, string?>? ApplyValue { get; }
+    public Func<FolderItemModel, string, string?>? ApplyValue { get; }
 
-    public Func<PageItemModel, IEnumerable<string>>? OptionsFactory { get; }
+    public Func<FolderItemModel, IEnumerable<string>>? OptionsFactory { get; }
 
-    public Func<PageItemModel, string>? ToolTipFactory { get; }
+    public Func<FolderItemModel, string>? ToolTipFactory { get; }
 
-    public EditorDialogField CreateField(PageItemModel item)
+    public EditorDialogField CreateField(FolderItemModel item)
     {
         var parameterPath = string.IsNullOrWhiteSpace(item.Path) ? Key : $"{item.Path}.{Key}";
         var field = new EditorDialogField(this, new Parameter(Key, ReadValue(item), parameterPath));
@@ -62,6 +62,6 @@ public sealed class EditorDialogBindingDefinition
         return field;
     }
 
-    public string? Apply(PageItemModel item, string value)
+    public string? Apply(FolderItemModel item, string value)
         => ApplyValue?.Invoke(item, value);
 }

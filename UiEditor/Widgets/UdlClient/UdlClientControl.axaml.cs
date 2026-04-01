@@ -17,6 +17,7 @@ using Amium.EditorUi.Controls;
 using Amium.Host;
 using Amium.Items;
 using Amium.Logging;
+using Amium.UiEditor.Helpers;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 using UdlClientRuntime = Amium.Host.HostUdlClient;
@@ -60,15 +61,16 @@ public partial class UdlClientControl : EditorTemplateControl
         AvaloniaProperty.RegisterDirect<UdlClientControl, string>(nameof(ConnectionToggleText), control => control.ConnectionToggleText);
 
     private Popup? _attachPopup;
-    private PageItemModel? _observedItem;
-    private UiPageContext? _uiPageContext;
+    private FolderItemModel? _observedItem;
+    private UiFolderContext? _uiFolderContext;
     private UdlClientRuntime? _client;
     private CancellationTokenSource? _monitorCts;
     private Task? _monitorTask;
     private DispatcherTimer? _attachedItemsRefreshTimer;
     private readonly Dictionary<string, string> _publishedStatusValues = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _publishedRuntimeSignatures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _publishedAttachOptionPaths = new(StringComparer.OrdinalIgnoreCase);
     private int _clientItemsDirty = 1;
+    private int _isConnecting;
     private int _lastPublishedClientItemCount = -1;
     private int _hasAttachedPaths;
     private ConnectionState _connectionState = ConnectionState.Disconnected;
@@ -81,6 +83,8 @@ public partial class UdlClientControl : EditorTemplateControl
     private long _lastLoggedTxCounter;
     private long _monitorLoopCounter;
     private volatile bool _verboseDiagnosticsEnabled;
+    private bool _loggedNoFramesWarning;
+    private string _lastLoggedRuntimeRootsSignature = string.Empty;
     private string _socketText = "192.168.178.151:9001";
     private string _connectionStateText = "Disconnected";
     private string _autoConnectText = "False";
@@ -91,6 +95,7 @@ public partial class UdlClientControl : EditorTemplateControl
     private bool _canToggleConnection = true;
     private string _connectionToggleText = "Connect";
     private string _publishedStatusBasePath = string.Empty;
+    private string _publishedAttachOptionsBasePath = string.Empty;
 
     public UdlClientControl()
     {
@@ -176,9 +181,9 @@ public partial class UdlClientControl : EditorTemplateControl
         private set => SetAndRaise(ConnectionToggleTextProperty, ref _connectionToggleText, value);
     }
 
-    private PageItemModel? Item => DataContext as PageItemModel;
+    private FolderItemModel? Item => DataContext as FolderItemModel;
 
-    private static bool IsUdlClientItem(PageItemModel? item) => item?.IsUdlClientControl == true;
+    private static bool IsUdlClientItem(FolderItemModel? item) => item?.IsUdlClientControl == true;
 
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
@@ -192,7 +197,7 @@ public partial class UdlClientControl : EditorTemplateControl
     {
         TearDownClient();
         CancelAttachedItemsRefresh();
-        ReleaseUiPageContext();
+        ReleaseUiFolderContext();
         RemovePublishedStatusItems();
         UnhookObservedItem();
         foreach (var row in AttachRows)
@@ -268,20 +273,20 @@ public partial class UdlClientControl : EditorTemplateControl
             return;
         }
 
-        if (e.PropertyName is nameof(PageItemModel.UdlClientHost)
-            or nameof(PageItemModel.UdlClientPort)
-            or nameof(PageItemModel.UdlClientAutoConnect)
-            or nameof(PageItemModel.UdlClientDebugLogging)
-            or nameof(PageItemModel.UdlAttachedItemPaths)
-            or nameof(PageItemModel.Name)
-            or nameof(PageItemModel.PageName))
+        if (e.PropertyName is nameof(FolderItemModel.UdlClientHost)
+            or nameof(FolderItemModel.UdlClientPort)
+            or nameof(FolderItemModel.UdlClientAutoConnect)
+            or nameof(FolderItemModel.UdlClientDebugLogging)
+            or nameof(FolderItemModel.UdlAttachedItemPaths)
+            or nameof(FolderItemModel.Name)
+            or nameof(FolderItemModel.FolderName))
         {
             RefreshPresentation();
         }
 
-        if (e.PropertyName == nameof(PageItemModel.UdlAttachedItemPaths))
+        if (e.PropertyName == nameof(FolderItemModel.UdlAttachedItemPaths))
         {
-            if (sender is PageItemModel changedItem)
+            if (sender is FolderItemModel changedItem)
             {
                 UpdateAttachedPathsFlag(changedItem);
             }
@@ -290,7 +295,7 @@ public partial class UdlClientControl : EditorTemplateControl
             SynchronizeAttachedItems();
         }
 
-        if (e.PropertyName == nameof(PageItemModel.UdlClientAutoConnect))
+        if (e.PropertyName == nameof(FolderItemModel.UdlClientAutoConnect))
         {
             _ = EnsureAutoConnectAsync();
         }
@@ -363,10 +368,21 @@ public partial class UdlClientControl : EditorTemplateControl
             return;
         }
 
+        if (Interlocked.Exchange(ref _isConnecting, 1) == 1)
+        {
+            return;
+        }
+
         try
         {
+            if (_client is not null)
+            {
+                return;
+            }
+
             WriteDiagnosticLog($"Connect requested endpoint={item.UdlClientHost}:{item.UdlClientPort}");
             TearDownClient();
+            RemovePublishedRuntimeItems(item);
             Interlocked.Exchange(ref _messageCounter, 0);
             Interlocked.Exchange(ref _rxCounter, 0);
             Interlocked.Exchange(ref _txCounter, 0);
@@ -375,8 +391,10 @@ public partial class UdlClientControl : EditorTemplateControl
             Interlocked.Exchange(ref _monitorLoopCounter, 0);
             Interlocked.Exchange(ref _clientItemsDirty, 1);
             _lastPublishedClientItemCount = -1;
+            _loggedNoFramesWarning = false;
+            _lastLoggedRuntimeRootsSignature = string.Empty;
             _publishedStatusValues.Clear();
-            _publishedRuntimeSignatures.Clear();
+            RemovePublishedAttachOptionItems();
             var client = new UdlClientRuntime(NormalizeClientName(item), item.UdlClientHost, item.UdlClientPort);
             client.FrameReceived += OnClientFrameReceived;
             client.Diagnostic += OnClientDiagnostic;
@@ -395,6 +413,10 @@ public partial class UdlClientControl : EditorTemplateControl
             HostLogger.Log.Error(ex, "UdlClient connect failed for {ClientName}", item.Name);
             WriteDiagnosticError("Connect failed", ex);
         }
+        finally
+        {
+            Interlocked.Exchange(ref _isConnecting, 0);
+        }
 
         RefreshPresentation();
     }
@@ -412,9 +434,12 @@ public partial class UdlClientControl : EditorTemplateControl
         _connectionState = ConnectionState.Disconnected;
         Interlocked.Exchange(ref _clientItemsDirty, 0);
         _lastPublishedClientItemCount = -1;
+        _loggedNoFramesWarning = false;
+        _lastLoggedRuntimeRootsSignature = string.Empty;
         CancelAttachedItemsRefresh();
         _publishedStatusValues.Clear();
-        _publishedRuntimeSignatures.Clear();
+        RemovePublishedAttachOptionItems();
+        RemovePublishedRuntimeItems(Item);
         RefreshPresentation();
         WriteDiagnosticLog("Disconnect completed");
     }
@@ -425,7 +450,7 @@ public partial class UdlClientControl : EditorTemplateControl
 
         if (_client is null)
         {
-            ReleaseUiPageContext();
+            ReleaseUiFolderContext();
             return;
         }
 
@@ -435,9 +460,12 @@ public partial class UdlClientControl : EditorTemplateControl
         client.Diagnostic -= OnClientDiagnostic;
         Interlocked.Exchange(ref _clientItemsDirty, 0);
         _lastPublishedClientItemCount = -1;
+        _loggedNoFramesWarning = false;
+        _lastLoggedRuntimeRootsSignature = string.Empty;
         CancelAttachedItemsRefresh();
-        _publishedRuntimeSignatures.Clear();
-        ReleaseUiPageContext();
+        RemovePublishedAttachOptionItems();
+        ReleaseUiFolderContext();
+        RemovePublishedRuntimeItems(_observedItem ?? Item);
 
         _ = Task.Run(() =>
         {
@@ -470,9 +498,12 @@ public partial class UdlClientControl : EditorTemplateControl
         _client.Diagnostic -= OnClientDiagnostic;
         Interlocked.Exchange(ref _clientItemsDirty, 0);
         _lastPublishedClientItemCount = -1;
+        _loggedNoFramesWarning = false;
+        _lastLoggedRuntimeRootsSignature = string.Empty;
         CancelAttachedItemsRefresh();
-        _publishedRuntimeSignatures.Clear();
-        ReleaseUiPageContext();
+        RemovePublishedAttachOptionItems();
+        ReleaseUiFolderContext();
+        RemovePublishedRuntimeItems(_observedItem ?? Item);
         _client.Dispose();
         _client = null;
     }
@@ -488,6 +519,12 @@ public partial class UdlClientControl : EditorTemplateControl
     private void OnClientDiagnostic(string message)
     {
         UpdateCountersFromDiagnostic(message);
+
+        if (IsAlwaysLoggedDiagnosticMessage(message))
+        {
+            WriteDiagnosticLog(message);
+            return;
+        }
 
         if (ShouldLogDiagnosticMessage(message) && ShouldWriteVerboseDiagnostics())
         {
@@ -540,6 +577,12 @@ public partial class UdlClientControl : EditorTemplateControl
                     {
                         WriteVerboseDiagnosticLog($"Monitor snapshot roots=0 items={EnumerateClientItems().Count} messages={Interlocked.Read(ref _messageCounter)} localPort={_client?.LocalPort ?? 0}");
                     }
+                }
+
+                if (!_loggedNoFramesWarning && loop >= 8 && Interlocked.Read(ref _messageCounter) == 0 && GetRootItemCount() == 0)
+                {
+                    _loggedNoFramesWarning = true;
+                    WriteDiagnosticLog($"No frames received after connect client={_client?.Name ?? string.Empty} localPort={_client?.LocalPort ?? 0} roots=0 messages=0");
                 }
 
                 await Task.Delay(250, token).ConfigureAwait(false);
@@ -613,13 +656,40 @@ public partial class UdlClientControl : EditorTemplateControl
             ScheduleAttachedItemsRefresh();
         }
 
-        foreach (var runtimeItem in runtimeItems)
+        LogRuntimeRootItems(runtimeItems);
+
+        PublishAttachOptionItems(runtimeItems);
+    }
+
+    private void LogRuntimeRootItems(IReadOnlyList<Item> runtimeItems)
+    {
+        if (_client is null)
         {
-            if (!string.IsNullOrWhiteSpace(runtimeItem.Path) && ShouldPublishRuntimeItem(runtimeItem))
+            return;
+        }
+
+        var rootItems = runtimeItems
+            .Select(static item => new
             {
-                WriteVerboseDiagnosticLog($"Publish snapshot client={_client.Name} path={runtimeItem.Path} signature={BuildItemSignature(runtimeItem)}");
-                HostRegistries.Data.UpsertSnapshot(runtimeItem.Path!, runtimeItem.Clone(), pruneMissingMembers: true);
-            }
+                Item = item,
+                RelativePath = GetRelativeRuntimePath(item)
+            })
+            .Where(static entry => IsRootAttachPath(entry.RelativePath))
+            .OrderBy(static entry => entry.RelativePath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var signature = string.Join("|", rootItems.Select(static entry => $"{entry.Item.Name}:{entry.Item.Path}:{entry.RelativePath}"));
+        if (string.Equals(_lastLoggedRuntimeRootsSignature, signature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastLoggedRuntimeRootsSignature = signature;
+        WriteDiagnosticLog($"Runtime root modules client={_client.Name} count={rootItems.Length}");
+
+        foreach (var rootItem in rootItems.Select(static (entry, index) => new { Index = index, entry.Item, entry.RelativePath }))
+        {
+            WriteDiagnosticLog($"Runtime root[{rootItem.Index}] name={rootItem.Item.Name ?? string.Empty} fullPath={rootItem.Item.Path ?? string.Empty} relativePath={rootItem.RelativePath}");
         }
     }
 
@@ -656,37 +726,9 @@ public partial class UdlClientControl : EditorTemplateControl
 
         SynchronizeAttachedItems();
         RebuildAttachRows();
-        Host?.RefreshPageBindings(Item?.PageName ?? string.Empty);
+        Host?.RefreshFolderBindings(Item?.FolderName ?? string.Empty);
         RefreshPresentation();
         WriteVerboseDiagnosticLog($"AttachToUi refreshed after item-settle delay itemCount={_lastPublishedClientItemCount}");
-    }
-
-    private bool ShouldPublishRuntimeItem(Item runtimeItem)
-    {
-        var path = runtimeItem.Path;
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return false;
-        }
-
-        var signature = BuildItemSignature(runtimeItem);
-        if (_publishedRuntimeSignatures.TryGetValue(path, out var previousSignature)
-            && string.Equals(previousSignature, signature, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        _publishedRuntimeSignatures[path] = signature;
-        return true;
-    }
-
-    private static string BuildItemSignature(Item item)
-    {
-        var parameters = item.Params.GetDictionary()
-            .OrderBy(static entry => entry.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(static entry => $"{entry.Key}={entry.Value.LastUpdate}:{entry.Value.Value}");
-
-        return string.Join("|", parameters);
     }
 
     private void RebuildAttachRows()
@@ -747,7 +789,7 @@ public partial class UdlClientControl : EditorTemplateControl
 
     private void SynchronizeAttachedItems()
     {
-        ReleaseUiPageContext();
+        ReleaseUiFolderContext();
 
         var item = Item;
         if (item is null || _client is null)
@@ -761,8 +803,8 @@ public partial class UdlClientControl : EditorTemplateControl
             return;
         }
 
-        var pageContext = new UiPageContext($"{item.PageName}/{NormalizeClientName(item)}", "UdlBook");
-        _uiPageContext = pageContext;
+        var folderContext = new UiFolderContext($"{item.FolderName}/{NormalizeClientName(item)}", "UdlProject");
+        _uiFolderContext = folderContext;
 
         foreach (var relativePath in attachedPaths)
         {
@@ -772,16 +814,16 @@ public partial class UdlClientControl : EditorTemplateControl
             }
 
             var alias = relativePath.Replace('\\', '/').Trim('/');
-            var attached = pageContext.Attach(runtimeItem, alias);
-            WriteVerboseDiagnosticLog($"Attach snapshot page={pageContext.PagePath} client={NormalizeClientName(item)} runtimePath={runtimeItem.Path} alias={alias} attachedPath={attached.Path}");
+            var attached = folderContext.Attach(runtimeItem, alias);
+            WriteVerboseDiagnosticLog($"Attach snapshot folder={folderContext.FolderPath} client={NormalizeClientName(item)} runtimePath={runtimeItem.Path} alias={alias} attachedPath={attached.Path}");
             HostRegistries.Data.UpsertSnapshot(attached.Path!, attached.Clone(), pruneMissingMembers: true);
         }
     }
 
-    private void ReleaseUiPageContext()
+    private void ReleaseUiFolderContext()
     {
-        _uiPageContext?.Dispose();
-        _uiPageContext = null;
+        _uiFolderContext?.Dispose();
+        _uiFolderContext = null;
     }
 
     private bool TryResolveRuntimeItem(string relativePath, out Item? resolved)
@@ -813,12 +855,12 @@ public partial class UdlClientControl : EditorTemplateControl
         return _client?.Items.GetDictionary().Count ?? 0;
     }
 
-    private static bool HasAttachedPaths(PageItemModel item)
+    private static bool HasAttachedPaths(FolderItemModel item)
     {
         return ParseAttachedPaths(item.UdlAttachedItemPaths).Count > 0;
     }
 
-    private void UpdateAttachedPathsFlag(PageItemModel item)
+    private void UpdateAttachedPathsFlag(FolderItemModel item)
     {
         Volatile.Write(ref _hasAttachedPaths, HasAttachedPaths(item) ? 1 : 0);
     }
@@ -832,13 +874,14 @@ public partial class UdlClientControl : EditorTemplateControl
         }
     }
 
-    private IEnumerable<string> GetAttachOptions(PageItemModel item)
+    private IEnumerable<string> GetAttachOptions(FolderItemModel item)
     {
-        var prefix = $"Runtime/UdlClient/{NormalizeClientName(item)}/";
+        var prefix = $"Runtime/UdlClient/{NormalizeClientName(item)}";
+        var comparablePrefix = TargetPathHelper.NormalizeComparablePath(prefix);
         var runtimeOptions = HostRegistries.Data.GetAllKeys()
-            .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            .Select(key => key[prefix.Length..])
-            .Where(static path => IsRootAttachPath(path));
+            .Select(key => TryGetAttachRootOption(key, prefix, comparablePrefix))
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Select(static path => path!);
 
         return runtimeOptions
             .Concat(EnumerateClientItems().Select(GetRelativeRuntimePath))
@@ -855,8 +898,51 @@ public partial class UdlClientControl : EditorTemplateControl
             return false;
         }
 
-        var normalized = path.Replace('\\', '/').Trim('/');
-        return !normalized.Contains('/');
+        return TargetPathHelper.SplitPathSegments(path).Count == 1;
+    }
+
+    private static string? TryGetAttachRootOption(string registryKey, string prefix, string comparablePrefix)
+    {
+        if (string.IsNullOrWhiteSpace(registryKey))
+        {
+            return null;
+        }
+
+        var suffix = TryGetPathSuffix(registryKey, prefix);
+        if (string.IsNullOrWhiteSpace(suffix))
+        {
+            var comparableKey = TargetPathHelper.NormalizeComparablePath(registryKey);
+            suffix = TryGetPathSuffix(comparableKey, comparablePrefix);
+        }
+
+        if (string.IsNullOrWhiteSpace(suffix))
+        {
+            return null;
+        }
+
+        var segments = TargetPathHelper.SplitPathSegments(suffix);
+        return segments.Count == 0 ? null : segments[0];
+    }
+
+    private static string? TryGetPathSuffix(string path, string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(prefix))
+        {
+            return null;
+        }
+
+        if (string.Equals(path, prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var suffix = path[prefix.Length..].TrimStart('/', '.', '\\');
+        return string.IsNullOrWhiteSpace(suffix) ? null : suffix;
     }
 
     private void LogAttachListSnapshot()
@@ -900,7 +986,7 @@ public partial class UdlClientControl : EditorTemplateControl
             })
             .ToArray();
 
-        WriteVerboseDiagnosticLog($"Attach list open page={item.PageName} client={NormalizeClientName(item)} registryCount={registryOptions.Length} clientItemCount={clientItems.Length} optionCount={attachOptions.Length} rowCount={attachRows.Length}");
+        WriteVerboseDiagnosticLog($"Attach list open folder={item.FolderName} client={NormalizeClientName(item)} registryCount={registryOptions.Length} clientItemCount={clientItems.Length} optionCount={attachOptions.Length} rowCount={attachRows.Length}");
 
         foreach (var option in registryOptions.Select(static (path, index) => new { Index = index, Path = path }))
         {
@@ -986,7 +1072,63 @@ public partial class UdlClientControl : EditorTemplateControl
         }
     }
 
-    private void EnsureDiagnosticLog(PageItemModel item)
+    private void PublishAttachOptionItems(IReadOnlyList<Item> runtimeItems)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.InvokeAsync(() => PublishAttachOptionItems(runtimeItems)).GetAwaiter().GetResult();
+            return;
+        }
+
+        var item = Item;
+        if (item is null)
+        {
+            RemovePublishedAttachOptionItems();
+            return;
+        }
+
+        var attachOptionsBasePath = GetAttachOptionsBasePath(item);
+        if (!string.Equals(_publishedAttachOptionsBasePath, attachOptionsBasePath, StringComparison.OrdinalIgnoreCase))
+        {
+            RemovePublishedAttachOptionItems();
+            _publishedAttachOptionsBasePath = attachOptionsBasePath;
+        }
+
+        var rootPaths = runtimeItems
+            .Select(GetRelativeRuntimePath)
+            .Where(IsRootAttachPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var desiredSnapshots = rootPaths
+            .Select(rootPath =>
+            {
+                var snapshot = new Item(rootPath, path: attachOptionsBasePath);
+                snapshot.Params["Kind"].Value = "Status";
+                snapshot.Params["Text"].Value = "AttachOption";
+                snapshot.Params["Title"].Value = rootPath;
+                return snapshot;
+            })
+            .Where(static snapshot => !string.IsNullOrWhiteSpace(snapshot.Path))
+            .ToArray();
+
+        var desiredPaths = new HashSet<string>(desiredSnapshots.Select(static snapshot => snapshot.Path!), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var stalePath in _publishedAttachOptionPaths.Except(desiredPaths, StringComparer.OrdinalIgnoreCase).ToArray())
+        {
+            HostRegistries.Data.Remove(stalePath);
+            _publishedAttachOptionPaths.Remove(stalePath);
+        }
+
+        foreach (var snapshot in desiredSnapshots)
+        {
+            HostRegistries.Data.UpsertSnapshot(snapshot.Path!, snapshot, pruneMissingMembers: true);
+            _publishedAttachOptionPaths.Add(snapshot.Path!);
+        }
+    }
+
+    private void EnsureDiagnosticLog(FolderItemModel item)
     {
         _ = item;
     }
@@ -1059,7 +1201,17 @@ public partial class UdlClientControl : EditorTemplateControl
         return false;
     }
 
-    private void PublishStatusItems(PageItemModel item)
+    private static bool IsAlwaysLoggedDiagnosticMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("create module", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void PublishStatusItems(FolderItemModel item)
     {
         var statusBasePath = GetStatusBasePath(item);
         if (!string.Equals(_publishedStatusBasePath, statusBasePath, StringComparison.OrdinalIgnoreCase))
@@ -1106,6 +1258,17 @@ public partial class UdlClientControl : EditorTemplateControl
         HostRegistries.Data.UpsertSnapshot(snapshot.Path!, snapshot, pruneMissingMembers: true);
     }
 
+    private void RemovePublishedAttachOptionItems()
+    {
+        foreach (var path in _publishedAttachOptionPaths.ToArray())
+        {
+            HostRegistries.Data.Remove(path);
+        }
+
+        _publishedAttachOptionPaths.Clear();
+        _publishedAttachOptionsBasePath = string.Empty;
+    }
+
     private static HashSet<string> ParseAttachedPaths(string? serialized)
     {
         if (string.IsNullOrWhiteSpace(serialized))
@@ -1136,29 +1299,66 @@ public partial class UdlClientControl : EditorTemplateControl
         return normalized;
     }
 
-    private static string NormalizeClientName(PageItemModel item)
+    private static string NormalizeClientName(FolderItemModel item)
         => string.IsNullOrWhiteSpace(item.Name) ? "UdlClientControl" : item.Name.Trim();
 
-    private static string GetStatusBasePath(PageItemModel item)
-        => $"UdlBook/{item.PageName}/{NormalizeClientName(item)}/Status";
+    private static string GetStatusBasePath(FolderItemModel item)
+        => $"UdlProject/{item.FolderName}/{NormalizeClientName(item)}/Status";
+
+    private static string GetAttachOptionsBasePath(FolderItemModel item)
+        => $"{GetStatusBasePath(item)}/AttachOptions";
+
+    private static void RemovePublishedRuntimeItems(FolderItemModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        var prefix = $"Runtime/UdlClient/{NormalizeClientName(item)}";
+        var keys = HostRegistries.Data.GetAllKeys()
+            .Where(key => string.Equals(key, prefix, StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        foreach (var key in keys)
+        {
+            HostRegistries.Data.Remove(key);
+        }
+    }
 
     private static string GetRelativeRuntimePath(Item item)
     {
         var fullPath = item.Path ?? string.Empty;
-        var runtimeMarkerIndex = fullPath.IndexOf("Runtime/UdlClient/", StringComparison.OrdinalIgnoreCase);
-        if (runtimeMarkerIndex < 0)
-        {
-            return fullPath;
-        }
-
-        var trimmed = fullPath[runtimeMarkerIndex..];
-        var segments = trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length <= 3)
+        if (string.IsNullOrWhiteSpace(fullPath))
         {
             return string.Empty;
         }
 
-        return string.Join('/', segments.Skip(3));
+        var segments = TargetPathHelper.SplitPathSegments(fullPath);
+        if (segments.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var runtimeRootIndex = -1;
+        for (var index = 0; index < segments.Count - 1; index++)
+        {
+            if (string.Equals(segments[index], "Runtime", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(segments[index + 1], "UdlClient", StringComparison.OrdinalIgnoreCase))
+            {
+                runtimeRootIndex = index;
+                break;
+            }
+        }
+
+        if (runtimeRootIndex < 0)
+        {
+            return fullPath;
+        }
+
+        var relativeSegments = segments.Skip(runtimeRootIndex + 3).ToArray();
+        return relativeSegments.Length == 0 ? string.Empty : string.Join('/', relativeSegments);
     }
 }
 

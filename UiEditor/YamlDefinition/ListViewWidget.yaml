@@ -56,7 +56,7 @@
   Properties:
     ControlHeight: 120
     Children:
-    - Type: Item
+    - Type: Signal
       Identity:
         Name: m310
         Path: UdlBook/Page1/udl1/m310

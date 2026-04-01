@@ -8,6 +8,8 @@ public sealed class TargetSelectionTreeNode
 
     public string FullPath { get; init; } = string.Empty;
 
+    public string ActualPath { get; init; } = string.Empty;
+
     public bool IsSelectable { get; set; }
 
     public ObservableCollection<TargetSelectionTreeNode> Children { get; } = [];

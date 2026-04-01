@@ -11,7 +11,7 @@ internal static partial class SvgIconCache
     private static readonly ConcurrentDictionary<string, string> CachedPaths = new(StringComparer.OrdinalIgnoreCase);
     private static readonly string CacheDirectory = Path.Combine(Path.GetTempPath(), "Amium.Editor", "SvgTintCache");
     private static readonly string CurrentAssemblyName = typeof(SvgIconCache).Assembly.GetName().Name ?? "Amium.Editor";
-    private static readonly string[] LegacyIconAssemblyNames = ["Amium.UiEditor", "AmiumStudio", "Amium.EditorUi"];
+    private static readonly string[] LegacyIconAssemblyNames = ["Amium.UiEditor", "Amium.EditorUi"];
 
     public static string? ResolvePath(string? iconPath, string? tintColor)
     {

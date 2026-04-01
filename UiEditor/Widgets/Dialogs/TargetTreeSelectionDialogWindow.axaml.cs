@@ -15,6 +15,7 @@ namespace Amium.UiEditor.Widgets;
 public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyChanged
 {
     private readonly EditorDialogField? _field;
+    private readonly string _folderName = string.Empty;
     private MainWindowViewModel? _viewModel;
     private TargetSelectionTreeNode? _selectedNode;
     private string _selectedValue = string.Empty;
@@ -30,7 +31,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
     private string _tabSelectBackColor = "#FFF1C4";
     private string _tabSelectForeColor = "#000000";
     private string _scopePath = "Showing all available targets";
-    private string _scopeDescription = "Choose a target inside the active page.";
+    private string _scopeDescription = "Choose a target inside the active folder.";
 
     public new event PropertyChangedEventHandler? PropertyChanged;
 
@@ -44,21 +45,23 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
     public TargetTreeSelectionDialogWindow(MainWindowViewModel? viewModel, EditorDialogField field)
     {
         _field = field;
+        _folderName = ExtractPageName(field.Parameter.Path);
         RootNodes = [];
         InitializeComponent();
         DataContext = this;
         _selectedValue = field.Value;
-        RebuildTree(field.Options, field.Value, ExtractPageName(field.Parameter.Path));
+        RebuildTree(field.Options, field.Value, _folderName);
         AttachToViewModel(viewModel);
     }
 
     public TargetTreeSelectionDialogWindow(MainWindowViewModel? viewModel, IEnumerable<string> options, string selectedValue, string pageName)
     {
+        _folderName = pageName ?? string.Empty;
         RootNodes = [];
         InitializeComponent();
         DataContext = this;
         _selectedValue = selectedValue ?? string.Empty;
-        RebuildTree(options, _selectedValue, pageName);
+        RebuildTree(options, _selectedValue, _folderName);
         AttachToViewModel(viewModel);
     }
 
@@ -83,7 +86,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
 
     public bool CanSaveSelection => SelectedNode?.IsSelectable == true;
 
-    public string SelectionPreviewPath => SelectedNode?.FullPath ?? _selectedValue;
+    public string SelectionPreviewPath => SelectedNode?.ActualPath ?? SelectedNode?.FullPath ?? _selectedValue;
 
     public string CommittedSelection { get; private set; } = string.Empty;
 
@@ -175,7 +178,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
     {
         if (SelectedNode?.IsSelectable == true)
         {
-            CommittedSelection = SelectedNode.FullPath;
+            CommittedSelection = TargetPathHelper.ToPersistedLayoutTargetPath(SelectedNode.ActualPath, _folderName);
             _selectedValue = CommittedSelection;
         }
 
@@ -293,11 +296,11 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
             : sourceOptions.Where(path => !path.Contains('/') || path.StartsWith(displayPrefix, StringComparison.OrdinalIgnoreCase)).ToList();
 
         ScopePath = string.IsNullOrWhiteSpace(displayPrefix)
-            ? "No page prefix detected"
+            ? "No folder prefix detected"
             : displayPrefix.TrimEnd('/');
         ScopeDescription = string.IsNullOrWhiteSpace(pageName)
             ? "Choose a target from the available tree."
-            : $"Showing targets within page '{pageName}'.";
+            : $"Showing targets within folder '{pageName}'.";
 
         RootNodes.Clear();
         foreach (var node in BuildTree(filteredOptions, displayPrefix))
@@ -321,17 +324,17 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
             }
 
             var relativePath = RemovePrefix(normalizedFullPath, displayPrefix);
-            var segments = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (segments.Length == 0)
+            var segments = TargetPathHelper.SplitPathSegments(relativePath);
+            if (segments.Count == 0)
             {
                 continue;
             }
 
-            var fullSegments = normalizedFullPath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var fullSegments = TargetPathHelper.SplitPathSegments(normalizedFullPath);
             IList<TargetSelectionTreeNode> currentList = roots;
-            var prefixSegmentCount = fullSegments.Length - segments.Length;
+            var prefixSegmentCount = fullSegments.Count - segments.Count;
 
-            for (var index = 0; index < segments.Length; index++)
+            for (var index = 0; index < segments.Count; index++)
             {
                 var segment = segments[index];
                 var segmentKey = string.Join('/', fullSegments.Take(prefixSegmentCount + index + 1));
@@ -341,12 +344,13 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
                     node = new TargetSelectionTreeNode
                     {
                         DisplayName = segment,
-                        FullPath = segmentKey
+                        FullPath = segmentKey,
+                        ActualPath = index == segments.Count - 1 ? normalizedFullPath : segmentKey
                     };
                     currentList.Add(node);
                 }
 
-                if (index == segments.Length - 1)
+                if (index == segments.Count - 1)
                 {
                     node.IsSelectable = true;
                 }
@@ -393,7 +397,8 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
 
         foreach (var node in nodes)
         {
-            if (candidatePaths.Contains(node.FullPath, StringComparer.OrdinalIgnoreCase))
+            var comparableNodePath = TargetPathHelper.NormalizeComparablePath(string.IsNullOrWhiteSpace(node.ActualPath) ? node.FullPath : node.ActualPath);
+            if (candidatePaths.Contains(comparableNodePath, StringComparer.OrdinalIgnoreCase))
             {
                 return node;
             }
@@ -411,13 +416,13 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
     private static bool ContainsEquivalentPath(IEnumerable<string> options, string selectedValue, string pageName)
     {
         var normalizedOptions = options
-            .Select(NormalizePath)
+            .Select(TargetPathHelper.NormalizeComparablePath)
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .ToArray();
 
         foreach (var candidate in TargetPathHelper.EnumerateResolutionCandidates(selectedValue, pageName))
         {
-            var normalizedCandidate = NormalizePath(candidate);
+            var normalizedCandidate = TargetPathHelper.NormalizeComparablePath(candidate);
             if (normalizedOptions.Contains(normalizedCandidate, StringComparer.OrdinalIgnoreCase))
             {
                 return true;
@@ -480,8 +485,8 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
             return null;
         }
 
-        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        for (var index = 1; index < segments.Length; index++)
+        var segments = TargetPathHelper.SplitPathSegments(normalizedPath);
+        for (var index = 1; index < segments.Count; index++)
         {
             if (string.Equals(segments[index], pageName, StringComparison.OrdinalIgnoreCase))
             {
@@ -507,9 +512,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
     }
 
     private static string NormalizePath(string? path)
-        => string.IsNullOrWhiteSpace(path)
-            ? string.Empty
-            : path.Replace('\\', '/').Trim().Trim('/');
+        => TargetPathHelper.NormalizeConfiguredTargetPath(path);
 
     private void SetAndRaise(ref string field, string value, string propertyName)
     {

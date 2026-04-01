@@ -30,7 +30,7 @@
                           Margin="6,0,0,0"
                           Padding="6,2"
                           Background="#E0E0E0"
-                          BorderBrush="{Binding CardBorderBrush, RelativeSource={RelativeSource AncestorType=controls:PageEditorControl}}"
+                          BorderBrush="{Binding CardBorderBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}"
                           BorderThickness="1"
                           CornerRadius="6">
         <StackPanel Orientation="Horizontal" Spacing="4">

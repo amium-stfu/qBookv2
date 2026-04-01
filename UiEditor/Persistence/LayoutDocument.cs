@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using Amium.UiEditor.Models;
 
 namespace Amium.UiEditor.Persistence;
@@ -7,19 +8,23 @@ public sealed class LayoutDocument
 {
     public string TabStripPlacement { get; init; } = "Right";
 
-    public List<PageDocument> Pages { get; init; } = [];
+    [JsonPropertyName("Folders")]
+    public List<FolderDocument> Folders { get; init; } = [];
+
+    [JsonPropertyName("Pages")]
+    public List<FolderDocument>? LegacyPages { get; init; }
 }
 
-public sealed class PageDocument
+public sealed class FolderDocument
 {
     public int Index { get; init; }
 
     public string Name { get; init; } = string.Empty;
 
-    public List<PageItemDocument> Items { get; init; } = [];
+    public List<FolderItemDocument> Items { get; init; } = [];
 }
 
-public sealed class PageItemDocument
+public sealed class FolderItemDocument
 {
     public ControlKind Kind { get; init; }
 
@@ -177,7 +182,7 @@ public sealed class PageItemDocument
 
     public double Height { get; init; }
 
-    public List<PageItemDocument> Items { get; init; } = [];
+    public List<FolderItemDocument> Items { get; init; } = [];
 }
 
 public sealed class ItemInteractionRuleDocument

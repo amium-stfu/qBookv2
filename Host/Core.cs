@@ -21,10 +21,13 @@ public enum CoreState
 
 public static class Core
 {
+    private static bool _roslynInitialized;
+    private static readonly object RoslynSync = new();
+
     //State Heartbeat to keep the editor updated on the current state of the host, especially during long operations like build and run. The editor can use this to show appropriate status messages or indicators.
     static Core()
     {
-        RoslynBridge.EnsureInitialized();
+        EnsureRoslynInitialized();
     }
     
     public static System.Threading.Timer? PipeHeartbeat;
@@ -34,17 +37,44 @@ public static class Core
 
 
     private static readonly SemaphoreSlim BuildSemaphore = new(1, 1);
-    private static readonly BookRoslynCompiler Compiler = new();
+    private static readonly ProjectRoslynCompiler Compiler = new();
     private static readonly object PipeSync = new();
     private static readonly object RuntimeSync = new();
 
     public static ServerSide? ComChannel { get; private set; }
     public static string? OpenedDirectory { get; private set; }
-    public static BookBuildResult? LastBuildResult { get; private set; }
+    public static ProjectBuildResult? LastBuildResult { get; private set; }
     public static string? PipeInfoFilePath { get; private set; }
     public static bool IsRuntimeRunning { get; private set; }
     private static Type? CurrentProgramType { get; set; }
-    public static event Action<string, BookProject?>? UiStateChanged;
+    public static event Action<string, ProjectModel?>? UiStateChanged;
+
+    private static void EnsureRoslynInitialized()
+    {
+        lock (RoslynSync)
+        {
+            if (_roslynInitialized)
+            {
+                return;
+            }
+
+            ProjectLoader.ReferencePathResolver = projectRoot =>
+            {
+                HostPluginCatalog.EnsureLoaded();
+                return HostPluginCatalog.GetProjectReferencePaths(projectRoot);
+            };
+
+            ProjectRoslynCompiler.AdditionalReferenceResolver = () =>
+            {
+                HostPluginCatalog.EnsureLoaded();
+                return HostPluginCatalog.GetProjectReferencePaths(AppContext.BaseDirectory);
+            };
+
+            ProjectRoslynCompiler.InfoLogger = LogInfo;
+            ProjectRoslynCompiler.DebugLogger = message => LogDebug(message);
+            _roslynInitialized = true;
+        }
+    }
 
     public static void LogInfo(string message)
     {
@@ -176,7 +206,7 @@ public static class Core
         LogInfo($"Opened directory set to {OpenedDirectory}");
     }
 
-    public static async Task<BookBuildResult> LoadAndRunAsync(string? directory = null, CancellationToken cancellationToken = default)
+    public static async Task<ProjectBuildResult> LoadAndRunAsync(string? directory = null, CancellationToken cancellationToken = default)
     {
         if (IsRuntimeRunning)
         {
@@ -195,17 +225,12 @@ public static class Core
         return result;
     }
 
-    public static Task<BookBuildResult> LoadAndRunUdlBookAsync(string? path = null, CancellationToken cancellationToken = default)
+    public static Task<ProjectBuildResult> LoadAndRunProjectAsync(string? path = null, CancellationToken cancellationToken = default)
     {
         return LoadAndRunAsync(path, cancellationToken);
     }
 
-    public static Task<BookBuildResult> LoadAndRunStudioProjectAsync(string? path = null, CancellationToken cancellationToken = default)
-    {
-        return LoadAndRunAsync(path, cancellationToken);
-    }
-
-    public static async Task<BookBuildResult> RebuildAsync(string? directory = null, CancellationToken cancellationToken = default)
+    public static async Task<ProjectBuildResult> RebuildAsync(string? directory = null, CancellationToken cancellationToken = default)
     {
         var targetDirectory = ResolveProjectDirectory(directory);
         HostPluginCatalog.EnsureLoaded();
@@ -224,7 +249,7 @@ public static class Core
             }
 
             OpenedDirectory = targetDirectory;
-            var project = BookProjectLoader.Load(targetDirectory);
+            var project = ProjectLoader.Load(targetDirectory);
             SendProjectLoaded(project);
             SendToEditor("BuildStarted", targetDirectory);
             LogInfo($"Build started for {project.RootDirectory} with {project.SourceFiles.Count} source files");
@@ -247,7 +272,7 @@ public static class Core
                 result.PdbPath,
                 result.ErrorCount.ToString(),
                 result.WarningCount.ToString(),
-                result.Project.Pages.Count.ToString(),
+                result.Project.Folders.Count.ToString(),
                 result.Project.SourceFiles.Count.ToString(),
                 result.Project.UiFiles.Count.ToString());
 
@@ -276,12 +301,7 @@ public static class Core
         }
     }
 
-    public static Task<BookBuildResult> RebuildUdlBookAsync(string? path = null, CancellationToken cancellationToken = default)
-    {
-        return RebuildAsync(path, cancellationToken);
-    }
-
-    public static Task<BookBuildResult> RebuildStudioProjectAsync(string? path = null, CancellationToken cancellationToken = default)
+    public static Task<ProjectBuildResult> RebuildProjectAsync(string? path = null, CancellationToken cancellationToken = default)
     {
         return RebuildAsync(path, cancellationToken);
     }
@@ -339,7 +359,7 @@ public static class Core
                     if (!string.IsNullOrWhiteSpace(OpenedDirectory))
                     {
                         SendToEditor("DirectoryOpened", OpenedDirectory!);
-                        SendProjectLoaded(BookProjectLoader.Load(OpenedDirectory!));
+                        SendProjectLoaded(ProjectLoader.Load(OpenedDirectory!));
                     }
 
                     break;
@@ -392,11 +412,13 @@ public static class Core
         var current = new DirectoryInfo(fullPath);
         while (current is not null)
         {
-            var hasPages = Directory.Exists(Path.Combine(current.FullName, "Pages"));
+            var hasFolders = Directory.Exists(Path.Combine(current.FullName, "Folders"))
+                || Directory.Exists(Path.Combine(current.FullName, "Pages"));
             var hasProgram = File.Exists(Path.Combine(current.FullName, "Program.cs"));
-            var hasBookManifest = File.Exists(Path.Combine(current.FullName, "Book.json"));
+            var hasProjectManifest = File.Exists(Path.Combine(current.FullName, "Project.json"))
+                || File.Exists(Path.Combine(current.FullName, "Book.json"));
 
-            if (hasPages && (hasProgram || hasBookManifest))
+            if (hasFolders && (hasProgram || hasProjectManifest))
             {
                 return current.FullName;
             }
@@ -404,19 +426,19 @@ public static class Core
             current = current.Parent;
         }
 
-        throw new InvalidOperationException($"Could not determine book project root from '{fullPath}'.");
+        throw new InvalidOperationException($"Could not determine project root from '{fullPath}'.");
     }
 
-    private static void SendProjectLoaded(BookProject project)
+    private static void SendProjectLoaded(ProjectModel project)
     {
-        LogInfo($"Project loaded {project.ProjectName} Pages={project.Pages.Count} Sources={project.SourceFiles.Count} UiFiles={project.UiFiles.Count}");
+        LogInfo($"Project loaded {project.ProjectName} Folders={project.Folders.Count} Sources={project.SourceFiles.Count} UiFiles={project.UiFiles.Count}");
 
         SendToEditor(
             "ProjectLoaded",
             project.RootDirectory,
             project.ProjectName,
             project.TargetFramework,
-            project.Pages.Count.ToString(),
+            project.Folders.Count.ToString(),
             project.SourceFiles.Count.ToString(),
             project.UiFiles.Count.ToString());
     }
@@ -442,7 +464,7 @@ public static class Core
 
     private static void DestroyRuntime()
     {
-        BookProject? project = null;
+        ProjectModel? project = null;
         State = CoreState.Stop;
         HasAlert = false;
 
@@ -464,7 +486,7 @@ public static class Core
                 Compiler.UnloadRuntimeAssembly();
                 if (LastBuildResult is not null)
                 {
-                    LastBuildResult = new BookBuildResult(
+                    LastBuildResult = new ProjectBuildResult(
                         LastBuildResult.Project,
                         LastBuildResult.Success,
                         LastBuildResult.Diagnostics,
@@ -488,7 +510,7 @@ public static class Core
 
     private static void RunRuntime()
     {
-        BookProject? project;
+        ProjectModel? project;
 
         lock (RuntimeSync)
         {
@@ -519,7 +541,7 @@ public static class Core
 
                 LogInfo($"RunRuntime loading assembly from {LastBuildResult.AssemblyPath}");
                 assembly = Compiler.LoadRuntimeAssembly(LastBuildResult.AssemblyPath);
-                LastBuildResult = new BookBuildResult(
+                LastBuildResult = new ProjectBuildResult(
                     LastBuildResult.Project,
                     LastBuildResult.Success,
                     LastBuildResult.Diagnostics,

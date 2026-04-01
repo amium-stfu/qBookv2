@@ -45,7 +45,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         Converters = { new JsonStringEnumConverter() }
     };
 
-    private readonly ObservableCollection<PageItemModel> _selectedItems = [];
+    private readonly ObservableCollection<FolderItemModel> _selectedItems = [];
     private readonly bool _supportsUdlClientControl;
     private bool _isEditMode;
     private bool _showGrid = true;
@@ -57,16 +57,16 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private string _statusText;
     private string _dataRegistrySummary;
     private string _editorDialogChoiceSummary;
-    private PageItemModel? _selectedItem;
-    private PageModel _selectedPage = null!;
+    private FolderItemModel? _selectedItem;
+    private FolderModel _selectedPage = null!;
     private double _canvasWidth;
     private double _canvasHeight;
     private double _workspaceWidth;
     private double _workspaceHeight;
-    private PageItemModel? _listPopupTarget;
+    private FolderItemModel? _listPopupTarget;
     private EditorDialogMode _editorDialogMode;
-    private PageItemModel? _editorDialogItem;
-    private PageItemModel? _editorDialogParentItem;
+    private FolderItemModel? _editorDialogItem;
+    private FolderItemModel? _editorDialogParentItem;
     private string _editorDialogTitle = string.Empty;
     private string _editorDialogError = string.Empty;
     private bool _isEditorDialogOpen;
@@ -74,7 +74,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private double _editorDialogX;
     private double _editorDialogY;
     private int _dataRegistryRefreshQueued;
-    private PageItemModel? _activeValueInputItem;
+    private FolderItemModel? _activeValueInputItem;
     private bool _isValueInputOpen;
     private UserLevel _currentUser = UserLevel.Default;
     private Dock _tabStripPlacement = Dock.Right;
@@ -83,14 +83,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     public MainWindowViewModel(bool supportsUdlClientControl = false)
     {
         _supportsUdlClientControl = supportsUdlClientControl;
-        Pages = [];
+        Folders = [];
         GridLines = [];
         SelectionState = new SelectionState();
         EditorDialogSections = [];
         EditorDialogActionFields = [];
         Messages = [];
         LayoutFilePath = Path.Combine(AppContext.BaseDirectory, "layout.json");
-        SelectPageCommand = new RelayCommand<PageModel>(SelectPage);
+        SelectFolderCommand = new RelayCommand<FolderModel>(SelectFolder);
         SaveLayoutCommand = new RelayCommand(SaveLayout);
         LoadLayoutCommand = new RelayCommand(LoadLayout);
         AlignLeftCommand = new RelayCommand(AlignLeft);
@@ -111,13 +111,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         _viewLimit = _currentUser.ViewLimit;
         HostRegistries.Data.RegistryChanged += OnDataRegistryStructureChanged;
 
-        SetPages(CreateDefaultPages());
+        SetFolders(CreateDefaultPages());
         RefreshDataRegistryDiagnostics();
     }
 
     public bool SupportsUdlClientControl => _supportsUdlClientControl;
 
-    public ObservableCollection<PageModel> Pages { get; }
+    public ObservableCollection<FolderModel> Folders { get; }
 
     public ObservableCollection<EditorGridLine> GridLines { get; }
 
@@ -131,7 +131,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public bool ShowEditorDialogActionPlaceholder => !HasEditorDialogActionFields;
 
-    public PageModel SelectedPage
+    public FolderModel SelectedFolder
     {
         get => _selectedPage;
         set
@@ -158,7 +158,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    public PageItemModel? SelectedItem
+    public FolderItemModel? SelectedItem
     {
         get => _selectedItem;
         private set => SetProperty(ref _selectedItem, value);
@@ -398,7 +398,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     public bool ShowAlignmentPanel => IsEditMode && HasMultiSelection;
     public int SelectedItemsCount => _selectedItems.Count;
     public string EditModeText => IsEditMode ? "Edit mode aktiv" : "View mode";
-    public string FooterText => $"{SelectedPage.Name} aktiv | {SelectedPage.Items.Count} Widgets | {SelectedItemsCount} ausgewaehlt | {(IsEditMode ? "Edit" : "Navigation")}";
+    public string FooterText => $"{SelectedFolder.Name} aktiv | {SelectedFolder.Items.Count} Widgets | {SelectedItemsCount} ausgewaehlt | {(IsEditMode ? "Edit" : "Navigation")}";
 
     public string StatusText
     {
@@ -420,7 +420,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public string LayoutFilePath { get; }
     public SelectionState SelectionState { get; }
-    public RelayCommand<PageModel> SelectPageCommand { get; }
+    public RelayCommand<FolderModel> SelectFolderCommand { get; }
     public RelayCommand SaveLayoutCommand { get; }
     public RelayCommand LoadLayoutCommand { get; }
     public RelayCommand AlignLeftCommand { get; }
@@ -472,7 +472,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         private set => SetProperty(ref _isValueInputOpen, value);
     }
 
-    public PageItemModel? ActiveValueInputItem
+    public FolderItemModel? ActiveValueInputItem
     {
         get => _activeValueInputItem;
         private set => SetProperty(ref _activeValueInputItem, value);
@@ -490,17 +490,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         private set => SetProperty(ref _editorDialogError, value);
     }
 
-    public void SelectPage(PageModel? page)
+    public void SelectFolder(FolderModel? page)
     {
         if (page is null)
         {
             return;
         }
 
-        SelectedPage = page;
+        SelectedFolder = page;
     }
 
-    public void SelectItem(PageItemModel? item)
+    public void SelectItem(FolderItemModel? item)
     {
         if (item is null)
         {
@@ -511,7 +511,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         SetSelectedItems([item], item);
     }
 
-    public void SetMasterItem(PageItemModel item)
+    public void SetMasterItem(FolderItemModel item)
     {
         if (!_selectedItems.Contains(item))
         {
@@ -522,10 +522,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         UpdateSelectionFlags(item);
     }
 
-    public void ToggleItemSelection(PageItemModel item)
+    public void ToggleItemSelection(FolderItemModel item)
     {
         var items = _selectedItems.ToList();
-        PageItemModel? master = SelectedItem;
+        FolderItemModel? master = SelectedItem;
 
         if (!items.Remove(item))
         {
@@ -540,15 +540,15 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         SetSelectedItems(items, master);
     }
 
-    public void AddItemsToSelection(IReadOnlyList<PageItemModel> items)
+    public void AddItemsToSelection(IReadOnlyList<FolderItemModel> items)
     {
         var merged = _selectedItems.Concat(items).Distinct().ToList();
         SetSelectedItems(merged, items.LastOrDefault() ?? merged.LastOrDefault());
     }
 
-    public bool IsItemSelected(PageItemModel item) => _selectedItems.Contains(item);
+    public bool IsItemSelected(FolderItemModel item) => _selectedItems.Contains(item);
 
-    public IReadOnlyList<PageItemModel> GetSelectedItems() => _selectedItems.ToList();
+    public IReadOnlyList<FolderItemModel> GetSelectedItems() => _selectedItems.ToList();
 
     public void ClearItemSelection() => SetSelectedItems([], null);
 
@@ -591,7 +591,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         SelectionState.IsSelecting = false;
 
-        var selectedItems = SelectedPage.Items
+        var selectedItems = SelectedFolder.Items
             .Where(item => IntersectsSelection(item, SelectionState.X, SelectionState.Y, SelectionState.Width, SelectionState.Height))
             .ToList();
 
@@ -625,21 +625,22 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public void BeginSelectionAdd(ControlKind kind)
     {
-        if (!SelectionState.ShowPicker || kind == ControlKind.Signal)
+        if (!SelectionState.ShowPicker)
         {
             return;
         }
 
         var draft = CreateItem(kind, SelectionState.X, SelectionState.Y, SelectionState.Width, SelectionState.Height);
-        draft.Name = GetSuggestedControlName(kind, SelectedPage, null, null);
+        draft.Name = GetSuggestedControlName(kind, SelectedFolder, null, null);
         draft.Id = Guid.NewGuid().ToString("N");
-        draft.SetHierarchy(SelectedPage.Name, null);
+        draft.SetLayoutFilePath(SelectedFolder.UiFilePath);
+        draft.SetHierarchy(SelectedFolder.Name, null);
 
         OpenEditorDialog(EditorDialogMode.AddCanvas, draft, null, SelectionState.PopupX + 16, SelectionState.PopupY + 16, $"Create {kind}");
         SelectionState.ShowPicker = false;
     }
 
-    public void OpenListPopup(PageItemModel listControl, double x, double y)
+    public void OpenListPopup(FolderItemModel listControl, double x, double y)
     {
         _listPopupTarget = listControl;
         SelectionState.ListPopupX = x;
@@ -649,21 +650,21 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public void BeginListAdd(ControlKind kind)
     {
-        if (_listPopupTarget is null || !_listPopupTarget.IsListControl || kind == ControlKind.ListControl || kind == ControlKind.Signal)
+        if (_listPopupTarget is null || !_listPopupTarget.IsListControl || kind == ControlKind.ListControl)
         {
             return;
         }
 
         var draft = CreateItem(kind, 0, 0, _listPopupTarget.ChildContentWidth, _listPopupTarget.ListItemHeight);
-        draft.Name = GetSuggestedControlName(kind, SelectedPage, _listPopupTarget, null);
+        draft.Name = GetSuggestedControlName(kind, SelectedFolder, _listPopupTarget, null);
         draft.Id = Guid.NewGuid().ToString("N");
-        draft.SetHierarchy(SelectedPage.Name, _listPopupTarget);
+        draft.SetHierarchy(SelectedFolder.Name, _listPopupTarget);
 
         OpenEditorDialog(EditorDialogMode.AddList, draft, _listPopupTarget, SelectionState.ListPopupX + 16, SelectionState.ListPopupY + 16, $"Create {kind}");
         CancelListPopup();
     }
 
-    public void ToggleTableCellSelection(PageItemModel table, int row, int column, bool toggle)
+    public void ToggleTableCellSelection(FolderItemModel table, int row, int column, bool toggle)
     {
         if (table is null || !table.IsTableControl)
         {
@@ -728,10 +729,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         UpdateLastSelectedTableCell(table, row, column);
     }
 
-    public void AddItemToSelectedTableCells(PageItemModel table)
+    public void AddItemToSelectedTableCells(FolderItemModel table)
         => AddControlToSelectedTableCells(table, ControlKind.Item);
 
-    public void AddControlToSelectedTableCells(PageItemModel table, ControlKind kind)
+    public void AddControlToSelectedTableCells(FolderItemModel table, ControlKind kind)
     {
         if (table is null || !table.IsTableControl)
         {
@@ -761,13 +762,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var baseCellHeight = table.Height / Math.Max(1, table.TableRows);
         var draftHeight = Math.Max(baseCellHeight * rowSpan, table.ListItemHeight);
         var draft = CreateItem(kind, 0, 0, table.ChildContentWidth, draftHeight);
-        draft.Name = GetSuggestedControlName(kind, SelectedPage, table, null);
+        draft.Name = GetSuggestedControlName(kind, SelectedFolder, table, null);
         draft.Id = Guid.NewGuid().ToString("N");
         draft.TableCellRow = minRow;
         draft.TableCellColumn = minColumn;
         draft.TableCellRowSpan = rowSpan;
         draft.TableCellColumnSpan = columnSpan;
-        draft.SetHierarchy(SelectedPage.Name, table);
+        draft.SetHierarchy(SelectedFolder.Name, table);
 
         table.Items.Add(draft);
         table.UpdateTableCellContentFromChildren();
@@ -787,7 +788,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    public void SelectTableRectangle(PageItemModel table, int startRow, int startColumn, int endRow, int endColumn)
+    public void SelectTableRectangle(FolderItemModel table, int startRow, int startColumn, int endRow, int endColumn)
     {
         if (table is null || !table.IsTableControl)
         {
@@ -821,7 +822,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         UpdateLastSelectedTableCell(table, endRow, endColumn);
     }
 
-    private static bool IsContiguousRectangle(PageItemModel table)
+    private static bool IsContiguousRectangle(FolderItemModel table)
     {
         var selected = table.TableCellSlots.Where(c => c.IsSelected).ToList();
         if (selected.Count == 0)
@@ -850,7 +851,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return true;
     }
 
-    private static void UpdateLastSelectedTableCell(PageItemModel table, int row, int column)
+    private static void UpdateLastSelectedTableCell(FolderItemModel table, int row, int column)
     {
         // Wenn die angeklickte Zelle nicht selektiert ist, suche eine beliebige andere selektierte Zelle.
         var target = table.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == column && c.IsSelected)
@@ -862,7 +863,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    public void OpenItemEditor(PageItemModel item, double x, double y)
+    public void OpenItemEditor(FolderItemModel item, double x, double y)
     {
         if (IsEditorDialogOpen
             && _editorDialogMode == EditorDialogMode.Edit
@@ -874,7 +875,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         OpenEditorDialog(EditorDialogMode.Edit, item, item.ParentItem, x, y, $"Edit {item.Name}");
     }
 
-    public void OpenValueInput(PageItemModel item)
+    public void OpenValueInput(FolderItemModel item)
     {
         if (item is null || !item.CanOpenValueEditor)
         {
@@ -886,7 +887,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         StatusText = $"Input active: {item.Title}";
     }
 
-    public PageItemModel? ResolveValueInputTarget(string? targetPath, PageItemModel sourceItem)
+    public FolderItemModel? ResolveValueInputTarget(string? targetPath, FolderItemModel sourceItem)
     {
         if (sourceItem is null)
         {
@@ -898,12 +899,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return sourceItem;
         }
 
-        if (TryFindValueInputItem(targetPath, sourceItem.PageName, out var existingItem) && existingItem is not null)
+        if (TryFindValueInputItem(targetPath, sourceItem.FolderName, out var existingItem) && existingItem is not null)
         {
             return existingItem;
         }
 
-        if (!TryResolveDataTargetItem(targetPath, sourceItem.PageName, out var targetItem) || targetItem is null)
+        if (!TryResolveDataTargetItem(targetPath, sourceItem.FolderName, out var targetItem) || targetItem is null)
         {
             return null;
         }
@@ -912,9 +913,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ? targetItem.Params["Text"].Value?.ToString() ?? string.Empty
             : string.Empty;
 
-        var proxy = new PageItemModel
+        var proxy = new FolderItemModel
         {
-            Kind = ControlKind.Item,
+            Kind = ControlKind.Signal,
             Name = targetItem.Name ?? "InteractionTarget",
             Title = !string.IsNullOrWhiteSpace(targetText) ? targetText : targetItem.Name ?? string.Empty,
             Unit = targetItem.Params.Has("Unit") ? targetItem.Params["Unit"].Value?.ToString() ?? string.Empty : string.Empty,
@@ -930,7 +931,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return proxy;
     }
 
-    public void OpenValueInputForTargetPath(string? targetPath, PageItemModel sourceItem)
+    public void OpenValueInputForTargetPath(string? targetPath, FolderItemModel sourceItem)
     {
         var target = ResolveValueInputTarget(targetPath, sourceItem);
         if (target is null)
@@ -994,7 +995,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return true;
     }
 
-    private bool TryFindValueInputItem(string targetPath, string? pageName, out PageItemModel? match)
+    private bool TryFindValueInputItem(string targetPath, string? pageName, out FolderItemModel? match)
     {
         match = null;
         var resolvedTargetPath = targetPath;
@@ -1003,7 +1004,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             resolvedTargetPath = resolvedItem.Path!;
         }
 
-        match = Pages
+        match = Folders
             .SelectMany(page => EnumeratePageItems(page.Items))
             .FirstOrDefault(item => item.CanOpenValueEditor
                 && !string.IsNullOrWhiteSpace(item.TargetPath)
@@ -1031,8 +1032,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         var page = _editorDialogMode == EditorDialogMode.Edit
-            ? FindOwningPage(_editorDialogItem) ?? SelectedPage
-            : SelectedPage;
+            ? FindOwningPage(_editorDialogItem) ?? SelectedFolder
+            : SelectedFolder;
 
         if (!TryApplyEditorDialogValues(_editorDialogItem, page, _editorDialogMode == EditorDialogMode.Edit ? _editorDialogItem : null, out var error))
         {
@@ -1050,16 +1051,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 _editorDialogItem.Y = SnapCoordinate(_editorDialogItem.Y, _editorDialogItem.Height, _canvasHeight);
                 _editorDialogItem.Width = SnapLength(_editorDialogItem.Width, _editorDialogItem.MinWidth, MaxAvailableWidth(_editorDialogItem.X));
                 _editorDialogItem.Height = SnapLength(_editorDialogItem.Height, _editorDialogItem.MinHeight, MaxAvailableHeight(_editorDialogItem.Y));
-                SelectedPage.Items.Add(_editorDialogItem);
+                _editorDialogItem.SetLayoutFilePath(SelectedFolder.UiFilePath);
+                SelectedFolder.Items.Add(_editorDialogItem);
                 SelectItem(_editorDialogItem);
-                StatusText = $"{_editorDialogItem.Kind} '{_editorDialogItem.Name}' added to {SelectedPage.Name}";
+                StatusText = $"{_editorDialogItem.Kind} '{_editorDialogItem.Name}' added to {SelectedFolder.Name}";
                 CancelSelection();
                 break;
             case EditorDialogMode.AddList:
                 if (_editorDialogParentItem is not null)
                 {
                     NormalizeListChild(_editorDialogParentItem, _editorDialogItem);
-                    _editorDialogItem.SetHierarchy(SelectedPage.Name, _editorDialogParentItem);
+                    _editorDialogItem.SetHierarchy(SelectedFolder.Name, _editorDialogParentItem);
                     _editorDialogParentItem.Items.Add(_editorDialogItem);
                     _editorDialogParentItem.ApplyListHeightRules();
                     StatusText = $"{_editorDialogItem.Kind} '{_editorDialogItem.Name}' added to {_editorDialogParentItem.Name}";
@@ -1091,20 +1093,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         CancelValueInput();
     }
 
-    public bool MoveItemIntoList(PageItemModel draggedItem, PageItemModel listControl)
+    public bool MoveItemIntoList(FolderItemModel draggedItem, FolderItemModel listControl)
     {
         if (!listControl.IsListControl || draggedItem.IsListControl)
         {
             return false;
         }
 
-        if (!SelectedPage.Items.Remove(draggedItem))
+        if (!SelectedFolder.Items.Remove(draggedItem))
         {
             return false;
         }
 
         NormalizeListChild(listControl, draggedItem);
-        draggedItem.SetHierarchy(SelectedPage.Name, listControl);
+        draggedItem.SetHierarchy(SelectedFolder.Name, listControl);
         draggedItem.ApplyTheme(IsDarkTheme);
         listControl.Items.Add(draggedItem);
         listControl.ApplyListHeightRules();
@@ -1113,7 +1115,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return true;
     }
 
-    public bool DeleteItem(PageItemModel item)
+    public bool DeleteItem(FolderItemModel item)
     {
         if (item is null)
         {
@@ -1123,7 +1125,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var ownerList = item.ParentListControl;
         var removed = ownerList?.IsListControl == true
             ? ownerList.Items.Remove(item)
-            : SelectedPage.Items.Remove(item);
+            : SelectedFolder.Items.Remove(item);
 
         if (!removed)
         {
@@ -1148,14 +1150,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     void IEditorUiHost.OpenItemEditor(object item, double x, double y)
     {
-        if (item is PageItemModel pageItem)
+        if (item is FolderItemModel pageItem)
         {
             OpenItemEditor(pageItem, x, y);
         }
     }
 
     bool IEditorUiHost.DeleteItem(object item)
-        => item is PageItemModel pageItem && DeleteItem(pageItem);
+        => item is FolderItemModel pageItem && DeleteItem(pageItem);
 
     bool IEditorUiHost.IsEditMode => IsEditMode;
 
@@ -1184,9 +1186,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         // Aktualisiere den logischen Arbeitsbereich fuer ScrollViewer
         // basierend auf den aktuellen Widget-Positionen.
-        if (Pages.Count > 0)
+        if (Folders.Count > 0)
         {
-            var page = SelectedPage;
+            var page = SelectedFolder;
             double maxRight = 0;
             double maxBottom = 0;
 
@@ -1216,7 +1218,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public void SaveLayout()
     {
-        if (Pages.Any(page => !string.IsNullOrWhiteSpace(page.UiFilePath)))
+        if (Folders.Any(page => !string.IsNullOrWhiteSpace(page.UiFilePath)))
         {
             var savedTargets = new List<string>();
             if (TrySaveSelectedPageYaml(out var uiSaveTarget))
@@ -1231,14 +1233,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
             StatusText = savedTargets.Count > 0
                 ? $"Saved: {string.Join(" | ", savedTargets)}"
-                : "No book files to save";
+                : "No project files to save";
             return;
         }
 
         var document = new LayoutDocument
         {
             TabStripPlacement = TabStripPlacement.ToString(),
-            Pages = Pages.Select(ToDocument).ToList()
+            Folders = Folders.Select(ToDocument).ToList()
         };
 
         var yamlTargetPath = Path.ChangeExtension(LayoutFilePath, ".yaml");
@@ -1249,19 +1251,19 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private bool TrySaveSelectedPageYaml(out string savedTarget)
     {
         savedTarget = string.Empty;
-        var uiFilePath = SelectedPage.UiFilePath;
+        var uiFilePath = SelectedFolder.UiFilePath;
         if (string.IsNullOrWhiteSpace(uiFilePath))
         {
             return false;
         }
 
-        var template = SelectedPage.UiLayoutDefinition;
+        var template = SelectedFolder.UiLayoutDefinition;
         var documentObject = CloneJsonObject(template?.DocumentProperties);
         documentObject.Remove("Page");
-        documentObject["Title"] = !string.IsNullOrWhiteSpace(template?.Title) ? template!.Title : SelectedPage.Name;
+        documentObject["Title"] = !string.IsNullOrWhiteSpace(template?.Title) ? template!.Title : SelectedFolder.Name;
         documentObject["Layout"] = ToUiNodeDocument(
             template?.Layout,
-            SelectedPage.Items,
+            SelectedFolder.Items,
             defaultType: "Canvas");
 
         var directory = Path.GetDirectoryName(uiFilePath);
@@ -1271,14 +1273,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         TrySavePageYaml(uiFilePath, documentObject);
-        savedTarget = $"Page.yaml: {Path.GetFileName(Path.GetDirectoryName(uiFilePath))}";
+        savedTarget = $"Folder.yaml: {Path.GetFileName(Path.GetDirectoryName(uiFilePath))}";
         return true;
     }
 
     private bool TrySaveBookManifest(out string savedTarget)
     {
         savedTarget = string.Empty;
-        if (!Pages.Any(page => !string.IsNullOrWhiteSpace(page.UiFilePath)))
+        if (!Folders.Any(page => !string.IsNullOrWhiteSpace(page.UiFilePath)))
         {
             return false;
         }
@@ -1296,11 +1298,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         WriteBookManifest(bookManifestPath);
-        savedTarget = $"Book.udlb: {TabStripPlacement}";
+        savedTarget = $"Project.aaep: {TabStripPlacement}";
         return true;
     }
 
-    private static JsonObject ToUiNodeDocument(BookUiNode? templateNode, IEnumerable<PageItemModel> items, string defaultType)
+    private static JsonObject ToUiNodeDocument(ProjectUiNode? templateNode, IEnumerable<FolderItemModel> items, string defaultType)
     {
         var nodeObject = CloneJsonObject(templateNode?.Properties);
         nodeObject["Type"] = !string.IsNullOrWhiteSpace(templateNode?.Type) ? templateNode!.Type : defaultType;
@@ -1308,7 +1310,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return nodeObject;
     }
 
-    private static JsonObject ToUiNodeDocument(PageItemModel item)
+    private static JsonObject ToUiNodeDocument(FolderItemModel item)
     {
         var nodeObject = CloneJsonObject(item.UiProperties);
         nodeObject["Type"] = !string.IsNullOrWhiteSpace(item.UiNodeType) ? item.UiNodeType : GetDefaultUiType(item.Kind);
@@ -1348,7 +1350,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["View"] = item.View;
         nodeObject["Enabled"] = item.Enabled;
         nodeObject["ButtonText"] = item.ButtonText;
-        SetOptionalJsonValue(nodeObject, "ButtonIcon", item.ButtonIcon);
+        SetOptionalJsonValue(nodeObject, "ButtonIcon", IconPathHelper.NormalizeStoredPath(item.ButtonIcon, item.FolderLayoutPath));
         nodeObject["ButtonOnlyIcon"] = item.ButtonOnlyIcon;
         nodeObject["ButtonIconAlign"] = item.ButtonIconAlign;
         nodeObject["ButtonTextAlign"] = item.ButtonTextAlign;
@@ -1368,7 +1370,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         SetOptionalJsonValue(nodeObject, "SecondaryForegroundColor", item.SecondaryForegroundColor);
         SetOptionalJsonValue(nodeObject, "AccentBackgroundColor", item.AccentBackgroundColor);
         SetOptionalJsonValue(nodeObject, "AccentForegroundColor", item.AccentForegroundColor);
-        nodeObject["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.PageName);
+        nodeObject["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.FolderName);
         nodeObject["TargetParameterPath"] = item.TargetParameterPath;
         nodeObject["TargetParameterFormat"] = item.TargetParameterFormat;
             nodeObject["Unit"] = item.Unit;
@@ -1376,8 +1378,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["RefreshRateMs"] = item.RefreshRateMs;
         nodeObject["HistorySeconds"] = item.HistorySeconds;
         nodeObject["ViewSeconds"] = item.ViewSeconds;
-        nodeObject["ChartSeriesDefinitions"] = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions, item.PageName);
-        if (TryBuildInteractionRulesJson(item.InteractionRules, item.PageName, out var interactionRulesJson))
+        nodeObject["ChartSeriesDefinitions"] = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions, item.FolderName);
+        if (TryBuildInteractionRulesJson(item.InteractionRules, item.FolderName, out var interactionRulesJson))
         {
             nodeObject["InteractionRules"] = interactionRulesJson;
         }
@@ -1416,7 +1418,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return nodeObject;
     }
 
-    private static JsonObject BuildYamlControlDefinition(PageItemModel item)
+    private static JsonObject BuildYamlControlDefinition(FolderItemModel item)
     {
         var node = new JsonObject
         {
@@ -1487,7 +1489,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         };
         node["Footer"] = footer;
 
-        if (TryBuildInteractionRulesJson(item.InteractionRules, item.PageName, out var interactionRules))
+        if (TryBuildInteractionRulesJson(item.InteractionRules, item.FolderName, out var interactionRules))
         {
             node["InteractionRules"] = interactionRules;
         }
@@ -1498,16 +1500,15 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             case ControlKind.Item or ControlKind.Signal:
                 control["Unit"] = item.Unit;
-                control["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.PageName);
-                control["TargetParameterPath"] = item.TargetParameterPath;
-                control["TargetParameterFormat"] = item.TargetParameterFormat;
+                control["Uri"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.FolderName);
+                control["Parameter"] = item.TargetParameterPath;
+                control["Format"] = item.TargetParameterFormat;
                 control["IsReadOnly"] = item.IsReadOnly;
                 control["RefreshRateMs"] = item.RefreshRateMs;
-                control["Children"] = new JsonArray();
                 break;
             case ControlKind.Button:
                 control["ButtonText"] = item.ButtonText;
-                control["ButtonIcon"] = item.ButtonIcon;
+                control["ButtonIcon"] = IconPathHelper.NormalizeStoredPath(item.ButtonIcon, item.FolderLayoutPath);
                 control["ButtonIconColor"] = item.ButtonIconColor is null ? null : JsonValue.Create(item.ButtonIconColor);
                 control["ButtonBackColor"] = item.ButtonBodyBackground is null ? null : JsonValue.Create(item.ButtonBodyBackground);
                 control["ButtonOnlyIcon"] = item.ButtonOnlyIcon;
@@ -1547,7 +1548,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 control["ViewSeconds"] = item.ViewSeconds;
                 if (!string.IsNullOrWhiteSpace(item.ChartSeriesDefinitions))
                 {
-                    control["ChartSeriesDefinitions"] = BuildChartSeriesDefinitionsArray(item.ChartSeriesDefinitions, item.PageName);
+                    control["ChartSeriesDefinitions"] = BuildChartSeriesDefinitionsArray(item.ChartSeriesDefinitions, item.FolderName);
                 }
 
                 break;
@@ -1588,7 +1589,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return array;
     }
 
-    private static string GetUiText(PageItemModel item)
+    private static string GetUiText(FolderItemModel item)
     {
         if (!string.IsNullOrWhiteSpace(item.BodyCaption))
         {
@@ -1608,11 +1609,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClient",
-            _ => "Item"
+            ControlKind.Item or ControlKind.Signal => "Signal",
+            _ => "Signal"
         };
     }
 
-    protected static void ApplyKnownUiProperties(PageItemModel item, JsonObject properties, string pageName, string? fallbackType)
+    protected static void ApplyKnownUiProperties(FolderItemModel item, JsonObject properties, string pageName, string? fallbackType)
     {
         item.Name = GetStringProperty(properties, "Name") ?? item.Name;
         item.Id = GetStringProperty(properties, "Id") ?? item.Id;
@@ -1672,10 +1674,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.FooterBorderColor = GetStringProperty(properties, "FooterBorderColor") ?? item.FooterBorderColor;
         item.FooterBorderWidth = GetDoubleProperty(properties, "FooterBorderWidth") ?? item.FooterBorderWidth;
         item.FooterCornerRadius = GetDoubleProperty(properties, "FooterCornerRadius") ?? item.FooterCornerRadius;
-        item.TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(GetStringProperty(properties, "TargetPath") ?? item.TargetPath);
-        item.TargetParameterPath = GetStringProperty(properties, "TargetParameterPath") ?? item.TargetParameterPath;
-        item.TargetParameterFormat = GetStringProperty(properties, "TargetParameterFormat") ?? item.TargetParameterFormat;
-            item.Unit = GetFirstStringProperty(properties, "Unit", "Footer") ?? item.Unit;
+        item.TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(GetFirstStringProperty(properties, "Uri", "TargetPath") ?? item.TargetPath);
+        item.TargetParameterPath = GetFirstStringProperty(properties, "Parameter", "TargetParameterPath") ?? item.TargetParameterPath;
+        item.TargetParameterFormat = GetFirstStringProperty(properties, "Format", "TargetParameterFormat") ?? item.TargetParameterFormat;
+        item.Unit = GetFirstStringProperty(properties, "Unit", "Footer") ?? item.Unit;
         item.TargetLog = GetStringProperty(properties, "TargetLog") ?? item.TargetLog;
         item.RefreshRateMs = GetIntProperty(properties, "RefreshRateMs") ?? item.RefreshRateMs;
         item.HistorySeconds = GetIntProperty(properties, "HistorySeconds") ?? item.HistorySeconds;
@@ -1857,7 +1859,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClientControl",
-            _ => "Item"
+            ControlKind.Item or ControlKind.Signal => "Signal",
+            _ => "Signal"
         };
     }
 
@@ -1879,14 +1882,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             }
 
             var root = new JsonObject();
-            var title = !string.IsNullOrWhiteSpace(SelectedPage.DisplayText)
-                ? SelectedPage.DisplayText
-                : GetStringProperty(documentObject, "Title") ?? SelectedPage.Name;
-            // In der YAML-Repräsentation verwenden wir "Caption" als Page-Titel.
+            var title = !string.IsNullOrWhiteSpace(SelectedFolder.DisplayText)
+                ? SelectedFolder.DisplayText
+                : GetStringProperty(documentObject, "Title") ?? SelectedFolder.Name;
+            // In der YAML-Repräsentation verwenden wir "Caption" als Folder-Titel.
             root["Caption"] = title;
 
-            var pageViews = SelectedPage.Views.Count > 0
-                ? SelectedPage.Views
+            var pageViews = SelectedFolder.Views.Count > 0
+                ? SelectedFolder.Views
                 : new Dictionary<int, string> { [1] = "HomeScreen" };
 
             var views = new JsonObject(pageViews
@@ -1894,7 +1897,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 .Select(static entry => new KeyValuePair<string, JsonNode?>(entry.Key.ToString(System.Globalization.CultureInfo.InvariantCulture), entry.Value)));
             root["Views"] = views;
 
-            var controls = new JsonArray(SelectedPage.Items.Select(item => (JsonNode?)BuildYamlControlDefinition(item)).ToArray());
+            var controls = new JsonArray(SelectedFolder.Items.Select(item => (JsonNode?)BuildYamlControlDefinition(item)).ToArray());
             root["Controls"] = controls;
 
             using var writer = new StreamWriter(yamlPath, append: false);
@@ -2071,7 +2074,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return null;
         }
 
-        return Path.Combine(rootDirectory, "Book.udlb");
+        var projectManifestPath = Path.Combine(rootDirectory, "Project.aaep");
+        if (File.Exists(projectManifestPath))
+        {
+            return projectManifestPath;
+        }
+
+        var legacyManifestPath = Path.Combine(rootDirectory, "Project.udlb");
+        if (File.Exists(legacyManifestPath))
+        {
+            return legacyManifestPath;
+        }
+
+        var olderLegacyManifestPath = Path.Combine(rootDirectory, "Book.udlb");
+        return File.Exists(olderLegacyManifestPath) ? olderLegacyManifestPath : projectManifestPath;
     }
 
     private void WriteBookManifest(string path)
@@ -2159,7 +2175,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return JsonNode.Parse(json) as JsonObject ?? new JsonObject();
     }
 
-    protected static string? GetPageDisplayText(BookProjectPage page)
+    protected static string? GetFolderDisplayText(ProjectFolderDefinition page)
     {
         var metadata = LoadJsonObject(page.MetadataFile);
         return GetStringProperty(metadata, "Title")
@@ -2185,22 +2201,26 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var json = File.ReadAllText(LayoutFilePath);
         var document = JsonSerializer.Deserialize<LayoutDocument>(json, _jsonOptions);
 
-        if (document is null || document.Pages.Count == 0)
+        var folders = document?.Folders.Count > 0
+            ? document.Folders
+            : document?.LegacyPages;
+
+        if (document is null || folders is null || folders.Count == 0)
         {
             StatusText = "Layout file is empty or invalid";
             return;
         }
 
         TabStripPlacement = ParseTabStripPlacement(document.TabStripPlacement);
-        SetPages(document.Pages.Select(ToModel).ToList());
+        SetFolders(folders.Select(ToModel).ToList());
         StatusText = $"Layout loaded: {LayoutFilePath}";
     }
 
-    public PageItemModel CreateItem(ControlKind kind, double x, double y, double width, double height)
+    public FolderItemModel CreateItem(ControlKind kind, double x, double y, double width, double height)
     {
         var item = kind switch
         {
-            ControlKind.Button => new PageItemModel
+            ControlKind.Button => new FolderItemModel
             {
                 Kind = ControlKind.Button,
                 ControlCaption = string.Empty,
@@ -2219,7 +2239,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             },
             ControlKind.Signal => CreateDefaultItem(x, y, width, height),
             ControlKind.Item => CreateDefaultItem(x, y, width, height),
-            ControlKind.ListControl => new PageItemModel
+            ControlKind.ListControl => new FolderItemModel
             {
                 Kind = ControlKind.ListControl,
                 ControlCaption = string.Empty,
@@ -2235,7 +2255,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlBorderWidth = 0,
                 ControlCornerRadius = 0
             },
-            ControlKind.TableControl => new PageItemModel
+            ControlKind.TableControl => new FolderItemModel
             {
                 Kind = ControlKind.TableControl,
                 ControlCaption = string.Empty,
@@ -2249,7 +2269,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlBorderWidth = 0,
                 ControlCornerRadius = 0
             },
-            ControlKind.LogControl => new PageItemModel
+            ControlKind.LogControl => new FolderItemModel
             {
                 Kind = ControlKind.LogControl,
                 ControlCaption = "ProcessLog",
@@ -2262,7 +2282,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Height = Math.Max(height, 260),
                 ContainerBorderWidth = 0
             },
-            ControlKind.ChartControl => new PageItemModel
+            ControlKind.ChartControl => new FolderItemModel
             {
                 Kind = ControlKind.ChartControl,
                 ControlCaption = string.Empty,
@@ -2277,7 +2297,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ViewSeconds = 30,
                 RefreshRateMs = 100
             },
-            ControlKind.UdlClientControl => new PageItemModel
+            ControlKind.UdlClientControl => new FolderItemModel
             {
                 Kind = ControlKind.UdlClientControl,
                 Name = "UdlClientControl",
@@ -2299,16 +2319,16 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
         };
 
-        item.View = SelectedPage.ActualViewId;
+        item.View = SelectedFolder.ActualViewId;
         return item;
     }
 
-    private static PageItemModel CreateDefaultItem(double x, double y, double width, double height)
+    private static FolderItemModel CreateDefaultItem(double x, double y, double width, double height)
     {
-        var item = new PageItemModel
+        var item = new FolderItemModel
         {
-            Kind = ControlKind.Item,
-            ControlCaption = "Item",
+            Kind = ControlKind.Signal,
+            ControlCaption = "Signal",
             BodyCaption = "Value",
             Unit = string.Empty,
             ShowFooter = false,
@@ -2449,20 +2469,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         StatusText = "Hoehen an Master angeglichen";
     }
 
-    protected void SetPages(IReadOnlyList<PageModel> pages)
+    protected void SetFolders(IReadOnlyList<FolderModel> pages)
     {
-        Pages.Clear();
+        Folders.Clear();
 
         foreach (var page in pages)
         {
             AttachPage(page);
             AttachHierarchy(page);
-            Pages.Add(page);
+            Folders.Add(page);
         }
 
-        _selectedPage = Pages[0];
+        _selectedPage = Folders[0];
 
-        foreach (var page in Pages)
+        foreach (var page in Folders)
         {
             page.IsSelected = false;
         }
@@ -2472,27 +2492,27 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         ClearItemSelection();
         CancelSelection();
         CancelEditorDialog();
-        OnPropertyChanged(nameof(SelectedPage));
+        OnPropertyChanged(nameof(SelectedFolder));
         OnPropertyChanged(nameof(FooterText));
     }
 
-    private void AttachPage(PageModel page)
+    private void AttachPage(FolderModel page)
     {
         page.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(PageModel.Name))
+            if (args.PropertyName == nameof(FolderModel.Name))
             {
                 AttachHierarchy(page);
             }
 
-            if (page == SelectedPage && (args.PropertyName == nameof(PageModel.ItemSummary) || args.PropertyName == nameof(PageModel.Name)))
+            if (page == SelectedFolder && (args.PropertyName == nameof(FolderModel.ItemSummary) || args.PropertyName == nameof(FolderModel.Name)))
             {
                 OnPropertyChanged(nameof(FooterText));
             }
         };
     }
 
-    private void OpenEditorDialog(EditorDialogMode mode, PageItemModel item, PageItemModel? parentItem, double x, double y, string title)
+    private void OpenEditorDialog(EditorDialogMode mode, FolderItemModel item, FolderItemModel? parentItem, double x, double y, string title)
     {
         ResetEditorDialogSubscriptions();
         _editorDialogMode = mode;
@@ -2511,7 +2531,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         IsEditorDialogOpen = true;
     }
 
-    private void RebuildEditorDialogSections(PageItemModel item)
+    private void RebuildEditorDialogSections(FolderItemModel item)
     {
         EditorDialogSections.Clear();
         foreach (var section in BuildSectionsForItem(item))
@@ -2576,7 +2596,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         RefreshEditorDialogChoiceOptions(_editorDialogItem);
     }
 
-    private void RefreshEditorDialogChoiceOptions(PageItemModel item)
+    private void RefreshEditorDialogChoiceOptions(FolderItemModel item)
     {
         var wasRefreshing = _isRefreshingEditorDialogFields;
         _isRefreshingEditorDialogFields = true;
@@ -2616,7 +2636,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 var selectedTargetPath = GetSelectedTargetPath(item);
                 var choiceOptions = field.Key switch
                 {
-                    "TargetParameterPath" => GetTargetParameterOptions(selectedTargetPath, item.PageName),
+                    "TargetParameterPath" => GetTargetParameterOptions(selectedTargetPath, item.FolderName),
                     _ when field.Definition.OptionsFactory is not null => field.Definition.OptionsFactory(item),
                     _ => []
                 };
@@ -2633,7 +2653,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         UpdateEditorDialogChoiceDiagnostics();
     }
 
-    private string GetSelectedTargetPath(PageItemModel item)
+    private string GetSelectedTargetPath(FolderItemModel item)
         => FindDialogField("TargetPath")?.Value ?? item.TargetPath ?? string.Empty;
 
     private void RefreshDataRegistryDiagnostics()
@@ -2738,7 +2758,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             if (parameterField is not null)
             {
                 parameterField.Options.Clear();
-                foreach (var option in GetTargetParameterOptions(field.Value, _editorDialogItem.PageName))
+                foreach (var option in GetTargetParameterOptions(field.Value, _editorDialogItem.FolderName))
                 {
                     parameterField.Options.Add(option);
                 }
@@ -2787,7 +2807,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         EditorDialogError = string.Empty;
     }
 
-    private void RefreshEditorDialogFieldValues(PageItemModel item, params string[] keys)
+    private void RefreshEditorDialogFieldValues(FolderItemModel item, params string[] keys)
     {
         _isRefreshingEditorDialogFields = true;
         try
@@ -2813,7 +2833,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    private IReadOnlyList<EditorDialogSection> BuildSectionsForItem(PageItemModel item)
+    private IReadOnlyList<EditorDialogSection> BuildSectionsForItem(FolderItemModel item)
     {
         return BuildBindingSectionsForItem(item)
             .Select(sectionBinding =>
@@ -2833,7 +2853,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .ToList();
     }
 
-    private IReadOnlyList<EditorDialogField> BuildActionFieldsForItem(PageItemModel item)
+    private IReadOnlyList<EditorDialogField> BuildActionFieldsForItem(FolderItemModel item)
     {
         // Allow Action/InteractionRules for Item, Signal and Button controls
         if (item.Kind is not (ControlKind.Item or ControlKind.Signal or ControlKind.Button))
@@ -2857,7 +2877,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         ];
     }
 
-    private IReadOnlyList<(string Title, IReadOnlyList<EditorDialogBindingDefinition> Bindings)> BuildBindingSectionsForItem(PageItemModel item)
+    private IReadOnlyList<(string Title, IReadOnlyList<EditorDialogBindingDefinition> Bindings)> BuildBindingSectionsForItem(FolderItemModel item)
     {
         var identity = new List<EditorDialogBindingDefinition>
         {
@@ -2941,8 +2961,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             case ControlKind.Signal:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
-                    BindTargetTree("TargetPath", "Target", current => TargetPathHelper.ToPersistedLayoutTargetPath(current.TargetPath, current.PageName), (current, value) => { current.ApplyTargetSelection(value); return null; }, current => GetSelectableTargetOptions(current)),
-                    BindChoice("TargetParameterPath", "TargetParameter", current => current.TargetParameterPath, (current, value) => { current.TargetParameterPath = value; return null; }, current => GetTargetParameterOptions(current.TargetPath, current.PageName)),
+                    BindTargetTree("TargetPath", "Uri", current => TargetPathHelper.ToPersistedLayoutTargetPath(current.TargetPath, current.FolderName), (current, value) => { current.ApplyTargetSelection(value); return null; }, current => GetSelectableTargetOptions(current)),
+                    BindChoice("TargetParameterPath", "Parameter", current => current.TargetParameterPath, (current, value) => { current.TargetParameterPath = value; return null; }, current => GetTargetParameterOptions(current.TargetPath, current.FolderName)),
                     BindChoice("TargetParameterFormatKind", "Format", current => SplitParameterFormat(current.TargetParameterFormat).Kind, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(value, SplitParameterFormat(current.TargetParameterFormat).Parameter); return null; }, _ => ParameterFormatOptions),
                     BindText("TargetParameterFormatParameter", "FormatParameter", current => SplitParameterFormat(current.TargetParameterFormat).Parameter, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(SplitParameterFormat(current.TargetParameterFormat).Kind, value); return null; }, EditorPropertyType.Text, GetFormatParameterToolTip),
                     BindChoice("IsReadOnly", "Readonly", current => current.IsReadOnly ? "True" : "False", (current, value) => { current.IsReadOnly = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
@@ -3000,33 +3020,33 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return sections;
     }
 
-    private static EditorDialogBindingDefinition BindReadOnly(string key, string label, Func<PageItemModel, string> read)
+    private static EditorDialogBindingDefinition BindReadOnly(string key, string label, Func<FolderItemModel, string> read)
         => new(key, label, EditorPropertyType.Text, read, isReadOnly: true);
 
-    private static EditorDialogBindingDefinition BindText(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, EditorPropertyType propertyType = EditorPropertyType.Text, Func<PageItemModel, string>? toolTipFactory = null)
+    private static EditorDialogBindingDefinition BindText(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, EditorPropertyType propertyType = EditorPropertyType.Text, Func<FolderItemModel, string>? toolTipFactory = null)
         => new(key, label, propertyType, read, apply, toolTipFactory: toolTipFactory);
 
-    private static EditorDialogBindingDefinition BindMultiline(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, string>? toolTipFactory = null)
+    private static EditorDialogBindingDefinition BindMultiline(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, string>? toolTipFactory = null)
         => new(key, label, EditorPropertyType.MultilineText, read, apply, toolTipFactory: toolTipFactory);
 
-    private static EditorDialogBindingDefinition BindChartSeriesList(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, string>? toolTipFactory = null)
+    private static EditorDialogBindingDefinition BindChartSeriesList(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, string>? toolTipFactory = null)
         => new(key, label, EditorPropertyType.ChartSeriesList, read, apply, toolTipFactory: toolTipFactory);
 
-    private static EditorDialogBindingDefinition BindAttachItemList(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, IEnumerable<string>> optionsFactory)
+    private static EditorDialogBindingDefinition BindAttachItemList(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.AttachItemList, read, apply, optionsFactory: optionsFactory);
 
-    private static EditorDialogBindingDefinition BindInteractionRuleList(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, string>? toolTipFactory = null)
+    private static EditorDialogBindingDefinition BindInteractionRuleList(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, string>? toolTipFactory = null)
         => new(key, label, EditorPropertyType.InteractionRuleList, read, apply, toolTipFactory: toolTipFactory);
 
-    private static EditorDialogBindingDefinition BindTargetTree(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, IEnumerable<string>> optionsFactory)
+    private static EditorDialogBindingDefinition BindTargetTree(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.TargetTree, read, apply, optionsFactory: optionsFactory);
 
-    private static EditorDialogBindingDefinition BindChoice(string key, string label, Func<PageItemModel, string> read, Func<PageItemModel, string, string?> apply, Func<PageItemModel, IEnumerable<string>> optionsFactory)
+    private static EditorDialogBindingDefinition BindChoice(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.Choice, read, apply, optionsFactory: optionsFactory);
 
-    private IEnumerable<string> GetViewOptions(PageItemModel item)
+    private IEnumerable<string> GetViewOptions(FolderItemModel item)
     {
-        var page = FindOwningPage(item) ?? SelectedPage;
+        var page = FindOwningPage(item) ?? SelectedFolder;
         var options = page.Views.Count > 0
             ? page.Views.OrderBy(static entry => entry.Key).Select(static entry => FormatViewOption(entry.Key, entry.Value)).ToList()
             : new List<string>();
@@ -3040,14 +3060,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return options;
     }
 
-    private string GetViewOptionLabel(PageItemModel item)
+    private string GetViewOptionLabel(FolderItemModel item)
     {
-        var page = FindOwningPage(item) ?? SelectedPage;
+        var page = FindOwningPage(item) ?? SelectedFolder;
         page.Views.TryGetValue(item.View, out var caption);
         return FormatViewOption(item.View, caption);
     }
 
-    private string? ApplyViewOption(PageItemModel item, string raw)
+    private string? ApplyViewOption(FolderItemModel item, string raw)
     {
         if (!TryParseViewOption(raw, item, out var viewId))
         {
@@ -3058,7 +3078,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return null;
     }
 
-    private bool TryParseViewOption(string? raw, PageItemModel item, out int viewId)
+    private bool TryParseViewOption(string? raw, FolderItemModel item, out int viewId)
     {
         viewId = 1;
         if (string.IsNullOrWhiteSpace(raw))
@@ -3083,7 +3103,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             }
         }
 
-        var page = FindOwningPage(item) ?? SelectedPage;
+        var page = FindOwningPage(item) ?? SelectedFolder;
         var match = page.Views.FirstOrDefault(entry => string.Equals(entry.Value, trimmed, StringComparison.Ordinal));
         if (match.Key > 0)
         {
@@ -3102,13 +3122,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             : $"View {safeViewId} - {caption}";
     }
 
-    private static EditorDialogBindingDefinition BindDouble(string key, string label, Func<PageItemModel, double> read, Action<PageItemModel, double> apply)
+    private static EditorDialogBindingDefinition BindDouble(string key, string label, Func<FolderItemModel, double> read, Action<FolderItemModel, double> apply)
         => new(key, label, EditorPropertyType.Double, current => read(current).ToString("0.##"), (current, raw) => TryApplyDouble(raw, current, apply));
 
-    private static EditorDialogBindingDefinition BindInt(string key, string label, Func<PageItemModel, int> read, Action<PageItemModel, int> apply)
+    private static EditorDialogBindingDefinition BindInt(string key, string label, Func<FolderItemModel, int> read, Action<FolderItemModel, int> apply)
         => new(key, label, EditorPropertyType.Integer, current => read(current).ToString(), (current, raw) => TryApplyInt(raw, current, apply));
 
-    private static string? TryApplyDouble(string raw, PageItemModel item, Action<PageItemModel, double> apply)
+    private static string? TryApplyDouble(string raw, FolderItemModel item, Action<FolderItemModel, double> apply)
     {
         if (!TryParseDouble(raw, out var value, out var error))
         {
@@ -3119,7 +3139,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return null;
     }
 
-    private static string? TryApplyInt(string raw, PageItemModel item, Action<PageItemModel, int> apply)
+    private static string? TryApplyInt(string raw, FolderItemModel item, Action<FolderItemModel, int> apply)
     {
         if (!TryParseInt(raw, out var value, out var error))
         {
@@ -3130,7 +3150,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return null;
     }
 
-    private bool TryApplyEditorDialogValues(PageItemModel item, PageModel page, PageItemModel? excludeItem, out string error)
+    private bool TryApplyEditorDialogValues(FolderItemModel item, FolderModel page, FolderItemModel? excludeItem, out string error)
     {
         var nameField = FindDialogField("Name");
         if (nameField is null)
@@ -3167,9 +3187,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private EditorDialogField? FindDialogField(string key)
         => EnumerateEditorDialogFields().FirstOrDefault(field => string.Equals(field.Key, key, StringComparison.Ordinal));
 
-    private string BuildPreviewPath(PageItemModel item, string proposedName)
+    private string BuildPreviewPath(FolderItemModel item, string proposedName)
     {
-        var segments = new List<string> { item.PageName };
+        var segments = new List<string> { item.FolderName };
         if (item.ParentItem is not null && !string.IsNullOrWhiteSpace(item.ParentItem.Name))
         {
             segments.Add(item.ParentItem.Name);
@@ -3202,7 +3222,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private IEnumerable<EditorDialogField> EnumerateEditorDialogFields()
         => EditorDialogSections.SelectMany(section => section.Fields).Concat(EditorDialogActionFields);
 
-    private void SetSelectedItems(IReadOnlyList<PageItemModel> items, PageItemModel? primaryItem)
+    private void SetSelectedItems(IReadOnlyList<FolderItemModel> items, FolderItemModel? primaryItem)
     {
         _selectedItems.Clear();
         foreach (var item in items.Distinct())
@@ -3213,9 +3233,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         UpdateSelectionFlags(primaryItem is not null && _selectedItems.Contains(primaryItem) ? primaryItem : _selectedItems.LastOrDefault());
     }
 
-    private void UpdateSelectionFlags(PageItemModel? masterItem)
+    private void UpdateSelectionFlags(FolderItemModel? masterItem)
     {
-        foreach (var item in EnumeratePageItems(SelectedPage.Items))
+        foreach (var item in EnumeratePageItems(SelectedFolder.Items))
         {
             item.IsSelected = false;
             item.IsMasterSelected = false;
@@ -3240,7 +3260,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private void ApplyThemeToAllItems()
     {
-        foreach (var page in Pages)
+        foreach (var page in Folders)
         {
             foreach (var item in page.Items)
             {
@@ -3249,7 +3269,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    private void ApplyThemeRecursive(PageItemModel item)
+    private void ApplyThemeRecursive(FolderItemModel item)
     {
         item.ApplyTheme(IsDarkTheme);
         foreach (var child in item.Items)
@@ -3277,31 +3297,32 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    private void NormalizeListChild(PageItemModel listControl, PageItemModel item)
+    private void NormalizeListChild(FolderItemModel listControl, FolderItemModel item)
     {
         item.X = 0;
         item.Y = 0;
         listControl.ApplyListControlDefaultsToChild(item);
     }
 
-    private void AttachHierarchy(PageModel page)
+    private void AttachHierarchy(FolderModel page)
     {
         foreach (var item in page.Items)
         {
-            AttachHierarchy(page.Name, null, item);
+            AttachHierarchy(page.Name, page.UiFilePath, null, item);
         }
     }
 
-    private static void AttachHierarchy(string pageName, PageItemModel? parentItem, PageItemModel item)
+    private static void AttachHierarchy(string pageName, string? pageUiFilePath, FolderItemModel? parentItem, FolderItemModel item)
     {
+        item.SetLayoutFilePath(pageUiFilePath);
         item.SetHierarchy(pageName, parentItem, parentItem?.ActiveViewId ?? 1);
         foreach (var child in item.Items)
         {
-            AttachHierarchy(pageName, item, child);
+            AttachHierarchy(pageName, pageUiFilePath, item, child);
         }
     }
 
-    private static IEnumerable<PageItemModel> EnumeratePageItems(IEnumerable<PageItemModel> items)
+    private static IEnumerable<FolderItemModel> EnumeratePageItems(IEnumerable<FolderItemModel> items)
     {
         foreach (var item in items)
         {
@@ -3316,7 +3337,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private double MaxAvailableWidth(double x) => Math.Max(150, _canvasWidth - x);
     private double MaxAvailableHeight(double y) => Math.Max(72, _canvasHeight - y);
 
-    private static bool IntersectsSelection(PageItemModel item, double selectionX, double selectionY, double selectionWidth, double selectionHeight)
+    private static bool IntersectsSelection(FolderItemModel item, double selectionX, double selectionY, double selectionWidth, double selectionHeight)
     {
         if (!item.IsVisibleInActiveView)
         {
@@ -3330,9 +3351,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return item.X < selectionRight && itemRight > selectionX && item.Y < selectionBottom && itemBottom > selectionY;
     }
 
-    private static PageDocument ToDocument(PageModel page)
+    private static FolderDocument ToDocument(FolderModel page)
     {
-        return new PageDocument
+        return new FolderDocument
         {
             Index = page.Index,
             Name = page.Name,
@@ -3340,9 +3361,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         };
     }
 
-    private static PageItemDocument ToDocument(PageItemModel item)
+    private static FolderItemDocument ToDocument(FolderItemModel item)
     {
-        return new PageItemDocument
+        return new FolderItemDocument
         {
             Kind = item.Kind,
             Name = item.Name,
@@ -3395,7 +3416,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             SecondaryForegroundColor = item.SecondaryForegroundColor,
             AccentBackgroundColor = item.AccentBackgroundColor,
             AccentForegroundColor = item.AccentForegroundColor,
-            TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.PageName),
+            TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.FolderName),
             TargetParameterPath = item.TargetParameterPath,
             TargetParameterFormat = item.TargetParameterFormat,
             Unit = item.Unit,
@@ -3403,8 +3424,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             RefreshRateMs = item.RefreshRateMs,
             HistorySeconds = item.HistorySeconds,
             ViewSeconds = item.ViewSeconds,
-            ChartSeriesDefinitions = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions, item.PageName),
-            InteractionRules = ToInteractionRuleDocuments(item.InteractionRules, item.PageName),
+            ChartSeriesDefinitions = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions, item.FolderName),
+            InteractionRules = ToInteractionRuleDocuments(item.InteractionRules, item.FolderName),
             UdlClientHost = item.UdlClientHost,
             UdlClientPort = item.UdlClientPort,
             UdlClientAutoConnect = item.UdlClientAutoConnect,
@@ -3425,9 +3446,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         };
     }
 
-    private static PageModel ToModel(PageDocument page)
+    private static FolderModel ToModel(FolderDocument page)
     {
-        var model = new PageModel { Index = page.Index, Name = page.Name };
+        var model = new FolderModel { Index = page.Index, Name = page.Name };
         foreach (var item in page.Items)
         {
             model.Items.Add(ToModel(item));
@@ -3436,9 +3457,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return model;
     }
 
-    private static PageItemModel ToModel(PageItemDocument item)
+    private static FolderItemModel ToModel(FolderItemDocument item)
     {
-        var model = new PageItemModel
+        var model = new FolderItemModel
         {
             Kind = item.Kind == ControlKind.Signal ? ControlKind.Item : item.Kind,
             Name = item.Name,
@@ -3518,7 +3539,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         if (string.IsNullOrWhiteSpace(model.Name))
         {
-            model.Name = item.Kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", _ => "Item" };
+            model.Name = item.Kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", ControlKind.Item or ControlKind.Signal => "Signal", _ => "Signal" };
         }
 
         if (model.Kind == ControlKind.LogControl
@@ -3650,10 +3671,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             || string.Equals(kind, "b16", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string GetFormatParameterToolTip(PageItemModel item)
+    private static string GetFormatParameterToolTip(FolderItemModel item)
         => GetFormatParameterToolTip(SplitParameterFormat(item.TargetParameterFormat).Kind);
 
-    private static string GetChartSeriesToolTip(PageItemModel item)
+    private static string GetChartSeriesToolTip(FolderItemModel item)
         => string.Empty;
 
     private static string GetFormatParameterToolTip(string? kind)
@@ -3779,9 +3800,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return Math.Max(min, Math.Min(max, value));
     }
 
-    private string GetSuggestedControlName(ControlKind kind, PageModel page, PageItemModel? parentItem, PageItemModel? excludeItem)
+    private string GetSuggestedControlName(ControlKind kind, FolderModel page, FolderItemModel? parentItem, FolderItemModel? excludeItem)
     {
-        var baseName = kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", _ => "Item" };
+        var baseName = kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", ControlKind.Item or ControlKind.Signal => "Signal", _ => "Signal" };
         var candidate = baseName;
         var index = 1;
         while (!IsControlNameUnique(page, candidate, excludeItem))
@@ -3796,7 +3817,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static string NormalizeControlName(string? name)
         => string.IsNullOrWhiteSpace(name) ? string.Empty : name.Trim();
 
-    private bool TryValidateControlName(string? proposedName, PageModel page, PageItemModel? excludeItem, out string normalizedName, out string error)
+    private bool TryValidateControlName(string? proposedName, FolderModel page, FolderItemModel? excludeItem, out string normalizedName, out string error)
     {
         normalizedName = NormalizeControlName(proposedName);
         if (string.IsNullOrWhiteSpace(normalizedName))
@@ -3815,28 +3836,81 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return true;
     }
 
-    private bool IsControlNameUnique(PageModel page, string name, PageItemModel? excludeItem)
+    private bool IsControlNameUnique(FolderModel page, string name, FolderItemModel? excludeItem)
     {
         return !EnumeratePageItems(page.Items)
             .Where(item => !ReferenceEquals(item, excludeItem))
             .Any(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static IEnumerable<string> GetUdlAttachItemOptions(PageItemModel item)
+    private static IEnumerable<string> GetUdlAttachItemOptions(FolderItemModel item)
     {
-        var normalizedName = NormalizeControlName(item.Name);
+        var normalizedName = NormalizeUdlClientName(item.Name);
         if (string.IsNullOrWhiteSpace(normalizedName))
         {
             return [];
         }
 
-        var prefix = $"Runtime/UdlClient/{normalizedName}/";
+        var prefixes = new[]
+        {
+            $"UdlProject/{item.FolderName}/{normalizedName}/Status/AttachOptions",
+            $"Runtime/UdlClient/{normalizedName}"
+        };
+
         return HostRegistries.Data.GetAllKeys()
-            .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            .Select(key => key[prefix.Length..])
-            .Where(static key => IsRootAttachPath(key))
+            .SelectMany(key => prefixes.Select(prefix => TryGetUdlAttachRootOption(key, prefix, TargetPathHelper.NormalizeComparablePath(prefix))))
+            .Where(static key => !string.IsNullOrWhiteSpace(key))
+            .Select(static key => key!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static string NormalizeUdlClientName(string? name)
+        => string.IsNullOrWhiteSpace(name) ? "UdlClientControl" : name.Trim();
+
+    private static string? TryGetUdlAttachRootOption(string registryKey, string prefix, string comparablePrefix)
+    {
+        if (string.IsNullOrWhiteSpace(registryKey))
+        {
+            return null;
+        }
+
+        var suffix = TryGetPathSuffix(registryKey, prefix);
+        if (string.IsNullOrWhiteSpace(suffix))
+        {
+            var comparableKey = TargetPathHelper.NormalizeComparablePath(registryKey);
+            suffix = TryGetPathSuffix(comparableKey, comparablePrefix);
+        }
+
+        if (string.IsNullOrWhiteSpace(suffix))
+        {
+            return null;
+        }
+
+        var segments = TargetPathHelper.SplitPathSegments(suffix);
+        return segments.Count == 0 ? null : segments[0];
+    }
+
+    private static string? TryGetPathSuffix(string path, string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(prefix))
+        {
+            return null;
+        }
+
+        if (string.Equals(path, prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var suffix = path[prefix.Length..].TrimStart('/', '.', '\\');
+        return string.IsNullOrWhiteSpace(suffix) ? null : suffix;
     }
 
     private static bool IsRootAttachPath(string path)
@@ -3846,13 +3920,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return false;
         }
 
-        var normalized = path.Replace('\\', '/').Trim('/');
-        return !normalized.Contains('/');
+        return TargetPathHelper.SplitPathSegments(path).Count == 1;
     }
 
-    private static IEnumerable<string> GetFooterSubItemOptions(PageItemModel item)
+    private static IEnumerable<string> GetFooterSubItemOptions(FolderItemModel item)
     {
-        if (string.IsNullOrWhiteSpace(item.TargetPath) || !TryResolveDataItem(item.TargetPath, item.PageName, out var targetItem) || targetItem is null)
+        if (string.IsNullOrWhiteSpace(item.TargetPath) || !TryResolveDataItem(item.TargetPath, item.FolderName, out var targetItem) || targetItem is null)
         {
             return [];
         }
@@ -3863,7 +3936,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .ToArray();
     }
 
-    private string GetFooterSubItemSelection(PageItemModel item)
+    private string GetFooterSubItemSelection(FolderItemModel item)
     {
         if (string.IsNullOrWhiteSpace(item.TargetPath) || item.Items.Count == 0)
         {
@@ -3880,9 +3953,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return string.Join(Environment.NewLine, selected!);
     }
 
-    private string? ApplyFooterSubItems(PageItemModel item, string value)
+    private string? ApplyFooterSubItems(FolderItemModel item, string value)
     {
-        if (string.IsNullOrWhiteSpace(item.TargetPath) || !TryResolveDataItem(item.TargetPath, item.PageName, out var targetRoot) || targetRoot is null)
+        if (string.IsNullOrWhiteSpace(item.TargetPath) || !TryResolveDataItem(item.TargetPath, item.FolderName, out var targetRoot) || targetRoot is null)
         {
             item.Items.Clear();
             return null;
@@ -3906,7 +3979,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .GroupBy(entry => entry.RelativePath!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First().Child, StringComparer.OrdinalIgnoreCase);
 
-        var syncedChildren = new List<PageItemModel>();
+        var syncedChildren = new List<FolderItemModel>();
         foreach (var relativePath in selectedPaths)
         {
             if (!TryResolveRelativeChild(targetRoot, relativePath, out var resolvedTarget) || resolvedTarget is null)
@@ -3931,11 +4004,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return null;
     }
 
-    private PageItemModel CreateFooterSubItem(PageItemModel parentItem)
+    private FolderItemModel CreateFooterSubItem(FolderItemModel parentItem)
     {
-        var item = new PageItemModel
+        var item = new FolderItemModel
         {
-            Kind = ControlKind.Item,
+            Kind = ControlKind.Signal,
             ControlCaption = string.Empty,
             BodyCaption = string.Empty,
             Unit = string.Empty,
@@ -3952,7 +4025,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return item;
     }
 
-    private void ConfigureFooterSubItem(PageItemModel parentItem, PageItemModel childItem, string relativePath, Item targetItem, bool isNew)
+    private void ConfigureFooterSubItem(FolderItemModel parentItem, FolderItemModel childItem, string relativePath, Item targetItem, bool isNew)
     {
         var previousBodyCaption = childItem.BodyCaption;
         childItem.ApplyTargetSelection(targetItem.Path ?? string.Empty);
@@ -3977,11 +4050,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             childItem.BodyCaption = childItem.ControlCaption;
         }
 
-        childItem.SetHierarchy(parentItem.PageName, parentItem);
+        childItem.SetHierarchy(parentItem.FolderName, parentItem);
         childItem.ApplyTheme(IsDarkTheme);
     }
 
-    private static void EnsureFooterSubItemHostHeight(PageItemModel item)
+    private static void EnsureFooterSubItemHostHeight(FolderItemModel item)
     {
         if (!item.HasFooterSubItems)
         {
@@ -4025,7 +4098,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    private IEnumerable<string> GetSelectableTargetOptions(PageItemModel? item = null)
+    private IEnumerable<string> GetSelectableTargetOptions(FolderItemModel? item = null)
     {
         var excludedPrefixes = GetNonSelectableTargetPrefixes();
         var allOptions = HostRegistries.Data.GetAllKeys()
@@ -4035,6 +4108,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        var attachedUdlOptions = GetAttachedUdlTargetOptions(item, allOptions);
+        if (attachedUdlOptions.Count > 0)
+        {
+            return attachedUdlOptions;
+        }
 
         var filterPrefix = item is null ? string.Empty : GetTargetTreeFilterPrefix(item, allOptions);
         if (string.IsNullOrWhiteSpace(filterPrefix))
@@ -4047,11 +4126,55 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .ToArray();
     }
 
+    private IReadOnlyList<string> GetAttachedUdlTargetOptions(FolderItemModel? item, IReadOnlyList<string> allOptions)
+    {
+        if (item is null || !item.IsItem)
+        {
+            return [];
+        }
+
+        var owningPage = FindOwningPage(item) ?? SelectedFolder;
+        if (owningPage is null)
+        {
+            return [];
+        }
+
+        var pageName = NormalizeTargetPathSegment(owningPage.Name);
+        if (string.IsNullOrWhiteSpace(pageName))
+        {
+            return [];
+        }
+
+        var clientPrefixes = EnumeratePageItems(owningPage.Items)
+            .Where(static pageItem => pageItem.Kind == ControlKind.UdlClientControl)
+            .Select(pageItem => BuildAttachedUdlPrefix(pageName, pageItem))
+            .Where(static prefix => !string.IsNullOrWhiteSpace(prefix))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (clientPrefixes.Length == 0)
+        {
+            return [];
+        }
+
+        var filteredOptions = allOptions
+            .Where(path => clientPrefixes.Any(prefix => path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+
+        return filteredOptions.Length == 0 ? [] : filteredOptions;
+    }
+
+    private static string BuildAttachedUdlPrefix(string pageName, FolderItemModel clientItem)
+    {
+        var clientName = string.IsNullOrWhiteSpace(clientItem.Name) ? "UdlClientControl" : clientItem.Name.Trim();
+        return $"UdlProject/{pageName}/{clientName}";
+    }
+
     private HashSet<string> GetNonSelectableTargetPrefixes()
     {
         var prefixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var page in Pages)
+        foreach (var page in Folders)
         {
             var pageName = NormalizeTargetPathSegment(page.Name);
             if (string.IsNullOrWhiteSpace(pageName))
@@ -4072,6 +4195,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     continue;
                 }
 
+                prefixes.Add($"Project/{pageName}/{itemName}/Status");
+                prefixes.Add($"UdlProject/{pageName}/{itemName}/Status");
                 prefixes.Add($"UdlBook/{pageName}/{itemName}/Status");
             }
         }
@@ -4099,12 +4224,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return false;
     }
 
-    private string GetTargetTreeFilterPrefix(PageItemModel item, IReadOnlyList<string> allOptions)
+    private string GetTargetTreeFilterPrefix(FolderItemModel item, IReadOnlyList<string> allOptions)
     {
-        var pageName = NormalizeTargetPathSegment(item.PageName);
+        var pageName = NormalizeTargetPathSegment(item.FolderName);
         if (string.IsNullOrWhiteSpace(pageName))
         {
-            var owningPage = FindOwningPage(item) ?? SelectedPage;
+            var owningPage = FindOwningPage(item) ?? SelectedFolder;
             pageName = NormalizeTargetPathSegment(owningPage.Name);
         }
 
@@ -4187,20 +4312,21 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath, pageName))
         {
-            if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
+            if (TryGetMatchingRegistryItem(candidatePath, out item) && item is not null)
             {
                 return true;
             }
 
             var rootKey = HostRegistries.Data.GetAllKeys()
-                .Where(key => candidatePath.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase))
+                .Where(key => TargetPathHelper.IsDescendantPath(candidatePath, key))
                 .OrderByDescending(key => key.Length)
                 .FirstOrDefault();
 
             if (rootKey is not null
-                && HostRegistries.Data.TryGet(rootKey, out var rootItem)
+                && TryGetMatchingRegistryItem(rootKey, out var rootItem)
                 && rootItem is not null
-                && TryResolveRelativeChild(rootItem, candidatePath[(rootKey.Length + 1)..], out item))
+                && TargetPathHelper.TryGetRelativePath(candidatePath, rootKey, out var relativePath)
+                && TryResolveRelativeChild(rootItem, relativePath, out item))
             {
                 return true;
             }
@@ -4213,7 +4339,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static bool TryResolveRelativeChild(Item rootItem, string relativePath, out Item? item)
     {
         var current = rootItem;
-        foreach (var segment in relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var segment in TargetPathHelper.SplitPathSegments(relativePath))
         {
             if (!current.Has(segment))
             {
@@ -4228,16 +4354,32 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return true;
     }
 
-    private PageModel? FindOwningPage(PageItemModel item)
+    private static bool TryGetMatchingRegistryItem(string candidatePath, out Item? item)
     {
-        return Pages.FirstOrDefault(page => EnumeratePageItems(page.Items).Any(candidate => ReferenceEquals(candidate, item)));
+        if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
+        {
+            return true;
+        }
+
+        var comparableCandidatePath = TargetPathHelper.NormalizeComparablePath(candidatePath);
+        var matchingKey = HostRegistries.Data.GetAllKeys()
+            .FirstOrDefault(key => string.Equals(TargetPathHelper.NormalizeComparablePath(key), comparableCandidatePath, StringComparison.OrdinalIgnoreCase));
+
+        return matchingKey is not null
+            && HostRegistries.Data.TryGet(matchingKey, out item)
+            && item is not null;
     }
 
-    protected static List<PageModel> CreateDefaultPages()
+    private FolderModel? FindOwningPage(FolderItemModel item)
+    {
+        return Folders.FirstOrDefault(page => EnumeratePageItems(page.Items).Any(candidate => ReferenceEquals(candidate, item)));
+    }
+
+    protected static List<FolderModel> CreateDefaultPages()
     {
         return
         [
-            new PageModel
+            new FolderModel
             {
                 Index = 1,
                 Name = "Page1"
@@ -4245,11 +4387,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         ];
     }
 
-    public void RefreshPageBindings(string pageName)
+    public void RefreshFolderBindings(string pageName)
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Post(() => RefreshPageBindings(pageName));
+            Dispatcher.UIThread.Post(() => RefreshFolderBindings(pageName));
             return;
         }
 
@@ -4258,7 +4400,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return;
         }
 
-        var page = Pages.FirstOrDefault(candidate => string.Equals(candidate.Name, pageName, StringComparison.Ordinal));
+        var page = Folders.FirstOrDefault(candidate => string.Equals(candidate.Name, pageName, StringComparison.Ordinal));
         if (page is null)
         {
             return;
@@ -4270,7 +4412,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             item.RefreshTargetBindings();
         }
 
-        if (IsEditorDialogOpen && _editorDialogItem is not null && string.Equals(_editorDialogItem.PageName, pageName, StringComparison.Ordinal))
+        if (IsEditorDialogOpen && _editorDialogItem is not null && string.Equals(_editorDialogItem.FolderName, pageName, StringComparison.Ordinal))
         {
             RefreshEditorDialogChoiceOptions(_editorDialogItem);
         }

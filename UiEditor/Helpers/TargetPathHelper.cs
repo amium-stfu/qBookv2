@@ -5,8 +5,9 @@ namespace Amium.UiEditor.Helpers;
 
 internal static class TargetPathHelper
 {
-    private const string BookRootPrefix = "UdlBook/";
-    private static readonly string[] NonBookRootPrefixes = ["Runtime/", "Logs/", "Commands/"];
+    private static readonly string[] ProjectRootPrefixes = ["Project/", "UdlProject/", "UdlBook/"];
+    private static readonly string[] NonProjectRootPrefixes = ["Runtime/", "Logs/", "Commands/"];
+    private static readonly char[] HierarchySeparators = ['/', '.'];
 
     public static string NormalizeConfiguredTargetPath(string? path)
     {
@@ -15,10 +16,64 @@ internal static class TargetPathHelper
             return string.Empty;
         }
 
-        var normalized = path.Trim().Replace('\\', '/').Trim('/');
+        var normalized = path.Trim().Replace('\\', '/').Trim('/', '.');
         return string.Equals(normalized, "this", StringComparison.OrdinalIgnoreCase)
             ? "this"
             : normalized;
+    }
+
+    public static string NormalizeComparablePath(string? path)
+    {
+        var segments = SplitPathSegments(path);
+        return segments.Count == 0
+            ? string.Empty
+            : string.Join('/', segments);
+    }
+
+    public static IReadOnlyList<string> SplitPathSegments(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return [];
+        }
+
+        var normalized = NormalizeConfiguredTargetPath(path);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return [];
+        }
+
+        return normalized
+            .Split(HierarchySeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    public static bool PathsEqual(string? left, string? right)
+        => string.Equals(NormalizeComparablePath(left), NormalizeComparablePath(right), StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsDescendantPath(string? path, string? prefix)
+        => TryGetRelativePath(path, prefix, out _);
+
+    public static bool TryGetRelativePath(string? path, string? prefix, out string relativePath)
+    {
+        relativePath = string.Empty;
+
+        var pathSegments = SplitPathSegments(path);
+        var prefixSegments = SplitPathSegments(prefix);
+        if (pathSegments.Count == 0 || prefixSegments.Count == 0 || pathSegments.Count <= prefixSegments.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < prefixSegments.Count; index++)
+        {
+            if (!string.Equals(pathSegments[index], prefixSegments[index], StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        relativePath = string.Join('.', pathSegments.Skip(prefixSegments.Count));
+        return !string.IsNullOrWhiteSpace(relativePath);
     }
 
     public static string ToPersistedLayoutTargetPath(string? path, string? pageName = null)
@@ -29,11 +84,10 @@ internal static class TargetPathHelper
             return normalized;
         }
 
-        var pageRootPrefix = GetPageRootPrefix(pageName);
-        if (!string.IsNullOrWhiteSpace(pageRootPrefix)
-            && normalized.StartsWith(pageRootPrefix, StringComparison.OrdinalIgnoreCase))
+        var folderRelativePath = RemoveFolderContextPrefix(normalized, pageName);
+        if (!string.IsNullOrWhiteSpace(folderRelativePath))
         {
-            return normalized[pageRootPrefix.Length..];
+            return folderRelativePath;
         }
 
         return normalized;
@@ -54,23 +108,27 @@ internal static class TargetPathHelper
             yield return normalized;
         }
 
-        var pageRootPrefix = GetPageRootPrefix(pageName);
-        if (!string.IsNullOrWhiteSpace(pageRootPrefix)
-            && ShouldResolveAgainstPageRoot(normalized))
+        if (ShouldResolveAgainstFolderRoot(normalized))
         {
-            var pageScopedPath = pageRootPrefix + normalized;
-            if (yielded.Add(pageScopedPath))
+            foreach (var folderRootPrefix in GetFolderRootPrefixes(pageName))
             {
-                yield return pageScopedPath;
+                var folderScopedPath = folderRootPrefix + normalized;
+                if (yielded.Add(folderScopedPath))
+                {
+                    yield return folderScopedPath;
+                }
             }
         }
 
-        if (ShouldPrependBookRoot(normalized))
+        if (ShouldPrependProjectRoot(normalized))
         {
-            var bookScopedPath = BookRootPrefix + normalized;
-            if (yielded.Add(bookScopedPath))
+            foreach (var projectRootPrefix in ProjectRootPrefixes)
             {
-                yield return bookScopedPath;
+                var projectScopedPath = projectRootPrefix + normalized;
+                if (yielded.Add(projectScopedPath))
+                {
+                    yield return projectScopedPath;
+                }
             }
         }
     }
@@ -114,17 +172,24 @@ internal static class TargetPathHelper
         return string.Join(Environment.NewLine, normalizedLines);
     }
 
-    private static bool ShouldPrependBookRoot(string path)
+    private static bool ShouldPrependProjectRoot(string path)
     {
-        if (string.Equals(path, "this", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(BookRootPrefix, StringComparison.OrdinalIgnoreCase))
+        var segments = SplitPathSegments(path);
+        if (segments.Count == 0
+            || string.Equals(path, "this", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        foreach (var prefix in NonBookRootPrefixes)
+        var rootSegment = segments[0];
+        if (ProjectRootPrefixes.Select(static prefix => prefix.TrimEnd('/')).Contains(rootSegment, StringComparer.OrdinalIgnoreCase))
         {
-            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return false;
+        }
+
+        foreach (var prefix in NonProjectRootPrefixes)
+        {
+            if (string.Equals(rootSegment, prefix.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -133,17 +198,24 @@ internal static class TargetPathHelper
         return true;
     }
 
-    private static bool ShouldResolveAgainstPageRoot(string path)
+    private static bool ShouldResolveAgainstFolderRoot(string path)
     {
-        if (string.Equals(path, "this", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(BookRootPrefix, StringComparison.OrdinalIgnoreCase))
+        var segments = SplitPathSegments(path);
+        if (segments.Count == 0
+            || string.Equals(path, "this", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        foreach (var prefix in NonBookRootPrefixes)
+        var rootSegment = segments[0];
+        if (ProjectRootPrefixes.Select(static prefix => prefix.TrimEnd('/')).Contains(rootSegment, StringComparer.OrdinalIgnoreCase))
         {
-            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return false;
+        }
+
+        foreach (var prefix in NonProjectRootPrefixes)
+        {
+            if (string.Equals(rootSegment, prefix.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -152,14 +224,60 @@ internal static class TargetPathHelper
         return true;
     }
 
-    private static string GetPageRootPrefix(string? pageName)
+    private static IEnumerable<string> GetFolderRootPrefixes(string? pageName)
     {
         var normalizedPageName = string.IsNullOrWhiteSpace(pageName)
             ? string.Empty
-            : pageName.Trim().Replace('\\', '/').Trim('/');
+            : pageName.Trim().Replace('\\', '/').Trim('/', '.');
 
-        return string.IsNullOrWhiteSpace(normalizedPageName)
+        if (string.IsNullOrWhiteSpace(normalizedPageName))
+        {
+            yield break;
+        }
+
+        yield return $"{normalizedPageName}/";
+        yield return $"{normalizedPageName}.";
+
+        foreach (var projectRootPrefix in ProjectRootPrefixes)
+        {
+            yield return $"{projectRootPrefix}{normalizedPageName}/";
+            yield return $"{projectRootPrefix.TrimEnd('/')}.{normalizedPageName}.";
+            yield return $"{projectRootPrefix}{normalizedPageName}.";
+        }
+    }
+
+    private static string RemoveFolderContextPrefix(string path, string? pageName)
+    {
+        var normalizedPageName = string.IsNullOrWhiteSpace(pageName)
             ? string.Empty
-            : $"{BookRootPrefix}{normalizedPageName}/";
+            : pageName.Trim().Replace('\\', '/').Trim('/', '.');
+        if (string.IsNullOrWhiteSpace(normalizedPageName))
+        {
+            return string.Empty;
+        }
+
+        var segments = SplitPathSegments(path);
+        for (var index = 0; index < segments.Count - 1; index++)
+        {
+            if (string.Equals(segments[index], normalizedPageName, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Join('.', segments.Skip(index + 1));
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static bool StartsWithAny(string path, IEnumerable<string> prefixes)
+    {
+        foreach (var prefix in prefixes)
+        {
+            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

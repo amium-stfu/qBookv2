@@ -25,7 +25,7 @@ public enum ControlKind
     UdlClientControl
 }
 
-public sealed class PageItemModel : ObservableObject
+public sealed class FolderItemModel : ObservableObject
 {
     private static readonly Typeface ItemValueTypeface = new(new FontFamily("Calibri"), FontStyle.Normal, FontWeight.Bold);
     private static readonly Typeface ItemUnitTypeface = new(new FontFamily("Calibri"), FontStyle.Italic, FontWeight.Normal);
@@ -65,8 +65,8 @@ public sealed class PageItemModel : ObservableObject
     private double _borderWidth = 1;
     private double _cornerRadius = 12;
     private string _draftListItemHeightText = "72";
-    private PageItemModel? _selectedListItem;
-    private PageItemModel? _parentListControl;
+    private FolderItemModel? _selectedListItem;
+    private FolderItemModel? _parentListControl;
     private string _header = string.Empty;
     private string _title = string.Empty;
     private string _footer = string.Empty;
@@ -156,7 +156,8 @@ public sealed class PageItemModel : ObservableObject
     private string _id = Guid.NewGuid().ToString("N");
     private string _path = string.Empty;
     private string _pageName = string.Empty;
-    private PageItemModel? _parentItem;
+    private string _folderLayoutPath = string.Empty;
+    private FolderItemModel? _parentItem;
     private int _tableRows = 2;
     private int _tableColumns = 2;
     private int _tableCellRow = 1;
@@ -164,7 +165,7 @@ public sealed class PageItemModel : ObservableObject
     private int _tableCellRowSpan = 1;
     private int _tableCellColumnSpan = 1;
 
-    public PageItemModel()
+    public FolderItemModel()
     {
         HostRegistries.Data.ItemChanged += OnDataRegistryChanged;
         Items.CollectionChanged += OnItemsCollectionChanged;
@@ -202,11 +203,13 @@ public sealed class PageItemModel : ObservableObject
         private set => SetProperty(ref _path, value);
     }
 
-    public string PageName
+    public string FolderName
     {
         get => _pageName;
         private set => SetProperty(ref _pageName, value);
     }
+
+    public string? FolderLayoutPath => string.IsNullOrWhiteSpace(_folderLayoutPath) ? null : _folderLayoutPath;
 
     public int TableRows
     {
@@ -545,7 +548,8 @@ public sealed class PageItemModel : ObservableObject
         get => _buttonIcon;
         set
         {
-            if (SetProperty(ref _buttonIcon, value ?? string.Empty))
+            var normalizedIconPath = IconPathHelper.NormalizeStoredPath(value, FolderLayoutPath);
+            if (SetProperty(ref _buttonIcon, normalizedIconPath))
             {
                 RaisePropertyChanged(nameof(HasButtonIcon));
                 RaisePropertyChanged(nameof(ShowButtonIcon));
@@ -672,7 +676,7 @@ public sealed class PageItemModel : ObservableObject
         }
     }
 
-    public ObservableCollection<PageItemModel> Items { get; } = [];
+    public ObservableCollection<FolderItemModel> Items { get; } = [];
     public ObservableCollection<TableCellSlot> TableCellSlots { get; } = new ObservableCollection<TableCellSlot>();
 
     public bool IsButton => Kind == ControlKind.Button;
@@ -775,7 +779,7 @@ public sealed class PageItemModel : ObservableObject
         set => SetProperty(ref _draftListItemHeightText, value);
     }
 
-    public PageItemModel? SelectedListItem
+    public FolderItemModel? SelectedListItem
     {
         get => _selectedListItem;
         set
@@ -790,13 +794,13 @@ public sealed class PageItemModel : ObservableObject
         }
     }
 
-    public PageItemModel? ParentListControl
+    public FolderItemModel? ParentListControl
     {
         get => _parentListControl;
         private set => SetProperty(ref _parentListControl, value);
     }
 
-    public PageItemModel? ParentItem
+    public FolderItemModel? ParentItem
     {
         get => _parentItem;
         private set => SetProperty(ref _parentItem, value);
@@ -1619,7 +1623,7 @@ public sealed class PageItemModel : ObservableObject
 
     public bool ShowItemFooterPanel => IsItem && ShowFooter;
 
-    // Footer-Subitems werden im ItemWidget nicht mehr verwendet.
+    // Footer-Subitems werden im SignalWidget nicht mehr verwendet.
     public bool HasFooterSubItems => false;
 
     public int FooterSubItemRowCount => 0;
@@ -1644,7 +1648,9 @@ public sealed class PageItemModel : ObservableObject
 
     public bool ShowButtonIcon => HasButtonIcon;
 
-    public string EffectiveButtonIconPath => HasButtonIcon ? ButtonIcon : "avares://Amium.Editor/EditorIcons/clear.svg";
+    public string EffectiveButtonIconPath => HasButtonIcon
+        ? IconPathHelper.ResolvePath(ButtonIcon, FolderLayoutPath) ?? ButtonIcon
+        : "avares://Amium.Editor/EditorIcons/clear.svg";
 
     public string EffectiveButtonCommand => ButtonCommand;
 
@@ -2496,7 +2502,7 @@ public sealed class PageItemModel : ObservableObject
             _ => false
         };
 
-    public void ApplyListControlDefaultsToChild(PageItemModel item)
+    public void ApplyListControlDefaultsToChild(FolderItemModel item)
     {
         if (!IsListControl)
         {
@@ -2517,7 +2523,7 @@ public sealed class PageItemModel : ObservableObject
         }
     }
 
-    public void AttachChildToList(PageItemModel item)
+    public void AttachChildToList(FolderItemModel item)
     {
         if (!IsListControl)
         {
@@ -2526,18 +2532,52 @@ public sealed class PageItemModel : ObservableObject
 
         item.ParentListControl = this;
         item.ParentItem = this;
-        item.PageName = PageName;
+        item.FolderName = FolderName;
+        item.SetLayoutFilePath(FolderLayoutPath);
         item.ApplyActiveView(ActiveViewId);
         item.RefreshPathRecursive();
         item.ResolveTarget();
         ApplyListControlDefaultsToChild(item);
     }
 
-    public void SetHierarchy(string pageName, PageItemModel? parentItem, int activeViewId = 1)
+    public void SetLayoutFilePath(string? layoutFilePath)
     {
-        PageName = pageName;
+        var normalizedLayoutPath = string.IsNullOrWhiteSpace(layoutFilePath)
+            ? string.Empty
+            : System.IO.Path.GetFullPath(layoutFilePath);
+
+        if (string.Equals(_folderLayoutPath, normalizedLayoutPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _folderLayoutPath = normalizedLayoutPath;
+
+        if (!string.IsNullOrWhiteSpace(_buttonIcon))
+        {
+            ButtonIcon = _buttonIcon;
+        }
+        else
+        {
+            RaisePropertyChanged(nameof(EffectiveButtonIconPath));
+        }
+
+        foreach (var child in Items)
+        {
+            child.SetLayoutFilePath(_folderLayoutPath);
+        }
+    }
+
+    public void SetHierarchy(string pageName, FolderItemModel? parentItem, int activeViewId = 1)
+    {
+        FolderName = pageName;
         ParentItem = parentItem;
         ParentListControl = parentItem?.IsListControl == true ? parentItem : null;
+        if (parentItem is not null)
+        {
+            SetLayoutFilePath(parentItem.FolderLayoutPath);
+        }
+
         ApplyActiveView(parentItem?.ActiveViewId ?? activeViewId);
         RefreshPathRecursive();
         ResolveTarget();
@@ -2645,9 +2685,9 @@ public sealed class PageItemModel : ObservableObject
             return;
         }
 
-        var isDirectTarget = string.Equals(e.Key, TargetPath, StringComparison.Ordinal);
-        var isChildTarget = e.Key.StartsWith(TargetPath + "/", StringComparison.Ordinal);
-        var isAncestorTarget = TargetPath.StartsWith(e.Key + "/", StringComparison.Ordinal);
+        var isDirectTarget = TargetPathHelper.PathsEqual(e.Key, TargetPath);
+        var isChildTarget = TargetPathHelper.IsDescendantPath(e.Key, TargetPath);
+        var isAncestorTarget = TargetPathHelper.IsDescendantPath(TargetPath, e.Key);
         if (!isDirectTarget && !isChildTarget && !isAncestorTarget)
         {
             return;
@@ -2658,14 +2698,20 @@ public sealed class PageItemModel : ObservableObject
             Target = e.Item;
         }
 
-        if (isAncestorTarget && TryResolveRelativeChild(e.Item, TargetPath[(e.Key.Length + 1)..], out var resolvedTarget) && resolvedTarget is not null)
+        if (isAncestorTarget
+            && TargetPathHelper.TryGetRelativePath(TargetPath, e.Key, out var targetRelativePath)
+            && TryResolveRelativeChild(e.Item, targetRelativePath, out var resolvedTarget)
+            && resolvedTarget is not null)
         {
             Target = resolvedTarget;
         }
 
         if (isChildTarget && Target is not null)
         {
-            ApplyChildRegistryUpdate(Target, e.Key[(TargetPath.Length + 1)..], e);
+            if (TargetPathHelper.TryGetRelativePath(e.Key, TargetPath, out var childRelativePath))
+            {
+                ApplyChildRegistryUpdate(Target, childRelativePath, e);
+            }
         }
 
         if (Target is not null)
@@ -2679,7 +2725,7 @@ public sealed class PageItemModel : ObservableObject
     private static void ApplyChildRegistryUpdate(Item rootItem, string relativePath, DataChangedEventArgs e)
     {
         var current = rootItem;
-        foreach (var segment in relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var segment in TargetPathHelper.SplitPathSegments(relativePath))
         {
             if (!current.Has(segment))
             {
@@ -2795,7 +2841,8 @@ public sealed class PageItemModel : ObservableObject
 
         foreach (var child in Items)
         {
-            child.PageName = PageName;
+            child.FolderName = FolderName;
+            child.SetLayoutFilePath(FolderLayoutPath);
             child.ParentItem = this;
             child.ParentListControl = IsListControl ? this : null;
             child.ApplyActiveView(ActiveViewId);
@@ -2807,7 +2854,8 @@ public sealed class PageItemModel : ObservableObject
     {
         foreach (var child in Items)
         {
-            child.PageName = PageName;
+            child.FolderName = FolderName;
+            child.SetLayoutFilePath(FolderLayoutPath);
             child.ParentItem = this;
             child.ParentListControl = IsListControl ? this : null;
             child.ApplyActiveView(ActiveViewId);
@@ -2861,22 +2909,23 @@ public sealed class PageItemModel : ObservableObject
 
     private bool TryResolveTargetItem(string targetPath, out Item? item)
     {
-        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath, PageName))
+        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath, FolderName))
         {
-            if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
+            if (TryGetMatchingRegistryItem(candidatePath, out item) && item is not null)
             {
                 return true;
             }
 
             var rootKey = HostRegistries.Data.GetAllKeys()
-                .Where(key => candidatePath.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase))
+                .Where(key => TargetPathHelper.IsDescendantPath(candidatePath, key))
                 .OrderByDescending(key => key.Length)
                 .FirstOrDefault();
 
             if (rootKey is not null
-                && HostRegistries.Data.TryGet(rootKey, out var rootItem)
+                && TryGetMatchingRegistryItem(rootKey, out var rootItem)
                 && rootItem is not null
-                && TryResolveRelativeChild(rootItem, candidatePath[(rootKey.Length + 1)..], out item))
+                && TargetPathHelper.TryGetRelativePath(candidatePath, rootKey, out var relativePath)
+                && TryResolveRelativeChild(rootItem, relativePath, out item))
             {
                 return true;
             }
@@ -2889,7 +2938,7 @@ public sealed class PageItemModel : ObservableObject
     private static bool TryResolveRelativeChild(Item rootItem, string relativePath, out Item? item)
     {
         var current = rootItem;
-        foreach (var segment in relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var segment in TargetPathHelper.SplitPathSegments(relativePath))
         {
             if (!current.Has(segment))
             {
@@ -2902,6 +2951,22 @@ public sealed class PageItemModel : ObservableObject
 
         item = current;
         return true;
+    }
+
+    private static bool TryGetMatchingRegistryItem(string candidatePath, out Item? item)
+    {
+        if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
+        {
+            return true;
+        }
+
+        var comparableCandidatePath = TargetPathHelper.NormalizeComparablePath(candidatePath);
+        var matchingKey = HostRegistries.Data.GetAllKeys()
+            .FirstOrDefault(key => string.Equals(TargetPathHelper.NormalizeComparablePath(key), comparableCandidatePath, StringComparison.OrdinalIgnoreCase));
+
+        return matchingKey is not null
+            && HostRegistries.Data.TryGet(matchingKey, out item)
+            && item is not null;
     }
 
     private static string NormalizeLogTargetPath(string? value)
@@ -2979,7 +3044,7 @@ public sealed class PageItemModel : ObservableObject
             : string.Empty;
     }
 
-    private static string GetSuggestedNameFromTargetPath(string? targetPath)
+    private string GetSuggestedNameFromTargetPath(string? targetPath)
     {
         var normalizedPath = NormalizeTargetRelativePath(targetPath);
         return string.IsNullOrWhiteSpace(normalizedPath)
@@ -2987,12 +3052,14 @@ public sealed class PageItemModel : ObservableObject
             : normalizedPath.Replace('/', '.');
     }
 
-    private static string NormalizeTargetRelativePath(string? targetPath)
+    private string NormalizeTargetRelativePath(string? targetPath)
     {
         if (string.IsNullOrWhiteSpace(targetPath))
         {
             return string.Empty;
         }
+
+        targetPath = TargetPathHelper.ToPersistedLayoutTargetPath(targetPath, FolderName);
 
         var segments = targetPath
             .Replace('\\', '/')
@@ -3041,7 +3108,8 @@ public sealed class PageItemModel : ObservableObject
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClientControl",
-            _ => "Item"
+            ControlKind.Item or ControlKind.Signal => "Signal",
+            _ => "Signal"
         };
 
         if (string.Equals(normalizedName, baseName, StringComparison.OrdinalIgnoreCase))
@@ -3298,12 +3366,12 @@ public sealed class PageItemModel : ObservableObject
 
     public sealed class TableCellSlot : ObservableObject
     {
-        private readonly PageItemModel _owner;
+        private readonly FolderItemModel _owner;
         private bool _isSelected;
         private string? _contentLabel;
         private bool _isLastSelected;
 
-        public TableCellSlot(PageItemModel owner)
+        public TableCellSlot(FolderItemModel owner)
         {
             _owner = owner;
         }
@@ -3334,7 +3402,7 @@ public sealed class PageItemModel : ObservableObject
 
         // Bezieht ein evtl. vorhandenes Child-Widget fuer alle belegten Zellen mit ein,
         // auch wenn das Widget ueber mehrere Zeilen/Spalten geht.
-        public PageItemModel? ChildItem
+        public FolderItemModel? ChildItem
             => _owner.Items.FirstOrDefault(c => c.IsTableChildControl
                                                 && Row >= c.TableCellRow
                                                 && Row < c.TableCellRow + System.Math.Max(1, c.TableCellRowSpan)
@@ -3346,9 +3414,9 @@ public sealed class PageItemModel : ObservableObject
     {
         var segments = new List<string>();
 
-        if (!string.IsNullOrWhiteSpace(PageName))
+        if (!string.IsNullOrWhiteSpace(FolderName))
         {
-            segments.Add(PageName);
+            segments.Add(FolderName);
         }
 
         if (ParentItem is not null && !string.IsNullOrWhiteSpace(ParentItem.Name))

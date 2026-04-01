@@ -4,66 +4,66 @@ using Amium.Items;
 
 namespace Amium.Host;
 
-public abstract class BookPage : IDisposable
+public abstract class ProjectFolder : IDisposable
 {
-    private readonly UiPageContext _context;
+    private readonly UiFolderContext _context;
     private bool _initialized;
     private bool _running;
     private bool _disposed;
 
-    protected BookPage(string pageName, string? bookName = null)
+    protected ProjectFolder(string folderName, string? projectName = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(pageName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
 
-        PageName = pageName.Trim();
-        BookName = string.IsNullOrWhiteSpace(bookName) ? null : bookName.Trim();
-        _context = new UiPageContext(PageName, BookName);
+        FolderName = folderName.Trim();
+        ProjectName = string.IsNullOrWhiteSpace(projectName) ? null : projectName.Trim();
+        _context = new UiFolderContext(FolderName, ProjectName);
     }
 
-    protected string PageName { get; }
-    protected string? BookName { get; }
+    protected string FolderName { get; }
+    protected string? ProjectName { get; }
 
     /// <summary>
-    /// Attaches a source item to the current page context and returns the page-bound item instance.
+    /// Attaches a source item to the current folder context and returns the folder-bound item instance.
     /// </summary>
-    /// <param name="source">The source item that should be attached to this page.</param>
-    /// <param name="alias">An optional page-local path segment used instead of the source item name.</param>
-    /// <returns>The attached item instance bound to the current page context.</returns>
+    /// <param name="source">The source item that should be attached to this folder.</param>
+    /// <param name="alias">An optional folder-local path segment used instead of the source item name.</param>
+    /// <returns>The attached item instance bound to the current folder context.</returns>
     protected Item Attach(Item source, string? alias = null)
         => _context.Attach(source, alias);
 
     /// <summary>
-    /// Creates a page-scoped command using the convention &lt;Page&gt;/Commands/&lt;name&gt;.
+    /// Creates a folder-scoped command using the convention &lt;Folder&gt;/Commands/&lt;name&gt;.
     /// </summary>
-    /// <param name="name">The page-local command name.</param>
+    /// <param name="name">The folder-local command name.</param>
     /// <param name="action">The command callback.</param>
     /// <param name="description">An optional description for editor selection and documentation.</param>
-    /// <returns>A host command with the generated page-scoped command path.</returns>
+    /// <returns>A host command with the generated folder-scoped command path.</returns>
     protected HostCommand CreateCommand(string name, Action action, string? description = null)
         => _context.CreateCommand(name, action, description);
 
     /// <summary>
-    /// Creates a page-scoped command using the legacy attach naming.
+    /// Creates a folder-scoped command using the legacy attach naming.
     /// </summary>
     protected HostCommand AttachCommand(string name, Action action, string? description = null)
         => CreateCommand(name, action, description);
 
     /// <summary>
-    /// Publishes an item to the UI. Raw source items are attached to this page automatically, while already page-bound items are published as-is.
+    /// Publishes an item to the UI. Raw source items are attached to this folder automatically, while already folder-bound items are published as-is.
     /// </summary>
     protected Item PublishItem(Item item, string? alias = null, bool pruneMissingMembers = false)
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        var pageItem = IsPageScoped(item.Path) && string.IsNullOrWhiteSpace(alias)
+        var folderItem = IsFolderScoped(item.Path) && string.IsNullOrWhiteSpace(alias)
             ? item
             : Attach(item, alias);
 
-        return UiPublisher.Publish(pageItem, pruneMissingMembers);
+        return UiPublisher.Publish(folderItem, pruneMissingMembers);
     }
 
     /// <summary>
-    /// Publishes a page-scoped command to the command registry.
+    /// Publishes a folder-scoped command to the command registry.
     /// </summary>
     protected HostCommand PublishCommand(string name, Action action, string? description = null)
     {
@@ -83,14 +83,14 @@ public abstract class BookPage : IDisposable
     }
 
     /// <summary>
-    /// Publishes a process log below the current page using the convention &lt;Page&gt;/Logs/&lt;name&gt;.
+    /// Publishes a process log below the current folder using the convention &lt;Folder&gt;/Logs/&lt;name&gt;.
     /// </summary>
     protected Item PublishProcessLog(string name, ProcessLog log, string? title = null, bool pruneMissingMembers = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(log);
 
-        return UiPublisher.Publish(BuildPagePath($"Logs/{name}"), log, title, pruneMissingMembers);
+        return UiPublisher.Publish(BuildFolderPath($"Logs/{name}"), log, title, pruneMissingMembers);
     }
 
     /// <summary>
@@ -104,7 +104,7 @@ public abstract class BookPage : IDisposable
     }
 
     /// <summary>
-    /// Initializes the page and invokes the initialization hook exactly once.
+    /// Initializes the folder and invokes the initialization hook exactly once.
     /// </summary>
     public void Initialize()
     {
@@ -119,7 +119,7 @@ public abstract class BookPage : IDisposable
     }
 
     /// <summary>
-    /// Starts the page lifecycle, ensuring initialization has completed beforehand.
+    /// Starts the folder lifecycle, ensuring initialization has completed beforehand.
     /// </summary>
     public void Run()
     {
@@ -139,7 +139,7 @@ public abstract class BookPage : IDisposable
     }
 
     /// <summary>
-    /// Stops the page lifecycle and releases the page context and attached resources.
+    /// Stops the folder lifecycle and releases the folder context and attached resources.
     /// </summary>
     public void Destroy()
     {
@@ -165,7 +165,7 @@ public abstract class BookPage : IDisposable
     }
 
     /// <summary>
-    /// Disposes the page by delegating to <see cref="Destroy"/>.
+    /// Disposes the folder by delegating to <see cref="Destroy"/>.
     /// </summary>
     public void Dispose()
         => Destroy();
@@ -174,13 +174,13 @@ public abstract class BookPage : IDisposable
     protected abstract void OnRun();
     protected abstract void OnDestroy();
 
-    protected string BuildPagePath(string relativePath)
+    protected string BuildFolderPath(string relativePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
-        return $"{_context.PagePath}/{NormalizePath(relativePath)}";
+        return $"{_context.FolderPath}/{NormalizePath(relativePath)}";
     }
 
-    private bool IsPageScoped(string? path)
+    private bool IsFolderScoped(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -188,9 +188,9 @@ public abstract class BookPage : IDisposable
         }
 
         var normalizedPath = NormalizePath(path);
-        var normalizedPagePath = NormalizePath(_context.PagePath);
-        return string.Equals(normalizedPath, normalizedPagePath, StringComparison.Ordinal)
-            || normalizedPath.StartsWith($"{normalizedPagePath}/", StringComparison.Ordinal);
+        var normalizedFolderPath = NormalizePath(_context.FolderPath);
+        return string.Equals(normalizedPath, normalizedFolderPath, StringComparison.Ordinal)
+            || normalizedPath.StartsWith($"{normalizedFolderPath}/", StringComparison.Ordinal);
     }
 
     private static string NormalizePath(string value)
