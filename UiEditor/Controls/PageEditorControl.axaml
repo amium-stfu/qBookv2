@@ -105,6 +105,7 @@
                                     Padding="2,0,2,0"
                                     Background="Transparent"
                                     BorderBrush="Transparent"
+                                    IsVisible="False"
                                     IsChecked="{Binding DataContext.IsShiftInteractionMode, Mode=TwoWay, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}"
                                     ToolTip.Tip="Body-Interaktion an/aus">
                         <TextBlock FontSize="11" FontWeight="SemiBold"

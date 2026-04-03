@@ -5,6 +5,7 @@ namespace Amium.UiEditor.ViewModels;
 public sealed class ChartSeriesEditorRow : ObservableObject
 {
     private string _targetPath = string.Empty;
+    private string _targetName = string.Empty;
     private string _axis = "Y1";
     private string _style = "Line";
 
@@ -12,6 +13,12 @@ public sealed class ChartSeriesEditorRow : ObservableObject
     {
         get => _targetPath;
         set => SetProperty(ref _targetPath, value ?? string.Empty);
+    }
+
+    public string TargetName
+    {
+        get => _targetName;
+        set => SetProperty(ref _targetName, value ?? string.Empty);
     }
 
     public string Axis

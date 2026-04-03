@@ -34,6 +34,7 @@ public partial class ChartSeriesEditorDialogWindow : Window, INotifyPropertyChan
         AxisOptions = [];
         StyleOptions = [];
         NewTargetPath = string.Empty;
+        NewTargetName = string.Empty;
         NewAxis = "Y1";
         NewStyle = "Line";
         InitializeComponent();
@@ -47,7 +48,8 @@ public partial class ChartSeriesEditorDialogWindow : Window, INotifyPropertyChan
         ChartTargetOptions = new ObservableCollection<string>(field.ChartTargetOptions);
         AxisOptions = new ObservableCollection<string>(field.ChartAxisOptions);
         StyleOptions = new ObservableCollection<string>(field.ChartStyleOptions);
-        NewTargetPath = ChartTargetOptions.FirstOrDefault() ?? string.Empty;
+        NewTargetName = ChartTargetOptions.FirstOrDefault() ?? string.Empty;
+        NewTargetPath = string.Empty;
         NewAxis = AxisOptions.FirstOrDefault() ?? "Y1";
         NewStyle = StyleOptions.FirstOrDefault() ?? "Line";
         InitializeComponent();
@@ -141,6 +143,8 @@ public partial class ChartSeriesEditorDialogWindow : Window, INotifyPropertyChan
         private set => SetAndRaise(ref _sectionHeaderForeground, value, nameof(SectionHeaderForeground));
     }
 
+    public string NewTargetName { get; set; }
+
     public string NewTargetPath { get; set; }
 
     public string NewAxis { get; set; }
@@ -155,14 +159,15 @@ public partial class ChartSeriesEditorDialogWindow : Window, INotifyPropertyChan
 
     private void OnAddClicked(object? sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(NewTargetPath))
+        if (string.IsNullOrWhiteSpace(NewTargetName))
         {
             return;
         }
 
+        // NewTargetPath is resolved later inside EditorDialogField using the widget name.
         var row = new ChartSeriesEditorRow
         {
-            TargetPath = NewTargetPath,
+            TargetName = NewTargetName,
             Axis = string.IsNullOrWhiteSpace(NewAxis) ? "Y1" : NewAxis,
             Style = string.IsNullOrWhiteSpace(NewStyle) ? "Line" : NewStyle
         };

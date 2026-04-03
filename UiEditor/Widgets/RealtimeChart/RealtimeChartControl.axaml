@@ -9,7 +9,10 @@
     xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
   <controls:RealtimeChartControl.HeaderActionsContent>
     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-      <Button x:Name="PauseButton" Classes="toolicon" Width="30" Height="30" MinWidth="30" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnPauseClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Live/Pause">
+      <Button x:Name="PauseButton" Classes="toolicon" Width="30" Height="30" MinWidth="30" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="Transparent"
+              BorderBrush="Transparent"
+              CornerRadius="0" Click="OnPauseClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Live/Pause">
         <Grid>
           <Grid IsVisible="{Binding IsPaused, ElementName=Root}">
             <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.Editor/EditorIcons/play.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
@@ -20,8 +23,48 @@
         </Grid>
       </Button>
 
-      <Button Classes="toolicon" Width="30" Height="30" MinWidth="30" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent" BorderBrush="Transparent" CornerRadius="0" Click="OnClearClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Chart leeren">
+      <Button Classes="toolicon" Width="30" Height="30" MinWidth="30" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="Transparent"
+              BorderBrush="Transparent"
+              CornerRadius="0" Click="OnClearClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Chart leeren">
         <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.Editor/EditorIcons/clear.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
+      </Button>
+
+      <Button x:Name="AdjustAxesButton" Classes="toolicon" Width="30" Height="30" MinWidth="30" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="Transparent"
+              BorderBrush="Transparent"
+              CornerRadius="0" Click="OnAdjustAxesClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Achsen einstellen">
+        <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.Editor/EditorIcons/balance.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
+        <Button.ContextMenu>
+          <ContextMenu>
+            <MenuItem Header="Y1">
+              <MenuItem Header="Auto" Click="OnYAxisAutoClicked" Tag="1" />
+              <MenuItem Header="Min ..." Click="OnYAxisMinClicked" Tag="1" />
+              <MenuItem Header="Max ..." Click="OnYAxisMaxClicked" Tag="1" />
+            </MenuItem>
+            <MenuItem Header="Y2">
+              <MenuItem Header="Auto" Click="OnYAxisAutoClicked" Tag="2" />
+              <MenuItem Header="Min ..." Click="OnYAxisMinClicked" Tag="2" />
+              <MenuItem Header="Max ..." Click="OnYAxisMaxClicked" Tag="2" />
+            </MenuItem>
+            <MenuItem Header="Y3">
+              <MenuItem Header="Auto" Click="OnYAxisAutoClicked" Tag="3" />
+              <MenuItem Header="Min ..." Click="OnYAxisMinClicked" Tag="3" />
+              <MenuItem Header="Max ..." Click="OnYAxisMaxClicked" Tag="3" />
+            </MenuItem>
+            <MenuItem Header="Y4">
+              <MenuItem Header="Auto" Click="OnYAxisAutoClicked" Tag="4" />
+              <MenuItem Header="Min ..." Click="OnYAxisMinClicked" Tag="4" />
+              <MenuItem Header="Max ..." Click="OnYAxisMaxClicked" Tag="4" />
+            </MenuItem>
+            <Separator />
+            <MenuItem Header="X-Achse">
+              <MenuItem Header="RefreshRate ms ..." Click="OnXRefreshRateClicked" />
+              <MenuItem Header="History s ..." Click="OnXHistorySecondsClicked" />
+              <MenuItem Header="View s ..." Click="OnXViewSecondsClicked" />
+            </MenuItem>
+          </ContextMenu>
+        </Button.ContextMenu>
       </Button>
     </StackPanel>
   </controls:RealtimeChartControl.HeaderActionsContent>

@@ -2972,7 +2972,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             case ControlKind.ChartControl:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
-                    BindChartSeriesList("ChartSeriesDefinitions", "Series", current => current.ChartSeriesDefinitions, (current, value) => { current.ChartSeriesDefinitions = value; return null; }, GetChartSeriesToolTip),
+                    BindChartSeriesList("ChartSeriesDefinitions", "Series", current => current.ChartSeriesDefinitions, (current, value) => { current.ChartSeriesDefinitions = value; return null; }, GetChartSeriesToolTip, GetChartSeriesTargetOptions),
                     BindInt("RefreshRateMs", "RefreshRate ms", current => current.RefreshRateMs, (current, value) => current.RefreshRateMs = value),
                     BindInt("HistorySeconds", "History s", current => current.HistorySeconds, (current, value) => current.HistorySeconds = value),
                     BindInt("ViewSeconds", "View s", current => current.ViewSeconds, (current, value) => current.ViewSeconds = value)
@@ -3029,8 +3029,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static EditorDialogBindingDefinition BindMultiline(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, string>? toolTipFactory = null)
         => new(key, label, EditorPropertyType.MultilineText, read, apply, toolTipFactory: toolTipFactory);
 
-    private static EditorDialogBindingDefinition BindChartSeriesList(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, string>? toolTipFactory = null)
-        => new(key, label, EditorPropertyType.ChartSeriesList, read, apply, toolTipFactory: toolTipFactory);
+    private static EditorDialogBindingDefinition BindChartSeriesList(
+        string key,
+        string label,
+        Func<FolderItemModel, string> read,
+        Func<FolderItemModel, string, string?> apply,
+        Func<FolderItemModel, string>? toolTipFactory = null,
+        Func<FolderItemModel, IEnumerable<string>>? optionsFactory = null)
+        => new(key, label, EditorPropertyType.ChartSeriesList, read, apply, optionsFactory: optionsFactory, toolTipFactory: toolTipFactory);
 
     private static EditorDialogBindingDefinition BindAttachItemList(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.AttachItemList, read, apply, optionsFactory: optionsFactory);
@@ -3056,6 +3062,45 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             options.Add(currentOption);
         }
+
+        return options;
+    }
+
+    private IEnumerable<string> GetChartSeriesTargetOptions(FolderItemModel item)
+    {
+        var owningPage = FindOwningPage(item) ?? SelectedFolder;
+        if (owningPage is null)
+        {
+            return Array.Empty<string>();
+        }
+        var pageName = NormalizeTargetPathSegment(owningPage.Name);
+        var options = EnumeratePageItems(owningPage.Items)
+            .Where(pageItem => pageItem.Kind == ControlKind.Signal)
+            .Select(pageItem =>
+            {
+                var targetPath = TargetPathHelper.ToPersistedLayoutTargetPath(pageItem.TargetPath, pageName);
+                if (string.IsNullOrWhiteSpace(targetPath))
+                {
+                    return string.Empty;
+                }
+
+                var name = !string.IsNullOrWhiteSpace(pageItem.Name)
+                    ? pageItem.Name.Trim()
+                    : (!string.IsNullOrWhiteSpace(pageItem.Title)
+                        ? pageItem.Title.Trim()
+                        : (!string.IsNullOrWhiteSpace(pageItem.BodyCaption)
+                            ? pageItem.BodyCaption.Trim()
+                            : targetPath));
+
+                return string.IsNullOrWhiteSpace(name)
+                    ? string.Empty
+                    : $"{name}|{targetPath}";
+            })
+            .Where(static option => !string.IsNullOrWhiteSpace(option))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(option => option, StringComparer.OrdinalIgnoreCase)
+            .Select(option => option ?? string.Empty)
+            .ToArray();
 
         return options;
     }

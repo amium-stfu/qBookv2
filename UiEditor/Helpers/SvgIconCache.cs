@@ -98,19 +98,12 @@ internal static partial class SvgIconCache
         tintedSvg = StrokeAttributeRegex().Replace(tintedSvg, match => IsNone(match.Groups[1].Value) ? match.Value : $"stroke=\"{tintColor}\"");
         tintedSvg = StrokeStyleRegex().Replace(tintedSvg, match => IsNone(match.Groups[1].Value) ? match.Value : $"stroke:{tintColor}");
 
-        if (!HasAnyExplicitColoring(tintedSvg))
-        {
-            tintedSvg = SvgTagRegex().Replace(tintedSvg, $"<svg fill=\"{tintColor}\" ", 1);
-        }
+        // Ensure paths without explicit fill also get the tint color as their default fill.
+        // This makes monochrome icons (like play/pause) theme-aware even if only strokes were colored.
+        tintedSvg = SvgTagRegex().Replace(tintedSvg, $"<svg fill=\"{tintColor}\" ", 1);
 
         return tintedSvg;
     }
-
-    private static bool HasAnyExplicitColoring(string svgContent)
-        => svgContent.Contains("fill=", StringComparison.OrdinalIgnoreCase)
-            || svgContent.Contains("fill:", StringComparison.OrdinalIgnoreCase)
-            || svgContent.Contains("stroke=", StringComparison.OrdinalIgnoreCase)
-            || svgContent.Contains("stroke:", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsNone(string value)
         => value.Trim().Equals("none", StringComparison.OrdinalIgnoreCase);

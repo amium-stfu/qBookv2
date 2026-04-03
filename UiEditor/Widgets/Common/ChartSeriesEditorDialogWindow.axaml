@@ -82,7 +82,7 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="viewModels:ChartSeriesEditorRow">
                 <Grid ColumnDefinitions="*,100,100,Auto" Margin="0,0,0,8">
-                  <ComboBox Classes="dialog-field" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding TargetPath, Mode=TwoWay}" />
+                  <ComboBox Classes="dialog-field" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding TargetName, Mode=TwoWay}" />
                   <ComboBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding AxisOptions}" SelectedItem="{Binding Axis, Mode=TwoWay}" />
                   <ComboBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding StyleOptions}" SelectedItem="{Binding Style, Mode=TwoWay}" />
                   <Button Grid.Column="3" Margin="8,0,0,0" Classes="dialog-button" Content="Remove" Click="OnRemoveClicked" />
@@ -100,7 +100,7 @@
           </StackPanel>
 
           <Grid ColumnDefinitions="*,100,100,Auto">
-            <ComboBox Classes="dialog-field" ItemsSource="{Binding ChartTargetOptions}" SelectedItem="{Binding NewTargetPath, Mode=TwoWay}" />
+            <ComboBox Classes="dialog-field" ItemsSource="{Binding ChartTargetOptions}" SelectedItem="{Binding NewTargetName, Mode=TwoWay}" />
             <ComboBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding AxisOptions}" SelectedItem="{Binding NewAxis, Mode=TwoWay}" />
             <ComboBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding StyleOptions}" SelectedItem="{Binding NewStyle, Mode=TwoWay}" />
             <Button Grid.Column="3" Margin="8,0,0,0" Classes="dialog-button" Content="Add" Click="OnAddClicked" />

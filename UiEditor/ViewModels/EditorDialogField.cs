@@ -71,8 +71,12 @@ public sealed class EditorDialogField : ObservableObject
 
     public ObservableCollection<string> InteractionTargetOptions { get; } = [];
 
+    private readonly Dictionary<string, string> _chartTargetPathByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _chartTargetNameByPath = new(StringComparer.OrdinalIgnoreCase);
+
     private string _toolTipText = string.Empty;
     private string _newChartTargetPath = string.Empty;
+    private string _newChartTargetName = string.Empty;
     private string _newChartAxis = "Y1";
     private string _newChartStyle = "Line";
     private string _newInteractionEventName = "BodyLeftClick";
@@ -126,7 +130,30 @@ public sealed class EditorDialogField : ObservableObject
     public string NewChartTargetPath
     {
         get => _newChartTargetPath;
-        set => SetProperty(ref _newChartTargetPath, value ?? string.Empty);
+        private set => SetProperty(ref _newChartTargetPath, value ?? string.Empty);
+    }
+
+    public string NewChartTargetName
+    {
+        get => _newChartTargetName;
+        set
+        {
+            if (!SetProperty(ref _newChartTargetName, value ?? string.Empty))
+            {
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_newChartTargetName)
+                && _chartTargetPathByName.TryGetValue(_newChartTargetName, out var path)
+                && !string.IsNullOrWhiteSpace(path))
+            {
+                NewChartTargetPath = path;
+            }
+            else
+            {
+                NewChartTargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(_newChartTargetName);
+            }
+        }
     }
 
     public string NewChartAxis
@@ -233,14 +260,48 @@ public sealed class EditorDialogField : ObservableObject
         }
 
         ChartTargetOptions.Clear();
-        foreach (var target in HostRegistries.Data.GetAllKeys().OrderBy(key => key, StringComparer.OrdinalIgnoreCase))
+        _chartTargetPathByName.Clear();
+        _chartTargetNameByPath.Clear();
+
+        var baseOptions = Options.Count > 0
+            ? Options.Distinct(StringComparer.OrdinalIgnoreCase)
+            : HostRegistries.Data.GetAllKeys();
+
+        foreach (var raw in baseOptions
+                     .Where(static option => !string.IsNullOrWhiteSpace(option))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            ChartTargetOptions.Add(target);
+            var separatorIndex = raw.IndexOf('|');
+            string name;
+            string path;
+
+            if (separatorIndex >= 0)
+            {
+                name = raw[..separatorIndex];
+                path = raw[(separatorIndex + 1)..];
+            }
+            else
+            {
+                name = raw;
+                path = raw;
+            }
+
+            name = name.Trim();
+            path = TargetPathHelper.NormalizeConfiguredTargetPath(path);
+
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            _chartTargetPathByName[name] = path;
+            _chartTargetNameByPath[path] = name;
+            ChartTargetOptions.Add(name);
         }
 
-        if (string.IsNullOrWhiteSpace(NewChartTargetPath) && ChartTargetOptions.Count > 0)
+        if (string.IsNullOrWhiteSpace(NewChartTargetName) && ChartTargetOptions.Count > 0)
         {
-            NewChartTargetPath = ChartTargetOptions[0];
+            NewChartTargetName = ChartTargetOptions[0];
         }
 
         RebuildChartSeriesEntries();
@@ -350,9 +411,15 @@ public sealed class EditorDialogField : ObservableObject
         }
 
         ChartSeriesEntries.Clear();
-        foreach (var row in rows.Where(static row => !string.IsNullOrWhiteSpace(row.TargetPath)).Select(static row => row))
+        foreach (var row in rows.Where(static row => !string.IsNullOrWhiteSpace(row.TargetName) || !string.IsNullOrWhiteSpace(row.TargetPath)))
         {
-            ChartSeriesEntries.Add(CreateChartSeriesEntry(row.TargetPath, row.Axis, row.Style));
+            var target = ResolveChartSeriesTargetPath(string.IsNullOrWhiteSpace(row.TargetName) ? row.TargetPath : row.TargetName);
+            if (string.IsNullOrWhiteSpace(target))
+            {
+                continue;
+            }
+
+            ChartSeriesEntries.Add(CreateChartSeriesEntry(target, row.Axis, row.Style));
         }
 
         SyncChartSeriesValueFromEntries();
@@ -474,6 +541,15 @@ public sealed class EditorDialogField : ObservableObject
             row.StyleOptions.Add(option);
         }
 
+        if (_chartTargetNameByPath.TryGetValue(row.TargetPath, out var displayName))
+        {
+            row.TargetName = displayName;
+        }
+        else
+        {
+            row.TargetName = row.TargetPath;
+        }
+
         row.PropertyChanged += OnChartSeriesRowPropertyChanged;
         return row;
     }
@@ -517,6 +593,16 @@ public sealed class EditorDialogField : ObservableObject
         if (e.PropertyName is nameof(ChartSeriesEditorRow.TargetPath) or nameof(ChartSeriesEditorRow.Axis) or nameof(ChartSeriesEditorRow.Style))
         {
             SyncChartSeriesValueFromEntries();
+            return;
+        }
+
+        if (e.PropertyName is nameof(ChartSeriesEditorRow.TargetName) && sender is ChartSeriesEditorRow row)
+        {
+            var mapped = ResolveChartSeriesTargetPath(row.TargetName);
+            if (!string.IsNullOrWhiteSpace(mapped))
+            {
+                row.TargetPath = mapped;
+            }
         }
     }
 
@@ -624,7 +710,28 @@ public sealed class EditorDialogField : ObservableObject
             row.StyleOptions.Add(option);
         }
 
+        if (_chartTargetNameByPath.TryGetValue(row.TargetPath, out var displayName))
+        {
+            row.TargetName = displayName;
+        }
+        else
+        {
+            row.TargetName = row.TargetPath;
+        }
+
         return row;
+    }
+
+    private string ResolveChartSeriesTargetPath(string? displayOrPath)
+    {
+        if (!string.IsNullOrWhiteSpace(displayOrPath)
+            && _chartTargetPathByName.TryGetValue(displayOrPath, out var mapped)
+            && !string.IsNullOrWhiteSpace(mapped))
+        {
+            return mapped;
+        }
+
+        return TargetPathHelper.NormalizeConfiguredTargetPath(displayOrPath);
     }
 
     private ItemInteractionEditorRow CloneInteractionRuleEntry(ItemInteractionEditorRow source)

@@ -58,6 +58,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
     private IYAxis? _yAxis3;
     private IYAxis? _yAxis4;
     private bool _hasConfiguredAxes;
+    private readonly Dictionary<int, AxisScaleOverride> _axisOverrides = new();
 
     private MainWindowViewModel? ViewModel
         => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
@@ -284,6 +285,18 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         RenderPlot();
     }
 
+    private void OnAdjustAxesClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.ContextMenu is null)
+        {
+            return;
+        }
+
+        button.ContextMenu.PlacementTarget = button;
+        button.ContextMenu.Open();
+        e.Handled = true;
+    }
+
     private void ConfigurePlot()
     {
         if (_avaPlot is null || PlotSyncRoot is not { } syncRoot)
@@ -420,7 +433,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
                 var xs = snapshot.Points.Select(point => point.Timestamp.ToOADate()).ToArray();
                 var ys = snapshot.Points.Select(point => point.Value).ToArray();
                 var scatter = plot.Add.Scatter(xs, ys);
-                scatter.LegendText = snapshot.Configuration.DisplayName;
+                scatter.LegendText = GetSeriesLabel(snapshot.Configuration);
                 scatter.LineWidth = 2;
                 scatter.MarkerSize = 0;
                 scatter.Color = SeriesColors[i % SeriesColors.Length];
@@ -438,6 +451,12 @@ public partial class RealtimeChartControl : EditorTemplateWidget
                     if (axisMap.TryGetValue(axisIndex, out var axis))
                     {
                         plot.Axes.AutoScaleY(axis);
+
+                        if (_axisOverrides.TryGetValue(axisIndex, out var overrideConfig)
+                            && overrideConfig.Min.HasValue && overrideConfig.Max.HasValue)
+                        {
+                            plot.Axes.SetLimitsY(overrideConfig.Min.Value, overrideConfig.Max.Value, axis);
+                        }
                     }
                 }
             }
@@ -523,14 +542,19 @@ public partial class RealtimeChartControl : EditorTemplateWidget
     {
         targetPath = TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
         var normalizedAxis = Math.Clamp(axisIndex, 1, 4);
-        var displayName = targetPath.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? targetPath;
         var styleKey = connectStyle switch
         {
             ConnectStyle.StepHorizontal => "Step",
             ConnectStyle.StepVertical => "StepVertical",
             _ => "Line"
         };
-        return new ChartSeriesConfiguration(targetPath, pageName ?? string.Empty, normalizedAxis, connectStyle, $"{targetPath}|Y{normalizedAxis}|{styleKey}", $"Y{normalizedAxis} {displayName}");
+        return new ChartSeriesConfiguration(
+            targetPath,
+            pageName ?? string.Empty,
+            normalizedAxis,
+            connectStyle,
+            $"{targetPath}|Y{normalizedAxis}|{styleKey}",
+            targetPath);
     }
 
     private static ConnectStyle ParseConnectStyle(string? style)
@@ -656,13 +680,14 @@ public partial class RealtimeChartControl : EditorTemplateWidget
 
         foreach (var config in GetSeriesConfigurations())
         {
+            var label = GetSeriesLabel(config);
             if (TryGetNearestPoint(config.Key, coordinates.X, out var point))
             {
-                lines.Add($"{config.DisplayName}: {FormatValue(point.Value)}");
+                lines.Add($"{label}: {FormatValue(point.Value)}");
             }
             else
             {
-                lines.Add($"{config.DisplayName}: n/a");
+                lines.Add($"{label}: n/a");
             }
         }
 
@@ -827,7 +852,213 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         e.Handled = true;
     }
 
+    private async void OnYAxisAutoClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem || menuItem.Tag is not string tag || !int.TryParse(tag, out var axisIndex))
+        {
+            return;
+        }
+
+        _axisOverrides.Remove(axisIndex);
+        RenderPlot();
+        e.Handled = true;
+    }
+
+    private async void OnYAxisMinClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem || menuItem.Tag is not string tag || !int.TryParse(tag, out var axisIndex))
+        {
+            return;
+        }
+
+        if (this.GetVisualRoot() is not Window owner)
+        {
+            return;
+        }
+
+        _axisOverrides.TryGetValue(axisIndex, out var existing);
+        var currentMin = existing?.Min;
+
+        var result = await EditorInputDialogs.EditNumericAsync(owner, $"Y{axisIndex} Minimum", "Minimaler Y-Wert", "0.###", currentMin);
+        if (result is null)
+        {
+            return;
+        }
+
+        var next = existing is null
+            ? new AxisScaleOverride(result.Value, null)
+            : existing with { Min = result.Value };
+
+        _axisOverrides[axisIndex] = next;
+        RenderPlot();
+        e.Handled = true;
+    }
+
+    private async void OnYAxisMaxClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem || menuItem.Tag is not string tag || !int.TryParse(tag, out var axisIndex))
+        {
+            return;
+        }
+
+        if (this.GetVisualRoot() is not Window owner)
+        {
+            return;
+        }
+
+        _axisOverrides.TryGetValue(axisIndex, out var existing);
+        var currentMax = existing?.Max;
+
+        var result = await EditorInputDialogs.EditNumericAsync(owner, $"Y{axisIndex} Maximum", "Maximaler Y-Wert", "0.###", currentMax);
+        if (result is null)
+        {
+            return;
+        }
+
+        var next = existing is null
+            ? new AxisScaleOverride(null, result.Value)
+            : existing with { Max = result.Value };
+
+        _axisOverrides[axisIndex] = next;
+        RenderPlot();
+        e.Handled = true;
+    }
+
+    private async void OnXRefreshRateClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_chartItem is null || this.GetVisualRoot() is not Window owner)
+        {
+            return;
+        }
+
+        var current = _chartItem.RefreshRateMs;
+        var result = await EditorInputDialogs.EditNumericAsync(owner, "RefreshRate", "Abtastrate in ms", "0", current);
+        if (result is null)
+        {
+            return;
+        }
+
+        _chartItem.RefreshRateMs = (int)Math.Max(1, Math.Round(result.Value));
+        e.Handled = true;
+    }
+
+    private async void OnXHistorySecondsClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_chartItem is null || this.GetVisualRoot() is not Window owner)
+        {
+            return;
+        }
+
+        var current = _chartItem.HistorySeconds;
+        var result = await EditorInputDialogs.EditNumericAsync(owner, "History", "Historie in Sekunden", "0", current);
+        if (result is null)
+        {
+            return;
+        }
+
+        _chartItem.HistorySeconds = (int)Math.Max(1, Math.Round(result.Value));
+        e.Handled = true;
+    }
+
+    private async void OnXViewSecondsClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_chartItem is null || this.GetVisualRoot() is not Window owner)
+        {
+            return;
+        }
+
+        var current = _chartItem.ViewSeconds;
+        var result = await EditorInputDialogs.EditNumericAsync(owner, "View", "Angezeigtes Zeitfenster in Sekunden", "0", current);
+        if (result is null)
+        {
+            return;
+        }
+
+        _chartItem.ViewSeconds = (int)Math.Max(1, Math.Round(result.Value));
+        e.Handled = true;
+    }
+
+    private string GetSeriesLabel(ChartSeriesConfiguration configuration)
+    {
+        var axisText = $"Y{Math.Clamp(configuration.AxisIndex, 1, 4)}";
+
+        var widgetName = ResolveSeriesWidgetName(configuration.TargetPath, configuration.PageName);
+        if (string.IsNullOrWhiteSpace(widgetName))
+        {
+            // Fallback: use existing display name or target path
+            var fallback = !string.IsNullOrWhiteSpace(configuration.DisplayName)
+                ? configuration.DisplayName
+                : configuration.TargetPath.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? configuration.TargetPath;
+            return $"{axisText} {fallback}";
+        }
+
+        return $"{axisText} {widgetName.Trim()}";
+    }
+
+    private string? ResolveSeriesWidgetName(string targetPath, string? pageName)
+    {
+        var viewModel = ViewModel;
+        if (viewModel is null)
+        {
+            return null;
+        }
+
+        var effectivePageName = !string.IsNullOrWhiteSpace(pageName)
+            ? pageName
+            : _chartItem?.FolderName;
+
+        if (string.IsNullOrWhiteSpace(effectivePageName))
+        {
+            return null;
+        }
+
+        var page = viewModel.Folders.FirstOrDefault(p => string.Equals(p.Name, effectivePageName, StringComparison.Ordinal));
+        if (page is null)
+        {
+            return null;
+        }
+
+        var comparableSeriesPath = TargetPathHelper.NormalizeComparablePath(targetPath);
+
+        foreach (var item in EnumeratePageItems(page.Items))
+        {
+            if (item.Kind != ControlKind.Signal)
+            {
+                continue;
+            }
+
+            var itemPath = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, effectivePageName);
+            if (string.IsNullOrWhiteSpace(itemPath))
+            {
+                continue;
+            }
+
+            if (!string.Equals(TargetPathHelper.NormalizeComparablePath(itemPath), comparableSeriesPath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return item.Name;
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<FolderItemModel> EnumeratePageItems(IEnumerable<FolderItemModel> items)
+    {
+        foreach (var item in items)
+        {
+            yield return item;
+            foreach (var child in EnumeratePageItems(item.Items))
+            {
+                yield return child;
+            }
+        }
+    }
+
     private readonly record struct ChartPoint(DateTime Timestamp, double Value);
+
+    private sealed record AxisScaleOverride(double? Min, double? Max);
 
     private sealed record ChartSeriesConfiguration(string TargetPath, string PageName, int AxisIndex, ConnectStyle ConnectStyle, string Key, string DisplayName);
 
@@ -865,6 +1096,68 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             Math.Max(1, item.HistorySeconds),
             Math.Max(30, item.RefreshRateMs <= 0 ? 30 : item.RefreshRateMs),
             seriesConfigurations);
+    }
+
+    private static bool TryResolveSeriesItem(string targetPath, string? pageName, out Item? item)
+    {
+        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath, pageName))
+        {
+            if (TryGetMatchingRegistryItem(candidatePath, out item) && item is not null)
+            {
+                return true;
+            }
+
+            var rootKey = HostRegistries.Data.GetAllKeys()
+                .Where(key => TargetPathHelper.IsDescendantPath(candidatePath, key))
+                .OrderByDescending(key => key.Length)
+                .FirstOrDefault();
+
+            if (rootKey is not null
+                && TryGetMatchingRegistryItem(rootKey, out var rootItem)
+                && rootItem is not null
+                && TargetPathHelper.TryGetRelativePath(candidatePath, rootKey, out var relativePath)
+                && TryResolveRelativeChild(rootItem, relativePath, out item))
+            {
+                return true;
+            }
+        }
+
+        item = null;
+        return false;
+    }
+
+    private static bool TryResolveRelativeChild(Item rootItem, string relativePath, out Item? item)
+    {
+        var current = rootItem;
+        foreach (var segment in TargetPathHelper.SplitPathSegments(relativePath))
+        {
+            if (!current.Has(segment))
+            {
+                item = null;
+                return false;
+            }
+
+            current = current[segment];
+        }
+
+        item = current;
+        return true;
+    }
+
+    private static bool TryGetMatchingRegistryItem(string candidatePath, out Item? item)
+    {
+        if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
+        {
+            return true;
+        }
+
+        var comparableCandidatePath = TargetPathHelper.NormalizeComparablePath(candidatePath);
+        var matchingKey = HostRegistries.Data.GetAllKeys()
+            .FirstOrDefault(key => string.Equals(TargetPathHelper.NormalizeComparablePath(key), comparableCandidatePath, StringComparison.OrdinalIgnoreCase));
+
+        return matchingKey is not null
+            && HostRegistries.Data.TryGet(matchingKey, out item)
+            && item is not null;
     }
 
     private sealed class ChartRuntimeState
@@ -961,20 +1254,6 @@ public partial class RealtimeChartControl : EditorTemplateWidget
 
                 TrimSeriesLocked(sampledAt);
             }
-        }
-
-        private static bool TryResolveSeriesItem(string targetPath, string? pageName, out Item? item)
-        {
-            foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath, pageName))
-            {
-                if (HostRegistries.Data.TryGet(candidatePath, out item) && item is not null)
-                {
-                    return true;
-                }
-            }
-
-            item = null;
-            return false;
         }
 
         public List<ChartSeriesSnapshot> GetSeriesSnapshots()
