@@ -65,7 +65,32 @@
           <ItemsControl ItemsSource="{Binding Rows}">
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="viewModels:AttachItemEditorRow">
-                <CheckBox Margin="0,0,0,6" IsChecked="{Binding IsAttached, Mode=TwoWay}" Content="{Binding DisplayLabel}" />
+                <Grid Margin="0,0,0,6" ColumnDefinitions="Auto,*,Auto">
+                  <CheckBox Grid.Column="0"
+                            VerticalAlignment="Center"
+                            IsChecked="{Binding IsAttached, Mode=TwoWay}" />
+
+                  <TextBlock Grid.Column="1"
+                             Margin="6,0,0,0"
+                             VerticalAlignment="Center"
+                             FontSize="12"
+                             Text="{Binding DisplayLabel}" />
+
+                  <StackPanel Grid.Column="2"
+                              Orientation="Horizontal"
+                              Spacing="4"
+                              VerticalAlignment="Center"
+                              IsVisible="{Binding DataContext.ShowIntervalColumn, RelativeSource={RelativeSource AncestorType=Window}}">
+                    <TextBlock Text="ms"
+                               VerticalAlignment="Center"
+                               FontSize="11" />
+                    <TextBox Width="60"
+                             Text="{Binding IntervalMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             HorizontalContentAlignment="Right"
+                             VerticalAlignment="Center"
+                             FontSize="11" />
+                  </StackPanel>
+                </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>

@@ -9,6 +9,8 @@ public interface ICameraFrameSource
 {
     string Name { get; }
     object? CurrentFrame { get; }
+    IReadOnlyCollection<string> SupportedResolutions { get; }
+    void SetResolution(string? resolutionLabel);
     event EventHandler? FrameAvailable;
 }
 

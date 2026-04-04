@@ -19,6 +19,12 @@
     <PackageReference Include="Serilog" Version="4.0.1" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.118" />
+    <PackageReference Include="OpenCvSharp4" Version="4.10.0.20240616" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20240616" />
+    <PackageReference Include="AForge.Video" Version="2.2.5" />
+    <PackageReference Include="AForge.Video.DirectShow" Version="2.2.5" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,6 +34,7 @@
     <Compile Include="CameraRegistry.cs" />
     <Compile Include="Core.cs" />
     <Compile Include="HostRegistries.cs" />
+    <Compile Include="SignalRegistry.cs" />
     <Compile Include="UdlModule.cs" />
     <Compile Include="HostUdlClient.cs" />
     <Compile Include="CanHubRegistry.cs" />
@@ -37,6 +44,8 @@
     <Compile Include="VscodeLauncher.cs" />
     <Compile Include="Logging\HostLogger.cs" />
     <Compile Include="Logging\ProcessLog.cs" />
+    <Compile Include="Logging\CsvLogger.cs" />
+    <Compile Include="Logging\SqlLogger.cs" />
     <Compile Include="Helpers\**\*.cs" />
     <Compile Include="Manager\**\*.cs" />
     <Compile Include="Net\PipeCom.cs" />

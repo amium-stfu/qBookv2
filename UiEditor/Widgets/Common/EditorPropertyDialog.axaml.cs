@@ -417,6 +417,32 @@ public partial class EditorPropertyDialog : UserControl
         e.Handled = true;
     }
 
+    private async void OnOpenFolderPickerClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: EditorDialogField field })
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var dialog = new OpenFolderDialog
+        {
+            Directory = string.IsNullOrWhiteSpace(field.Value) ? null : field.Value
+        };
+
+        var result = await dialog.ShowAsync(owner);
+        if (!string.IsNullOrWhiteSpace(result))
+        {
+            field.Value = result;
+        }
+
+        e.Handled = true;
+    }
+
     private void OnConfirmClicked(object? sender, RoutedEventArgs e)
     {
         ViewModel?.CommitEditorDialog();

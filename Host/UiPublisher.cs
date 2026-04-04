@@ -31,7 +31,9 @@ public static class UiPublisher
         item.Params["Kind"].Value = "ProcessLog";
         item.Params["Title"].Value = displayTitle;
         item.Params["Text"].Value = displayTitle;
-        return Publish(item, pruneMissingMembers);
+        // Wichtig: Der Registry-Schlüssel soll exakt dem TargetLog-Pfad entsprechen,
+        // damit EditorLogControl den Log über "Logs/Host" o.ä. direkt auflösen kann.
+        return HostRegistries.Data.UpsertSnapshot(normalizedPath, item, pruneMissingMembers);
     }
 
     public static void Publish(HostCommand command)

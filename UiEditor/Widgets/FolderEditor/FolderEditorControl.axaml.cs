@@ -529,7 +529,10 @@ public partial class FolderEditorControl : UserControl
     private void OnBeginAddListControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.ListControl);
     private void OnBeginAddTableControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.TableControl);
     private void OnBeginAddLogControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.LogControl);
+    private void OnBeginAddCsvLoggerControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.CsvLoggerControl);
+    private void OnBeginAddSqlLoggerControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.SqlLoggerControl);
     private void OnBeginAddChartControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.ChartControl);
+    private void OnBeginAddCameraControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.CameraControl);
     private void OnBeginAddUdlClientControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.UdlClientControl);
     private void OnBeginAddButtonToListClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginListAdd(ControlKind.Button);
     private void OnBeginAddSignalToListClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginListAdd(ControlKind.Signal);

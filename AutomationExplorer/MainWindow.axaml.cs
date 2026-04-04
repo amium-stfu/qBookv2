@@ -862,4 +862,22 @@ public partial class MainWindow : Window
             }
         });
     }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        // Stelle sicher, dass alle Hintergrundaktivitäten des Hosts gestoppt werden,
+        // bevor die Anwendung beendet wird.
+        try
+        {
+            Amium.Host.TasksManager.StopAll();
+            Amium.Host.ThreadsManager.StopAll();
+            Amium.Host.TimerManager.StopAll();
+        }
+        catch
+        {
+            // Best-effort Shutdown – Fehler hier sollen das Beenden nicht verhindern.
+        }
+
+        base.OnClosing(e);
+    }
 }

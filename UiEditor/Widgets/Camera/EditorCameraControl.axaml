@@ -1,0 +1,69 @@
+<editorUi:EditorTemplateControl
+    x:Class="Amium.UiEditor.Widgets.EditorCameraControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.UiEditor.Widgets"
+    xmlns:editorUi="using:Amium.EditorUi.Controls">
+
+  <editorUi:EditorTemplateControl.HeaderActionsContent>
+    <Grid ColumnDefinitions="Auto,Auto" VerticalAlignment="Center">
+      <!-- Snapshot button -->
+      <Button Grid.Column="0"
+              Padding="0"
+              Background="Transparent"
+              BorderBrush="Transparent"
+              BorderThickness="0"
+              Cursor="Hand"
+              HorizontalAlignment="Left"
+              Click="OnSnapshotClicked"
+              PointerPressed="OnInteractivePointerPressed">
+        <Border Background="#111827"
+                CornerRadius="6"
+                Padding="6,2">
+          <TextBlock FontSize="11"
+                     FontWeight="SemiBold"
+                     Foreground="White"
+                     Text="Snapshot" />
+        </Border>
+      </Button>
+
+      <!-- Open folder button -->
+      <Button Grid.Column="1"
+              Margin="6,0,0,0"
+              Padding="0"
+              Background="Transparent"
+              BorderBrush="Transparent"
+              BorderThickness="0"
+              Cursor="Hand"
+              HorizontalAlignment="Left"
+              Click="OnOpenFolderClicked"
+              PointerPressed="OnInteractivePointerPressed"
+              ToolTip.Tip="Snapshot-Verzeichnis öffnen">
+        <editorUi:ThemeSvgIcon Width="18"
+                               Height="18"
+                               IconPath="avares://Amium.Editor/EditorIcons/folder.svg"
+                               TintColor="{Binding DataContext.EditPanelInputForeground, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
+      </Button>
+    </Grid>
+  </editorUi:EditorTemplateControl.HeaderActionsContent>
+
+  <controls:EditorCameraControl.BodyContent>
+    <Border Background="{Binding EffectiveBodyBackgroundBrush}"
+            BorderBrush="{Binding EffectiveBodyBorderBrush}"
+            BorderThickness="{Binding EffectiveBodyBorderThickness}"
+            CornerRadius="10"
+            Padding="10,8">
+      <Image Source="{Binding CurrentFrameImage, RelativeSource={RelativeSource AncestorType=controls:EditorCameraControl}}"
+             Stretch="Uniform"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch" />
+    </Border>
+  </controls:EditorCameraControl.BodyContent>
+
+  <editorUi:EditorTemplateControl.FooterContent>
+    <TextBlock Margin="0,2,0,0"
+               FontSize="11"
+               Foreground="{Binding EffectiveFooterForegroundBrush}"
+               Text="{Binding Footer}" />
+  </editorUi:EditorTemplateControl.FooterContent>
+</editorUi:EditorTemplateControl>

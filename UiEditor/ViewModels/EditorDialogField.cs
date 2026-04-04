@@ -218,6 +218,8 @@ public sealed class EditorDialogField : ObservableObject
 
     public string? InputWatermark => IsColor ? "Theme" : null;
 
+    private bool IsCsvSignalAttachList => IsAttachItemList && string.Equals(Key, "CsvSignalPaths", StringComparison.Ordinal);
+
     public string StructuredEditorSummary => PropertyType switch
     {
         EditorPropertyType.TargetTree => string.IsNullOrWhiteSpace(Value)
@@ -236,6 +238,8 @@ public sealed class EditorDialogField : ObservableObject
     };
 
     public bool IsIconPathSelector => string.Equals(Key, "ButtonIcon", StringComparison.Ordinal);
+
+    public bool IsFolderSelector => string.Equals(Key, "CsvDirectory", StringComparison.Ordinal);
 
     public IBrush PreviewBrush
     {
@@ -771,7 +775,8 @@ public sealed class EditorDialogField : ObservableObject
         => AttachItemEntries.Select(static row => new AttachItemEditorRow
         {
             RelativePath = row.RelativePath,
-            IsAttached = row.IsAttached
+            IsAttached = row.IsAttached,
+            IntervalMs = row.IntervalMs
         }).ToList();
 
     public void ApplyAttachItemEntries(IEnumerable<AttachItemEditorRow> rows)
@@ -792,18 +797,15 @@ public sealed class EditorDialogField : ObservableObject
             var copy = new AttachItemEditorRow
             {
                 RelativePath = row.RelativePath,
-                IsAttached = row.IsAttached
+                IsAttached = row.IsAttached,
+                IntervalMs = row.IntervalMs
             };
 
             copy.PropertyChanged += OnAttachItemRowPropertyChanged;
             AttachItemEntries.Add(copy);
         }
 
-        var serialized = string.Join(Environment.NewLine, AttachItemEntries
-            .Where(static row => row.IsAttached)
-            .Select(static row => row.RelativePath));
-
-        Parameter.Value = serialized;
+        Parameter.Value = SerializeAttachItemEntries();
         RaisePropertyChanged(nameof(Value));
         RaisePropertyChanged(nameof(StructuredEditorSummary));
     }
@@ -816,21 +818,29 @@ public sealed class EditorDialogField : ObservableObject
         }
 
         AttachItemEntries.Clear();
-        var selectedPaths = Value
-            .Replace("\r", string.Empty)
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var option in Options)
+        if (IsCsvSignalAttachList)
         {
-            var row = new AttachItemEditorRow
-            {
-                RelativePath = option,
-                IsAttached = selectedPaths.Contains(option)
-            };
+            RebuildCsvSignalAttachEntries();
+        }
+        else
+        {
+            var selectedPaths = Value
+                .Replace("\r", string.Empty)
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            row.PropertyChanged += OnAttachItemRowPropertyChanged;
-            AttachItemEntries.Add(row);
+            foreach (var option in Options)
+            {
+                var row = new AttachItemEditorRow
+                {
+                    RelativePath = option,
+                    IsAttached = selectedPaths.Contains(option),
+                    IntervalMs = 0
+                };
+
+                row.PropertyChanged += OnAttachItemRowPropertyChanged;
+                AttachItemEntries.Add(row);
+            }
         }
 
         RaisePropertyChanged(nameof(StructuredEditorSummary));
@@ -838,18 +848,131 @@ public sealed class EditorDialogField : ObservableObject
 
     private void OnAttachItemRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(AttachItemEditorRow.IsAttached))
+        if (e.PropertyName != nameof(AttachItemEditorRow.IsAttached)
+            && (!IsCsvSignalAttachList || e.PropertyName != nameof(AttachItemEditorRow.IntervalMs)))
         {
             return;
         }
 
-        var serialized = string.Join(Environment.NewLine, AttachItemEntries
-            .Where(static row => row.IsAttached)
-            .Select(static row => row.RelativePath));
-
-        Parameter.Value = serialized;
+        Parameter.Value = SerializeAttachItemEntries();
         RaisePropertyChanged(nameof(Value));
         RaisePropertyChanged(nameof(StructuredEditorSummary));
+    }
+
+    private string SerializeAttachItemEntries()
+    {
+        if (!IsAttachItemList)
+        {
+            return Value;
+        }
+
+        if (!IsCsvSignalAttachList)
+        {
+            return string.Join(Environment.NewLine, AttachItemEntries
+                .Where(static row => row.IsAttached)
+                .Select(static row => row.RelativePath));
+        }
+
+        var serialized = string.Join(Environment.NewLine, AttachItemEntries
+            .Where(static row => row.IsAttached)
+            .Select(static row => SerializeCsvSignalAttachRow(row)));
+
+        return serialized;
+    }
+
+    private static string SerializeCsvSignalAttachRow(AttachItemEditorRow row)
+    {
+        // RelativePath for signals comes from GetCsvSignalOptions and has the form
+        //   Name|TargetPath
+        // or
+        //   Name|TargetPath|Unit
+        // We add an optional 4th field for the interval if IntervalMs > 0.
+        var parts = row.RelativePath.Split('|', StringSplitOptions.TrimEntries);
+        var name = parts.Length > 0 ? parts[0].Trim() : string.Empty;
+        var path = parts.Length > 1 ? parts[1].Trim() : name;
+        var unit = parts.Length > 2 ? parts[2].Trim() : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        if (row.IntervalMs > 0)
+        {
+            return string.IsNullOrWhiteSpace(unit)
+                ? $"{name}|{path}||{row.IntervalMs}"
+                : $"{name}|{path}|{unit}|{row.IntervalMs}";
+        }
+
+        return string.IsNullOrWhiteSpace(unit)
+            ? $"{name}|{path}"
+            : $"{name}|{path}|{unit}";
+    }
+
+    private void RebuildCsvSignalAttachEntries()
+    {
+        // Parse current value lines (may already include per-signal intervals)
+        var selectedLines = Value
+            .Replace("\r", string.Empty)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var intervalsByPath = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var selectedByPath = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var line in selectedLines)
+        {
+            var parts = line.Split('|', StringSplitOptions.TrimEntries);
+            if (parts.Length == 0)
+            {
+                continue;
+            }
+
+            string pathPart;
+            if (parts.Length == 1)
+            {
+                pathPart = parts[0].Trim();
+            }
+            else
+            {
+                pathPart = parts[1].Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(pathPart))
+            {
+                continue;
+            }
+
+            selectedByPath.Add(pathPart);
+
+            if (parts.Length > 3 && int.TryParse(parts[3].Trim(), out var parsedInterval) && parsedInterval > 0)
+            {
+                intervalsByPath[pathPart] = parsedInterval;
+            }
+        }
+
+        foreach (var option in Options)
+        {
+            var optionParts = option.Split('|', StringSplitOptions.TrimEntries);
+            string optionPath;
+            if (optionParts.Length == 1)
+            {
+                optionPath = optionParts[0].Trim();
+            }
+            else
+            {
+                optionPath = optionParts[1].Trim();
+            }
+
+            var row = new AttachItemEditorRow
+            {
+                RelativePath = option,
+                IsAttached = selectedByPath.Contains(optionPath),
+                IntervalMs = intervalsByPath.TryGetValue(optionPath, out var interval) ? interval : 0
+            };
+
+            row.PropertyChanged += OnAttachItemRowPropertyChanged;
+            AttachItemEntries.Add(row);
+        }
     }
 }
 

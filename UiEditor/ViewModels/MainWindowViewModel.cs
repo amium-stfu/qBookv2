@@ -31,6 +31,44 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static readonly IReadOnlyList<string> ParameterFormatOptions = ["Text", "Numeric", "Hex", "bool", "b4", "b8", "b16"];
     private static readonly IReadOnlyList<string> AlignmentOptions = ["Left", "Center", "Right"];
 
+    private static IReadOnlyList<string> GetCameraOptions()
+    {
+        return HostRegistries.Cameras
+            .GetAll()
+            .Select(source => source.Name)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<string> GetCameraResolutionOptions(FolderItemModel item)
+    {
+        var cameraName = item.CameraName;
+        if (string.IsNullOrWhiteSpace(cameraName))
+        {
+            return Array.Empty<string>();
+        }
+
+        if (!HostRegistries.Cameras.TryGet(cameraName, out var source) || source is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var options = (source.SupportedResolutions ?? Array.Empty<string>())
+            .Where(res => !string.IsNullOrWhiteSpace(res))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(res => res, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Aktuell gewählte Resolution immer anbieten, auch wenn sie nicht in der Capabilities-Liste ist
+        if (!string.IsNullOrWhiteSpace(item.CameraResolution)
+            && !options.Contains(item.CameraResolution, StringComparer.OrdinalIgnoreCase))
+        {
+            options.Add(item.CameraResolution);
+        }
+
+        return options;
+    }
+
     private enum EditorDialogMode
     {
         None,
@@ -46,6 +84,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     };
 
     private readonly ObservableCollection<FolderItemModel> _selectedItems = [];
+    private readonly Dictionary<string, CsvLogger> _csvLoggers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, object> _sqlLoggers = new(StringComparer.OrdinalIgnoreCase);
     private readonly bool _supportsUdlClientControl;
     private bool _isEditMode;
     private bool _showGrid = true;
@@ -1552,6 +1592,21 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }
 
                 break;
+            case ControlKind.CsvLoggerControl or ControlKind.SqlLoggerControl:
+                control["CsvDirectory"] = item.CsvDirectory;
+                control["CsvFilename"] = item.CsvFilename;
+                control["CsvAddTimestamp"] = item.CsvAddTimestamp;
+                control["CsvIntervalMs"] = item.CsvIntervalMs;
+                control["CsvSignalPaths"] = item.CsvSignalPaths;
+                break;
+            case ControlKind.CameraControl:
+                control["CsvDirectory"] = item.CsvDirectory;
+                control["CsvFilename"] = item.CsvFilename;
+                control["CsvAddTimestamp"] = item.CsvAddTimestamp;
+                control["CameraName"] = item.CameraName;
+                control["CameraResolution"] = item.CameraResolution;
+                control["CameraOverlayText"] = item.CameraOverlayText;
+                break;
             case ControlKind.UdlClientControl:
                 control["UdlClientHost"] = item.UdlClientHost;
                 control["UdlClientPort"] = item.UdlClientPort;
@@ -1609,6 +1664,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClient",
+            ControlKind.CsvLoggerControl => "CsvLoggerControl",
+            ControlKind.SqlLoggerControl => "SqlLoggerControl",
+            ControlKind.CameraControl => "CameraControl",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -1689,6 +1747,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.UdlClientAutoConnect = GetBoolProperty(properties, "UdlClientAutoConnect") ?? item.UdlClientAutoConnect;
         item.UdlClientDebugLogging = GetBoolProperty(properties, "UdlClientDebugLogging") ?? item.UdlClientDebugLogging;
         item.UdlAttachedItemPaths = GetStringProperty(properties, "UdlAttachedItemPaths") ?? item.UdlAttachedItemPaths;
+        item.CsvDirectory = GetStringProperty(properties, "CsvDirectory") ?? item.CsvDirectory;
+        item.CsvFilename = GetStringProperty(properties, "CsvFilename") ?? item.CsvFilename;
+        item.CsvAddTimestamp = GetBoolProperty(properties, "CsvAddTimestamp") ?? item.CsvAddTimestamp;
+        item.CsvIntervalMs = GetIntProperty(properties, "CsvIntervalMs") ?? item.CsvIntervalMs;
+        item.CsvSignalPaths = GetStringProperty(properties, "CsvSignalPaths") ?? item.CsvSignalPaths;
+        item.CameraName = GetStringProperty(properties, "CameraName") ?? item.CameraName;
+        item.CameraResolution = GetStringProperty(properties, "CameraResolution") ?? item.CameraResolution;
+        item.CameraOverlayText = GetStringProperty(properties, "CameraOverlayText") ?? item.CameraOverlayText;
         item.IsReadOnly = GetBoolProperty(properties, "IsReadOnly") ?? item.IsReadOnly;
         item.IsAutoHeight = GetBoolProperty(properties, "IsAutoHeight") ?? item.IsAutoHeight;
         item.ListItemHeight = GetDoubleProperty(properties, "ListItemHeight") ?? item.ListItemHeight;
@@ -1859,6 +1925,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClientControl",
+            ControlKind.CsvLoggerControl => "CsvLoggerControl",
+            ControlKind.SqlLoggerControl => "SqlLoggerControl",
+            ControlKind.CameraControl => "CameraControl",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -1975,7 +2044,6 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     break;
                 case JsonArray nestedArray:
                     writer.WriteLine($"{indentText}-");
-                    WriteYamlArray(nestedArray, writer, indent + 2);
                     break;
                 default:
                     writer.WriteLine($"{indentText}- {FormatYamlScalar(element)}");
@@ -2272,14 +2340,53 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.LogControl => new FolderItemModel
             {
                 Kind = ControlKind.LogControl,
-                ControlCaption = "ProcessLog",
+                ControlCaption = "Log",
                 BodyCaption = string.Empty,
-                Footer = string.Empty,
-                TargetLog = "Logs/Host",
+                BodyCaptionVisible = false,
+                ShowFooter = true,
+                Footer = "Logs/Host",
                 X = x,
                 Y = y,
                 Width = Math.Max(width, 420),
                 Height = Math.Max(height, 260),
+                ContainerBorderWidth = 0
+            },
+            ControlKind.CsvLoggerControl => new FolderItemModel
+            {
+                Kind = ControlKind.CsvLoggerControl,
+                ControlCaption = "CsvLogger",
+                BodyCaption = "Filename.csv",
+                Footer = "Directory",
+                BodyCaptionVisible = false,
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 260),
+                Height = Math.Max(height, 120),
+                ContainerBorderWidth = 0
+            },
+            ControlKind.CameraControl => new FolderItemModel
+            {
+                Kind = ControlKind.CameraControl,
+                Name = "Camera",
+                ControlCaption = "Camera",
+                BodyCaption = string.Empty,
+                Footer = string.Empty,
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 260),
+                Height = Math.Max(height, 160)
+            },
+            ControlKind.SqlLoggerControl => new FolderItemModel
+            {
+                Kind = ControlKind.SqlLoggerControl,
+                ControlCaption = "SqlLogger",
+                BodyCaption = "Database.db",
+                Footer = "Directory",
+                BodyCaptionVisible = false,
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 260),
+                Height = Math.Max(height, 120),
                 ContainerBorderWidth = 0
             },
             ControlKind.ChartControl => new FolderItemModel
@@ -2997,6 +3104,40 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindChoice("TargetLog", "TargetLog", current => current.TargetLog, (current, value) => { current.TargetLog = value; return null; }, _ => GetProcessLogTargetOptions())
                 }));
                 break;
+            case ControlKind.CsvLoggerControl:
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
+                {
+                    BindText("CsvDirectory", "Directory", current => current.CsvDirectory, (current, value) => { current.CsvDirectory = value; return null; }),
+                    BindText("CsvFilename", "Filename", current => current.CsvFilename, (current, value) => { current.CsvFilename = value; current.BodyCaption = string.IsNullOrWhiteSpace(value) ? current.BodyCaption : value; return null; }),
+                    BindChoice("CsvAddTimestamp", "AddTimeStamp", current => current.CsvAddTimestamp ? "True" : "False", (current, value) => { current.CsvAddTimestamp = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindInt("CsvIntervalMs", "IntervalMs", current => current.CsvIntervalMs, (current, value) => current.CsvIntervalMs = value),
+                    BindAttachItemList("CsvSignalPaths", "SelectSignals", current => current.CsvSignalPaths, (current, value) => { current.CsvSignalPaths = value; return null; }, GetCsvSignalOptions)
+                }));
+                break;
+            case ControlKind.SqlLoggerControl:
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
+                {
+                    BindText("CsvDirectory", "Directory", current => current.CsvDirectory, (current, value) => { current.CsvDirectory = value; return null; }),
+                    BindText("CsvFilename", "Filename", current => current.CsvFilename, (current, value) =>
+                    {
+                        var trimmed = (value ?? string.Empty).Trim();
+                        if (!string.IsNullOrWhiteSpace(trimmed) && !trimmed.EndsWith(".db", StringComparison.OrdinalIgnoreCase))
+                        {
+                            trimmed += ".db";
+                        }
+
+                        current.CsvFilename = trimmed;
+                        if (!string.IsNullOrWhiteSpace(trimmed))
+                        {
+                            current.BodyCaption = trimmed;
+                        }
+
+                        return null;
+                    }),
+                    BindChoice("CsvAddTimestamp", "AddTimeStamp", current => current.CsvAddTimestamp ? "True" : "False", (current, value) => { current.CsvAddTimestamp = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindAttachItemList("CsvSignalPaths", "SelectSignals", current => current.CsvSignalPaths, (current, value) => { current.CsvSignalPaths = value; return null; }, GetCsvSignalOptions)
+                }));
+                break;
             case ControlKind.UdlClientControl:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
@@ -3005,6 +3146,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindChoice("UdlClientAutoConnect", "AutoConnect", current => current.UdlClientAutoConnect ? "True" : "False", (current, value) => { current.UdlClientAutoConnect = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindChoice("UdlClientDebugLogging", "DebugLogging", current => current.UdlClientDebugLogging ? "True" : "False", (current, value) => { current.UdlClientDebugLogging = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindAttachItemList("UdlAttachedItemPaths", "AttachToUi", current => current.UdlAttachedItemPaths, (current, value) => { current.UdlAttachedItemPaths = value; return null; }, GetUdlAttachItemOptions)
+                }));
+                break;
+            case ControlKind.CameraControl:
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
+                {
+                    BindText("CsvDirectory", "Directory", current => current.CsvDirectory, (current, value) => { current.CsvDirectory = value; return null; }),
+                    BindText("CsvFilename", "Filename", current => current.CsvFilename, (current, value) => { current.CsvFilename = value; current.BodyCaption = string.IsNullOrWhiteSpace(value) ? current.BodyCaption : value; return null; }),
+                    BindChoice("CsvAddTimestamp", "AddTimeStamp", current => current.CsvAddTimestamp ? "True" : "False", (current, value) => { current.CsvAddTimestamp = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindChoice("CameraName", "Camera", current => current.CameraName, (current, value) => { current.CameraName = value; return null; }, _ => GetCameraOptions()),
+                    BindChoice("CameraResolution", "Resolution", current => current.CameraResolution, (current, value) => { current.CameraResolution = value; return null; }, current => GetCameraResolutionOptions(current)),
+                    BindText("CameraOverlayText", "OverlayText", current => current.CameraOverlayText, (current, value) => { current.CameraOverlayText = value; return null; })
                 }));
                 break;
         }
@@ -3018,6 +3170,434 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         return sections;
+    }
+
+    private IEnumerable<string> GetCsvSignalOptions(FolderItemModel item)
+    {
+        var page = FindOwningPage(item) ?? SelectedFolder;
+        var pageName = NormalizeTargetPathSegment(page.Name);
+
+        var options = EnumeratePageItems(page.Items)
+            .Where(pageItem => pageItem.Kind == ControlKind.Signal)
+            .Select(pageItem =>
+            {
+                var targetPath = TargetPathHelper.ToPersistedLayoutTargetPath(pageItem.TargetPath, pageName);
+                if (string.IsNullOrWhiteSpace(targetPath))
+                {
+                    return string.Empty;
+                }
+
+                var name = !string.IsNullOrWhiteSpace(pageItem.Name)
+                    ? pageItem.Name.Trim()
+                    : (!string.IsNullOrWhiteSpace(pageItem.Title)
+                        ? pageItem.Title.Trim()
+                        : (!string.IsNullOrWhiteSpace(pageItem.BodyCaption)
+                            ? pageItem.BodyCaption.Trim()
+                            : targetPath));
+
+                var unit = pageItem.Unit?.Trim() ?? string.Empty;
+
+                return string.IsNullOrWhiteSpace(name)
+                    ? string.Empty
+                    : string.IsNullOrWhiteSpace(unit)
+                        ? $"{name}|{targetPath}"
+                        : $"{name}|{targetPath}|{unit}";
+            })
+            .Where(static option => !string.IsNullOrWhiteSpace(option))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(option => option, StringComparer.OrdinalIgnoreCase)
+            .Select(option => option ?? string.Empty)
+            .ToArray();
+
+        return options;
+    }
+
+    public void StartCsvLogging(FolderItemModel item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        var key = string.IsNullOrWhiteSpace(item.Id) ? Guid.NewGuid().ToString("N") : item.Id;
+        if (string.IsNullOrWhiteSpace(item.Id))
+        {
+            item.Id = key;
+        }
+
+        if (_csvLoggers.TryGetValue(key, out var existingLogger))
+        {
+            try
+            {
+                _ = existingLogger.Stop();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to stop existing CsvLogger before restart: {ex}");
+            }
+        }
+
+        var directory = string.IsNullOrWhiteSpace(item.CsvDirectory)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "AmiumLogs")
+            : item.CsvDirectory.Trim();
+
+        var baseName = string.IsNullOrWhiteSpace(item.CsvFilename)
+            ? (!string.IsNullOrWhiteSpace(item.Name) ? item.Name.Trim() : "CsvLogger")
+            : item.CsvFilename.Trim();
+
+        if (!baseName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        {
+            baseName += ".csv";
+        }
+
+        var fileName = baseName;
+        if (item.CsvAddTimestamp)
+        {
+            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            fileName = $"{timestamp}_{baseName}";
+        }
+
+        var interval = item.CsvIntervalMs > 0 ? item.CsvIntervalMs : 1000;
+
+        var loggerName = !string.IsNullOrWhiteSpace(item.Name) ? item.Name.Trim() : key;
+        var logger = new CsvLogger(loggerName)
+        {
+            Directory = directory,
+            Interval = interval
+        };
+
+        foreach (var (displayName, targetPath, unit, _) in ParseCsvSignalSelection(item))
+        {
+            if (string.IsNullOrWhiteSpace(targetPath))
+            {
+                continue;
+            }
+
+            var owningPage = FindOwningPage(item) ?? SelectedFolder;
+            var pageName = owningPage?.Name;
+
+            if (!TryResolveDataItem(targetPath, pageName, out var dataItem) || dataItem is null)
+            {
+                Debug.WriteLine($"CsvLogger: failed to resolve data item for '{displayName}' path='{targetPath}' page='{pageName}'");
+                continue;
+            }
+
+            try
+            {
+                // Erst versuchen, ein Signal mit Metadaten (Unit, Format, SourcePath) zu verwenden.
+                var sourcePath = dataItem.Path ?? targetPath;
+                if (!string.IsNullOrWhiteSpace(sourcePath)
+                    && HostRegistries.Signals.TryGetBySourcePath(sourcePath, out var signal)
+                    && signal is not null)
+                {
+                    logger.AddSignal(signal, string.Empty, displayName, unit);
+                }
+                else
+                {
+                    // Fallback auf das bestehende Item-basierten Logging, falls kein Signal gefunden werden kann.
+                    logger.AddItem(dataItem, string.Empty, displayName, unit);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"CsvLogger: failed to add item '{displayName}' from '{targetPath}': {ex}");
+            }
+        }
+
+        var fullPath = Path.Combine(directory, fileName);
+        try
+        {
+            logger.Start(fullPath, interval);
+            _csvLoggers[key] = logger;
+            item.BodyCaption = fileName;
+            Debug.WriteLine($"CsvLogger started for item '{item.Name}' file='{fullPath}' interval={interval}ms");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"CsvLogger: failed to start for item '{item.Name}' file='{fullPath}': {ex}");
+        }
+    }
+
+    public void StopCsvLogging(FolderItemModel item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        var key = item.Id;
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        if (!_csvLoggers.TryGetValue(key, out var logger))
+        {
+            return;
+        }
+
+        _csvLoggers.Remove(key);
+
+        try
+        {
+            _ = logger.Stop();
+            Debug.WriteLine($"CsvLogger stopped for item '{item.Name}'");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"CsvLogger: failed to stop for item '{item.Name}': {ex}");
+        }
+    }
+
+    public void StartSqlLogging(FolderItemModel item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        var key = string.IsNullOrWhiteSpace(item.Id) ? Guid.NewGuid().ToString("N") : item.Id;
+        if (string.IsNullOrWhiteSpace(item.Id))
+        {
+            item.Id = key;
+        }
+
+        if (_sqlLoggers.TryGetValue(key, out var existingLogger))
+        {
+            try
+            {
+                var existingLoggerType = existingLogger.GetType();
+                var stopMethod = existingLoggerType.GetMethod("Stop", Type.EmptyTypes);
+                if (stopMethod is not null)
+                {
+                    var result = stopMethod.Invoke(existingLogger, Array.Empty<object>());
+                    if (result is Task task)
+                    {
+                        _ = task;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to stop existing SqlLogger before restart: {ex}");
+            }
+        }
+
+        var directory = string.IsNullOrWhiteSpace(item.CsvDirectory)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "AmiumLogs")
+            : item.CsvDirectory.Trim();
+
+        var baseName = string.IsNullOrWhiteSpace(item.CsvFilename)
+            ? (!string.IsNullOrWhiteSpace(item.Name) ? item.Name.Trim() : "SqlLogger")
+            : item.CsvFilename.Trim();
+
+        if (!baseName.EndsWith(".db", StringComparison.OrdinalIgnoreCase))
+        {
+            baseName += ".db";
+        }
+
+        var fileName = baseName;
+        if (item.CsvAddTimestamp)
+        {
+            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            fileName = $"{timestamp}_{baseName}";
+        }
+
+        var defaultInterval = item.CsvIntervalMs > 0 ? item.CsvIntervalMs : 1000;
+
+        var loggerName = !string.IsNullOrWhiteSpace(item.Name) ? item.Name.Trim() : key;
+        var fullPath = Path.Combine(directory, fileName);
+
+        var loggerAssembly = typeof(CsvLogger).Assembly;
+        var loggerType = loggerAssembly.GetType("Amium.Logging.SqlLogger");
+        if (loggerType is null)
+        {
+            Debug.WriteLine("SqlLogger type not found in Amium.Logging; SQL logging is not available.");
+            return;
+        }
+
+        object? logger = null;
+        try
+        {
+            logger = Activator.CreateInstance(loggerType, loggerName);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"SqlLogger: failed to create instance: {ex}");
+            return;
+        }
+
+        if (logger is null)
+        {
+            Debug.WriteLine("SqlLogger: Activator.CreateInstance returned null.");
+            return;
+        }
+
+        try
+        {
+            var directoryField = loggerType.GetField("Directory");
+            if (directoryField is not null)
+            {
+                directoryField.SetValue(logger, directory);
+            }
+
+            var fileField = loggerType.GetField("File");
+            if (fileField is not null)
+            {
+                fileField.SetValue(logger, fullPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"SqlLogger: failed to set fields: {ex}");
+        }
+
+        foreach (var (displayName, targetPath, unit, signalIntervalMs) in ParseCsvSignalSelection(item))
+        {
+            if (string.IsNullOrWhiteSpace(targetPath))
+            {
+                continue;
+            }
+
+            var owningPage = FindOwningPage(item) ?? SelectedFolder;
+            var pageName = owningPage?.Name;
+
+            if (!TryResolveDataItem(targetPath, pageName, out var dataItem) || dataItem is null)
+            {
+                Debug.WriteLine($"SqlLogger: failed to resolve data item for '{displayName}' path='{targetPath}' page='{pageName}'");
+                continue;
+            }
+
+            try
+            {
+                var columnName = !string.IsNullOrWhiteSpace(displayName)
+                    ? displayName
+                    : (dataItem.Name ?? targetPath);
+
+                var addMethod = loggerType.GetMethod("Add", new[] { typeof(string), typeof(string), typeof(string), typeof(string), typeof(int), typeof(Func<object>) });
+                if (addMethod is null)
+                {
+                    Debug.WriteLine("SqlLogger: Add method with expected signature not found.");
+                    break;
+                }
+
+                var intervalForSignal = signalIntervalMs > 0 ? signalIntervalMs : defaultInterval;
+
+                Func<object> valueFactory = () => dataItem.Value;
+                addMethod.Invoke(logger, new object[] { columnName, displayName, unit, string.Empty, intervalForSignal, valueFactory });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SqlLogger: failed to add item '{displayName}' from '{targetPath}': {ex}");
+            }
+        }
+
+        try
+        {
+            var startMethod = loggerType.GetMethod("Start", Type.EmptyTypes);
+            startMethod?.Invoke(logger, Array.Empty<object>());
+
+            _sqlLoggers[key] = logger;
+            item.BodyCaption = fileName;
+            Debug.WriteLine($"SqlLogger started for item '{item.Name}' file='{fullPath}' interval={defaultInterval}ms");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"SqlLogger: failed to start for item '{item.Name}' file='{fullPath}': {ex}");
+        }
+    }
+
+    public void StopSqlLogging(FolderItemModel item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        var key = item.Id;
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        if (!_sqlLoggers.TryGetValue(key, out var logger))
+        {
+            return;
+        }
+
+        _sqlLoggers.Remove(key);
+
+        try
+        {
+            var loggerType = logger.GetType();
+            var stopMethod = loggerType.GetMethod("Stop", Type.EmptyTypes);
+            if (stopMethod is not null)
+            {
+                var result = stopMethod.Invoke(logger, Array.Empty<object>());
+                if (result is Task task)
+                {
+                    _ = task;
+                }
+            }
+            Debug.WriteLine($"SqlLogger stopped for item '{item.Name}'");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"SqlLogger: failed to stop for item '{item.Name}': {ex}");
+        }
+    }
+
+    private static IEnumerable<(string DisplayName, string TargetPath, string Unit, int IntervalMs)> ParseCsvSignalSelection(FolderItemModel item)
+    {
+        var raw = item.CsvSignalPaths;
+        var result = new List<(string, string, string, int)>();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return result;
+        }
+        var lines = raw
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            var parts = line.Split('|', StringSplitOptions.TrimEntries);
+            if (parts.Length == 0)
+            {
+                continue;
+            }
+
+            if (parts.Length == 1)
+            {
+                var path = parts[0].Trim();
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    result.Add((path, path, string.Empty, 0));
+                }
+                continue;
+            }
+
+            var name = parts[0].Trim();
+            var pathPart = parts[1].Trim();
+            var unit = parts.Length > 2 ? parts[2].Trim() : string.Empty;
+
+            int intervalMs = 0;
+            if (parts.Length > 3 && int.TryParse(parts[3].Trim(), out var parsedInterval) && parsedInterval > 0)
+            {
+                intervalMs = parsedInterval;
+            }
+
+            if (!string.IsNullOrWhiteSpace(pathPart))
+            {
+                result.Add((name, pathPart, unit, intervalMs));
+            }
+        }
+
+        return result;
     }
 
     private static EditorDialogBindingDefinition BindReadOnly(string key, string label, Func<FolderItemModel, string> read)
@@ -3476,6 +4056,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             UdlClientAutoConnect = item.UdlClientAutoConnect,
             UdlClientDebugLogging = item.UdlClientDebugLogging,
             UdlAttachedItemPaths = item.UdlAttachedItemPaths,
+            CsvDirectory = item.CsvDirectory,
+            CsvFilename = item.CsvFilename,
+            CsvAddTimestamp = item.CsvAddTimestamp,
+            CsvIntervalMs = item.CsvIntervalMs,
+            CsvSignalPaths = item.CsvSignalPaths,
+            CameraName = item.CameraName,
+            CameraResolution = item.CameraResolution,
+            CameraOverlayText = item.CameraOverlayText,
             IsReadOnly = item.IsReadOnly,
             IsAutoHeight = item.IsAutoHeight,
             ListItemHeight = item.ListItemHeight,
@@ -3570,6 +4158,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             UdlClientAutoConnect = item.UdlClientAutoConnect,
             UdlClientDebugLogging = item.UdlClientDebugLogging,
             UdlAttachedItemPaths = item.UdlAttachedItemPaths,
+            CsvDirectory = item.CsvDirectory,
+            CsvFilename = item.CsvFilename,
+            CsvAddTimestamp = item.CsvAddTimestamp,
+            CsvIntervalMs = item.CsvIntervalMs,
+            CsvSignalPaths = item.CsvSignalPaths,
+            CameraName = item.CameraName,
+            CameraResolution = item.CameraResolution,
+            CameraOverlayText = item.CameraOverlayText,
             IsReadOnly = item.IsReadOnly,
             IsAutoHeight = item.IsAutoHeight,
             ListItemHeight = item.ControlHeight > 0 ? item.ControlHeight : item.ListItemHeight,
@@ -3578,13 +4174,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlCornerRadius = item.ControlCornerRadius,
             X = item.X,
             Y = item.Y,
-            Width = Math.Max(item.Width, item.Kind switch { ControlKind.Button => 140, ControlKind.Signal => 150, ControlKind.Item => 150, ControlKind.ListControl => 240, ControlKind.LogControl => 320, ControlKind.ChartControl => 360, _ => 140 }),
-            Height = Math.Max(item.Height, item.Kind switch { ControlKind.Button => 56, ControlKind.Signal => 72, ControlKind.Item => 72, ControlKind.ListControl => 180, ControlKind.TableControl => 180, ControlKind.LogControl => 220, ControlKind.ChartControl => 220, _ => 72 })
+            Width = Math.Max(item.Width, item.Kind switch { ControlKind.Button => 140, ControlKind.Signal => 150, ControlKind.Item => 150, ControlKind.ListControl => 240, ControlKind.LogControl => 320, ControlKind.CsvLoggerControl => 260, ControlKind.SqlLoggerControl => 260, ControlKind.ChartControl => 360, ControlKind.CameraControl => 260, _ => 140 }),
+            Height = Math.Max(item.Height, item.Kind switch { ControlKind.Button => 56, ControlKind.Signal => 72, ControlKind.Item => 72, ControlKind.ListControl => 180, ControlKind.TableControl => 180, ControlKind.LogControl => 220, ControlKind.CsvLoggerControl => 120, ControlKind.SqlLoggerControl => 120, ControlKind.ChartControl => 220, ControlKind.CameraControl => 160, _ => 72 })
         };
 
         if (string.IsNullOrWhiteSpace(model.Name))
         {
-            model.Name = item.Kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", ControlKind.Item or ControlKind.Signal => "Signal", _ => "Signal" };
+            model.Name = item.Kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", ControlKind.CsvLoggerControl => "CsvLoggerControl", ControlKind.SqlLoggerControl => "SqlLoggerControl", ControlKind.CameraControl => "CameraControl", ControlKind.Item or ControlKind.Signal => "Signal", _ => "Signal" };
         }
 
         if (model.Kind == ControlKind.LogControl
@@ -3847,7 +4443,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private string GetSuggestedControlName(ControlKind kind, FolderModel page, FolderItemModel? parentItem, FolderItemModel? excludeItem)
     {
-        var baseName = kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", ControlKind.Item or ControlKind.Signal => "Signal", _ => "Signal" };
+        var baseName = kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", ControlKind.CsvLoggerControl => "CsvLoggerControl", ControlKind.SqlLoggerControl => "SqlLoggerControl", ControlKind.CameraControl => "CameraControl", ControlKind.Item or ControlKind.Signal => "Signal", _ => "Signal" };
         var candidate = baseName;
         var index = 1;
         while (!IsControlNameUnique(page, candidate, excludeItem))

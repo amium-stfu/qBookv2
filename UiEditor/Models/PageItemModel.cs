@@ -22,7 +22,10 @@ public enum ControlKind
     TableControl,
     LogControl,
     ChartControl,
-    UdlClientControl
+    UdlClientControl,
+    CsvLoggerControl,
+    SqlLoggerControl,
+    CameraControl
 }
 
 public sealed class FolderItemModel : ObservableObject
@@ -124,6 +127,14 @@ public sealed class FolderItemModel : ObservableObject
     private string _chartSeriesDefinitions = string.Empty;
     private string _interactionRules = string.Empty;
     private bool _enabled = true;
+    private string _csvDirectory = string.Empty;
+    private string _csvFilename = string.Empty;
+    private bool _csvAddTimestamp = true;
+    private int _csvIntervalMs = 1000;
+    private string _csvSignalPaths = string.Empty;
+    private string _cameraName = string.Empty;
+    private string _cameraResolution = string.Empty;
+    private string _cameraOverlayText = string.Empty;
     private string _udlClientHost = "192.168.178.151";
     private int _udlClientPort = 9001;
     private bool _udlClientAutoConnect;
@@ -210,6 +221,54 @@ public sealed class FolderItemModel : ObservableObject
     }
 
     public string? FolderLayoutPath => string.IsNullOrWhiteSpace(_folderLayoutPath) ? null : _folderLayoutPath;
+
+    public string CsvDirectory
+    {
+        get => _csvDirectory;
+        set => SetProperty(ref _csvDirectory, value ?? string.Empty);
+    }
+
+    public string CsvFilename
+    {
+        get => _csvFilename;
+        set => SetProperty(ref _csvFilename, value ?? string.Empty);
+    }
+
+    public bool CsvAddTimestamp
+    {
+        get => _csvAddTimestamp;
+        set => SetProperty(ref _csvAddTimestamp, value);
+    }
+
+    public int CsvIntervalMs
+    {
+        get => _csvIntervalMs;
+        set => SetProperty(ref _csvIntervalMs, value);
+    }
+
+    public string CsvSignalPaths
+    {
+        get => _csvSignalPaths;
+        set => SetProperty(ref _csvSignalPaths, value ?? string.Empty);
+    }
+
+    public string CameraName
+    {
+        get => _cameraName;
+        set => SetProperty(ref _cameraName, value ?? string.Empty);
+    }
+
+    public string CameraResolution
+    {
+        get => _cameraResolution;
+        set => SetProperty(ref _cameraResolution, value ?? string.Empty);
+    }
+
+    public string CameraOverlayText
+    {
+        get => _cameraOverlayText;
+        set => SetProperty(ref _cameraOverlayText, value ?? string.Empty);
+    }
 
     public int TableRows
     {
@@ -691,6 +750,12 @@ public sealed class FolderItemModel : ObservableObject
 
     public bool IsLogControl => Kind == ControlKind.LogControl;
 
+    public bool IsCsvLoggerControl => Kind == ControlKind.CsvLoggerControl;
+
+    public bool IsSqlLoggerControl => Kind == ControlKind.SqlLoggerControl;
+
+    public bool IsCameraControl => Kind == ControlKind.CameraControl;
+
     public bool IsChartControl => Kind == ControlKind.ChartControl;
 
     public bool IsUdlClientControl => Kind == ControlKind.UdlClientControl;
@@ -701,7 +766,10 @@ public sealed class FolderItemModel : ObservableObject
         or ControlKind.Button
         or ControlKind.LogControl
         or ControlKind.ChartControl
-        or ControlKind.UdlClientControl;
+        or ControlKind.UdlClientControl
+        or ControlKind.CsvLoggerControl
+        or ControlKind.SqlLoggerControl
+        or ControlKind.CameraControl;
 
     public bool IsSelected
     {
@@ -1936,6 +2004,9 @@ public sealed class FolderItemModel : ObservableObject
         ControlKind.TableControl => 240,
         ControlKind.LogControl => 320,
         ControlKind.ChartControl => 360,
+        ControlKind.CsvLoggerControl => 260,
+        ControlKind.SqlLoggerControl => 260,
+        ControlKind.CameraControl => 260,
         _ => 140
     };
 
@@ -1948,6 +2019,9 @@ public sealed class FolderItemModel : ObservableObject
         ControlKind.TableControl => 180,
         ControlKind.LogControl => 220,
         ControlKind.ChartControl => 220,
+        ControlKind.CsvLoggerControl => 120,
+        ControlKind.SqlLoggerControl => 120,
+        ControlKind.CameraControl => 160,
         _ => 72
     };
 
@@ -3108,6 +3182,8 @@ public sealed class FolderItemModel : ObservableObject
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClientControl",
+            ControlKind.CsvLoggerControl => "CsvLoggerControl",
+            ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };

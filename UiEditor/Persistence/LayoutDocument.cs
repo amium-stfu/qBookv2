@@ -160,6 +160,22 @@ public sealed class FolderItemDocument
 
     public string UdlAttachedItemPaths { get; init; } = string.Empty;
 
+    public string CsvDirectory { get; init; } = string.Empty;
+
+    public string CsvFilename { get; init; } = string.Empty;
+
+    public bool CsvAddTimestamp { get; init; } = true;
+
+    public int CsvIntervalMs { get; init; } = 1000;
+
+    public string CsvSignalPaths { get; init; } = string.Empty;
+
+    public string CameraName { get; init; } = string.Empty;
+
+    public string CameraResolution { get; init; } = string.Empty;
+
+    public string CameraOverlayText { get; init; } = string.Empty;
+
     public bool IsReadOnly { get; init; }
 
     public bool IsAutoHeight { get; init; } = true;

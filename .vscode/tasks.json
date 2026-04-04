@@ -1,31 +1,207 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "restore-automationexplorer",
-      "type": "process",
-      "command": "dotnet",
-      "args": ["restore", "${workspaceFolder}/AutomationExplorer/AutomationExplorer.csproj"],
-      "problemMatcher": []
-    },
-    {
-      "label": "build-automationexplorer-debug",
-      "type": "process",
-      "command": "dotnet",
-      "args": ["build", "${workspaceFolder}/AutomationExplorer/AutomationExplorer.csproj", "-c", "Debug"],
-      "problemMatcher": "$msCompile",
-      "dependsOn": ["restore-automationexplorer"],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      }
-    },
-    {
-      "label": "run-automationexplorer",
-      "type": "process",
-      "command": "dotnet",
-      "args": ["run", "--project", "${workspaceFolder}/AutomationExplorer/AutomationExplorer.csproj", "-c", "Debug"],
-      "problemMatcher": []
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "restore-automationexplorer",
+			"type": "process",
+			"command": "dotnet",
+			"args": [
+				"restore",
+				"${workspaceFolder}/AutomationExplorer/AutomationExplorer.csproj"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "build-automationexplorer-debug",
+			"type": "process",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"${workspaceFolder}/AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"problemMatcher": "$msCompile",
+			"dependsOn": [
+				"restore-automationexplorer"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "run-automationexplorer",
+			"type": "process",
+			"command": "dotnet",
+			"args": [
+				"run",
+				"--project",
+				"${workspaceFolder}/AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "build-automationexplorer-debug",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-automationexplorer-debug-temp",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-automationexplorer-debug-temp2",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-automationexplorer-debug-temp3",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-automationexplorer-debug-csvlogger-header",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-automationexplorer-debug-csvlogger-header-2",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-automationexplorer-debug-csvlogger-header-3",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-automationexplorer-debug-csvlogger-header-4",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-automationexplorer-debug-csvlogger-bodycaption",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-automationexplorer-debug-csvlogger-foldericon",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"AutomationExplorer/AutomationExplorer.csproj",
+				"-c",
+				"Debug"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		}
+	]
 }

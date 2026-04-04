@@ -1595,6 +1595,21 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return ControlKind.UdlClientControl;
         }
 
+        if (string.Equals(type, "CsvLoggerControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "CsvLogger", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.CsvLoggerControl;
+        }
+
+        if (string.Equals(type, "SqlLoggerControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "SqlLogger", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.SqlLoggerControl;
+        }
+
+        if (string.Equals(type, "CameraControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "Camera", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.CameraControl;
+        }
+
         return ControlKind.Signal;
     }
 

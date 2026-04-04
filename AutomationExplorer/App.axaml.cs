@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
@@ -26,10 +27,26 @@ public partial class App : Application
 
 		if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
 		{
+			desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
+
 			desktop.Exit += async (_, _) =>
 			{
-				await Core.ShutdownAsync();
-				HostLogger.Shutdown();
+				try
+				{
+					await Core.ShutdownAsync();
+					Amium.Host.TasksManager.StopAll();
+					Amium.Host.ThreadsManager.StopAll();
+					Amium.Host.TimerManager.StopAll();
+				}
+				catch
+				{
+				}
+				finally
+				{
+					HostLogger.Shutdown();
+					// Harte Sicherheitsleine, falls noch Foreground-Threads leben.
+					Environment.Exit(0);
+				}
 			};
 
 			desktop.MainWindow = new MainWindow

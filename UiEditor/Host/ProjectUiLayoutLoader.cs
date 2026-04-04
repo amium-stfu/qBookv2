@@ -303,6 +303,14 @@ public static class ProjectUiLayoutLoader
         SetPropertyIfPresent(properties, "UdlClientAutoConnect", GetScalarJsonNode(control, "UdlClientAutoConnect"));
         SetPropertyIfPresent(properties, "UdlClientDebugLogging", GetScalarJsonNode(control, "UdlClientDebugLogging"));
         SetPropertyIfPresent(properties, "UdlAttachedItemPaths", GetScalarJsonNode(control, "UdlAttachedItemPaths"));
+        SetPropertyIfPresent(properties, "CsvDirectory", GetScalarJsonNode(control, "CsvDirectory"));
+        SetPropertyIfPresent(properties, "CsvFilename", GetScalarJsonNode(control, "CsvFilename"));
+        SetPropertyIfPresent(properties, "CsvAddTimestamp", GetScalarJsonNode(control, "CsvAddTimestamp"));
+        SetPropertyIfPresent(properties, "CsvIntervalMs", GetScalarJsonNode(control, "CsvIntervalMs"));
+        SetPropertyIfPresent(properties, "CsvSignalPaths", GetScalarJsonNode(control, "CsvSignalPaths"));
+        SetPropertyIfPresent(properties, "CameraName", GetScalarJsonNode(control, "CameraName"));
+        SetPropertyIfPresent(properties, "CameraResolution", GetScalarJsonNode(control, "CameraResolution"));
+        SetPropertyIfPresent(properties, "CameraOverlayText", GetScalarJsonNode(control, "CameraOverlayText") ?? GetScalarJsonNode(control, "OverlayText"));
         SetPropertyIfPresent(properties, "ControlHeight", GetScalarJsonNode(control, "ControlHeight"));
         SetPropertyIfPresent(properties, "ListItemHeight", GetScalarJsonNode(control, "ListItemHeight"));
         SetPropertyIfPresent(properties, "Rows", GetScalarJsonNode(control, "Rows"));

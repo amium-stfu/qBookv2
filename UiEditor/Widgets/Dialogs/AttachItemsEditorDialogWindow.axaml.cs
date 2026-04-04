@@ -18,6 +18,7 @@ public partial class AttachItemsEditorDialogWindow : Window, INotifyPropertyChan
     private string _buttonBorderBrush = "#CBD5E1";
     private string _buttonForeground = "#111827";
     private string _editorDialogSectionContentBackground = "#EEF3F8";
+    private bool _showIntervalColumn;
 
     public new event PropertyChangedEventHandler? PropertyChanged;
 
@@ -35,9 +36,18 @@ public partial class AttachItemsEditorDialogWindow : Window, INotifyPropertyChan
         InitializeComponent();
         DataContext = this;
         AttachToViewModel(viewModel);
+
+        // Only Csv/Sql logger signal selection (CsvSignalPaths) supports per-item intervals.
+        ShowIntervalColumn = string.Equals(field.Key, "CsvSignalPaths", StringComparison.Ordinal);
     }
 
     public ObservableCollection<AttachItemEditorRow> Rows { get; }
+
+    public bool ShowIntervalColumn
+    {
+        get => _showIntervalColumn;
+        private set => SetAndRaise(ref _showIntervalColumn, value, nameof(ShowIntervalColumn));
+    }
 
     public string DialogBackground
     {
@@ -155,6 +165,17 @@ public partial class AttachItemsEditorDialogWindow : Window, INotifyPropertyChan
     }
 
     private void SetAndRaise(ref string field, string value, string propertyName)
+    {
+        if (field == value)
+        {
+            return;
+        }
+
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private void SetAndRaise(ref bool field, bool value, string propertyName)
     {
         if (field == value)
         {

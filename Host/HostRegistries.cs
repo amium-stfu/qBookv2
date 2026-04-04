@@ -7,6 +7,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using Amium.Logging;
 using Amium.Items;
+using Amium.Host.Helpers;
+using AForge.Video.DirectShow;
 
 namespace Amium.Host;
 
@@ -333,9 +335,11 @@ public static class HostRegistries
     static HostRegistries()
     {
         Data = new DataRegistry();
+        Signals = new SignalRegistry(Data);
         Commands = new CommandRegistry();
         Cameras = new CameraRegistry();
         ProcessLogs = new ProcessLogRegistry();
+        TryInitializeDefaultCamera();
         UiPublisher.Publish("Logs/Host", HostLogger.ProcessLog, "Host");
 
         var assembly = typeof(HostRegistries).Assembly;
@@ -349,10 +353,45 @@ public static class HostRegistries
     public static int ProcessId { get; } = Environment.ProcessId;
     public static string SessionId { get; } = Guid.NewGuid().ToString("N");
     public static IDataRegistry Data { get; }
+    public static Amium.Contracts.ISignalRegistry Signals { get; }
     public static ICommandRegistry Commands { get; }
     public static ICameraRegistry Cameras { get; }
     public static IProcessLogRegistry ProcessLogs { get; }
     public static int DataRegistryId => RuntimeHelpers.GetHashCode(Data);
+
+    private static void TryInitializeDefaultCamera()
+    {
+        try
+        {
+            var devices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
+            if (devices.Count == 0)
+            {
+                HostLogger.Log.Information("[Cameras] No video input devices found.");
+                return;
+            }
+
+            for (var index = 0; index < devices.Count; index++)
+            {
+                var device = devices[index];
+                var name = string.IsNullOrWhiteSpace(device.Name) ? $"Camera {index}" : device.Name.Trim();
+
+                try
+                {
+                    var source = new WindowsCameraFrameSource(name, index);
+                    Cameras.Register(source);
+                    HostLogger.Log.Information("[Cameras] Registered camera '{Name}' at index {Index}.", name, index);
+                }
+                catch (Exception ex)
+                {
+                    HostLogger.Log.Warning(ex, "[Cameras] Failed to initialize camera '{Name}' at index {Index}.", name, index);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            HostLogger.Log.Warning(ex, "[Cameras] Failed to enumerate video input devices.");
+        }
+    }
 }
 
 
