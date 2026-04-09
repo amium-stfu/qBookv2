@@ -8,6 +8,7 @@ namespace Amium.Host
     public sealed class RuntimeResourceScope : IDisposable
     {
         private static readonly object ScopeSync = new();
+        private static readonly List<RuntimeResourceScope> _scopes = new();
         private static int _nextGeneration;
         private static RuntimeResourceScope? _current;
 
@@ -24,6 +25,11 @@ namespace Amium.Host
             Generation = generation;
             CreatedAtUtc = DateTime.UtcNow;
             Reason = reason;
+
+            lock (ScopeSync)
+            {
+                _scopes.Add(this);
+            }
         }
 
         public int Generation { get; }
@@ -79,6 +85,32 @@ namespace Amium.Host
 
             Core.LogInfo($"[RuntimeScope] Disposing generation {scope.Generation} ({reason}).");
             scope.Dispose();
+        }
+
+        public static void ShutdownAll(string reason)
+        {
+            List<RuntimeResourceScope> scopes;
+
+            lock (ScopeSync)
+            {
+                scopes = _scopes
+                    .OrderByDescending(scope => scope.Generation)
+                    .ToList();
+                _current = null;
+            }
+
+            if (scopes.Count == 0)
+            {
+                Core.LogDebug($"[RuntimeScope] No active scopes to dispose ({reason}).");
+                return;
+            }
+
+            Core.LogInfo($"[RuntimeScope] Disposing {scopes.Count} scope(s) ({reason}).");
+
+            foreach (var scope in scopes)
+            {
+                scope.Dispose();
+            }
         }
 
         internal void RegisterTask(IManagedTask task)
@@ -298,6 +330,15 @@ namespace Amium.Host
             if (Interlocked.Exchange(ref _disposed, 1) != 0)
             {
                 return;
+            }
+
+            lock (ScopeSync)
+            {
+                _scopes.Remove(this);
+                if (ReferenceEquals(_current, this))
+                {
+                    _current = null;
+                }
             }
 
             StopAllTasks();

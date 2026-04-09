@@ -436,19 +436,28 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
     {
         if (!string.IsNullOrWhiteSpace(pageName))
         {
+            var availablePrefixes = options
+                .Select(path => TryExtractPagePrefix(path, pageName))
+                .Where(static prefix => !string.IsNullOrWhiteSpace(prefix))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            var preferredProjectPrefix = $"Project/{pageName}/";
+            var hasProjectPrefix = availablePrefixes.Any(prefix => string.Equals(prefix, preferredProjectPrefix, StringComparison.OrdinalIgnoreCase));
+
+            if (hasProjectPrefix)
+            {
+                return preferredProjectPrefix;
+            }
+
             var currentPrefix = TryExtractPagePrefix(currentValue, pageName);
-            if (!string.IsNullOrWhiteSpace(currentPrefix))
+            if (!string.IsNullOrWhiteSpace(currentPrefix) && availablePrefixes.Contains(currentPrefix, StringComparer.OrdinalIgnoreCase))
             {
                 return currentPrefix!;
             }
 
-            var candidate = options
-                .Select(path => TryExtractPagePrefix(path, pageName))
-                .Where(static prefix => !string.IsNullOrWhiteSpace(prefix))
-                .GroupBy(static prefix => prefix!, StringComparer.OrdinalIgnoreCase)
-                .OrderByDescending(static group => group.Count())
-                .ThenBy(static group => group.Key.Length)
-                .Select(static group => group.Key)
+            var candidate = availablePrefixes
+                .OrderBy(prefix => prefix, StringComparer.OrdinalIgnoreCase)
                 .FirstOrDefault();
 
             if (!string.IsNullOrWhiteSpace(candidate))

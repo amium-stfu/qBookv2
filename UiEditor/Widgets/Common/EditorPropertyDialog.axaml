@@ -4,7 +4,8 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.EditorUi.Controls"
-    xmlns:viewModels="using:Amium.UiEditor.ViewModels">
+    xmlns:viewModels="using:Amium.UiEditor.ViewModels"
+    xmlns:widgets="using:Amium.UiEditor.Widgets">
   <UserControl.Styles>
     <Style Selector="Border.dialog-section-shell">
       <Setter Property="Width" Value="396" />
@@ -157,8 +158,8 @@
                         <ItemsControl ItemsSource="{Binding Fields}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="viewModels:EditorDialogField">
-                              <Grid ColumnDefinitions="118,*,Auto,Auto" Margin="0,0,0,6">
-                                <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding Label}" />
+                              <Grid ColumnDefinitions="118,*,Auto,Auto,Auto" Margin="0,0,0,6">
+                                <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding DisplayLabel}" />
 
                                 <TextBox
                                     Grid.Column="1"
@@ -209,7 +210,7 @@
                                     CornerRadius="8">
                                   <StackPanel Spacing="8">
                                     <TextBlock IsVisible="{Binding HasToolTipText}" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="{Binding ToolTipText}" TextWrapping="Wrap" />
-                                    <Grid ColumnDefinitions="*,Auto">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
                                       <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding StructuredEditorSummary}" TextWrapping="Wrap" />
                                       <Button Grid.Column="1"
                                               Margin="10,0,0,0"
@@ -360,6 +361,35 @@
                                       IconPath="avares://Amium.Editor/EditorIcons/folder.svg"
                                       TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
                                   </Button>
+
+                                  <Button
+                                    Grid.Column="3"
+                                    Classes="dialog-button"
+                                    IsVisible="{Binding IsPythonScriptCreator}"
+                                    Background="{Binding EditPanelButtonBackground, ElementName=Root}"
+                                    BorderBrush="{Binding EditPanelButtonBorderBrush, ElementName=Root}"
+                                    Foreground="{Binding PrimaryTextBrush, ElementName=Root}"
+                                    Content="Add Python"
+                                    Click="OnCreatePythonScriptClicked"
+                                    Margin="0,0,0,0" />
+
+                                  <Button
+                                    Grid.Column="4"
+                                    Classes="dialog-button"
+                                    IsVisible="{Binding IsPythonTemplateSelector}"
+                                    Background="{Binding EditPanelButtonBackground, ElementName=Root}"
+                                    BorderBrush="{Binding EditPanelButtonBorderBrush, ElementName=Root}"
+                                    Foreground="{Binding PrimaryTextBrush, ElementName=Root}"
+                                    Content="Template"
+                                    Click="OnCopyPythonTemplateClicked"
+                                    Margin="6,0,0,0" />
+
+                                  <!-- Inline Python environment settings panel for PythonEnvManager -->
+                                  <widgets:PythonEnvManagerSettingsDialogWindow
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="5"
+                                    Margin="0,8,0,0"
+                                    IsVisible="{Binding IsPythonEnvManagerPicker}" />
                               </Grid>
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>

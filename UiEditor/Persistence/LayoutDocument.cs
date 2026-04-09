@@ -136,6 +136,10 @@ public sealed class FolderItemDocument
 
     public string TargetParameterFormat { get; init; } = string.Empty;
 
+    public string PythonEnvironments { get; init; } = string.Empty;
+
+    public bool PythonEnvAutoStart { get; init; }
+
     public string Unit { get; init; } = string.Empty;
 
     public string TargetLog { get; init; } = "Logs/Host";
@@ -208,6 +212,8 @@ public sealed class ItemInteractionRuleDocument
     public ItemInteractionAction Action { get; init; } = ItemInteractionAction.OpenValueEditor;
 
     public string TargetPath { get; init; } = "this";
+
+    public string FunctionName { get; init; } = string.Empty;
 
     public string Argument { get; init; } = string.Empty;
 }

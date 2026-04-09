@@ -83,6 +83,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         Converters = { new JsonStringEnumConverter() }
     };
 
+    private const string LegacyPythonValueClientKind = "PythonValueClient";
+    private const string CurrentPythonClientKind = "PythonClient";
+
     private readonly ObservableCollection<FolderItemModel> _selectedItems = [];
     private readonly Dictionary<string, CsvLogger> _csvLoggers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, object> _sqlLoggers = new(StringComparer.OrdinalIgnoreCase);
@@ -97,6 +100,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private string _statusText;
     private string _dataRegistrySummary;
     private string _editorDialogChoiceSummary;
+    private string _currentFolderWorkspacePath = string.Empty;
     private FolderItemModel? _selectedItem;
     private FolderModel _selectedPage = null!;
     private double _canvasWidth;
@@ -190,6 +194,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             if (SetProperty(ref _selectedPage, value))
             {
                 _selectedPage.IsSelected = true;
+                RefreshCurrentFolderWorkspacePath();
                 ClearItemSelection();
                 CancelSelection();
                 CancelEditorDialog();
@@ -456,6 +461,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         get => _editorDialogChoiceSummary;
         private set => SetProperty(ref _editorDialogChoiceSummary, value);
+    }
+
+    public string CurrentFolderWorkspacePath
+    {
+        get => _currentFolderWorkspacePath;
+        private set => SetProperty(ref _currentFolderWorkspacePath, value);
     }
 
     public string LayoutFilePath { get; }
@@ -1411,9 +1422,15 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         SetOptionalJsonValue(nodeObject, "AccentBackgroundColor", item.AccentBackgroundColor);
         SetOptionalJsonValue(nodeObject, "AccentForegroundColor", item.AccentForegroundColor);
         nodeObject["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.FolderName);
+        if (item.Kind != ControlKind.Signal)
+        {
+            SetOptionalJsonValue(nodeObject, "PythonScript", item.PythonScriptPath);
+        }
         nodeObject["TargetParameterPath"] = item.TargetParameterPath;
         nodeObject["TargetParameterFormat"] = item.TargetParameterFormat;
-            nodeObject["Unit"] = item.Unit;
+        SetOptionalJsonValue(nodeObject, "PythonEnvironments", item.PythonEnvDefinitions);
+        nodeObject["PythonEnvAutoStart"] = item.PythonEnvAutoStart;
+        nodeObject["Unit"] = item.Unit;
         nodeObject["TargetLog"] = item.TargetLog;
         nodeObject["RefreshRateMs"] = item.RefreshRateMs;
         nodeObject["HistorySeconds"] = item.HistorySeconds;
@@ -1545,6 +1562,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 control["Format"] = item.TargetParameterFormat;
                 control["IsReadOnly"] = item.IsReadOnly;
                 control["RefreshRateMs"] = item.RefreshRateMs;
+                if (item.Kind != ControlKind.Signal && !string.IsNullOrWhiteSpace(item.PythonScriptPath))
+                {
+                    control["PythonScript"] = item.PythonScriptPath;
+                }
                 break;
             case ControlKind.Button:
                 control["ButtonText"] = item.ButtonText;
@@ -1614,6 +1635,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 control["UdlClientDebugLogging"] = item.UdlClientDebugLogging;
                 control["UdlAttachedItemPaths"] = item.UdlAttachedItemPaths;
                 break;
+            case ControlKind.PythonClient:
+                control["PythonScript"] = item.PythonScriptPath;
+                break;
+            case ControlKind.PythonEnvManager:
+                control["PythonEnvironments"] = item.PythonEnvDefinitions;
+                control["PythonEnvAutoStart"] = item.PythonEnvAutoStart;
+                break;
         }
 
         if (control.Count > 0)
@@ -1667,6 +1695,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.CsvLoggerControl => "CsvLoggerControl",
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
+            ControlKind.PythonClient => "PythonClient",
+            ControlKind.PythonEnvManager => "PythonEnvManager",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -1733,6 +1763,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.FooterBorderWidth = GetDoubleProperty(properties, "FooterBorderWidth") ?? item.FooterBorderWidth;
         item.FooterCornerRadius = GetDoubleProperty(properties, "FooterCornerRadius") ?? item.FooterCornerRadius;
         item.TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(GetFirstStringProperty(properties, "Uri", "TargetPath") ?? item.TargetPath);
+        item.PythonScriptPath = GetStringProperty(properties, "PythonScript") ?? item.PythonScriptPath;
+        item.PythonEnvDefinitions = GetStringProperty(properties, "PythonEnvironments") ?? item.PythonEnvDefinitions;
+        item.PythonEnvAutoStart = GetBoolProperty(properties, "PythonEnvAutoStart") ?? item.PythonEnvAutoStart;
         item.TargetParameterPath = GetFirstStringProperty(properties, "Parameter", "TargetParameterPath") ?? item.TargetParameterPath;
         item.TargetParameterFormat = GetFirstStringProperty(properties, "Format", "TargetParameterFormat") ?? item.TargetParameterFormat;
         item.Unit = GetFirstStringProperty(properties, "Unit", "Footer") ?? item.Unit;
@@ -1784,7 +1817,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             ["Event"] = rule.Event.ToString(),
             ["Action"] = rule.Action.ToString(),
-            ["TargetPath"] = TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath, pageName),
+            ["TargetPath"] = ToPersistedInteractionRuleTargetPath(rule, pageName),
+            ["FunctionName"] = rule.FunctionName,
             ["Argument"] = rule.Argument
         }).ToArray());
 
@@ -1797,12 +1831,23 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             return ItemInteractionRuleCodec.SerializeDefinitions(array
                 .OfType<JsonObject>()
-                .Select(static ruleObject => new ItemInteractionRule
+                .Select(static ruleObject =>
                 {
-                    Event = Enum.TryParse<ItemInteractionEvent>(GetStringValue(ruleObject, "Event"), ignoreCase: true, out var eventKind) ? eventKind : ItemInteractionEvent.BodyLeftClick,
-                    Action = Enum.TryParse<ItemInteractionAction>(GetStringValue(ruleObject, "Action"), ignoreCase: true, out var actionKind) ? actionKind : ItemInteractionAction.OpenValueEditor,
-                    TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(GetStringValue(ruleObject, "TargetPath") ?? "this"),
-                    Argument = GetStringValue(ruleObject, "Argument") ?? string.Empty
+                    var eventKind = Enum.TryParse<ItemInteractionEvent>(GetStringValue(ruleObject, "Event"), ignoreCase: true, out var parsedEventKind)
+                        ? parsedEventKind
+                        : ItemInteractionEvent.BodyLeftClick;
+                    var actionKind = Enum.TryParse<ItemInteractionAction>(GetStringValue(ruleObject, "Action"), ignoreCase: true, out var parsedActionKind)
+                        ? parsedActionKind
+                        : ItemInteractionAction.OpenValueEditor;
+
+                    return new ItemInteractionRule
+                    {
+                        Event = eventKind,
+                        Action = actionKind,
+                        TargetPath = NormalizeInteractionRuleTargetPath(actionKind, GetStringValue(ruleObject, "TargetPath") ?? "this"),
+                        FunctionName = GetStringValue(ruleObject, "FunctionName") ?? string.Empty,
+                        Argument = GetStringValue(ruleObject, "Argument") ?? string.Empty
+                    };
                 }));
         }
 
@@ -1928,6 +1973,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.CsvLoggerControl => "CsvLoggerControl",
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
+            ControlKind.PythonClient => "PythonClient",
+            ControlKind.PythonEnvManager => "PythonEnvManager",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -2267,6 +2314,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         var json = File.ReadAllText(LayoutFilePath);
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            json = json.Replace(LegacyPythonValueClientKind, CurrentPythonClientKind, StringComparison.Ordinal);
+        }
+
         var document = JsonSerializer.Deserialize<LayoutDocument>(json, _jsonOptions);
 
         var folders = document?.Folders.Count > 0
@@ -2421,6 +2473,36 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Y = y,
                 Width = Math.Max(width, 420),
                 Height = Math.Max(height, 170),
+                ContainerBorderWidth = 0
+            },
+            ControlKind.PythonClient => new FolderItemModel
+            {
+                Kind = ControlKind.PythonClient,
+                Name = "PythonClient",
+                ControlCaption = "PythonClient",
+                BodyCaption = string.Empty,
+                BodyCaptionVisible = false,
+                ShowFooter = true,
+                Footer = "No script configured",
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 220),
+                Height = Math.Max(height, 80),
+                ContainerBorderWidth = 0
+            },
+            ControlKind.PythonEnvManager => new FolderItemModel
+            {
+                Kind = ControlKind.PythonEnvManager,
+                Name = "PythonEnvManager",
+                ControlCaption = "PythonEnvManager",
+                BodyCaption = string.Empty,
+                BodyCaptionVisible = false,
+                ShowFooter = true,
+                Footer = "No Python environments configured",
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 420),
+                Height = Math.Max(height, 160),
                 ContainerBorderWidth = 0
             },
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
@@ -2595,7 +2677,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         _selectedPage.IsSelected = true;
+        RefreshCurrentFolderWorkspacePath();
         ApplyThemeToAllItems();
+        StartAutoStartPythonEnvironments();
         ClearItemSelection();
         CancelSelection();
         CancelEditorDialog();
@@ -2646,6 +2730,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             EditorDialogSections.Add(section);
             foreach (var field in section.Fields)
             {
+                field.OwnerWorkspaceDirectory = ResolveWorkspaceDirectory(item);
                 field.PropertyChanged += OnEditorDialogFieldChanged;
             }
         }
@@ -2653,6 +2738,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         EditorDialogActionFields.Clear();
         foreach (var field in BuildActionFieldsForItem(item))
         {
+            field.OwnerWorkspaceDirectory = ResolveWorkspaceDirectory(item);
             field.PropertyChanged += OnEditorDialogFieldChanged;
             EditorDialogActionFields.Add(field);
         }
@@ -2731,7 +2817,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
                 if (field.IsInteractionRuleList)
                 {
-                    field.RefreshInteractionRuleTargetOptions(GetSelectableTargetOptions(item));
+                    field.RefreshInteractionRuleTargetOptions(
+                        GetSelectableTargetOptions(item),
+                        GetSelectablePythonClientOptions(item),
+                        GetSelectablePythonEnvironmentOptions(item));
                     continue;
                 }
 
@@ -2914,6 +3003,636 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         EditorDialogError = string.Empty;
     }
 
+    public string CreatePythonScriptForItem(FolderItemModel item)
+    {
+        if (item is null)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var layoutDirectory = ResolveWorkspaceDirectory(item);
+
+            var scriptsDirectory = Path.Combine(layoutDirectory, "Scripts");
+            Directory.CreateDirectory(scriptsDirectory);
+            EnsurePythonSupportLibrary(scriptsDirectory);
+
+            var baseName = !string.IsNullOrWhiteSpace(item.Name)
+                ? item.Name
+                : (!string.IsNullOrWhiteSpace(item.Title)
+                    ? item.Title
+                    : item.Kind.ToString());
+
+            baseName = SanitizeFileName(baseName);
+            if (string.IsNullOrWhiteSpace(baseName))
+            {
+                baseName = item.Kind == ControlKind.Signal ? "signal" : "item";
+            }
+
+            var fileName = baseName + ".py";
+            var fullPath = Path.Combine(scriptsDirectory, fileName);
+
+            if (ShouldWritePythonFile(fullPath, overwriteExisting: false))
+            {
+                var template = GeneratePythonScriptTemplate(item, fileName);
+                if (string.IsNullOrWhiteSpace(template))
+                {
+                    throw new InvalidOperationException("Generated Python template was empty.");
+                }
+
+                File.WriteAllText(fullPath, template);
+            }
+
+            item.PythonScriptPath = fileName;
+
+            try
+            {
+                VsCodeLauncher.OpenFile(fullPath, newWindow: true);
+            }
+            catch (Exception ex)
+            {
+                Core.LogWarn($"Failed to open VS Code for script '{fullPath}'", ex);
+            }
+
+            return fileName;
+        }
+        catch (Exception ex)
+        {
+            EditorDialogError = $"Failed to create Python script: {ex.Message}";
+            return string.Empty;
+        }
+    }
+
+    public string? GetPythonScriptTargetPath(EditorDialogField field, string? preferredExtension = null)
+    {
+        return TryGetPythonScriptTarget(field, preferredExtension, out _, out var fullPath)
+            ? fullPath
+            : null;
+    }
+
+    public void CreatePythonScriptForField(EditorDialogField field, bool overwriteExisting = false)
+    {
+        if (field is null)
+        {
+            return;
+        }
+
+        if (_editorDialogItem is null)
+        {
+            return;
+        }
+
+        if (!string.Equals(field.Key, "TargetPath", StringComparison.Ordinal)
+            && !string.Equals(field.Key, "PythonScriptPath", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!TryGetPythonScriptTarget(field, ".py", out var fileName, out var fullPath))
+            {
+                return;
+            }
+
+            var scriptsDirectory = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrWhiteSpace(scriptsDirectory))
+            {
+                EnsurePythonSupportLibrary(scriptsDirectory, overwriteExisting);
+            }
+
+            if (ShouldWritePythonFile(fullPath, overwriteExisting))
+            {
+                var template = GeneratePythonScriptTemplate(_editorDialogItem, fileName);
+                if (string.IsNullOrWhiteSpace(template))
+                {
+                    throw new InvalidOperationException("Generated Python template was empty.");
+                }
+
+                File.WriteAllText(fullPath, template);
+            }
+
+            if (string.Equals(field.Key, "PythonScriptPath", StringComparison.Ordinal))
+            {
+                // For the dedicated Python script property, store only the file name.
+                _editorDialogItem.PythonScriptPath = fileName;
+                field.Value = fileName;
+            }
+            else
+            {
+                // Backwards compatibility: when invoked from the Uri field, continue
+                // to write the python: prefix into the target path.
+                field.Value = $"python:{fileName}";
+            }
+
+            try
+            {
+                // Always open scripts in a separate VS Code window so that
+                // the current VS Code instance used for development remains unaffected.
+                VsCodeLauncher.OpenFile(fullPath, newWindow: true);
+            }
+            catch (Exception ex)
+            {
+                Core.LogWarn($"Failed to open VS Code for script '{fullPath}'", ex);
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorDialogError = $"Failed to create Python script: {ex.Message}";
+        }
+    }
+
+    public string GetPythonTemplatesDirectory()
+        => Path.Combine(AppContext.BaseDirectory, "Templates");
+
+    public void CopyPythonTemplateForField(EditorDialogField field, string templateFilePath, bool overwriteExisting = false)
+    {
+        if (field is null || _editorDialogItem is null)
+        {
+            return;
+        }
+
+        if (!string.Equals(field.Key, "PythonScriptPath", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(templateFilePath) || !File.Exists(templateFilePath))
+        {
+            EditorDialogError = "Selected Python template was not found.";
+            return;
+        }
+
+        try
+        {
+            var extension = Path.GetExtension(templateFilePath);
+            if (!TryGetPythonScriptTarget(field, extension, out var fileName, out var fullPath))
+            {
+                return;
+            }
+
+            var scriptsDirectory = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrWhiteSpace(scriptsDirectory))
+            {
+                EnsurePythonSupportLibrary(scriptsDirectory, overwriteExisting);
+            }
+
+            if (ShouldWritePythonFile(fullPath, overwriteExisting))
+            {
+                var template = File.ReadAllText(templateFilePath);
+                if (string.IsNullOrWhiteSpace(template))
+                {
+                    throw new InvalidOperationException($"Selected Python template '{Path.GetFileName(templateFilePath)}' was empty.");
+                }
+
+                var displayName = !string.IsNullOrWhiteSpace(_editorDialogItem.Name)
+                    ? _editorDialogItem.Name
+                    : (!string.IsNullOrWhiteSpace(_editorDialogItem.Title)
+                        ? _editorDialogItem.Title
+                        : fileName);
+
+                template = ApplyPythonTemplateTokens(template, _editorDialogItem, fileName, displayName);
+                File.WriteAllText(fullPath, template);
+            }
+
+            _editorDialogItem.PythonScriptPath = fileName;
+            field.Value = fileName;
+            EditorDialogError = string.Empty;
+
+            try
+            {
+                VsCodeLauncher.OpenFile(fullPath, newWindow: true);
+            }
+            catch (Exception ex)
+            {
+                Core.LogWarn($"Failed to open VS Code for script '{fullPath}'", ex);
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorDialogError = $"Failed to copy Python template: {ex.Message}";
+        }
+    }
+
+    public string? CreatePythonEnvironmentFromTemplate(string envName, string? templateFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(envName))
+        {
+            EditorDialogError = "Environment name is required.";
+            return null;
+        }
+
+        if (_editorDialogItem is null)
+        {
+            EditorDialogError = "No active item for Python environment creation.";
+            return null;
+        }
+
+        try
+        {
+            SyncPythonScriptEditorItemState();
+
+            var layoutDirectory = ResolveWorkspaceDirectory(_editorDialogItem);
+
+            var safeName = SanitizeFileName(envName);
+            if (string.IsNullOrWhiteSpace(safeName))
+            {
+                safeName = "Env";
+            }
+
+            var envRootDirectory = Path.Combine(layoutDirectory, "Python", safeName);
+            Directory.CreateDirectory(envRootDirectory);
+
+            // Ensure the environment contains the shared Python client library and VS Code workspace.
+            EnsurePythonSupportLibrary(envRootDirectory, overwriteExisting: false);
+
+            var fileName = "main.py";
+            var fullPath = Path.Combine(envRootDirectory, fileName);
+
+            string template;
+            if (!string.IsNullOrWhiteSpace(templateFilePath) && File.Exists(templateFilePath))
+            {
+                template = File.ReadAllText(templateFilePath);
+                if (string.IsNullOrWhiteSpace(template))
+                {
+                    throw new InvalidOperationException($"Selected Python template '{Path.GetFileName(templateFilePath)}' was empty.");
+                }
+
+                var displayName = envName;
+                template = ApplyPythonTemplateTokens(template, _editorDialogItem, fileName, displayName);
+            }
+            else
+            {
+                // Fallback minimal environment script when no explicit template is selected.
+                template = $"# Python environment script for '{envName}'{Environment.NewLine}{Environment.NewLine}" +
+                           "from ui_python_client import PythonClient" + Environment.NewLine +
+                           Environment.NewLine +
+                           "client = PythonClient(name=\"" + envName.Replace("\"", "'") + "\")" + Environment.NewLine +
+                           Environment.NewLine +
+                           "if __name__ == \"__main__\":" + Environment.NewLine +
+                           "    client.run()" + Environment.NewLine;
+            }
+
+            if (ShouldWritePythonFile(fullPath, overwriteExisting: false))
+            {
+                File.WriteAllText(fullPath, template);
+            }
+
+            var relativeScriptPath = Path.GetRelativePath(layoutDirectory, fullPath)
+                .Replace('\\', '/');
+
+            return string.IsNullOrWhiteSpace(relativeScriptPath)
+                ? null
+                : $"{envName} | {relativeScriptPath}";
+        }
+        catch (Exception ex)
+        {
+            EditorDialogError = $"Failed to create Python environment: {ex.Message}";
+            return null;
+        }
+    }
+
+    private bool TryGetPythonScriptTarget(EditorDialogField field, string? preferredExtension, out string fileName, out string fullPath)
+    {
+        fileName = string.Empty;
+        fullPath = string.Empty;
+
+        if (field is null || _editorDialogItem is null)
+        {
+            return false;
+        }
+
+        SyncPythonScriptEditorItemState();
+
+        var layoutDirectory = ResolveWorkspaceDirectory(_editorDialogItem);
+
+        var scriptsDirectory = Path.Combine(layoutDirectory, "Scripts");
+        Directory.CreateDirectory(scriptsDirectory);
+
+        var extension = string.IsNullOrWhiteSpace(preferredExtension) ? ".py" : preferredExtension;
+        if (!extension.StartsWith(".", StringComparison.Ordinal))
+        {
+            extension = "." + extension;
+        }
+
+        fileName = BuildPythonScriptBaseName(_editorDialogItem) + extension;
+        fullPath = Path.Combine(scriptsDirectory, fileName);
+        return true;
+    }
+
+    private void SyncPythonScriptEditorItemState()
+    {
+        if (_editorDialogItem is null)
+        {
+            return;
+        }
+
+        var nameField = FindDialogField("Name");
+        if (nameField is not null)
+        {
+            _editorDialogItem.Name = nameField.Value?.Trim() ?? string.Empty;
+        }
+
+    }
+
+    public string ResolveWorkspaceDirectory(FolderItemModel? ownerItem = null)
+    {
+        var layoutDirectory = TryResolveLayoutDirectory(ownerItem?.FolderLayoutPath);
+        if (!string.IsNullOrWhiteSpace(layoutDirectory))
+        {
+            return layoutDirectory;
+        }
+
+        if (!string.IsNullOrWhiteSpace(CurrentFolderWorkspacePath))
+        {
+            return CurrentFolderWorkspacePath;
+        }
+
+        return ResolveWorkspaceFallbackDirectory();
+    }
+
+    protected void RefreshCurrentFolderWorkspacePath()
+    {
+        CurrentFolderWorkspacePath = ResolveSelectedFolderWorkspacePath(SelectedFolder);
+    }
+
+    private string ResolveSelectedFolderWorkspacePath(FolderModel? folder)
+    {
+        var layoutDirectory = TryResolveLayoutDirectory(folder?.UiFilePath);
+        if (!string.IsNullOrWhiteSpace(layoutDirectory))
+        {
+            return layoutDirectory;
+        }
+
+        return ResolveWorkspaceFallbackDirectory();
+    }
+
+    private string ResolveWorkspaceFallbackDirectory()
+    {
+        var projectRoot = CurrentProjectRootDirectory;
+        if (!string.IsNullOrWhiteSpace(projectRoot))
+        {
+            try
+            {
+                var fullProjectRoot = Path.GetFullPath(projectRoot);
+                var folderRoot = Path.Combine(fullProjectRoot, "Folder");
+                if (Directory.Exists(folderRoot))
+                {
+                    return folderRoot;
+                }
+
+                if (Directory.Exists(fullProjectRoot))
+                {
+                    return fullProjectRoot;
+                }
+            }
+            catch
+            {
+                // Ignore and continue with host fallback.
+            }
+        }
+
+        projectRoot = Core.OpenedDirectory;
+        if (!string.IsNullOrWhiteSpace(projectRoot))
+        {
+            var folderRoot = Path.Combine(projectRoot, "Folder");
+            return Directory.Exists(folderRoot) ? folderRoot : projectRoot;
+        }
+
+        return AppContext.BaseDirectory;
+    }
+
+    private static string? TryResolveLayoutDirectory(string? layoutPath)
+    {
+        if (string.IsNullOrWhiteSpace(layoutPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var fullLayoutPath = Path.GetFullPath(layoutPath);
+            return Path.GetDirectoryName(fullLayoutPath);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string SanitizeFileName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var invalid = Path.GetInvalidFileNameChars();
+        var cleaned = new string(name.Where(ch => !invalid.Contains(ch)).ToArray());
+        return string.IsNullOrWhiteSpace(cleaned) ? string.Empty : cleaned;
+    }
+
+    private static void EnsurePythonSupportLibrary(string scriptsDirectory, bool overwriteExisting = false)
+    {
+        if (string.IsNullOrWhiteSpace(scriptsDirectory))
+        {
+            return;
+        }
+
+        EnsurePythonVsCodeWorkspace(scriptsDirectory, overwriteExisting);
+
+        var sourceDirectory = Path.Combine(AppContext.BaseDirectory, "Templates", "ui_python_client");
+        if (!Directory.Exists(sourceDirectory))
+        {
+            return;
+        }
+
+        var targetDirectory = Path.Combine(scriptsDirectory, "ui_python_client");
+        CopyDirectory(sourceDirectory, targetDirectory, overwriteExisting);
+    }
+
+        private static void EnsurePythonVsCodeWorkspace(string scriptsDirectory, bool overwriteExisting)
+        {
+                var workspaceDirectory = Path.Combine(scriptsDirectory, ".vscode");
+                Directory.CreateDirectory(workspaceDirectory);
+
+                var settingsPath = Path.Combine(workspaceDirectory, "settings.json");
+                if (ShouldWritePythonFile(settingsPath, overwriteExisting))
+                {
+                        File.WriteAllText(settingsPath, BuildPythonVsCodeSettingsJson());
+                }
+
+                var extensionsPath = Path.Combine(workspaceDirectory, "extensions.json");
+                if (ShouldWritePythonFile(extensionsPath, overwriteExisting))
+                {
+                        File.WriteAllText(extensionsPath, BuildPythonVsCodeExtensionsJson());
+                }
+        }
+
+        private static string BuildPythonVsCodeSettingsJson()
+                => """
+{
+    \"python.analysis.extraPaths\": [
+        \"${workspaceFolder}\"
+    ],
+    \"python.analysis.autoImportCompletions\": true,
+    \"python.analysis.typeCheckingMode\": \"basic\"
+}
+""";
+
+        private static string BuildPythonVsCodeExtensionsJson()
+                => """
+{
+    \"recommendations\": [
+        \"ms-python.python\",
+        \"ms-python.vscode-pylance\"
+    ]
+}
+""";
+
+    private static bool ShouldWritePythonFile(string fullPath, bool overwriteExisting)
+    {
+        if (overwriteExisting || !File.Exists(fullPath))
+        {
+            return true;
+        }
+
+        try
+        {
+            return new FileInfo(fullPath).Length == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void CopyDirectory(string sourceDirectory, string targetDirectory, bool overwriteExisting)
+    {
+        Directory.CreateDirectory(targetDirectory);
+
+        foreach (var sourceFile in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            var relativePath = Path.GetRelativePath(sourceDirectory, sourceFile);
+            var targetFile = Path.Combine(targetDirectory, relativePath);
+            var targetFolder = Path.GetDirectoryName(targetFile);
+            if (!string.IsNullOrWhiteSpace(targetFolder))
+            {
+                Directory.CreateDirectory(targetFolder);
+            }
+
+            if (ShouldWritePythonFile(targetFile, overwriteExisting))
+            {
+                File.Copy(sourceFile, targetFile, overwriteExisting);
+            }
+        }
+    }
+
+    private static string BuildPythonScriptBaseName(FolderItemModel item)
+    {
+        string baseName;
+
+        if (item.Kind == ControlKind.PythonClient && !string.IsNullOrWhiteSpace(item.Name))
+        {
+            baseName = item.Name;
+        }
+        else
+        {
+            baseName = !string.IsNullOrWhiteSpace(item.Name)
+                ? item.Name
+                : (!string.IsNullOrWhiteSpace(item.Title)
+                    ? item.Title
+                    : item.Kind.ToString());
+        }
+
+        baseName = SanitizeFileName(baseName);
+        if (string.IsNullOrWhiteSpace(baseName))
+        {
+            baseName = item.Kind == ControlKind.Signal ? "signal" : "item";
+        }
+
+        return baseName;
+    }
+
+    private static string ApplyPythonTemplateTokens(string template, FolderItemModel item, string fileName, string displayName)
+    {
+        var folderName = item.FolderName ?? string.Empty;
+
+        return template
+            .Replace("{{CLIENT_NAME}}", displayName ?? string.Empty, StringComparison.Ordinal)
+            .Replace("{{WIDGET_NAME}}", displayName ?? string.Empty, StringComparison.Ordinal)
+            .Replace("{{SCRIPT_FILE_NAME}}", fileName ?? string.Empty, StringComparison.Ordinal)
+            .Replace("{{FOLDER_NAME}}", folderName, StringComparison.Ordinal);
+    }
+
+    private static string GeneratePythonScriptTemplate(FolderItemModel item, string fileName)
+    {
+        var displayName = !string.IsNullOrWhiteSpace(item.Name)
+            ? item.Name
+            : (!string.IsNullOrWhiteSpace(item.Title) ? item.Title : fileName);
+
+        if (item.Kind == ControlKind.PythonClient)
+        {
+            try
+            {
+                var baseDir = AppContext.BaseDirectory;
+                var templatePath = Path.Combine(baseDir, "Templates", "PythonClientDemo.py");
+                if (File.Exists(templatePath))
+                {
+                    var template = File.ReadAllText(templatePath);
+                    if (!string.IsNullOrWhiteSpace(template))
+                    {
+                        template = ApplyPythonTemplateTokens(template, item, fileName, displayName);
+                        return template;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore IO errors here and fall through to the generic
+                // signal-style template below.
+            }
+        }
+
+        if (item.Kind == ControlKind.Button)
+        {
+            var lines = new[]
+            {
+                $"# Python button script for '{displayName}'",
+                "# Called when the button is clicked.",
+                string.Empty,
+                "def on_click(ctx):",
+                "    # Example: access a signal by id",
+                "    # signal = ctx.GetSignal(\"SomeSignalId\")",
+                "    # ctx.Log(f\"Current value: {signal.Value}\")",
+                "    pass",
+                string.Empty
+            };
+
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        var signalLines = new[]
+        {
+            $"# Python signal script for '{displayName}'",
+            "# Called periodically according to the RefreshRate of the widget.",
+            string.Empty,
+            "import random",
+            string.Empty,
+            "def read_value(ctx):",
+            "    # Example: access another signal by id",
+            "    # other = ctx.GetSignal(\"SomeSignalId\")",
+            "    # ctx.Log(f\"Other value: {other.Value}\")",
+            "    value = random.random()",
+            "    ctx.Log(f\"Random value: {value}\")",
+            "    return value",
+            string.Empty
+        };
+
+        return string.Join(Environment.NewLine, signalLines);
+    }
+
     private void RefreshEditorDialogFieldValues(FolderItemModel item, params string[] keys)
     {
         _isRefreshingEditorDialogFields = true;
@@ -3065,6 +3784,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }));
                 break;
             case ControlKind.Item:
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>(commonSpecific)
+                {
+                    BindTargetTree("TargetPath", "Uri", current => TargetPathHelper.ToPersistedLayoutTargetPath(current.TargetPath, current.FolderName), (current, value) => { current.ApplyTargetSelection(value); return null; }, current => GetSelectableTargetOptions(current)),
+                    BindText("PythonScriptPath", "Python Script", current => current.PythonScriptPath, (current, value) => { current.PythonScriptPath = value; return null; }),
+                    BindChoice("TargetParameterPath", "Parameter", current => current.TargetParameterPath, (current, value) => { current.TargetParameterPath = value; return null; }, current => GetTargetParameterOptions(current.TargetPath, current.FolderName)),
+                    BindChoice("TargetParameterFormatKind", "Format", current => SplitParameterFormat(current.TargetParameterFormat).Kind, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(value, SplitParameterFormat(current.TargetParameterFormat).Parameter); return null; }, _ => ParameterFormatOptions),
+                    BindText("TargetParameterFormatParameter", "FormatParameter", current => SplitParameterFormat(current.TargetParameterFormat).Parameter, (current, value) => { current.TargetParameterFormat = ComposeParameterFormat(SplitParameterFormat(current.TargetParameterFormat).Kind, value); return null; }, EditorPropertyType.Text, GetFormatParameterToolTip),
+                    BindChoice("IsReadOnly", "Readonly", current => current.IsReadOnly ? "True" : "False", (current, value) => { current.IsReadOnly = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindInt("RefreshRateMs", "RefreshRate ms", current => current.RefreshRateMs, (current, value) => current.RefreshRateMs = value)
+                }));
+                break;
             case ControlKind.Signal:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>(commonSpecific)
                 {
@@ -3157,6 +3887,31 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindChoice("CameraName", "Camera", current => current.CameraName, (current, value) => { current.CameraName = value; return null; }, _ => GetCameraOptions()),
                     BindChoice("CameraResolution", "Resolution", current => current.CameraResolution, (current, value) => { current.CameraResolution = value; return null; }, current => GetCameraResolutionOptions(current)),
                     BindText("CameraOverlayText", "OverlayText", current => current.CameraOverlayText, (current, value) => { current.CameraOverlayText = value; return null; })
+                }));
+                break;
+            case ControlKind.PythonClient:
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
+                {
+                    BindText("PythonScriptPath", "Python Script", current => current.PythonScriptPath, (current, value) =>
+                    {
+                        current.PythonScriptPath = value;
+                        return null;
+                    })
+                }));
+                break;
+            case ControlKind.PythonEnvManager:
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
+                {
+                    BindChoice("PythonEnvAutoStart", "AutoStart", current => current.PythonEnvAutoStart ? "True" : "False", (current, value) =>
+                    {
+                        current.PythonEnvAutoStart = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase);
+                        return null;
+                    }, _ => new[] { "False", "True" }),
+                    BindMultiline("PythonEnvDefinitions", "Environments (one per line: Name | ScriptPath)", current => current.PythonEnvDefinitions, (current, value) =>
+                    {
+                        current.PythonEnvDefinitions = value;
+                        return null;
+                    })
                 }));
                 break;
         }
@@ -3959,6 +4714,19 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
+    private void StartAutoStartPythonEnvironments()
+    {
+        foreach (var item in Folders.SelectMany(page => EnumeratePageItems(page.Items)))
+        {
+            if (!item.IsPythonEnvManager || !item.PythonEnvAutoStart)
+            {
+                continue;
+            }
+
+            Amium.UiEditor.Widgets.PythonEnvManagerRuntime.StartAutoStartEnvironments(item, ResolveWorkspaceDirectory(item));
+        }
+    }
+
     private double MaxAvailableWidth(double x) => Math.Max(150, _canvasWidth - x);
     private double MaxAvailableHeight(double y) => Math.Max(72, _canvasHeight - y);
 
@@ -4044,6 +4812,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.FolderName),
             TargetParameterPath = item.TargetParameterPath,
             TargetParameterFormat = item.TargetParameterFormat,
+            PythonEnvironments = item.PythonEnvDefinitions,
+            PythonEnvAutoStart = item.PythonEnvAutoStart,
             Unit = item.Unit,
             TargetLog = item.TargetLog,
             RefreshRateMs = item.RefreshRateMs,
@@ -4146,6 +4916,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(item.TargetPath),
             TargetParameterPath = item.TargetParameterPath,
             TargetParameterFormat = item.TargetParameterFormat,
+            PythonEnvDefinitions = item.PythonEnvironments,
+            PythonEnvAutoStart = item.PythonEnvAutoStart,
             Unit = item.Unit,
             TargetLog = item.TargetLog,
             RefreshRateMs = item.RefreshRateMs,
@@ -4174,13 +4946,55 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlCornerRadius = item.ControlCornerRadius,
             X = item.X,
             Y = item.Y,
-            Width = Math.Max(item.Width, item.Kind switch { ControlKind.Button => 140, ControlKind.Signal => 150, ControlKind.Item => 150, ControlKind.ListControl => 240, ControlKind.LogControl => 320, ControlKind.CsvLoggerControl => 260, ControlKind.SqlLoggerControl => 260, ControlKind.ChartControl => 360, ControlKind.CameraControl => 260, _ => 140 }),
-            Height = Math.Max(item.Height, item.Kind switch { ControlKind.Button => 56, ControlKind.Signal => 72, ControlKind.Item => 72, ControlKind.ListControl => 180, ControlKind.TableControl => 180, ControlKind.LogControl => 220, ControlKind.CsvLoggerControl => 120, ControlKind.SqlLoggerControl => 120, ControlKind.ChartControl => 220, ControlKind.CameraControl => 160, _ => 72 })
+            Width = Math.Max(item.Width, item.Kind switch
+            {
+                ControlKind.Button => 140,
+                ControlKind.Signal => 150,
+                ControlKind.Item => 150,
+                ControlKind.ListControl => 240,
+                ControlKind.LogControl => 320,
+                ControlKind.CsvLoggerControl => 260,
+                ControlKind.SqlLoggerControl => 260,
+                ControlKind.ChartControl => 360,
+                ControlKind.CameraControl => 260,
+                ControlKind.PythonClient => 220,
+                _ => 140
+            }),
+            Height = Math.Max(item.Height, item.Kind switch
+            {
+                ControlKind.Button => 56,
+                ControlKind.Signal => 72,
+                ControlKind.Item => 72,
+                ControlKind.ListControl => 180,
+                ControlKind.TableControl => 180,
+                ControlKind.LogControl => 220,
+                ControlKind.CsvLoggerControl => 120,
+                ControlKind.SqlLoggerControl => 120,
+                ControlKind.ChartControl => 220,
+                ControlKind.CameraControl => 160,
+                ControlKind.PythonClient => 80,
+                _ => 72
+            })
         };
 
         if (string.IsNullOrWhiteSpace(model.Name))
         {
-            model.Name = item.Kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", ControlKind.CsvLoggerControl => "CsvLoggerControl", ControlKind.SqlLoggerControl => "SqlLoggerControl", ControlKind.CameraControl => "CameraControl", ControlKind.Item or ControlKind.Signal => "Signal", _ => "Signal" };
+            model.Name = item.Kind switch
+            {
+                ControlKind.Button => "Button",
+                ControlKind.ListControl => "ListControl",
+                ControlKind.TableControl => "TableControl",
+                ControlKind.LogControl => "LogControl",
+                ControlKind.ChartControl => "ChartControl",
+                ControlKind.UdlClientControl => "UdlClientControl",
+                ControlKind.CsvLoggerControl => "CsvLoggerControl",
+                ControlKind.SqlLoggerControl => "SqlLoggerControl",
+                ControlKind.CameraControl => "CameraControl",
+                ControlKind.PythonClient => "PythonClient",
+                ControlKind.PythonEnvManager => "PythonEnvManager",
+                ControlKind.Item or ControlKind.Signal => "Signal",
+                _ => "Signal"
+            };
         }
 
         if (model.Kind == ControlKind.LogControl
@@ -4208,7 +5022,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             {
                 Event = rule.Event,
                 Action = rule.Action,
-                TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath, pageName),
+                TargetPath = ToPersistedInteractionRuleTargetPath(rule, pageName),
+                FunctionName = rule.FunctionName,
                 Argument = rule.Argument
             })
             .ToList();
@@ -4218,9 +5033,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             Event = rule.Event,
             Action = rule.Action,
-            TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(rule.TargetPath),
+            TargetPath = NormalizeInteractionRuleTargetPath(rule.Action, rule.TargetPath),
+            FunctionName = rule.FunctionName,
             Argument = rule.Argument
         }));
+
+    private static string ToPersistedInteractionRuleTargetPath(ItemInteractionRule rule, string? pageName)
+        => rule.Action == ItemInteractionAction.InvokePythonFunction
+            ? Amium.UiEditor.Widgets.PythonEnvManagerRuntime.ToPersistedInteractionTargetPath(rule.TargetPath)
+            : TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath, pageName);
+
+    private static string NormalizeInteractionRuleTargetPath(ItemInteractionAction action, string? targetPath)
+        => action == ItemInteractionAction.InvokePythonFunction
+            ? (targetPath?.Trim() ?? string.Empty)
+            : TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
 
     internal static (string Kind, string Parameter) SplitParameterFormat(string? format)
     {
@@ -4443,7 +5269,22 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private string GetSuggestedControlName(ControlKind kind, FolderModel page, FolderItemModel? parentItem, FolderItemModel? excludeItem)
     {
-        var baseName = kind switch { ControlKind.Button => "Button", ControlKind.ListControl => "ListControl", ControlKind.TableControl => "TableControl", ControlKind.LogControl => "LogControl", ControlKind.ChartControl => "ChartControl", ControlKind.UdlClientControl => "UdlClientControl", ControlKind.CsvLoggerControl => "CsvLoggerControl", ControlKind.SqlLoggerControl => "SqlLoggerControl", ControlKind.CameraControl => "CameraControl", ControlKind.Item or ControlKind.Signal => "Signal", _ => "Signal" };
+        var baseName = kind switch
+        {
+            ControlKind.Button => "Button",
+            ControlKind.ListControl => "ListControl",
+            ControlKind.TableControl => "TableControl",
+            ControlKind.LogControl => "LogControl",
+            ControlKind.ChartControl => "ChartControl",
+            ControlKind.UdlClientControl => "UdlClientControl",
+            ControlKind.CsvLoggerControl => "CsvLoggerControl",
+            ControlKind.SqlLoggerControl => "SqlLoggerControl",
+            ControlKind.CameraControl => "CameraControl",
+            ControlKind.PythonClient => "PythonClient",
+            ControlKind.PythonEnvManager => "PythonEnvManager",
+            ControlKind.Item or ControlKind.Signal => "Signal",
+            _ => "Signal"
+        };
         var candidate = baseName;
         var index = 1;
         while (!IsControlNameUnique(page, candidate, excludeItem))
@@ -4494,6 +5335,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         var prefixes = new[]
         {
+            $"Project/{item.FolderName}/{normalizedName}/Status/AttachOptions",
             $"UdlProject/{item.FolderName}/{normalizedName}/Status/AttachOptions",
             $"Runtime/UdlClient/{normalizedName}"
         };
@@ -4750,20 +5592,45 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var attachedUdlOptions = GetAttachedUdlTargetOptions(item, allOptions);
-        if (attachedUdlOptions.Count > 0)
-        {
-            return attachedUdlOptions;
-        }
-
         var filterPrefix = item is null ? string.Empty : GetTargetTreeFilterPrefix(item, allOptions);
-        if (string.IsNullOrWhiteSpace(filterPrefix))
+        var filteredOptions = string.IsNullOrWhiteSpace(filterPrefix)
+            ? allOptions
+            : allOptions
+                .Where(path => path.StartsWith(filterPrefix, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+        var attachedUdlOptions = GetAttachedUdlTargetOptions(item, allOptions);
+        if (attachedUdlOptions.Count == 0)
         {
-            return allOptions;
+            return filteredOptions;
         }
 
-        return allOptions
-            .Where(path => path.StartsWith(filterPrefix, StringComparison.OrdinalIgnoreCase))
+        return filteredOptions
+            .Concat(attachedUdlOptions)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private IEnumerable<string> GetSelectablePythonClientOptions(FolderItemModel? item = null)
+    {
+        return EnumeratePageItems(SelectedFolder.Items)
+            .Where(candidate => candidate.IsPythonClient)
+            .Select(candidate => candidate.Path)
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private IEnumerable<string> GetSelectablePythonEnvironmentOptions(FolderItemModel? item = null)
+    {
+        return EnumeratePageItems(SelectedFolder.Items)
+            .Where(candidate => candidate.IsPythonEnvManager)
+            .SelectMany(candidate => candidate.GetPythonEnvironmentInteractionTargets())
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
@@ -4808,7 +5675,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static string BuildAttachedUdlPrefix(string pageName, FolderItemModel clientItem)
     {
         var clientName = string.IsNullOrWhiteSpace(clientItem.Name) ? "UdlClientControl" : clientItem.Name.Trim();
-        return $"UdlProject/{pageName}/{clientName}";
+        return $"Project/{pageName}/{clientName}";
     }
 
     private HashSet<string> GetNonSelectableTargetPrefixes()
@@ -4877,6 +5744,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         if (string.IsNullOrWhiteSpace(pageName))
         {
             return string.Empty;
+        }
+
+        var preferredProjectPrefix = $"Project/{pageName}/";
+        if (allOptions.Any(path => path.StartsWith(preferredProjectPrefix, StringComparison.OrdinalIgnoreCase)))
+        {
+            return preferredProjectPrefix;
         }
 
         var currentPrefix = TryExtractPageTargetPrefix(item.TargetPath, pageName);

@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Globalization;
+using System.IO;
+using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Layout;
@@ -8,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Amium.Items;
 using Amium.Host;
+using Amium.Host.Python.Client;
 using Amium.UiEditor.Helpers;
 using Amium.UiEditor.ViewModels;
 
@@ -25,7 +28,9 @@ public enum ControlKind
     UdlClientControl,
     CsvLoggerControl,
     SqlLoggerControl,
-    CameraControl
+    CameraControl,
+    PythonClient,
+    PythonEnvManager
 }
 
 public sealed class FolderItemModel : ObservableObject
@@ -116,6 +121,11 @@ public sealed class FolderItemModel : ObservableObject
     private double _footerBorderWidth;
     private double _footerCornerRadius = 6;
     private string _targetPath = string.Empty;
+    private string _pythonScriptPath = string.Empty;
+    private string _pythonEnvDefinitions = string.Empty;
+    private bool _pythonEnvAutoStart;
+    private string _blockedLegacyScriptPath = string.Empty;
+    private DateTime _blockedLegacyScriptWriteTimeUtc;
     private string _targetParameterPath = string.Empty;
     private string _targetParameterFormat = string.Empty;
     private string _unit = string.Empty;
@@ -161,8 +171,10 @@ public sealed class FolderItemModel : ObservableObject
     private string _effectiveFooterBackground = "Transparent";
     private string _effectiveFooterBorder = LightBorder;
     private DispatcherTimer? _pendingRefreshTimer;
+    private DispatcherTimer? _scriptTimer;
     private DateTimeOffset _lastTargetRefreshUtc = DateTimeOffset.MinValue;
     private bool _hasPendingTargetRefresh;
+    private object? _scriptValue;
     private string _name = string.Empty;
     private string _id = Guid.NewGuid().ToString("N");
     private string _path = string.Empty;
@@ -175,7 +187,6 @@ public sealed class FolderItemModel : ObservableObject
     private int _tableCellColumn = 1;
     private int _tableCellRowSpan = 1;
     private int _tableCellColumnSpan = 1;
-
     public FolderItemModel()
     {
         HostRegistries.Data.ItemChanged += OnDataRegistryChanged;
@@ -249,7 +260,12 @@ public sealed class FolderItemModel : ObservableObject
     public string CsvSignalPaths
     {
         get => _csvSignalPaths;
-        set => SetProperty(ref _csvSignalPaths, value ?? string.Empty);
+        set
+        {
+            if (SetProperty(ref _csvSignalPaths, value ?? string.Empty))
+            {
+            }
+        }
     }
 
     public string CameraName
@@ -760,6 +776,10 @@ public sealed class FolderItemModel : ObservableObject
 
     public bool IsUdlClientControl => Kind == ControlKind.UdlClientControl;
 
+    public bool IsPythonClient => Kind == ControlKind.PythonClient;
+
+    public bool IsPythonEnvManager => Kind == ControlKind.PythonEnvManager;
+
     // Controls, die als Child in einem Table gerendert und selektiert werden duerfen.
     public bool IsTableChildControl => Kind is ControlKind.Item
         or ControlKind.Signal
@@ -769,7 +789,9 @@ public sealed class FolderItemModel : ObservableObject
         or ControlKind.UdlClientControl
         or ControlKind.CsvLoggerControl
         or ControlKind.SqlLoggerControl
-        or ControlKind.CameraControl;
+        or ControlKind.CameraControl
+        or ControlKind.PythonClient
+        or ControlKind.PythonEnvManager;
 
     public bool IsSelected
     {
@@ -1282,8 +1304,10 @@ public sealed class FolderItemModel : ObservableObject
         get => _targetPath;
         set
         {
-            if (SetProperty(ref _targetPath, value))
+            var normalizedValue = NormalizeConfiguredTargetPathForKind(value);
+            if (SetProperty(ref _targetPath, normalizedValue))
             {
+                ClearBlockedLegacyScript();
                 RaisePropertyChanged(nameof(ShowBodyCaption));
                 RaisePropertyChanged(nameof(ItemBodyHeight));
                 RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
@@ -1291,9 +1315,43 @@ public sealed class FolderItemModel : ObservableObject
                 RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
                 RaisePropertyChanged(nameof(ItemValueFontSize));
                 RaisePropertyChanged(nameof(ItemUnitFontSize));
+                UpdateScriptTimer();
                 ResolveTarget();
             }
         }
+    }
+
+    public string PythonScriptPath
+    {
+        get => _pythonScriptPath;
+        set
+        {
+            var normalizedValue = NormalizePythonScriptPathForKind(value);
+            if (SetProperty(ref _pythonScriptPath, normalizedValue))
+            {
+                ClearBlockedLegacyScript();
+                UpdateScriptTimer();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Optional environment definitions for the PythonEnvManager widget.
+    ///
+    /// Current minimum format (one environment per line):
+    ///   Name | ScriptPath
+    /// If Name is omitted, the script file name is used.
+    /// </summary>
+    public string PythonEnvDefinitions
+    {
+        get => _pythonEnvDefinitions;
+        set => SetProperty(ref _pythonEnvDefinitions, value ?? string.Empty);
+    }
+
+    public bool PythonEnvAutoStart
+    {
+        get => _pythonEnvAutoStart;
+        set => SetProperty(ref _pythonEnvAutoStart, value);
     }
 
     public string TargetParameterPath
@@ -1476,6 +1534,8 @@ public sealed class FolderItemModel : ObservableObject
                 {
                     SchedulePendingRefresh(TimeSpan.FromMilliseconds(normalized));
                 }
+
+                UpdateScriptTimer();
             }
         }
     }
@@ -1926,7 +1986,23 @@ public sealed class FolderItemModel : ObservableObject
         }
     }
 
-    public string DisplayValue => Target?.Value?.ToString() ?? Title;
+    public string DisplayValue
+    {
+        get
+        {
+            if (IsScriptTarget && _scriptValue is not null)
+            {
+                return _scriptValue.ToString() ?? Title;
+            }
+
+            if (Target is not null)
+            {
+                return Target.Value?.ToString() ?? Title;
+            }
+
+            return Title;
+        }
+    }
 
     public ParameterDisplayModel TargetParameterView => BuildTargetParameterView();
 
@@ -2267,6 +2343,130 @@ public sealed class FolderItemModel : ObservableObject
         RaisePropertyChanged(nameof(CanOpenValueEditor));
     }
 
+    private bool IsScriptTarget
+    {
+        get
+        {
+            if (!SupportsLegacyPythonScript)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(PythonScriptPath))
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(TargetPath))
+            {
+                return false;
+            }
+
+            if (TargetPath.StartsWith("python:", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (TargetPath.EndsWith(".py", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    private bool SupportsLegacyPythonScript => !IsSignal && !IsPythonClient;
+
+    private string NormalizeConfiguredTargetPathForKind(string? value)
+    {
+        var normalizedValue = value ?? string.Empty;
+        return IsSignal && IsLegacyPythonTargetPath(normalizedValue)
+            ? string.Empty
+            : normalizedValue;
+    }
+
+    private string NormalizePythonScriptPathForKind(string? value)
+        => IsSignal ? string.Empty : value ?? string.Empty;
+
+    private static bool IsLegacyPythonTargetPath(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return value.StartsWith("python:", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith(".py", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public string? ResolveConfiguredScriptPath()
+    {
+        // 1) Rohen Skript-Namen aus den Properties ermitteln
+        string? script = null;
+
+        if (!string.IsNullOrWhiteSpace(PythonScriptPath))
+        {
+            script = PythonScriptPath.TrimStart('/', '\\');
+        }
+        else if (!string.IsNullOrWhiteSpace(TargetPath))
+        {
+            if (TargetPath.StartsWith("python:", StringComparison.OrdinalIgnoreCase))
+            {
+                script = TargetPath["python:".Length..].TrimStart('/', '\\');
+            }
+            else
+            {
+                script = TargetPath;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(script))
+        {
+            return null;
+        }
+
+        // 2) Bereits absoluter Pfad? Dann direkt zurueckgeben.
+        if (System.IO.Path.IsPathRooted(script))
+        {
+            return script;
+        }
+
+        // 3) Relativen Namen moeglichst auf Basis der Layout-Datei aufloesen.
+        //    Damit landet das Skript im gleichen Folder wie Folder.yaml/Folder.json.
+        var layoutPath = FolderLayoutPath;
+        if (!string.IsNullOrWhiteSpace(layoutPath))
+        {
+            var layoutDirectory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(layoutPath));
+            if (!string.IsNullOrWhiteSpace(layoutDirectory))
+            {
+                var normalized = script
+                    .Replace('/', System.IO.Path.DirectorySeparatorChar)
+                    .TrimStart(System.IO.Path.DirectorySeparatorChar);
+
+                // Wenn schon ein Unterpfad enthalten ist ("Scripts/foo.py" oder "Sub/foo.py"),
+                // direkt relativ zum Layout-Verzeichnis verwenden.
+                if (normalized.Contains(System.IO.Path.DirectorySeparatorChar))
+                {
+                    return System.IO.Path.Combine(layoutDirectory, normalized);
+                }
+
+                // Nur Dateiname: bevorzugt den neuen Standardordner "Scripts"
+                // neben der Layout-Datei, faellt fuer bestehende Projekte aber auf
+                // den alten Ordner "Skript" zurueck.
+                var preferredPath = System.IO.Path.Combine(layoutDirectory, "Scripts", normalized);
+                var legacyPath = System.IO.Path.Combine(layoutDirectory, "Skript", normalized);
+                return File.Exists(preferredPath) || !File.Exists(legacyPath)
+                    ? preferredPath
+                    : legacyPath;
+            }
+        }
+
+        // 4) Fallback: unveraendert zurueckgeben, PythonScriptHost.ResolvePath
+        //    kuemmert sich dann (z.B. im Host-Prozess ueber Core.OpenedDirectory).
+        return script;
+    }
+
     public bool TryUpdateTargetParameterValue(object? rawValue, out string error)
     {
         if (IsReadOnly)
@@ -2398,6 +2598,44 @@ public sealed class FolderItemModel : ObservableObject
         return true;
     }
 
+    public bool TryExecuteButtonCommand(out string error)
+    {
+        error = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(ButtonCommand))
+        {
+            return false;
+        }
+
+        var commandText = ButtonCommand.Trim();
+
+        if (commandText.StartsWith("python:", StringComparison.OrdinalIgnoreCase) || commandText.EndsWith(".py", StringComparison.OrdinalIgnoreCase))
+        {
+            var scriptPath = commandText.StartsWith("python:", StringComparison.OrdinalIgnoreCase)
+                ? commandText["python:".Length..].TrimStart('/', '\\')
+                : commandText;
+
+            try
+            {
+                Amium.Host.Python.Legacy.PythonScriptHost.ExecuteButtonScript(scriptPath);
+                return true;
+            }
+            catch
+            {
+                error = "Python-Skript konnte nicht ausgefuehrt werden.";
+                return true;
+            }
+        }
+
+        if (HostRegistries.Commands.Execute(commandText))
+        {
+            return true;
+        }
+
+        error = "ButtonCommand wurde nicht im Host gefunden.";
+        return true;
+    }
+
     public void SyncChildWidths()
     {
         if (!IsListControl)
@@ -2459,9 +2697,153 @@ public sealed class FolderItemModel : ObservableObject
 
                 return TryApplyInteractionWrite(setTarget!, rule.TargetPath, rule.Argument, out error);
 
+            case ItemInteractionAction.InvokePythonClientFunction:
+                return TryInvokePythonClientFunction(rule, out error);
+
+            case ItemInteractionAction.InvokePythonFunction:
+                return TryInvokePythonEnvironmentFunction(rule, out error);
+
             default:
                 error = $"Action {rule.Action} wird noch nicht unterstuetzt.";
                 return false;
+        }
+    }
+
+    private bool TryInvokePythonClientFunction(ItemInteractionRule rule, out string error)
+    {
+        if (string.IsNullOrWhiteSpace(rule.TargetPath))
+        {
+            error = "Kein PythonClient-Ziel konfiguriert.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(rule.FunctionName))
+        {
+            error = "Keine Python-Funktion konfiguriert.";
+            return false;
+        }
+
+        if (!PythonClientRuntimeRegistry.TryGetClient(rule.TargetPath, out var client) || client is null)
+        {
+            error = $"PythonClient '{rule.TargetPath}' ist nicht aktiv.";
+            return false;
+        }
+
+        try
+        {
+            var result = client.InvokeFunctionAsync(
+                    rule.FunctionName,
+                    BuildPythonInteractionArgumentPayload(rule.Argument))
+                .GetAwaiter()
+                .GetResult();
+
+            if (!result.Success)
+            {
+                error = string.IsNullOrWhiteSpace(result.Message)
+                    ? $"Python-Funktion '{rule.FunctionName}' ist fehlgeschlagen."
+                    : result.Message!;
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private bool TryInvokePythonEnvironmentFunction(ItemInteractionRule rule, out string error)
+    {
+        if (string.IsNullOrWhiteSpace(rule.TargetPath))
+        {
+            error = "Kein Python-Env-Ziel konfiguriert.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(rule.FunctionName))
+        {
+            error = "Keine Python-Funktion konfiguriert.";
+            return false;
+        }
+
+        var resolvedTargetPath = Amium.UiEditor.Widgets.PythonEnvManagerRuntime.ResolveInteractionTargetPath(this, rule.TargetPath);
+        if (!PythonClientRuntimeRegistry.TryGetClient(resolvedTargetPath, out var client) || client is null)
+        {
+            error = $"Python-Env '{rule.TargetPath}' ist nicht aktiv.";
+            return false;
+        }
+
+        try
+        {
+            var result = client.InvokeFunctionAsync(
+                    rule.FunctionName,
+                    BuildPythonInteractionArgumentPayload(rule.Argument))
+                .GetAwaiter()
+                .GetResult();
+
+            if (!result.Success)
+            {
+                error = string.IsNullOrWhiteSpace(result.Message)
+                    ? $"Python-Funktion '{rule.FunctionName}' ist fehlgeschlagen."
+                    : result.Message!;
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    public IReadOnlyList<string> GetPythonEnvironmentInteractionTargets()
+    {
+        if (!IsPythonEnvManager)
+        {
+            return [];
+        }
+
+        return Amium.UiEditor.Widgets.PythonEnvDefinitionHelper.ParseDefinitions(PythonEnvDefinitions)
+            .Select(env => Amium.UiEditor.Widgets.PythonEnvManagerRuntime.BuildInteractionTargetPath(this, env.Name))
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static JsonNode BuildPythonInteractionArgumentPayload(string? argument)
+    {
+        if (string.IsNullOrWhiteSpace(argument))
+        {
+            return new JsonObject();
+        }
+
+        var trimmed = argument.Trim();
+        try
+        {
+            var parsed = JsonNode.Parse(trimmed);
+            if (parsed is JsonObject or JsonArray)
+            {
+                return parsed;
+            }
+
+            return new JsonObject
+            {
+                ["value"] = parsed
+            };
+        }
+        catch
+        {
+            return new JsonObject
+            {
+                ["value"] = trimmed
+            };
         }
     }
 
@@ -2898,6 +3280,11 @@ public sealed class FolderItemModel : ObservableObject
     {
         Dispatcher.UIThread.Post(() =>
         {
+            if (IsScriptTarget && !IsLegacyScriptBlockedForCurrentPath())
+            {
+                RefreshScriptValue();
+            }
+
             RefreshTargetBindings();
             _lastTargetRefreshUtc = DateTimeOffset.UtcNow;
         });
@@ -2907,6 +3294,203 @@ public sealed class FolderItemModel : ObservableObject
     {
         _hasPendingTargetRefresh = false;
         Dispatcher.UIThread.Post(() => _pendingRefreshTimer?.Stop());
+    }
+
+    private void UpdateScriptTimer()
+    {
+        if (!IsScriptTarget || RefreshRateMs <= 0 || IsLegacyScriptBlockedForCurrentPath())
+        {
+            if (_scriptTimer is not null)
+            {
+                var timer = _scriptTimer;
+                _scriptTimer = null;
+                timer.Stop();
+                timer.Tick -= OnScriptTimerTick;
+            }
+
+            return;
+        }
+
+        if (_scriptTimer is null)
+        {
+            _scriptTimer = new DispatcherTimer();
+            _scriptTimer.Tick += OnScriptTimerTick;
+        }
+
+        _scriptTimer.Interval = TimeSpan.FromMilliseconds(RefreshRateMs);
+        _scriptTimer.Start();
+
+        RefreshScriptValue();
+    }
+
+    private void OnScriptTimerTick(object? sender, EventArgs e)
+    {
+        RefreshScriptValue();
+    }
+
+    private void RefreshScriptValue()
+    {
+        var scriptPath = ResolveConfiguredScriptPath();
+        if (string.IsNullOrWhiteSpace(scriptPath))
+        {
+            return;
+        }
+
+        if (!Amium.Host.Python.Legacy.PythonScriptHost.IsLegacyScriptCompatible(scriptPath, out _))
+        {
+            MarkLegacyScriptBlocked(scriptPath);
+            UpdateScriptTimer();
+            return;
+        }
+
+        try
+        {
+            var result = Amium.Host.Python.Legacy.PythonScriptHost.ExecuteSignalScript(scriptPath);
+            _scriptValue = result;
+            PublishScriptValueToRegistry(result);
+            RefreshTargetBindings();
+        }
+        catch
+        {
+            // Fehler im Skript werden im Host geloggt; UI bleibt stabil.
+        }
+    }
+
+    private void ClearBlockedLegacyScript()
+    {
+        _blockedLegacyScriptPath = string.Empty;
+        _blockedLegacyScriptWriteTimeUtc = default;
+    }
+
+    private void MarkLegacyScriptBlocked(string scriptPath)
+    {
+        _blockedLegacyScriptPath = scriptPath;
+        try
+        {
+            _blockedLegacyScriptWriteTimeUtc = File.Exists(scriptPath)
+                ? File.GetLastWriteTimeUtc(scriptPath)
+                : default;
+        }
+        catch
+        {
+            _blockedLegacyScriptWriteTimeUtc = default;
+        }
+    }
+
+    private bool IsLegacyScriptBlockedForCurrentPath()
+    {
+        if (string.IsNullOrWhiteSpace(_blockedLegacyScriptPath))
+        {
+            return false;
+        }
+
+        var currentScriptPath = ResolveConfiguredScriptPath();
+        if (!string.Equals(currentScriptPath, _blockedLegacyScriptPath, StringComparison.OrdinalIgnoreCase))
+        {
+            ClearBlockedLegacyScript();
+            return false;
+        }
+
+        try
+        {
+            var currentWriteTimeUtc = File.Exists(currentScriptPath)
+                ? File.GetLastWriteTimeUtc(currentScriptPath)
+                : default;
+            if (currentWriteTimeUtc != _blockedLegacyScriptWriteTimeUtc)
+            {
+                ClearBlockedLegacyScript();
+                return false;
+            }
+        }
+        catch
+        {
+            return true;
+        }
+
+        return true;
+    }
+
+    private void PublishScriptValueToRegistry(object? value)
+    {
+        var runtimePath = GetScriptRuntimePath();
+        if (string.IsNullOrWhiteSpace(runtimePath))
+        {
+            return;
+        }
+
+        var normalizedPath = runtimePath.Replace('\\', '/').Trim('/');
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            return;
+        }
+
+        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length == 0)
+        {
+            return;
+        }
+
+        var nameSegment = segments[^1];
+        var parentPath = segments.Length > 1
+            ? string.Join('/', segments[..^1])
+            : string.Empty;
+
+        // Einzelnes Script-Signal als eigenstaendigen Snapshot publizieren, so dass
+        // es unter Project/<Folder>/Python/<Name> im Target-Tree und RealtimeChart
+        // sichtbar und direkt aufloesbar ist.
+        Item item;
+        if (string.IsNullOrWhiteSpace(parentPath))
+        {
+            item = new Item(nameSegment, value);
+        }
+        else
+        {
+            item = new Item(nameSegment, value, parentPath);
+        }
+
+        // Pfad explizit im Slash-Stil hinterlegen, damit EnumerateItemPaths
+        // denselben Stil wie andere Runtime-Signale verwendet.
+        item.Params["Path"].Value = normalizedPath;
+
+        HostRegistries.Data.UpsertSnapshot(normalizedPath, item, pruneMissingMembers: false);
+    }
+
+    private string? GetScriptRuntimePath()
+    {
+        if (!IsScriptTarget)
+        {
+            return null;
+        }
+
+        static string NormalizeSegment(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            return value.Replace('\\', '/').Trim('/');
+        }
+
+        var folderSegment = NormalizeSegment(FolderName);
+        if (string.IsNullOrWhiteSpace(folderSegment))
+        {
+            folderSegment = "Page";
+        }
+
+        var nameSource = !string.IsNullOrWhiteSpace(Name)
+            ? Name
+            : (!string.IsNullOrWhiteSpace(Title) ? Title : Id);
+        var nameSegment = NormalizeSegment(nameSource);
+        if (string.IsNullOrWhiteSpace(nameSegment))
+        {
+            nameSegment = Id;
+        }
+
+        // Script-Signale als Projekt-lokale Werte publizieren, so dass sie
+        // unter Project/<Folder>/Python/<Name> wie andere Projekt-Signale
+        // auswählbar sind.
+        return $"Project/{folderSegment}/Python/{nameSegment}";
     }
 
     private void RefreshPathRecursive()
@@ -3107,6 +3691,18 @@ public sealed class FolderItemModel : ObservableObject
             : isValueParameter
                 ? GetTargetUnitText(Target)
                 : string.Empty;
+        // Wenn ein Script-Wert aktiv ist, soll dieser auch durch die bestehende
+        // Formatlogik (z.B. numeric:0.000) laufen. Dazu uebergeben wir den
+        // Script-Wert als Fallback-Text und unterdruecken den Parameterwert,
+        // damit ParameterDisplayModel den Fallback formatiert.
+        if (IsScriptTarget && _scriptValue is not null)
+        {
+            var scriptText = _scriptValue is IFormattable formattable
+                ? (formattable.ToString(null, CultureInfo.InvariantCulture) ?? _scriptValue.ToString() ?? string.Empty)
+                : (_scriptValue.ToString() ?? string.Empty);
+
+            return new ParameterDisplayModel(null, label, format, unitText, scriptText);
+        }
 
         return new ParameterDisplayModel(parameter, label, format, unitText, fallbackText);
     }
@@ -3152,6 +3748,12 @@ public sealed class FolderItemModel : ObservableObject
         }
 
         if (segments.Length > 3
+            && string.Equals(segments[0], "UdlProject", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Join('/', segments.Skip(3));
+        }
+
+        if (segments.Length > 3
             && string.Equals(segments[0], "UdlBook", StringComparison.OrdinalIgnoreCase))
         {
             return string.Join('/', segments.Skip(3));
@@ -3184,6 +3786,9 @@ public sealed class FolderItemModel : ObservableObject
             ControlKind.UdlClientControl => "UdlClientControl",
             ControlKind.CsvLoggerControl => "CsvLoggerControl",
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
+            ControlKind.CameraControl => "CameraControl",
+            ControlKind.PythonClient => "PythonClient",
+            ControlKind.PythonEnvManager => "PythonEnvManager",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };

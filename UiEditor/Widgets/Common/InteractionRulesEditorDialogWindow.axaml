@@ -4,9 +4,10 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.EditorUi.Controls"
+    xmlns:widgets="using:Amium.UiEditor.Widgets"
     xmlns:viewModels="using:Amium.UiEditor.ViewModels"
-    Width="980"
-    MinWidth="920"
+    Width="1220"
+    MinWidth="1080"
     MinHeight="260"
     MaxHeight="760"
     SizeToContent="Height"
@@ -14,6 +15,9 @@
     WindowStartupLocation="CenterOwner"
     Title="Interaction Rules"
     Background="{Binding DialogBackground, ElementName=Root}">
+  <Window.Resources>
+    <widgets:PythonInteractionTargetDisplayConverter x:Key="PythonInteractionTargetDisplayConverter" />
+  </Window.Resources>
   <Window.Styles>
     <Style Selector="Button.dialog-button">
       <Setter Property="FontSize" Value="12" />
@@ -84,7 +88,8 @@
     </controls:EditorShellControl.HeaderContent>
 
     <controls:EditorShellControl.BodyContent>
-      <StackPanel>
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+      <StackPanel MinWidth="1090">
         <StackPanel Margin="0,0,0,8" Spacing="4">
           <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{Binding SectionHeaderForeground, ElementName=Root}" Text="Configured" />
           <Border Height="1" Background="{Binding SectionBorderBrush, ElementName=Root}" />
@@ -99,17 +104,26 @@
             <ItemsControl ItemsSource="{Binding Rows}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="viewModels:ItemInteractionEditorRow">
-                  <Grid ColumnDefinitions="170,170,*,150,Auto" Margin="0,0,0,8">
+                  <Grid ColumnDefinitions="160,170,260,220,150,Auto" Margin="0,0,0,8">
                     <ComboBox Classes="dialog-field" ItemsSource="{Binding EventOptions}" SelectedItem="{Binding EventName, Mode=TwoWay}" />
                     <ComboBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding ActionName, Mode=TwoWay}" />
-                    <Grid Grid.Column="2" Margin="8,0,0,0" ColumnDefinitions="*,Auto">
+                    <Grid Grid.Column="2" Margin="8,0,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding IsStandardInteractionAction}">
                       <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding TargetPath, Mode=TwoWay}" />
                       <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" ToolTip.Tip="Browse targets" Click="OnBrowseRowTargetClicked">
                         <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
                       </Button>
                     </Grid>
-                    <TextBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" Text="{Binding Argument, Mode=TwoWay}" Watermark="Argument" />
-                    <Button Grid.Column="4" Margin="8,0,0,0" Classes="dialog-button" Content="Remove" Click="OnRemoveClicked" />
+                    <ComboBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding IsPythonFunctionAction}" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding TargetPath, Mode=TwoWay}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding Converter={StaticResource PythonInteractionTargetDisplayConverter}}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <ComboBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding IsPythonFunctionAction}" ItemsSource="{Binding FunctionOptions}" SelectedItem="{Binding FunctionName, Mode=TwoWay}" />
+                    <TextBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding IsStandardInteractionAction}" IsEnabled="False" Text="-" />
+                    <TextBox Grid.Column="4" Margin="8,0,0,0" Classes="dialog-field" Text="{Binding Argument, Mode=TwoWay}" Watermark="Argument" />
+                    <Button Grid.Column="5" Margin="8,0,0,0" Classes="dialog-button" Content="Remove" Click="OnRemoveClicked" />
                   </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
@@ -123,25 +137,36 @@
             <Border Height="1" Background="{Binding SectionBorderBrush, ElementName=Root}" />
           </StackPanel>
 
-          <Grid ColumnDefinitions="170,170,*,150,Auto" RowDefinitions="Auto,Auto">
+          <Grid ColumnDefinitions="160,170,260,220,150,Auto" RowDefinitions="Auto,Auto">
             <TextBlock Grid.Row="0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Event" />
             <TextBlock Grid.Row="0" Grid.Column="1" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Action" />
             <TextBlock Grid.Row="0" Grid.Column="2" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Target" />
-            <TextBlock Grid.Row="0" Grid.Column="3" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Argument" />
+            <TextBlock Grid.Row="0" Grid.Column="3" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Function" />
+            <TextBlock Grid.Row="0" Grid.Column="4" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Argument" />
 
             <ComboBox Grid.Row="1" Margin="0,6,0,0" Classes="dialog-field" ItemsSource="{Binding EventOptions}" SelectedItem="{Binding NewEventName, Mode=TwoWay}" />
             <ComboBox Grid.Row="1" Grid.Column="1" Margin="8,6,0,0" Classes="dialog-field" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding NewActionName, Mode=TwoWay}" />
-            <Grid Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" ColumnDefinitions="*,Auto">
+            <Grid Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding IsNewStandardAction}">
               <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding NewTargetPath, Mode=TwoWay}" />
               <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" ToolTip.Tip="Browse targets" Click="OnBrowseNewTargetClicked">
                 <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
               </Button>
             </Grid>
-            <TextBox Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" Text="{Binding NewArgument, Mode=TwoWay}" Watermark="Argument" />
-            <Button Grid.Row="1" Grid.Column="4" Margin="8,6,0,0" Classes="dialog-button" Content="Add" Click="OnAddClicked" />
+            <ComboBox Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding IsNewPythonFunctionAction}" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding NewTargetPath, Mode=TwoWay}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Converter={StaticResource PythonInteractionTargetDisplayConverter}}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox x:Name="NewFunctionComboBox" Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding IsNewPythonFunctionAction}" SelectedItem="{Binding NewFunctionName, Mode=TwoWay}" />
+            <TextBox Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding IsNewStandardAction}" IsEnabled="False" Text="-" />
+            <TextBox Grid.Row="1" Grid.Column="4" Margin="8,6,0,0" Classes="dialog-field" Text="{Binding NewArgument, Mode=TwoWay}" Watermark="Argument" />
+            <Button Grid.Row="1" Grid.Column="5" Margin="8,6,0,0" Classes="dialog-button" Content="Add" Click="OnAddClicked" />
           </Grid>
         </StackPanel>
       </StackPanel>
+      </ScrollViewer>
     </controls:EditorShellControl.BodyContent>
 
     <controls:EditorShellControl.FooterContent>

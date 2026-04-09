@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using Avalonia.Media;
 using Amium.Host;
+using Amium.Host.Python.Client;
 using Amium.Items;
 using Amium.UiEditor.Helpers;
 using Amium.UiEditor.Models;
@@ -41,11 +42,20 @@ public sealed class EditorDialogField : ObservableObject
 
     public EditorDialogBindingDefinition Definition { get; }
 
+    public FolderItemModel? OwnerItem { get; internal set; }
+
+    public string OwnerWorkspaceDirectory { get; internal set; } = string.Empty;
+
     public Parameter Parameter { get; }
 
     public string Key => Definition.Key;
 
     public string Label => Definition.Label;
+
+    // Display label used in the properties grid; hide the caption
+    // completely for the PythonEnvManager environments editor so the
+    // inline panel can use the full width without a left-hand label.
+    public string DisplayLabel => IsPythonEnvManagerPicker ? string.Empty : Label;
 
     public EditorPropertyType PropertyType => Definition.PropertyType;
 
@@ -71,6 +81,10 @@ public sealed class EditorDialogField : ObservableObject
 
     public ObservableCollection<string> InteractionTargetOptions { get; } = [];
 
+    public ObservableCollection<string> InteractionPythonClientOptions { get; } = [];
+
+    public ObservableCollection<string> InteractionPythonEnvironmentOptions { get; } = [];
+
     private readonly Dictionary<string, string> _chartTargetPathByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _chartTargetNameByPath = new(StringComparer.OrdinalIgnoreCase);
 
@@ -82,6 +96,7 @@ public sealed class EditorDialogField : ObservableObject
     private string _newInteractionEventName = "BodyLeftClick";
     private string _newInteractionActionName = "OpenValueEditor";
     private string _newInteractionTargetPath = "this";
+    private string _newInteractionFunctionName = string.Empty;
     private string _newInteractionArgument = string.Empty;
 
     public string ToolTipText
@@ -186,6 +201,12 @@ public sealed class EditorDialogField : ObservableObject
         set => SetProperty(ref _newInteractionTargetPath, string.IsNullOrWhiteSpace(value) ? "this" : value);
     }
 
+    public string NewInteractionFunctionName
+    {
+        get => _newInteractionFunctionName;
+        set => SetProperty(ref _newInteractionFunctionName, value ?? string.Empty);
+    }
+
     public string NewInteractionArgument
     {
         get => _newInteractionArgument;
@@ -198,7 +219,7 @@ public sealed class EditorDialogField : ObservableObject
 
     public bool IsColor => PropertyType == EditorPropertyType.Color;
 
-    public bool IsMultilineText => PropertyType == EditorPropertyType.MultilineText;
+    public bool IsMultilineText => PropertyType == EditorPropertyType.MultilineText && !IsPythonEnvManagerPicker;
 
     public bool IsChartSeriesList => PropertyType == EditorPropertyType.ChartSeriesList;
 
@@ -206,7 +227,20 @@ public sealed class EditorDialogField : ObservableObject
 
     public bool IsInteractionRuleList => PropertyType == EditorPropertyType.InteractionRuleList;
 
-    public bool IsTextInput => !IsChoice && !IsTargetTree && !IsReadOnly && !IsMultilineText && !IsChartSeriesList && !IsAttachItemList && !IsInteractionRuleList;
+    public bool IsPythonScriptCreator => string.Equals(Key, "PythonScriptPath", StringComparison.Ordinal);
+
+    public bool IsPythonTemplateSelector => string.Equals(Key, "PythonScriptPath", StringComparison.Ordinal);
+
+    public bool IsPythonEnvManagerPicker => string.Equals(Key, "PythonEnvDefinitions", StringComparison.Ordinal);
+
+    public bool IsTextInput => !IsChoice
+                               && !IsTargetTree
+                               && !IsReadOnly
+                               && !IsMultilineText
+                               && !IsChartSeriesList
+                               && !IsAttachItemList
+                               && !IsInteractionRuleList
+                               && !IsPythonEnvManagerPicker;
 
     public bool ShowPickerButton => IsColor && !IsReadOnly;
 
@@ -330,7 +364,10 @@ public sealed class EditorDialogField : ObservableObject
             return;
         }
 
-        RefreshInteractionRuleTargetOptions(HostRegistries.Data.GetAllKeys().OrderBy(key => key, StringComparer.OrdinalIgnoreCase));
+        RefreshInteractionRuleTargetOptions(
+            HostRegistries.Data.GetAllKeys().OrderBy(key => key, StringComparer.OrdinalIgnoreCase),
+            [],
+            []);
     }
 
     public void RefreshAttachItemOptions(IEnumerable<string> options)
@@ -365,7 +402,7 @@ public sealed class EditorDialogField : ObservableObject
         RaisePropertyChanged(nameof(StructuredEditorSummary));
     }
 
-    public void RefreshInteractionRuleTargetOptions(IEnumerable<string> options)
+    public void RefreshInteractionRuleTargetOptions(IEnumerable<string> options, IEnumerable<string>? pythonClientOptions, IEnumerable<string>? pythonEnvironmentOptions)
     {
         if (!IsInteractionRuleList)
         {
@@ -377,6 +414,22 @@ public sealed class EditorDialogField : ObservableObject
         foreach (var option in options.Where(static option => !string.IsNullOrWhiteSpace(option)).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             InteractionTargetOptions.Add(option);
+        }
+
+        InteractionPythonClientOptions.Clear();
+        foreach (var option in (pythonClientOptions ?? [])
+                     .Where(static option => !string.IsNullOrWhiteSpace(option))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            InteractionPythonClientOptions.Add(option);
+        }
+
+        InteractionPythonEnvironmentOptions.Clear();
+        foreach (var option in (pythonEnvironmentOptions ?? [])
+                     .Where(static option => !string.IsNullOrWhiteSpace(option))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            InteractionPythonEnvironmentOptions.Add(option);
         }
 
         if (string.IsNullOrWhiteSpace(NewInteractionTargetPath))
@@ -460,7 +513,7 @@ public sealed class EditorDialogField : ObservableObject
         InteractionRuleEntries.Clear();
         foreach (var row in rows)
         {
-            InteractionRuleEntries.Add(CreateInteractionRuleEntry(row.EventName, row.ActionName, row.TargetPath, row.Argument));
+            InteractionRuleEntries.Add(CreateInteractionRuleEntry(row.EventName, row.ActionName, row.TargetPath, row.FunctionName, row.Argument));
         }
 
         SyncInteractionRuleValueFromEntries();
@@ -515,7 +568,7 @@ public sealed class EditorDialogField : ObservableObject
         InteractionRuleEntries.Clear();
         foreach (var rule in ItemInteractionRuleCodec.ParseDefinitions(Value))
         {
-            InteractionRuleEntries.Add(CreateInteractionRuleEntry(rule.Event.ToString(), rule.Action.ToString(), rule.TargetPath, rule.Argument));
+            InteractionRuleEntries.Add(CreateInteractionRuleEntry(rule.Event.ToString(), rule.Action.ToString(), rule.TargetPath, rule.FunctionName, rule.Argument));
         }
 
         RaisePropertyChanged(nameof(StructuredEditorSummary));
@@ -558,13 +611,14 @@ public sealed class EditorDialogField : ObservableObject
         return row;
     }
 
-    private ItemInteractionEditorRow CreateInteractionRuleEntry(string eventName, string actionName, string targetPath, string argument)
+    private ItemInteractionEditorRow CreateInteractionRuleEntry(string eventName, string actionName, string targetPath, string functionName, string argument)
     {
         var row = new ItemInteractionEditorRow
         {
             EventName = string.IsNullOrWhiteSpace(eventName) ? "BodyLeftClick" : eventName,
             ActionName = string.IsNullOrWhiteSpace(actionName) ? "OpenValueEditor" : actionName,
             TargetPath = string.IsNullOrWhiteSpace(targetPath) ? "this" : targetPath,
+            FunctionName = functionName ?? string.Empty,
             Argument = argument ?? string.Empty
         };
 
@@ -578,7 +632,7 @@ public sealed class EditorDialogField : ObservableObject
             row.ActionOptions.Add(option);
         }
 
-        foreach (var option in InteractionTargetOptions)
+        foreach (var option in GetInteractionTargetOptions(row.ActionName))
         {
             row.TargetOptions.Add(option);
         }
@@ -586,6 +640,16 @@ public sealed class EditorDialogField : ObservableObject
         if (!row.TargetOptions.Contains(row.TargetPath))
         {
             row.TargetOptions.Add(row.TargetPath);
+        }
+
+        foreach (var option in GetInteractionFunctionOptions(row.TargetPath))
+        {
+            row.FunctionOptions.Add(option);
+        }
+
+        if (!string.IsNullOrWhiteSpace(row.FunctionName) && !row.FunctionOptions.Contains(row.FunctionName))
+        {
+            row.FunctionOptions.Add(row.FunctionName);
         }
 
         row.PropertyChanged += OnInteractionRuleRowPropertyChanged;
@@ -615,9 +679,53 @@ public sealed class EditorDialogField : ObservableObject
         if (e.PropertyName is nameof(ItemInteractionEditorRow.EventName)
             or nameof(ItemInteractionEditorRow.ActionName)
             or nameof(ItemInteractionEditorRow.TargetPath)
+            or nameof(ItemInteractionEditorRow.FunctionName)
             or nameof(ItemInteractionEditorRow.Argument))
         {
+            if (sender is ItemInteractionEditorRow row
+                && e.PropertyName is nameof(ItemInteractionEditorRow.ActionName) or nameof(ItemInteractionEditorRow.TargetPath))
+            {
+                RefreshInteractionRuleRowOptions(row);
+            }
+
             SyncInteractionRuleValueFromEntries();
+        }
+    }
+
+    public IReadOnlyList<string> GetInteractionTargetOptions(string? actionName)
+        => string.Equals(actionName, nameof(ItemInteractionAction.InvokePythonClientFunction), StringComparison.OrdinalIgnoreCase)
+            ? InteractionPythonClientOptions.ToArray()
+            : string.Equals(actionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase)
+                ? InteractionPythonEnvironmentOptions.ToArray()
+                : InteractionTargetOptions.ToArray();
+
+    public IReadOnlyList<string> GetInteractionFunctionOptions(string? targetPath)
+        => string.IsNullOrWhiteSpace(targetPath)
+            ? Array.Empty<string>()
+            : PythonClientRuntimeRegistry.GetFunctionNames(Amium.UiEditor.Widgets.PythonEnvManagerRuntime.ResolveInteractionTargetPath(null, targetPath));
+
+    public void RefreshInteractionRuleRowOptions(ItemInteractionEditorRow row)
+    {
+        row.TargetOptions.Clear();
+        foreach (var option in GetInteractionTargetOptions(row.ActionName))
+        {
+            row.TargetOptions.Add(option);
+        }
+
+        if (!string.IsNullOrWhiteSpace(row.TargetPath) && !row.TargetOptions.Contains(row.TargetPath))
+        {
+            row.TargetOptions.Add(row.TargetPath);
+        }
+
+        row.FunctionOptions.Clear();
+        foreach (var option in GetInteractionFunctionOptions(row.TargetPath))
+        {
+            row.FunctionOptions.Add(option);
+        }
+
+        if (!string.IsNullOrWhiteSpace(row.FunctionName) && !row.FunctionOptions.Contains(row.FunctionName))
+        {
+            row.FunctionOptions.Add(row.FunctionName);
         }
     }
 
@@ -638,6 +746,7 @@ public sealed class EditorDialogField : ObservableObject
             Event = Enum.TryParse<ItemInteractionEvent>(row.EventName, ignoreCase: true, out var eventKind) ? eventKind : ItemInteractionEvent.BodyLeftClick,
             Action = Enum.TryParse<ItemInteractionAction>(row.ActionName, ignoreCase: true, out var actionKind) ? actionKind : ItemInteractionAction.OpenValueEditor,
             TargetPath = row.TargetPath,
+            FunctionName = row.FunctionName,
             Argument = row.Argument
         }));
 
@@ -745,6 +854,7 @@ public sealed class EditorDialogField : ObservableObject
             EventName = source.EventName,
             ActionName = source.ActionName,
             TargetPath = source.TargetPath,
+            FunctionName = source.FunctionName,
             Argument = source.Argument
         };
 
@@ -758,7 +868,7 @@ public sealed class EditorDialogField : ObservableObject
             row.ActionOptions.Add(option);
         }
 
-        foreach (var option in InteractionTargetOptions)
+        foreach (var option in GetInteractionTargetOptions(row.ActionName))
         {
             row.TargetOptions.Add(option);
         }
@@ -766,6 +876,16 @@ public sealed class EditorDialogField : ObservableObject
         if (!row.TargetOptions.Contains(row.TargetPath))
         {
             row.TargetOptions.Add(row.TargetPath);
+        }
+
+        foreach (var option in GetInteractionFunctionOptions(row.TargetPath))
+        {
+            row.FunctionOptions.Add(option);
+        }
+
+        if (!string.IsNullOrWhiteSpace(row.FunctionName) && !row.FunctionOptions.Contains(row.FunctionName))
+        {
+            row.FunctionOptions.Add(row.FunctionName);
         }
 
         return row;

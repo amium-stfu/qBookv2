@@ -65,6 +65,17 @@ public sealed class ParameterDisplayModel
         var value = Parameter?.Value;
         if (value is null)
         {
+            // Wenn kein Parameterwert verfuegbar ist, aber ein numerisches Format
+            // konfiguriert wurde, versuchen wir, den Fallback-Text als Zahl zu
+            // interpretieren und entsprechend zu formatieren (z.B. fuer Script-Werte).
+            if (Definition.Kind == ParameterVisualKind.Numeric
+                && !string.IsNullOrWhiteSpace(FallbackText)
+                && double.TryParse(FallbackText, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var numericFallback))
+            {
+                var formatPattern = string.IsNullOrWhiteSpace(Definition.PatternOrOptionsText) ? "0.##" : Definition.PatternOrOptionsText;
+                return numericFallback.ToString(formatPattern, CultureInfo.InvariantCulture) ?? FallbackText;
+            }
+
             return FallbackText;
         }
 

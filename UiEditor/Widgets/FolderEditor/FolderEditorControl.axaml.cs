@@ -534,6 +534,8 @@ public partial class FolderEditorControl : UserControl
     private void OnBeginAddChartControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.ChartControl);
     private void OnBeginAddCameraControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.CameraControl);
     private void OnBeginAddUdlClientControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.UdlClientControl);
+    private void OnBeginAddPythonClientClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.PythonClient);
+    private void OnBeginAddPythonEnvManagerClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.PythonEnvManager);
     private void OnBeginAddButtonToListClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginListAdd(ControlKind.Button);
     private void OnBeginAddSignalToListClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginListAdd(ControlKind.Signal);
     private void OnCancelSelectionClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.CancelSelection();

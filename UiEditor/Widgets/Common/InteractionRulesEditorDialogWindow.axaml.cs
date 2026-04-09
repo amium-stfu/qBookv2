@@ -2,11 +2,28 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 
 namespace Amium.UiEditor.Widgets;
+
+public sealed class PythonInteractionTargetDisplayConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
+    {
+        if (value is not string raw || string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+
+        return PythonEnvManagerRuntime.GetInteractionTargetDisplayText(raw);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
+        => value ?? string.Empty;
+}
 
 public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropertyChanged
 {
@@ -25,6 +42,11 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
     private string _editorDialogSectionContentBackground = "#EEF3F8";
     private string _sectionBorderBrush = "#CBD5E1";
     private string _sectionHeaderForeground = "#111827";
+    private string _newEventName = "BodyLeftClick";
+    private string _newActionName = "OpenValueEditor";
+    private string _newTargetPath = "this";
+    private string _newFunctionName = string.Empty;
+    private string _newArgument = string.Empty;
 
     public new event PropertyChangedEventHandler? PropertyChanged;
 
@@ -37,6 +59,7 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         NewEventName = ItemInteractionRuleCodec.EventOptions.FirstOrDefault() ?? "BodyLeftClick";
         NewActionName = ItemInteractionRuleCodec.ActionOptions.FirstOrDefault() ?? "OpenValueEditor";
         NewTargetPath = "this";
+        NewFunctionName = string.Empty;
         NewArgument = string.Empty;
         InitializeComponent();
         DataContext = this;
@@ -52,10 +75,17 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         NewEventName = EventOptions.FirstOrDefault() ?? "BodyLeftClick";
         NewActionName = ActionOptions.FirstOrDefault() ?? "OpenValueEditor";
         NewTargetPath = TargetOptions.FirstOrDefault() ?? "this";
+        NewFunctionName = string.Empty;
         NewArgument = string.Empty;
         InitializeComponent();
         DataContext = this;
         AttachToViewModel(viewModel);
+        foreach (var row in Rows)
+        {
+            AttachRow(row);
+        }
+
+        RefreshNewEntryOptions();
     }
 
     public ObservableCollection<ItemInteractionEditorRow> Rows { get; }
@@ -144,16 +174,71 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         private set => SetAndRaise(ref _sectionHeaderForeground, value, nameof(SectionHeaderForeground));
     }
 
-    public string NewEventName { get; set; }
+    public string NewEventName
+    {
+        get => _newEventName;
+        set => SetAndRaise(ref _newEventName, string.IsNullOrWhiteSpace(value) ? "BodyLeftClick" : value, nameof(NewEventName));
+    }
 
-    public string NewActionName { get; set; }
+    public string NewActionName
+    {
+        get => _newActionName;
+        set
+        {
+            var normalized = string.IsNullOrWhiteSpace(value) ? "OpenValueEditor" : value;
+            if (_newActionName == normalized)
+            {
+                return;
+            }
 
-    public string NewTargetPath { get; set; }
+            _newActionName = normalized;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewActionName)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewPythonFunctionAction)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewStandardAction)));
+            RefreshNewEntryOptions();
+        }
+    }
 
-    public string NewArgument { get; set; }
+    public string NewTargetPath
+    {
+        get => _newTargetPath;
+        set
+        {
+            if (_newTargetPath == (value ?? string.Empty))
+            {
+                return;
+            }
+
+            _newTargetPath = value ?? string.Empty;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewTargetPath)));
+            RefreshNewEntryFunctionOptions();
+        }
+    }
+
+    public string NewFunctionName
+    {
+        get => _newFunctionName;
+        set => SetAndRaise(ref _newFunctionName, value ?? string.Empty, nameof(NewFunctionName));
+    }
+
+    public string NewArgument
+    {
+        get => _newArgument;
+        set => SetAndRaise(ref _newArgument, value ?? string.Empty, nameof(NewArgument));
+    }
+
+    public bool IsNewPythonFunctionAction => string.Equals(NewActionName, nameof(ItemInteractionAction.InvokePythonClientFunction), StringComparison.OrdinalIgnoreCase)
+                                             || string.Equals(NewActionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase);
+
+    public bool IsNewStandardAction => !IsNewPythonFunctionAction;
 
     protected override void OnClosed(System.EventArgs e)
     {
+        foreach (var row in Rows)
+        {
+            DetachRow(row);
+        }
+
         AttachToViewModel(null);
         base.OnClosed(e);
     }
@@ -165,23 +250,11 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
             EventName = string.IsNullOrWhiteSpace(NewEventName) ? "BodyLeftClick" : NewEventName,
             ActionName = string.IsNullOrWhiteSpace(NewActionName) ? "OpenValueEditor" : NewActionName,
             TargetPath = string.IsNullOrWhiteSpace(NewTargetPath) ? "this" : NewTargetPath,
+            FunctionName = NewFunctionName,
             Argument = NewArgument
         };
 
-        foreach (var option in EventOptions)
-        {
-            row.EventOptions.Add(option);
-        }
-
-        foreach (var option in ActionOptions)
-        {
-            row.ActionOptions.Add(option);
-        }
-
-        foreach (var option in TargetOptions)
-        {
-            row.TargetOptions.Add(option);
-        }
+        AttachRow(row);
 
         Rows.Add(row);
         e.Handled = true;
@@ -219,6 +292,7 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
     {
         if (sender is Control { DataContext: ItemInteractionEditorRow row })
         {
+            DetachRow(row);
             Rows.Remove(row);
         }
 
@@ -294,6 +368,104 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         EditorDialogSectionContentBackground = _viewModel?.EditorDialogSectionContentBackground ?? "#EEF3F8";
         SectionBorderBrush = _viewModel?.EditorDialogSectionHeaderBorderBrush ?? "#CBD5E1";
         SectionHeaderForeground = _viewModel?.EditorDialogSectionHeaderForeground ?? "#111827";
+    }
+
+    private void AttachRow(ItemInteractionEditorRow row)
+    {
+        foreach (var option in EventOptions)
+        {
+            if (!row.EventOptions.Contains(option))
+            {
+                row.EventOptions.Add(option);
+            }
+        }
+
+        foreach (var option in ActionOptions)
+        {
+            if (!row.ActionOptions.Contains(option))
+            {
+                row.ActionOptions.Add(option);
+            }
+        }
+
+        RefreshRowOptions(row);
+        row.PropertyChanged += OnRowPropertyChanged;
+    }
+
+    private void DetachRow(ItemInteractionEditorRow row)
+    {
+        row.PropertyChanged -= OnRowPropertyChanged;
+    }
+
+    private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not ItemInteractionEditorRow row)
+        {
+            return;
+        }
+
+        if (e.PropertyName is nameof(ItemInteractionEditorRow.ActionName) or nameof(ItemInteractionEditorRow.TargetPath))
+        {
+            RefreshRowOptions(row);
+        }
+    }
+
+    private void RefreshRowOptions(ItemInteractionEditorRow row)
+    {
+        if (_field is not null)
+        {
+            _field.RefreshInteractionRuleRowOptions(row);
+            return;
+        }
+
+        row.TargetOptions.Clear();
+        foreach (var option in TargetOptions)
+        {
+            row.TargetOptions.Add(option);
+        }
+    }
+
+    private void RefreshNewEntryOptions()
+    {
+        if (_field is null)
+        {
+            return;
+        }
+
+        TargetOptions.Clear();
+        foreach (var option in _field.GetInteractionTargetOptions(NewActionName))
+        {
+            TargetOptions.Add(option);
+        }
+
+        if (IsNewPythonFunctionAction)
+        {
+            if (string.IsNullOrWhiteSpace(NewTargetPath) && TargetOptions.Count > 0)
+            {
+                NewTargetPath = TargetOptions[0];
+            }
+        }
+        else if (string.IsNullOrWhiteSpace(NewTargetPath))
+        {
+            NewTargetPath = "this";
+        }
+
+        RefreshNewEntryFunctionOptions();
+    }
+
+    private void RefreshNewEntryFunctionOptions()
+    {
+        if (_field is null)
+        {
+            return;
+        }
+
+        var functionOptions = _field.GetInteractionFunctionOptions(NewTargetPath);
+        var functionCombo = this.FindControl<ComboBox>("NewFunctionComboBox");
+        if (functionCombo is not null)
+        {
+            functionCombo.ItemsSource = functionOptions;
+        }
     }
 
     private async Task<string?> SelectTargetAsync(IEnumerable<string> options, string currentSelection)

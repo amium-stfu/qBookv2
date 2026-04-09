@@ -1,0 +1,97 @@
+<UserControl
+    x:Class="Amium.UiEditor.Widgets.PythonEnvManagerSettingsDialogWindow"
+    x:Name="EnvPanelRoot"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Border Margin="0,4,0,0"
+          Background="Transparent"
+          BorderBrush="Transparent"
+          BorderThickness="0"
+          CornerRadius="0"
+          Padding="0">
+    <StackPanel Spacing="10">
+      <TextBlock FontSize="14"
+                 FontWeight="SemiBold"
+                 Foreground="{Binding PrimaryTextBrush, ElementName=EnvPanelRoot}"
+                 Text="Environments" />
+
+      <Button Margin="0,4,0,4"
+              Padding="10,6"
+              Background="{Binding ButtonBackground, ElementName=EnvPanelRoot}"
+              BorderBrush="{Binding ButtonBorderBrush, ElementName=EnvPanelRoot}"
+              Foreground="{Binding ButtonForeground, ElementName=EnvPanelRoot}"
+              HorizontalAlignment="Stretch"
+              Click="OnAddEnvironmentClicked">
+        <TextBlock FontSize="13"
+                   FontWeight="SemiBold"
+                   HorizontalAlignment="Center"
+                   Text="Add Environment" />
+      </Button>
+
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    Height="160">
+        <ItemsControl ItemsSource="{Binding Environments, ElementName=EnvPanelRoot}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Margin="0,4,0,0"
+                      Padding="6,4"
+                      CornerRadius="6"
+                      Background="{Binding SettingsRowBackground}"
+                      BorderBrush="Transparent"
+                      BorderThickness="0">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                  <TextBlock Grid.Column="0"
+                             FontSize="12"
+                             VerticalAlignment="Center"
+                             Foreground="{Binding PrimaryTextBrush, ElementName=EnvPanelRoot}"
+                             Text="{Binding Name}" />
+
+                  <Button Grid.Column="1"
+                          Margin="6,0,0,0"
+                          Padding="8,2"
+                          Background="{Binding SettingsStartButtonBackground}"
+                          BorderBrush="{Binding ButtonBorderBrush, ElementName=EnvPanelRoot}"
+                          Foreground="{Binding SettingsStartButtonForeground}"
+                          Command="{Binding StartCommand}">
+                    <TextBlock FontSize="11" Text="Start" />
+                  </Button>
+
+                  <Button Grid.Column="2"
+                          Margin="6,0,0,0"
+                          Padding="8,2"
+                          Background="{Binding SettingsStopButtonBackground}"
+                          BorderBrush="{Binding ButtonBorderBrush, ElementName=EnvPanelRoot}"
+                          Foreground="{Binding SettingsStopButtonForeground}"
+                          Command="{Binding StopCommand}">
+                    <TextBlock FontSize="11" Text="Stop" />
+                  </Button>
+
+                  <Button Grid.Column="3"
+                          Margin="6,0,0,0"
+                          Padding="8,2"
+                          Background="{Binding ButtonBackground, ElementName=EnvPanelRoot}"
+                          BorderBrush="{Binding ButtonBorderBrush, ElementName=EnvPanelRoot}"
+                          Foreground="{Binding ButtonForeground, ElementName=EnvPanelRoot}"
+                          Command="{Binding EditCommand}">
+                    <TextBlock FontSize="11" Text="Edit" />
+                  </Button>
+
+                  <Button Grid.Column="4"
+                          Margin="6,0,0,0"
+                          Padding="8,2"
+                          Background="{Binding ButtonBackground, ElementName=EnvPanelRoot}"
+                          BorderBrush="{Binding ButtonBorderBrush, ElementName=EnvPanelRoot}"
+                          Foreground="{Binding ButtonForeground, ElementName=EnvPanelRoot}"
+                          Click="OnDeleteEnvironmentClicked"
+                          CommandParameter="{Binding .}">
+                    <TextBlock FontSize="11" Text="Delete" />
+                  </Button>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </StackPanel>
+  </Border>
+</UserControl>

@@ -47,6 +47,7 @@ public sealed class EditorDialogBindingDefinition
     {
         var parameterPath = string.IsNullOrWhiteSpace(item.Path) ? Key : $"{item.Path}.{Key}";
         var field = new EditorDialogField(this, new Parameter(Key, ReadValue(item), parameterPath));
+        field.OwnerItem = item;
         if (OptionsFactory is not null)
         {
             foreach (var option in OptionsFactory(item))

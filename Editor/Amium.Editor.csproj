@@ -40,4 +40,10 @@
     <AvaloniaResource Include="..\UiEditor\EditorIcons\**\*.svg" Link="EditorIcons\%(RecursiveDir)%(Filename)%(Extension)" />
     <AvaloniaResource Include="..\UiEditor\EditorIcons\**\*.png" Link="EditorIcons\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\UiEditor\Templates\**\*" Link="Templates\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

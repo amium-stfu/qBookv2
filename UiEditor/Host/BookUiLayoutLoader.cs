@@ -175,7 +175,7 @@ public static class ProjectUiLayoutLoader
 
     private static ProjectUiNode ReadYamlControlNode(YamlMappingNode node)
     {
-        var type = GetScalar(node, "Type") ?? string.Empty;
+        var type = NormalizeControlType(GetScalar(node, "Type"));
         var properties = new JsonObject
         {
             ["Type"] = type
@@ -250,6 +250,7 @@ public static class ProjectUiLayoutLoader
                 SetPropertyIfPresent(rule, "Event", GetScalarJsonNode(ruleNode, "Event"));
                 SetPropertyIfPresent(rule, "Action", GetScalarJsonNode(ruleNode, "Action"));
                 SetPropertyIfPresent(rule, "TargetPath", GetScalarJsonNode(ruleNode, "TargetPath"));
+                SetPropertyIfPresent(rule, "FunctionName", GetScalarJsonNode(ruleNode, "FunctionName"));
                 SetPropertyIfPresent(rule, "Argument", GetScalarJsonNode(ruleNode, "Argument"));
                 array.Add(rule);
             }
@@ -280,10 +281,18 @@ public static class ProjectUiLayoutLoader
         };
     }
 
+    private static string NormalizeControlType(string? type)
+        => string.Equals(type, "PythonValueClient", StringComparison.OrdinalIgnoreCase)
+            ? "PythonClient"
+            : (type ?? string.Empty);
+
     private static void ReadYamlControlProperties(string type, YamlMappingNode control, JsonObject properties, List<ProjectUiNode> children)
     {
         SetPropertyIfPresent(properties, "Unit", GetScalarJsonNode(control, "Unit"));
         SetPropertyIfPresent(properties, "TargetPath", GetScalarJsonNode(control, "Uri") ?? GetScalarJsonNode(control, "TargetPath"));
+        SetPropertyIfPresent(properties, "PythonScript", GetScalarJsonNode(control, "PythonScript"));
+        SetPropertyIfPresent(properties, "PythonEnvironments", GetScalarJsonNode(control, "PythonEnvironments"));
+        SetPropertyIfPresent(properties, "PythonEnvAutoStart", GetScalarJsonNode(control, "PythonEnvAutoStart"));
         SetPropertyIfPresent(properties, "TargetParameterPath", GetScalarJsonNode(control, "Parameter") ?? GetScalarJsonNode(control, "TargetParameterPath"));
         SetPropertyIfPresent(properties, "TargetParameterFormat", GetScalarJsonNode(control, "Format") ?? GetScalarJsonNode(control, "TargetParameterFormat"));
         SetPropertyIfPresent(properties, "IsReadOnly", GetScalarJsonNode(control, "IsReadOnly"));

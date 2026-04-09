@@ -143,6 +143,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         {
             if (SetProperty(ref _bookProjectPath, value))
             {
+                RefreshCurrentFolderWorkspacePath();
                 LoadProjectCommand.RaiseCanExecuteChanged();
                 RebuildProjectCommand.RaiseCanExecuteChanged();
             }
@@ -1608,6 +1609,16 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         if (string.Equals(type, "CameraControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "Camera", StringComparison.OrdinalIgnoreCase))
         {
             return ControlKind.CameraControl;
+        }
+
+        if (string.Equals(type, "PythonClient", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.PythonClient;
+        }
+
+        if (string.Equals(type, "PythonEnvManager", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.PythonEnvManager;
         }
 
         return ControlKind.Signal;

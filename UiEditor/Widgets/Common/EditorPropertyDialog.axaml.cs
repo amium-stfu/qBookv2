@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -8,6 +9,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using Amium.UiEditor.ViewModels;
 
@@ -336,6 +338,108 @@ public partial class EditorPropertyDialog : UserControl
         e.Handled = true;
     }
 
+    private async void OnCreatePythonScriptClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: EditorDialogField field })
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var targetPath = ViewModel?.GetPythonScriptTargetPath(field, ".py");
+        var overwriteExisting = false;
+        if (!string.IsNullOrWhiteSpace(targetPath) && File.Exists(targetPath))
+        {
+            overwriteExisting = await EditorInputDialogs.ConfirmAsync(
+                owner,
+                "Python script already exists",
+                $"The file '{Path.GetFileName(targetPath)}' already exists. Overwrite it?",
+                confirmText: "Overwrite",
+                cancelText: "Cancel");
+
+            if (!overwriteExisting)
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
+        ViewModel?.CreatePythonScriptForField(field, overwriteExisting);
+        e.Handled = true;
+    }
+
+    private async void OnCopyPythonTemplateClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: EditorDialogField field })
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        IStorageFolder? startFolder = null;
+        var initialDirectory = ViewModel?.GetPythonTemplatesDirectory();
+        if (!string.IsNullOrWhiteSpace(initialDirectory))
+        {
+            startFolder = await owner.StorageProvider.TryGetFolderFromPathAsync(initialDirectory);
+        }
+
+        var result = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Select Python template",
+            AllowMultiple = false,
+            SuggestedStartLocation = startFolder,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Python Files")
+                {
+                    Patterns = ["*.py"]
+                }
+            ]
+        });
+
+        var selectedPath = result.FirstOrDefault()?.Path.LocalPath;
+        if (!string.IsNullOrWhiteSpace(selectedPath))
+        {
+            var targetPath = ViewModel?.GetPythonScriptTargetPath(field, Path.GetExtension(selectedPath));
+            var overwriteExisting = false;
+            if (!string.IsNullOrWhiteSpace(targetPath) && File.Exists(targetPath))
+            {
+                overwriteExisting = await EditorInputDialogs.ConfirmAsync(
+                    owner,
+                    "Python script already exists",
+                    $"The file '{Path.GetFileName(targetPath)}' already exists. Overwrite it with the selected template?",
+                    confirmText: "Overwrite",
+                    cancelText: "Cancel");
+
+                if (!overwriteExisting)
+                {
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            ViewModel?.CopyPythonTemplateForField(field, selectedPath, overwriteExisting);
+        }
+
+        e.Handled = true;
+    }
+
+    // Legacy PythonEnvManager picker handler retained for compatibility; no longer used now that the
+    // Python environment list is embedded inline in the properties panel via
+    // PythonEnvManagerSettingsDialogWindow UserControl.
+    private void OnOpenPythonEnvPickerClicked(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+    }
+
     private void OnPaletteColorClicked(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string colorText } || _activeColorField is null)
@@ -429,15 +533,22 @@ public partial class EditorPropertyDialog : UserControl
             return;
         }
 
-        var dialog = new OpenFolderDialog
+        IStorageFolder? startFolder = null;
+        if (!string.IsNullOrWhiteSpace(field.Value))
         {
-            Directory = string.IsNullOrWhiteSpace(field.Value) ? null : field.Value
-        };
+            startFolder = await owner.StorageProvider.TryGetFolderFromPathAsync(field.Value);
+        }
 
-        var result = await dialog.ShowAsync(owner);
-        if (!string.IsNullOrWhiteSpace(result))
+        var result = await owner.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            field.Value = result;
+            AllowMultiple = false,
+            SuggestedStartLocation = startFolder
+        });
+
+        var selectedPath = result.FirstOrDefault()?.Path.LocalPath;
+        if (!string.IsNullOrWhiteSpace(selectedPath))
+        {
+            field.Value = selectedPath;
         }
 
         e.Handled = true;

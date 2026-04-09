@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Avalonia;
@@ -36,6 +38,14 @@ internal sealed class Program
 
     private static bool TryAcquireSingleInstance()
     {
+#if DEBUG
+        return true;
+#else
+        if (IsAnotherInstanceRunning())
+        {
+            return false;
+        }
+
         try
         {
             _singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out var createdNew);
@@ -45,6 +55,53 @@ internal sealed class Program
         {
             return true;
         }
+#endif
+    }
+
+    private static bool IsAnotherInstanceRunning()
+    {
+        try
+        {
+            using var currentProcess = Process.GetCurrentProcess();
+            var currentProcessId = currentProcess.Id;
+            var currentProcessName = currentProcess.ProcessName;
+            var currentProcessPath = currentProcess.MainModule?.FileName;
+
+            foreach (var process in Process.GetProcessesByName(currentProcessName))
+            {
+                using (process)
+                {
+                    if (process.Id == currentProcessId)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        var otherProcessPath = process.MainModule?.FileName;
+                        if (!string.IsNullOrWhiteSpace(currentProcessPath)
+                            && !string.IsNullOrWhiteSpace(otherProcessPath)
+                            && string.Equals(
+                                Path.GetFullPath(otherProcessPath),
+                                Path.GetFullPath(currentProcessPath),
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                    catch
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
     }
 
     private static void ReleaseSingleInstance()
@@ -70,13 +127,30 @@ internal sealed class Program
 
     private static void ShowAlreadyRunningMessage()
     {
-        const uint okIconWarning = 0x00000030;
-        MessageBoxW(IntPtr.Zero,
-            "AutomationExplorer is already running. Close the existing instance before starting another one.",
-            "AutomationExplorer",
-            okIconWarning);
+        TryActivateExistingWindow();
+    }
+
+    private static void TryActivateExistingWindow()
+    {
+        const int restoreWindow = 9;
+        var windowHandle = FindWindowW(null, "AutomationExplorer");
+        if (windowHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        ShowWindow(windowHandle, restoreWindow);
+        SetForegroundWindow(windowHandle);
     }
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
+    private static extern IntPtr FindWindowW(string? lpClassName, string? lpWindowName);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 }

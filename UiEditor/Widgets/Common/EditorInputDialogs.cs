@@ -1,5 +1,8 @@
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Media;
 
 namespace Amium.UiEditor.Widgets;
 
@@ -46,5 +49,75 @@ public static class EditorInputDialogs
         dialog.Initialize(header, subHeader, initialValue, digits);
         await dialog.ShowDialog(owner);
         return await dialog.WaitForResultAsync();
+    }
+
+    public static async Task<bool> ConfirmAsync(Window owner, string header, string subHeader, string confirmText = "OK", string cancelText = "Cancel")
+    {
+        var result = false;
+
+        var confirmButton = new Button
+        {
+            Content = confirmText,
+            MinWidth = 96,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
+        var cancelButton = new Button
+        {
+            Content = cancelText,
+            MinWidth = 96,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
+        var window = new Window
+        {
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ShowInTaskbar = false,
+            Title = header,
+            Content = new Border
+            {
+                Padding = new Thickness(18),
+                Child = new StackPanel
+                {
+                    Spacing = 14,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = header,
+                            FontSize = 16,
+                            FontWeight = FontWeight.SemiBold,
+                            TextWrapping = TextWrapping.Wrap
+                        },
+                        new TextBlock
+                        {
+                            Text = subHeader,
+                            TextWrapping = TextWrapping.Wrap
+                        },
+                        new StackPanel
+                        {
+                            Orientation = Orientation.Horizontal,
+                            Spacing = 10,
+                            HorizontalAlignment = HorizontalAlignment.Right,
+                            Children = { cancelButton, confirmButton }
+                        }
+                    }
+                }
+            }
+        };
+
+        confirmButton.Click += (_, _) =>
+        {
+            result = true;
+            window.Close();
+        };
+
+        cancelButton.Click += (_, _) => window.Close();
+
+        await window.ShowDialog(owner);
+        return result;
     }
 }

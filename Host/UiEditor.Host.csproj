@@ -46,6 +46,8 @@
     <Compile Include="Logging\ProcessLog.cs" />
     <Compile Include="Logging\CsvLogger.cs" />
     <Compile Include="Logging\SqlLogger.cs" />
+    <Compile Include="Python\Legacy\**\*.cs" />
+    <Compile Include="Python\Client\**\*.cs" />
     <Compile Include="Helpers\**\*.cs" />
     <Compile Include="Manager\**\*.cs" />
     <Compile Include="Net\PipeCom.cs" />

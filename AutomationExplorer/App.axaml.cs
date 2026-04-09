@@ -29,14 +29,11 @@ public partial class App : Application
 		{
 			desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
 
-			desktop.Exit += async (_, _) =>
+			desktop.Exit += (_, _) =>
 			{
 				try
 				{
-					await Core.ShutdownAsync();
-					Amium.Host.TasksManager.StopAll();
-					Amium.Host.ThreadsManager.StopAll();
-					Amium.Host.TimerManager.StopAll();
+					HostShutdownManager.ShutdownApplication("Application exit");
 				}
 				catch
 				{

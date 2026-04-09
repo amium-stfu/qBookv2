@@ -57,6 +57,8 @@
                   <controls:RealtimeChartControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsChartControl}" PageIsActive="{Binding Folder.IsSelected, ElementName=Root}" />
                   <controls:EditorCameraControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsCameraControl}" />
                   <controls:UdlClientControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsUdlClientControl}" />
+                  <controls:PythonClientControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsPythonClient}" />
+                  <controls:PythonEnvManagerControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsPythonEnvManager}" />
 
                   <!-- Auswahlrahmen nur im EditMode anzeigen -->
                   <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" IsHitTestVisible="False">
@@ -168,6 +170,8 @@
                 <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddChartControlClicked" Content="RealtimeChart" />
                 <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddCameraControlClicked" Content="Camera" />
                 <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddUdlClientControlClicked" Content="UdlClient" IsVisible="{Binding SupportsUdlClientControl}" />
+                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddPythonClientClicked" Content="PythonClient" />
+                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddPythonEnvManagerClicked" Content="PythonEnvManager" />
                 <Button HorizontalAlignment="Stretch" Click="OnCancelSelectionClicked" Content="Cancel" />
               </StackPanel>
             </Border>

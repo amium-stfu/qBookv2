@@ -61,9 +61,18 @@ public partial class ButtonControl : UserControl
             _ => (ItemInteractionEvent?)null
         };
 
-        if (interactionEvent is not null && Item.TryExecuteInteraction(interactionEvent.Value, viewModel, out _))
+        if (interactionEvent is not null)
         {
-            e.Handled = true;
+            if (Item.TryExecuteInteraction(interactionEvent.Value, viewModel, out _))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            if (interactionEvent == ItemInteractionEvent.BodyLeftClick && Item.TryExecuteButtonCommand(out _))
+            {
+                e.Handled = true;
+            }
         }
     }
 }

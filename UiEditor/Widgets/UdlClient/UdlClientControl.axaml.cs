@@ -803,7 +803,7 @@ public partial class UdlClientControl : EditorTemplateControl
             return;
         }
 
-        var folderContext = new UiFolderContext($"{item.FolderName}/{NormalizeClientName(item)}", "UdlProject");
+        var folderContext = new UiFolderContext($"{item.FolderName}/{NormalizeClientName(item)}", "Project");
         _uiFolderContext = folderContext;
 
         foreach (var relativePath in attachedPaths)
@@ -1303,7 +1303,7 @@ public partial class UdlClientControl : EditorTemplateControl
         => string.IsNullOrWhiteSpace(item.Name) ? "UdlClientControl" : item.Name.Trim();
 
     private static string GetStatusBasePath(FolderItemModel item)
-        => $"UdlProject/{item.FolderName}/{NormalizeClientName(item)}/Status";
+        => $"Project/{item.FolderName}/{NormalizeClientName(item)}/Status";
 
     private static string GetAttachOptionsBasePath(FolderItemModel item)
         => $"{GetStatusBasePath(item)}/AttachOptions";

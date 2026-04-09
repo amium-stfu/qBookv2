@@ -865,13 +865,11 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        // Stelle sicher, dass alle Hintergrundaktivitäten des Hosts gestoppt werden,
-        // bevor die Anwendung beendet wird.
         try
         {
-            Amium.Host.TasksManager.StopAll();
-            Amium.Host.ThreadsManager.StopAll();
-            Amium.Host.TimerManager.StopAll();
+            Amium.UiEditor.Widgets.PythonEnvManagerRuntime.StopAllEnvironments();
+            Amium.Host.HostShutdownManager.ShutdownApplication("MainWindow closing");
+            Amium.Host.HostShutdownManager.StopAllRuntimeScopes("MainWindow closing");
         }
         catch
         {
