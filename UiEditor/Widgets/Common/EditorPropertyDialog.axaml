@@ -8,7 +8,7 @@
     xmlns:widgets="using:Amium.UiEditor.Widgets">
   <UserControl.Styles>
     <Style Selector="Border.dialog-section-shell">
-      <Setter Property="Width" Value="396" />
+      <Setter Property="Width" Value="476" />
     </Style>
     <Style Selector="Button.section-toggle">
       <Setter Property="Background" Value="Transparent" />
@@ -117,8 +117,8 @@
       <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
     </Style>
   </UserControl.Styles>
-  <Border
-      MinWidth="470"
+    <Border
+      MinWidth="564"
       Padding="12"
       Margin="0"
       Background="{Binding DialogBackground}"

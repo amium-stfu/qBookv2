@@ -77,6 +77,8 @@ public sealed class FolderItemModel : ObservableObject
     private FolderItemModel? _parentListControl;
     private string _header = string.Empty;
     private string _title = string.Empty;
+    private string _bodyCaption = string.Empty;
+    private bool _syncText = true;
     private string _footer = string.Empty;
     private string _bodyCaptionPosition = "Top";
     private bool _showCaption = true;
@@ -423,6 +425,7 @@ public sealed class FolderItemModel : ObservableObject
         get => _title;
         set
         {
+            var hadControlCaption = ShowControlCaption;
             if (SetProperty(ref _title, value))
             {
                 if (Target is null)
@@ -435,15 +438,51 @@ public sealed class FolderItemModel : ObservableObject
 
                 RaisePropertyChanged(nameof(EffectiveButtonText));
                 RaisePropertyChanged(nameof(ShowButtonText));
-                RaisePropertyChanged(nameof(BodyCaption));
-                RaisePropertyChanged(nameof(ShowBodyCaption));
-                RaisePropertyChanged(nameof(ShowTopBodyCaption));
-                RaisePropertyChanged(nameof(ShowInlineBodyCaption));
+                RaisePropertyChanged(nameof(WidgetCaption));
+                RaisePropertyChanged(nameof(ControlCaption));
+                RaisePropertyChanged(nameof(ShowControlCaption));
+
+                if (hadControlCaption != ShowControlCaption)
+                {
+                    RaisePropertyChanged(nameof(ItemHeaderHeight));
+                    RaisePropertyChanged(nameof(ItemBodyHeight));
+                    RaisePropertyChanged(nameof(AvailableBodyHeight));
+                    RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                    RaisePropertyChanged(nameof(ItemUnitFontSize));
+                    RaisePropertyChanged(nameof(ButtonAvailableBodyHeight));
+                    RaisePropertyChanged(nameof(ButtonBodyFontSize));
+                    RaisePropertyChanged(nameof(ButtonIconSize));
+                }
+            }
+        }
+    }
+
+    public bool SyncText
+    {
+        get => _syncText;
+        set
+        {
+            var hadControlCaption = ShowControlCaption;
+            if (!SetProperty(ref _syncText, value))
+            {
+                return;
+            }
+
+            RaisePropertyChanged(nameof(WidgetCaption));
+            RaisePropertyChanged(nameof(ControlCaption));
+            RaisePropertyChanged(nameof(ShowControlCaption));
+
+            if (hadControlCaption != ShowControlCaption)
+            {
+                RaisePropertyChanged(nameof(ItemHeaderHeight));
                 RaisePropertyChanged(nameof(ItemBodyHeight));
-                RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
                 RaisePropertyChanged(nameof(AvailableBodyHeight));
                 RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+                RaisePropertyChanged(nameof(ItemValueFontSize));
                 RaisePropertyChanged(nameof(ItemUnitFontSize));
+                RaisePropertyChanged(nameof(ButtonAvailableBodyHeight));
+                RaisePropertyChanged(nameof(ButtonBodyFontSize));
+                RaisePropertyChanged(nameof(ButtonIconSize));
             }
         }
     }
@@ -776,8 +815,6 @@ public sealed class FolderItemModel : ObservableObject
 
     public bool IsUdlClientControl => Kind == ControlKind.UdlClientControl;
 
-    public bool IsPythonClient => Kind == ControlKind.PythonClient;
-
     public bool IsPythonEnvManager => Kind == ControlKind.PythonEnvManager;
 
     // Controls, die als Child in einem Table gerendert und selektiert werden duerfen.
@@ -790,7 +827,6 @@ public sealed class FolderItemModel : ObservableObject
         or ControlKind.CsvLoggerControl
         or ControlKind.SqlLoggerControl
         or ControlKind.CameraControl
-        or ControlKind.PythonClient
         or ControlKind.PythonEnvManager;
 
     public bool IsSelected
@@ -1717,7 +1753,7 @@ public sealed class FolderItemModel : ObservableObject
     public double ItemTitleFontSize => Height * 0.18;
     public string WidgetCaption
     {
-        get => Header;
+        get => SyncText ? Title : Header;
         set => Header = value;
     }
 
@@ -1736,8 +1772,23 @@ public sealed class FolderItemModel : ObservableObject
 
     public string BodyCaption
     {
-        get => Title;
-        set => Title = value;
+        get => _bodyCaption;
+        set
+        {
+            if (!SetProperty(ref _bodyCaption, value ?? string.Empty))
+            {
+                return;
+            }
+
+            RaisePropertyChanged(nameof(ShowBodyCaption));
+            RaisePropertyChanged(nameof(ShowTopBodyCaption));
+            RaisePropertyChanged(nameof(ShowInlineBodyCaption));
+            RaisePropertyChanged(nameof(ItemBodyHeight));
+            RaisePropertyChanged(nameof(ItemBodyCaptionHeight));
+            RaisePropertyChanged(nameof(AvailableBodyHeight));
+            RaisePropertyChanged(nameof(ItemChoiceButtonHeight));
+            RaisePropertyChanged(nameof(ItemUnitFontSize));
+        }
     }
 
     public ParameterDisplayModel ItemBodyPresentation => BuildTargetParameterView(string.Empty, DisplayValue);
@@ -2376,7 +2427,7 @@ public sealed class FolderItemModel : ObservableObject
         }
     }
 
-    private bool SupportsLegacyPythonScript => !IsSignal && !IsPythonClient;
+    private bool SupportsLegacyPythonScript => !IsSignal;
 
     private string NormalizeConfiguredTargetPathForKind(string? value)
     {
@@ -2697,61 +2748,12 @@ public sealed class FolderItemModel : ObservableObject
 
                 return TryApplyInteractionWrite(setTarget!, rule.TargetPath, rule.Argument, out error);
 
-            case ItemInteractionAction.InvokePythonClientFunction:
-                return TryInvokePythonClientFunction(rule, out error);
-
             case ItemInteractionAction.InvokePythonFunction:
                 return TryInvokePythonEnvironmentFunction(rule, out error);
 
             default:
                 error = $"Action {rule.Action} wird noch nicht unterstuetzt.";
                 return false;
-        }
-    }
-
-    private bool TryInvokePythonClientFunction(ItemInteractionRule rule, out string error)
-    {
-        if (string.IsNullOrWhiteSpace(rule.TargetPath))
-        {
-            error = "Kein PythonClient-Ziel konfiguriert.";
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(rule.FunctionName))
-        {
-            error = "Keine Python-Funktion konfiguriert.";
-            return false;
-        }
-
-        if (!PythonClientRuntimeRegistry.TryGetClient(rule.TargetPath, out var client) || client is null)
-        {
-            error = $"PythonClient '{rule.TargetPath}' ist nicht aktiv.";
-            return false;
-        }
-
-        try
-        {
-            var result = client.InvokeFunctionAsync(
-                    rule.FunctionName,
-                    BuildPythonInteractionArgumentPayload(rule.Argument))
-                .GetAwaiter()
-                .GetResult();
-
-            if (!result.Success)
-            {
-                error = string.IsNullOrWhiteSpace(result.Message)
-                    ? $"Python-Funktion '{rule.FunctionName}' ist fehlgeschlagen."
-                    : result.Message!;
-                return false;
-            }
-
-            error = string.Empty;
-            return true;
-        }
-        catch (Exception ex)
-        {
-            error = ex.Message;
-            return false;
         }
     }
 
@@ -2789,7 +2791,18 @@ public sealed class FolderItemModel : ObservableObject
                 error = string.IsNullOrWhiteSpace(result.Message)
                     ? $"Python-Funktion '{rule.FunctionName}' ist fehlgeschlagen."
                     : result.Message!;
+                if (Amium.UiEditor.Widgets.PythonEnvRowRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var failedRow))
+                {
+                    failedRow?.SetInvocationError(Amium.UiEditor.Widgets.PythonEnvErrorDetails.FromResultPayload(failedRow.Name, error, result.Payload));
+                }
+
+                Core.LogWarn($"[PythonEnvManager] Python-Funktion '{rule.FunctionName}' in '{resolvedTargetPath}' fehlgeschlagen: {error}");
                 return false;
+            }
+
+            if (Amium.UiEditor.Widgets.PythonEnvRowRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var successRow))
+            {
+                successRow?.ClearInvocationError();
             }
 
             error = string.Empty;
@@ -2798,6 +2811,12 @@ public sealed class FolderItemModel : ObservableObject
         catch (Exception ex)
         {
             error = ex.Message;
+            if (Amium.UiEditor.Widgets.PythonEnvRowRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var failedRow))
+            {
+                failedRow?.SetInvocationError(error);
+            }
+
+            Core.LogWarn($"[PythonEnvManager] Python-Funktion '{rule.FunctionName}' in '{resolvedTargetPath}' wurde mit Ausnahme beendet: {error}", ex);
             return false;
         }
     }
@@ -3787,7 +3806,6 @@ public sealed class FolderItemModel : ObservableObject
             ControlKind.CsvLoggerControl => "CsvLoggerControl",
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
-            ControlKind.PythonClient => "PythonClient",
             ControlKind.PythonEnvManager => "PythonEnvManager",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"

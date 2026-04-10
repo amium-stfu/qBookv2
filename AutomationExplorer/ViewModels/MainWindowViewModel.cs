@@ -1611,11 +1611,6 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return ControlKind.CameraControl;
         }
 
-        if (string.Equals(type, "PythonClient", StringComparison.OrdinalIgnoreCase))
-        {
-            return ControlKind.PythonClient;
-        }
-
         if (string.Equals(type, "PythonEnvManager", StringComparison.OrdinalIgnoreCase))
         {
             return ControlKind.PythonEnvManager;

@@ -187,6 +187,7 @@ public static class ProjectUiLayoutLoader
         if (GetMapping(node, "Identity") is { } identity)
         {
             SetPropertyIfPresent(properties, "Name", GetScalarJsonNode(identity, "Name"));
+            SetPropertyIfPresent(properties, "Text", GetScalarJsonNode(identity, "Text"));
             SetPropertyIfPresent(properties, "Id", GetScalarJsonNode(identity, "Id"));
         }
 
@@ -210,6 +211,7 @@ public static class ProjectUiLayoutLoader
         if (GetMapping(node, "Header") is { } header)
         {
             SetPropertyIfPresent(properties, "ControlCaption", GetScalarJsonNode(header, "ControlCaption"));
+            SetPropertyIfPresent(properties, "SyncText", GetScalarJsonNode(header, "SyncText"));
             SetPropertyIfPresent(properties, "HeaderForeColor", GetScalarJsonNode(header, "HeaderForeColor"));
             SetPropertyIfPresent(properties, "CaptionVisible", GetScalarJsonNode(header, "CaptionVisible"));
             SetPropertyIfPresent(properties, "ShowCaption", GetScalarJsonNode(header, "CaptionVisible"));

@@ -27,5 +27,21 @@ def write_demo_logs() -> str:
     return "Demo logs written"
 
 
+def get_log_message(args: dict[str, object]) -> str:
+    message = str(args.get("value") or "").strip()
+    return message or "Host log entry from {{CLIENT_NAME}}"
+
+
+@client.function(
+    "write_host_log",
+    description="Writes the passed interaction text to the host log.",
+    category="logs",
+)
+def write_host_log(args: dict[str, object]) -> str:
+    message = get_log_message(args)
+    client.log_info("{{CLIENT_NAME}} -> " + message)
+    return "Host log entry written"
+
+
 if __name__ == "__main__":
     raise SystemExit(client.run())

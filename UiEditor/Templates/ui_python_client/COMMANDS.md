@@ -12,8 +12,60 @@ Rule:
 ## Import
 
 ```python
+from amium_host import host
 from ui_python_client import FunctionResult, PythonClient
 ```
+
+## `amium_host`
+
+### `host.values`
+
+```python
+from amium_host import host
+
+temperature = host.values.temperature.value
+host.values["Runtime/Test/Setpoint"].value = 100
+```
+
+Accesses the host-projected value view.
+
+Notes:
+- attribute access uses generated aliases when available
+- index access accepts either a visible alias or a projected registry path
+- writes go back through the bridge and remain host-administered
+- projected registry paths may include runtime entries like `PythonClients/Raw/raw_b`
+
+### Host Value Metadata
+
+```python
+from amium_host import host
+
+value = host.values.temperature
+unit = value.unit
+path = value.path
+is_writable = value.is_writable
+```
+
+Available fields:
+- `alias`
+- `path`
+- `title`
+- `unit`
+- `format`
+- `kind`
+- `data_type`
+- `is_writable`
+
+### `host.log`
+
+```python
+from amium_host import host
+
+host.log.info("Python started")
+host.log.warning("Temperature high")
+```
+
+Writes log messages through the active host-managed Python client.
 
 ## Predefined Commands
 
@@ -77,6 +129,7 @@ Generated Python client folders also receive:
 
 - `.vscode/settings.json` with Python analysis settings for local imports and auto-import completions
 - `.vscode/extensions.json` recommending the VS Code extensions `ms-python.python` and `ms-python.vscode-pylance`
+- `amium_host/` for projected host value access with local type information
 
 ### `FunctionResult.ok(payload=None, message=None)`
 Builds a success result.

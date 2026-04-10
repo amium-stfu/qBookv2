@@ -47,8 +47,7 @@ public sealed class ItemInteractionEditorRow : ObservableObject
         set => SetProperty(ref _argument, value ?? string.Empty);
     }
 
-    public bool IsPythonFunctionAction => string.Equals(ActionName, "InvokePythonClientFunction", System.StringComparison.OrdinalIgnoreCase)
-                                          || string.Equals(ActionName, "InvokePythonFunction", System.StringComparison.OrdinalIgnoreCase);
+    public bool IsPythonFunctionAction => string.Equals(ActionName, "InvokePythonFunction", System.StringComparison.OrdinalIgnoreCase);
 
     public bool IsStandardInteractionAction => !IsPythonFunctionAction;
 

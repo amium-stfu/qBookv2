@@ -1373,7 +1373,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["Name"] = item.Name;
         nodeObject["Id"] = item.Id;
         nodeObject["ControlCornerRadius"] = item.ControlCornerRadius;
-        nodeObject["ControlCaption"] = item.ControlCaption;
+        nodeObject["ControlCaption"] = item.Header;
+        nodeObject["SyncText"] = item.SyncText;
         nodeObject["CaptionVisible"] = item.CaptionVisible;
         nodeObject["ShowCaption"] = item.ShowCaption;
         nodeObject["HeaderBorderWidth"] = item.HeaderBorderWidth;
@@ -1487,6 +1488,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var identity = new JsonObject
         {
             ["Name"] = item.Name,
+            ["Text"] = item.Title,
             ["Path"] = item.Path,
             ["Id"] = item.Id
         };
@@ -1513,7 +1515,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         var header = new JsonObject
         {
-            ["ControlCaption"] = item.ControlCaption,
+            ["ControlCaption"] = item.Header,
+            ["SyncText"] = item.SyncText,
             ["HeaderForeColor"] = item.HeaderForeColor is null ? null : JsonValue.Create(item.HeaderForeColor),
             ["CaptionVisible"] = item.CaptionVisible,
             ["HeaderCornerRadius"] = item.HeaderCornerRadius,
@@ -1708,6 +1711,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.Id = GetStringProperty(properties, "Id") ?? item.Id;
         item.Enabled = GetBoolProperty(properties, "Enabled") ?? item.Enabled;
         item.View = GetIntProperty(properties, "View") ?? item.View;
+        item.Title = GetFirstStringProperty(properties, "Text", "Title") ?? item.Title;
+        item.SyncText = GetBoolProperty(properties, "SyncText") ?? item.SyncText;
         item.ControlCaption = GetFirstStringProperty(properties, "ControlCaption", "Header") ?? item.ControlCaption;
         item.CaptionVisible = GetFirstBoolProperty(properties, "CaptionVisible", "ShowCaption") ?? item.CaptionVisible;
         item.BodyCaption = GetFirstStringProperty(properties, "BodyCaption", "Title") ?? item.BodyCaption;
@@ -2730,6 +2735,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             EditorDialogSections.Add(section);
             foreach (var field in section.Fields)
             {
+                if (_editorDialogMode == EditorDialogMode.Edit
+                    && string.Equals(field.Key, "Name", StringComparison.Ordinal))
+                {
+                    field.IsReadOnly = true;
+                }
+
+                if (string.Equals(field.Key, "ControlCaption", StringComparison.Ordinal) && item.SyncText)
+                {
+                    field.IsReadOnly = true;
+                }
+
                 field.OwnerWorkspaceDirectory = ResolveWorkspaceDirectory(item);
                 field.PropertyChanged += OnEditorDialogFieldChanged;
             }
@@ -2819,7 +2835,6 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 {
                     field.RefreshInteractionRuleTargetOptions(
                         GetSelectableTargetOptions(item),
-                        GetSelectablePythonClientOptions(item),
                         GetSelectablePythonEnvironmentOptions(item));
                     continue;
                 }
@@ -2944,6 +2959,36 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             EditorDialogTitle = _editorDialogMode == EditorDialogMode.Edit
                 ? $"Edit {field.Value}"
                 : $"Create {_editorDialogItem.Kind}";
+        }
+
+        if (string.Equals(field.Key, "Text", StringComparison.Ordinal))
+        {
+            var syncField = FindDialogField("SyncText");
+            var captionField = FindDialogField("ControlCaption");
+            if (captionField is not null
+                && syncField is not null
+                && string.Equals(syncField.Value, "True", StringComparison.OrdinalIgnoreCase))
+            {
+                captionField.Value = field.Value;
+            }
+        }
+
+        if (string.Equals(field.Key, "SyncText", StringComparison.Ordinal))
+        {
+            var captionField = FindDialogField("ControlCaption");
+            if (captionField is not null)
+            {
+                var syncText = string.Equals(field.Value, "True", StringComparison.OrdinalIgnoreCase);
+                captionField.IsReadOnly = syncText;
+                if (syncText)
+                {
+                    var textField = FindDialogField("Text");
+                    if (textField is not null)
+                    {
+                        captionField.Value = textField.Value;
+                    }
+                }
+            }
         }
 
         if (string.Equals(field.Key, "TargetPath", StringComparison.Ordinal))
@@ -3100,10 +3145,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             if (!string.IsNullOrWhiteSpace(scriptsDirectory))
             {
                 EnsurePythonSupportLibrary(scriptsDirectory, overwriteExisting);
-            }
 
-            if (ShouldWritePythonFile(fullPath, overwriteExisting))
-            {
                 var template = GeneratePythonScriptTemplate(_editorDialogItem, fileName);
                 if (string.IsNullOrWhiteSpace(template))
                 {
@@ -3441,6 +3483,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         EnsurePythonVsCodeWorkspace(scriptsDirectory, overwriteExisting);
+        EnsurePythonSystemOverview(scriptsDirectory, overwriteExisting);
 
         var sourceDirectory = Path.Combine(AppContext.BaseDirectory, "Templates", "ui_python_client");
         if (!Directory.Exists(sourceDirectory))
@@ -3450,6 +3493,28 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         var targetDirectory = Path.Combine(scriptsDirectory, "ui_python_client");
         CopyDirectory(sourceDirectory, targetDirectory, overwriteExisting);
+
+        var hostSourceDirectory = Path.Combine(AppContext.BaseDirectory, "Templates", "amium_host");
+        if (Directory.Exists(hostSourceDirectory))
+        {
+            var hostTargetDirectory = Path.Combine(scriptsDirectory, "amium_host");
+            CopyDirectory(hostSourceDirectory, hostTargetDirectory, overwriteExisting);
+        }
+    }
+
+    private static void EnsurePythonSystemOverview(string scriptsDirectory, bool overwriteExisting)
+    {
+        var sourceFile = Path.Combine(AppContext.BaseDirectory, "Templates", "PYTHON_SYSTEM.md");
+        if (!File.Exists(sourceFile))
+        {
+            return;
+        }
+
+        var targetFile = Path.Combine(scriptsDirectory, "PYTHON_SYSTEM.md");
+        if (ShouldWritePythonFile(targetFile, overwriteExisting))
+        {
+            File.Copy(sourceFile, targetFile, overwriteExisting);
+        }
     }
 
         private static void EnsurePythonVsCodeWorkspace(string scriptsDirectory, bool overwriteExisting)
@@ -3709,6 +3774,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             BindChoice("View", "View", GetViewOptionLabel, ApplyViewOption, GetViewOptions),
             BindText("Name", "Name", current => current.Name, (current, value) => { current.Name = value; return null; }),
+            BindText("Text", "Text", current => current.Title, (current, value) => { current.Title = value; return null; }),
             BindReadOnly("Path", "Path", current => current.Path),
             BindReadOnly("Id", "Id", current => current.Id),
             BindChoice("Enabled", "Enabled", current => current.Enabled ? "True" : "False", (current, value) => { current.Enabled = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" })
@@ -3725,6 +3791,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         var header = new List<EditorDialogBindingDefinition>
         {
+            BindChoice("SyncText", "SyncText", current => current.SyncText ? "True" : "False", (current, value) => { current.SyncText = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" }),
             BindText("ControlCaption", "Caption", current => current.ControlCaption, (current, value) => { current.ControlCaption = value; return null; }),
             BindText("HeaderForeColor", "CaptionForeColor", current => current.HeaderForeColor ?? string.Empty, (current, value) => { current.HeaderForeColor = EmptyToNull(value); return null; }, EditorPropertyType.Color),
             BindChoice("CaptionVisible", "CaptionVisible", current => current.CaptionVisible ? "True" : "False", (current, value) => { current.CaptionVisible = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "True", "False" }),
@@ -4761,7 +4828,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             Kind = item.Kind,
             Name = item.Name,
             Id = item.Id,
-            ControlCaption = item.ControlCaption,
+            ControlCaption = item.Header,
+            SyncText = item.SyncText,
             ShowCaption = item.ShowCaption,
             CaptionVisible = item.CaptionVisible,
             BodyCaption = item.BodyCaption,
@@ -4867,6 +4935,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             Kind = item.Kind == ControlKind.Signal ? ControlKind.Item : item.Kind,
             Name = item.Name,
             Id = item.Id,
+            Title = item.Title,
+            SyncText = item.SyncText,
             ControlCaption = string.IsNullOrWhiteSpace(item.ControlCaption) ? item.Header : item.ControlCaption,
             ShowCaption = item.ShowCaption,
             CaptionVisible = item.ShowCaption,
@@ -5609,17 +5679,6 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .Concat(attachedUdlOptions)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private IEnumerable<string> GetSelectablePythonClientOptions(FolderItemModel? item = null)
-    {
-        return EnumeratePageItems(SelectedFolder.Items)
-            .Where(candidate => candidate.IsPythonClient)
-            .Select(candidate => candidate.Path)
-            .Where(static path => !string.IsNullOrWhiteSpace(path))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 

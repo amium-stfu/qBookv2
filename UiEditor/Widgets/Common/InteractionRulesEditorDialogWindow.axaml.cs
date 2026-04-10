@@ -227,8 +227,7 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         set => SetAndRaise(ref _newArgument, value ?? string.Empty, nameof(NewArgument));
     }
 
-    public bool IsNewPythonFunctionAction => string.Equals(NewActionName, nameof(ItemInteractionAction.InvokePythonClientFunction), StringComparison.OrdinalIgnoreCase)
-                                             || string.Equals(NewActionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase);
+    public bool IsNewPythonFunctionAction => string.Equals(NewActionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase);
 
     public bool IsNewStandardAction => !IsNewPythonFunctionAction;
 

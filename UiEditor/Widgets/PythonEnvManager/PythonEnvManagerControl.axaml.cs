@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
@@ -278,6 +279,61 @@ public partial class PythonEnvManagerControl : EditorTemplateControl
     {
         // keep for potential future interaction handling
     }
+
+    private async void OnEnvironmentRowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+        {
+            return;
+        }
+
+        if (sender is not Border { DataContext: PythonEnvRow row } || !row.HasError || !row.HasErrorDetails)
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var dialog = new PythonEnvErrorDialogWindow();
+        dialog.Initialize(DataContext as MainWindowViewModel, row.ErrorDetails!);
+        await dialog.ShowDialog(owner);
+        e.Handled = true;
+    }
+}
+
+public sealed class PythonEnvErrorDetails
+{
+    public string EnvironmentName { get; init; } = string.Empty;
+    public string Summary { get; init; } = "Error";
+    public string? FullMessage { get; init; }
+    public string? File { get; init; }
+    public int? LineNumber { get; init; }
+    public string? FunctionName { get; init; }
+    public string? Traceback { get; init; }
+
+    public static PythonEnvErrorDetails FromResultPayload(string environmentName, string fallbackMessage, JsonNode? payload)
+    {
+        var payloadObject = payload as JsonObject;
+        var summary = payloadObject?["exception_type"]?.GetValue<string?>();
+        if (string.IsNullOrWhiteSpace(summary))
+        {
+            summary = "Error";
+        }
+
+        return new PythonEnvErrorDetails
+        {
+            EnvironmentName = environmentName,
+            Summary = summary!,
+            FullMessage = payloadObject?["message"]?.GetValue<string?>() ?? fallbackMessage,
+            File = payloadObject?["file"]?.GetValue<string?>(),
+            LineNumber = payloadObject?["line"]?.GetValue<int?>(),
+            FunctionName = payloadObject?["function"]?.GetValue<string?>(),
+            Traceback = payloadObject?["traceback"]?.GetValue<string?>()
+        };
+    }
 }
 
 public static class PythonEnvManagerRuntime
@@ -412,7 +468,7 @@ public static class PythonEnvManagerRuntime
             .Select(env =>
             {
                 var effectivePath = PythonEnvDefinitionHelper.ResolveScriptPath(env.ScriptPath, effectiveBaseDirectory);
-                return PythonEnvRowRegistry.GetOrCreate(env.Name, env.ScriptPath, effectivePath, ownerItem);
+                return PythonEnvRowRegistry.GetOrCreate(env.Name, env.ScriptPath, effectivePath, env.StartupDelayMs, ownerItem);
             })
             .ToArray();
     }
@@ -501,21 +557,28 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
     private bool _isRunning;
     private ATask? _task;
     private bool _hasError;
+    private string _lastError = string.Empty;
     private FolderItemModel? _ownerItem;
     private string _name = string.Empty;
     private string _scriptPath = string.Empty;
     private string _effectiveScriptPath = string.Empty;
+    private int _startupDelayMs;
+    private string _startupDelayEditText = "0";
+    private PythonEnvErrorDetails? _errorDetails;
 
-    public PythonEnvRow(string name, string scriptPath, string? effectiveScriptPath, FolderItemModel? ownerItem)
+    public PythonEnvRow(string name, string scriptPath, string? effectiveScriptPath, int startupDelayMs, FolderItemModel? ownerItem)
     {
         StartCommand = new RelayCommand(Start);
         StopCommand = new RelayCommand(Stop);
+        ToggleCommand = new RelayCommand(Toggle);
         EditCommand = new RelayCommand(Edit);
 
-        UpdateDefinition(name, scriptPath, effectiveScriptPath, ownerItem);
+        UpdateDefinition(name, scriptPath, effectiveScriptPath, startupDelayMs, ownerItem);
     }
 
     public string Name => _name;
+
+    public string InteractionTargetPath => PythonEnvManagerRuntime.BuildInteractionTargetPath(OwnerItem, Name);
 
     public string ScriptPath => _scriptPath;
 
@@ -525,9 +588,134 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
 
     public string ScriptSummary => ScriptPath;
 
-    public string StatusText => $"{Name} {(HasError ? "Error" : (IsRunning ? "Running" : "Stopped"))}";
+    public int StartupDelayMs
+    {
+        get => _startupDelayMs;
+        set
+        {
+            var normalized = Math.Max(0, value);
+            if (_startupDelayMs == normalized)
+            {
+                return;
+            }
 
-    public void UpdateDefinition(string name, string scriptPath, string? effectiveScriptPath, FolderItemModel? ownerItem)
+            _startupDelayMs = normalized;
+            OnPropertyChanged(nameof(StartupDelayMs));
+            OnPropertyChanged(nameof(StartupDelayText));
+            _startupDelayEditText = normalized.ToString();
+            OnPropertyChanged(nameof(StartupDelayEditText));
+            OnPropertyChanged(nameof(StatusText));
+        }
+    }
+
+    public string StartupDelayText
+    {
+        get => StartupDelayMs.ToString();
+        set
+        {
+            if (!int.TryParse(value?.Trim(), out var parsed))
+            {
+                parsed = 0;
+            }
+
+            StartupDelayMs = parsed;
+        }
+    }
+
+    public string StartupDelayEditText
+    {
+        get => _startupDelayEditText;
+        set
+        {
+            var normalized = value ?? string.Empty;
+            if (string.Equals(_startupDelayEditText, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _startupDelayEditText = normalized;
+            OnPropertyChanged(nameof(StartupDelayEditText));
+        }
+    }
+
+    public void CommitStartupDelayEdit()
+    {
+        StartupDelayText = _startupDelayEditText;
+        StartupDelayEditText = StartupDelayMs.ToString();
+    }
+
+    public void SetInvocationError(string? message)
+    {
+        HasError = true;
+        LastError = string.IsNullOrWhiteSpace(message)
+            ? "Python-Funktion ist fehlgeschlagen."
+            : message!;
+        ErrorDetails = new PythonEnvErrorDetails
+        {
+            EnvironmentName = Name,
+            Summary = "Error",
+            FullMessage = LastError,
+            Traceback = LastError
+        };
+    }
+
+    public void SetInvocationError(PythonEnvErrorDetails details)
+    {
+        ErrorDetails = details;
+        HasError = true;
+        LastError = "Error";
+    }
+
+    public void ClearInvocationError()
+    {
+        ErrorDetails = null;
+        HasError = false;
+        LastError = string.Empty;
+    }
+
+    public PythonEnvErrorDetails? ErrorDetails
+    {
+        get => _errorDetails;
+        private set
+        {
+            if (ReferenceEquals(_errorDetails, value))
+            {
+                return;
+            }
+
+            _errorDetails = value;
+            OnPropertyChanged(nameof(ErrorDetails));
+            OnPropertyChanged(nameof(HasErrorDetails));
+        }
+    }
+
+    public bool HasErrorDetails => ErrorDetails is not null;
+
+    public string LastError
+    {
+        get => _lastError;
+        private set
+        {
+            var normalized = value ?? string.Empty;
+            if (string.Equals(_lastError, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _lastError = normalized;
+            OnPropertyChanged(nameof(LastError));
+            OnPropertyChanged(nameof(StatusText));
+        }
+    }
+
+    public string StatusText
+        => HasError
+            ? $"{Name} Error"
+            : IsRunning
+                ? (StartupDelayMs > 0 ? $"{Name} Running ({StartupDelayMs} ms delay)" : $"{Name} Running")
+                : (StartupDelayMs > 0 ? $"{Name} Stopped ({StartupDelayMs} ms delay)" : $"{Name} Stopped");
+
+    public void UpdateDefinition(string name, string scriptPath, string? effectiveScriptPath, int startupDelayMs, FolderItemModel? ownerItem)
     {
         _ownerItem = ownerItem;
 
@@ -565,6 +753,8 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
             changed = true;
             OnPropertyChanged(nameof(EffectiveScriptPath));
         }
+
+        StartupDelayMs = startupDelayMs;
 
         if (changed)
         {
@@ -639,7 +829,11 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
 
     public ICommand StopCommand { get; }
 
+    public ICommand ToggleCommand { get; }
+
     public ICommand EditCommand { get; }
+
+    public string ToggleButtonText => IsRunning ? "Stop" : "Start";
 
     public void Start()
     {
@@ -659,18 +853,20 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
             var scriptPath = EffectiveScriptPath;
             var clientName = BuildClientName(Name);
             var targetPath = PythonEnvManagerRuntime.BuildInteractionTargetPath(OwnerItem, Name);
-            Core.LogInfo($"[PythonEnvManager] Starting '{Name}' -> {scriptPath}");
+            Core.LogInfo($"[PythonEnvManager] Starting '{Name}' -> {scriptPath} (DelayMs={StartupDelayMs})");
 
             _task?.Stop();
             _task = null;
 
             var instanceName = $"PythonEnv:{targetPath}";
-            _task = new ATask(instanceName, token => RunEnvAsync(scriptPath, clientName, targetPath, token));
+            _task = new ATask(instanceName, token => RunEnvAsync(scriptPath, clientName, targetPath, StartupDelayMs, token));
 
             _task.OnCompleted += () => Dispatcher.UIThread.Post(() =>
             {
                 IsRunning = false;
                 HasError = false;
+                LastError = string.Empty;
+                ErrorDetails = null;
             });
 
             _task.OnCancelled += () => Dispatcher.UIThread.Post(() =>
@@ -678,21 +874,50 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
                 IsRunning = false;
             });
 
-            _task.OnException += _ => Dispatcher.UIThread.Post(() =>
+            _task.OnException += ex => Dispatcher.UIThread.Post(() =>
             {
                 IsRunning = false;
                 HasError = true;
+                LastError = "Error";
+                ErrorDetails = new PythonEnvErrorDetails
+                {
+                    EnvironmentName = Name,
+                    Summary = ex.GetType().Name,
+                    FullMessage = ex.Message,
+                    Traceback = ex.ToString()
+                };
             });
 
             IsRunning = true;
             HasError = false;
+            LastError = string.Empty;
+            ErrorDetails = null;
         }
         catch (Exception ex)
         {
             Core.LogError($"[PythonEnvManager] Failed to start environment '{Name}'", ex);
             IsRunning = false;
             HasError = true;
+            LastError = "Error";
+            ErrorDetails = new PythonEnvErrorDetails
+            {
+                EnvironmentName = Name,
+                Summary = ex.GetType().Name,
+                FullMessage = ex.Message,
+                Traceback = ex.ToString()
+            };
         }
+    }
+
+    public void Toggle()
+    {
+        if (IsRunning)
+        {
+            Stop();
+            return;
+        }
+
+        Start();
     }
 
     public void Stop()
@@ -740,7 +965,7 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
     private static string BuildClientName(string name)
         => string.IsNullOrWhiteSpace(name) ? "PythonEnv" : name.Trim();
 
-    private async Task RunEnvAsync(string scriptPath, string clientName, string targetPath, CancellationToken cancellationToken)
+    private async Task RunEnvAsync(string scriptPath, string clientName, string targetPath, int startupDelayMs, CancellationToken cancellationToken)
     {
         var options = new PythonClientOptions
         {
@@ -752,6 +977,12 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
 
         try
         {
+            if (startupDelayMs > 0)
+            {
+                Core.LogInfo($"[PythonEnvManager] Delaying start of '{clientName}' by {startupDelayMs} ms.");
+                await Task.Delay(startupDelayMs, cancellationToken).ConfigureAwait(false);
+            }
+
             await using var client = new PythonClient(options);
             await client.StartAsync(cancellationToken);
             PythonClientRuntimeRegistry.Register(targetPath, clientName, client);
@@ -798,6 +1029,8 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
 
     public bool CanStart => !IsRunning;
 
+    public string DelaySummary => StartupDelayMs <= 0 ? "0" : StartupDelayMs.ToString();
+
     public string StartButtonText => HasError ? "Error" : (IsRunning ? "Running" : "Start");
 
     public string StartButtonBackground
@@ -807,6 +1040,25 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
             if (HasError)
             {
                 return "Tomato";
+            }
+
+            if (IsRunning)
+            {
+                return "#16A34A";
+            }
+
+            var item = OwnerItem;
+            return item?.EffectiveButtonBodyBackground ?? string.Empty;
+        }
+    }
+
+    public string StatusIndicatorBackground
+    {
+        get
+        {
+            if (HasError)
+            {
+                return "#EAB308";
             }
 
             if (IsRunning)
@@ -946,15 +1198,19 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(HasError));
+        OnPropertyChanged(nameof(DelaySummary));
         OnPropertyChanged(nameof(CanStart));
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StartButtonText));
         OnPropertyChanged(nameof(StartButtonBackground));
+        OnPropertyChanged(nameof(StatusIndicatorBackground));
         OnPropertyChanged(nameof(StartButtonForeground));
         OnPropertyChanged(nameof(SettingsStartButtonBackground));
         OnPropertyChanged(nameof(SettingsStartButtonForeground));
         OnPropertyChanged(nameof(SettingsStopButtonBackground));
         OnPropertyChanged(nameof(SettingsStopButtonForeground));
+        OnPropertyChanged(nameof(ToggleButtonText));
+        OnPropertyChanged(nameof(RowBackground));
         OnPropertyChanged(nameof(SettingsRowBackground));
         OnPropertyChanged(nameof(RowBorderBrush));
         OnPropertyChanged(nameof(RowBorderThickness));
@@ -968,11 +1224,13 @@ public sealed class PythonEnvRow : INotifyPropertyChanged
         OnPropertyChanged(nameof(RowPrimaryForeground));
         OnPropertyChanged(nameof(RowSecondaryForeground));
         OnPropertyChanged(nameof(StartButtonBackground));
+        OnPropertyChanged(nameof(StatusIndicatorBackground));
         OnPropertyChanged(nameof(StartButtonForeground));
         OnPropertyChanged(nameof(SettingsStartButtonBackground));
         OnPropertyChanged(nameof(SettingsStartButtonForeground));
         OnPropertyChanged(nameof(SettingsStopButtonBackground));
         OnPropertyChanged(nameof(SettingsStopButtonForeground));
+        OnPropertyChanged(nameof(ToggleButtonText));
         OnPropertyChanged(nameof(SettingsRowBackground));
     }
 
@@ -986,17 +1244,17 @@ internal static class PythonEnvRowRegistry
 {
     private static readonly Dictionary<string, PythonEnvRow> Rows = new(StringComparer.OrdinalIgnoreCase);
 
-    public static PythonEnvRow GetOrCreate(string name, string scriptPath, string? effectiveScriptPath, FolderItemModel? ownerItem)
+    public static PythonEnvRow GetOrCreate(string name, string scriptPath, string? effectiveScriptPath, int startupDelayMs, FolderItemModel? ownerItem)
     {
         var key = BuildKey(ownerItem, scriptPath, effectiveScriptPath);
         if (!Rows.TryGetValue(key, out var row))
         {
-            row = new PythonEnvRow(name, scriptPath, effectiveScriptPath, ownerItem);
+            row = new PythonEnvRow(name, scriptPath, effectiveScriptPath, startupDelayMs, ownerItem);
             Rows[key] = row;
             return row;
         }
 
-        row.UpdateDefinition(name, scriptPath, effectiveScriptPath, ownerItem);
+        row.UpdateDefinition(name, scriptPath, effectiveScriptPath, startupDelayMs, ownerItem);
         return row;
     }
 
@@ -1008,6 +1266,14 @@ internal static class PythonEnvRowRegistry
 
     public static IReadOnlyList<PythonEnvRow> GetAll()
         => Rows.Values.ToArray();
+
+    public static bool TryGetByInteractionTargetPath(string? interactionTargetPath, out PythonEnvRow? row)
+    {
+        row = Rows.Values.FirstOrDefault(candidate =>
+            string.Equals(candidate.InteractionTargetPath, interactionTargetPath, StringComparison.OrdinalIgnoreCase));
+
+        return row is not null;
+    }
 
     private static string BuildKey(FolderItemModel? ownerItem, string scriptPath, string? effectiveScriptPath)
     {

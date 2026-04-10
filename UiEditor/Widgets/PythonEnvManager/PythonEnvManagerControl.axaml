@@ -46,7 +46,8 @@
                         CornerRadius="6"
                         Background="{Binding RowBackground}"
                         BorderBrush="{Binding RowBorderBrush}"
-                        BorderThickness="{Binding RowBorderThickness}">
+                  BorderThickness="{Binding RowBorderThickness}"
+                  PointerPressed="OnEnvironmentRowPointerPressed">
                   <Border.ContextMenu>
                     <ContextMenu>
                       <MenuItem Header="Start" Command="{Binding StartCommand}" />
@@ -61,7 +62,7 @@
                             Margin="0,0,10,0"
                             CornerRadius="7"
                             VerticalAlignment="Center"
-                            Background="{Binding StartButtonBackground}"
+                          Background="{Binding StatusIndicatorBackground}"
                             BorderBrush="{Binding RowBorderBrush}"
                             BorderThickness="1" />
 

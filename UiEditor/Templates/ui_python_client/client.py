@@ -3,11 +3,34 @@ from __future__ import annotations
 import inspect
 import json
 import sys
+import traceback
 from typing import Any, Callable, Iterable, TextIO
 
 from .types import FunctionResult, JsonDict, ValueDefinition
 
+try:
+    from amium_host.runtime import apply_host_value_update, configure_host_bridge
+except ImportError:  # pragma: no cover - optional during incremental rollout
+    def configure_host_bridge(init_payload: JsonDict, client: "PythonClient") -> None:
+        return None
+
+    def apply_host_value_update(payload: JsonDict) -> None:
+        return None
+
 FunctionHandler = Callable[..., Any]
+
+
+def _build_exception_payload(exc: Exception) -> JsonDict:
+    traceback_entries = traceback.extract_tb(exc.__traceback__)
+    last_frame = traceback_entries[-1] if traceback_entries else None
+    return {
+        "exception_type": type(exc).__name__,
+        "message": str(exc),
+        "file": last_frame.filename if last_frame else None,
+        "line": last_frame.lineno if last_frame else None,
+        "function": last_frame.name if last_frame else None,
+        "traceback": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+    }
 
 
 class PythonClient:
@@ -194,6 +217,18 @@ class PythonClient:
             }
         )
 
+    def send_host_value_write(self, path: str, value: Any) -> None:
+        """Write a projected host value back into the host registry."""
+        self._send(
+            {
+                "type": "host_value_write",
+                "payload": {
+                    "path": path,
+                    "value": value,
+                },
+            }
+        )
+
     def run(self) -> int:
         """Start the bridge loop and process host messages until shutdown."""
         self.hello()
@@ -219,9 +254,14 @@ class PythonClient:
 
         if msg_type == "init":
             self._initialized = True
+            configure_host_bridge(message.get("payload") or {}, self)
             self._announce_definitions()
             for handler in self._init_handlers:
-                handler()
+                try:
+                    handler()
+                except Exception as exc:  # noqa: BLE001
+                    self.log_exception(exc, "Exception during init handler")
+                    raise
             self.ready(self._ready_payload)
             return True
 
@@ -232,15 +272,27 @@ class PythonClient:
         if msg_type == "stop":
             self.log_info("stop requested by host; shutting down")
             for handler in self._stop_handlers:
-                handler()
+                try:
+                    handler()
+                except Exception as exc:  # noqa: BLE001
+                    self.log_exception(exc, "Exception during stop handler")
+                    raise
             return False
 
         if msg_type == "heartbeat":
             if self._heartbeat_handlers:
                 for handler in self._heartbeat_handlers:
-                    handler()
+                    try:
+                        handler()
+                    except Exception as exc:  # noqa: BLE001
+                        self.log_exception(exc, "Exception during heartbeat handler")
+                        raise
             else:
                 self.log_debug("heartbeat received")
+            return True
+
+        if msg_type == "host_value_update":
+            apply_host_value_update(message.get("payload") or {})
             return True
 
         self.log_debug(f"Unhandled message type: {msg_type}")
@@ -286,9 +338,13 @@ class PythonClient:
             response = self._call_handler(handler, args, message)
             self.result(request_id, self._normalize_result(response))
         except Exception as exc:  # noqa: BLE001
+            self.log_exception(exc, f"Exception during '{function_name}'")
             self.result(
                 request_id,
-                FunctionResult.fail(f"Exception during '{function_name}': {exc}"),
+                FunctionResult.fail(
+                    f"Exception during '{function_name}'",
+                    _build_exception_payload(exc),
+                ),
             )
 
     @staticmethod

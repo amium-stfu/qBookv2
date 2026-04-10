@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Amium.Host;
@@ -132,7 +133,13 @@ public partial class PythonEnvManagerSettingsDialogWindow : UserControl, INotify
     {
         if (e.PropertyName == nameof(EditorDialogField.Value) && _field is not null)
         {
-            RebuildEnvironmentList(_field.Value ?? string.Empty);
+            var incoming = _field.Value ?? string.Empty;
+            if (string.Equals(incoming, GetSerializedDefinitions(), StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            RebuildEnvironmentList(incoming);
         }
     }
 
@@ -196,6 +203,11 @@ public partial class PythonEnvManagerSettingsDialogWindow : UserControl, INotify
 
     private void RebuildEnvironmentList(string rawDefinitions)
     {
+        foreach (var existing in Environments.ToList())
+        {
+            existing.PropertyChanged -= OnRowPropertyChanged;
+        }
+
         Environments.Clear();
 
         if (string.IsNullOrWhiteSpace(rawDefinitions))
@@ -208,8 +220,68 @@ public partial class PythonEnvManagerSettingsDialogWindow : UserControl, INotify
 
         foreach (var row in PythonEnvManagerRuntime.BuildRows(ownerItem, rawDefinitions, baseDirectory))
         {
+            row.PropertyChanged += OnRowPropertyChanged;
             Environments.Add(row);
         }
+    }
+
+    private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_field is null || sender is not PythonEnvRow)
+        {
+            return;
+        }
+
+        if (e.PropertyName != nameof(PythonEnvRow.StartupDelayMs) && e.PropertyName != nameof(PythonEnvRow.StartupDelayText))
+        {
+            return;
+        }
+
+        var definitions = Environments
+            .Select(static row => (row.Name, row.ScriptPath, row.StartupDelayMs))
+            .ToArray();
+
+        var serialized = PythonEnvDefinitionHelper.SerializeDefinitions(definitions);
+        if (!string.Equals(_field.Value ?? string.Empty, serialized, StringComparison.Ordinal))
+        {
+            _field.Value = serialized;
+        }
+    }
+
+    private void OnDelayEditorKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not Key.Enter and not Key.Return)
+        {
+            return;
+        }
+
+        CommitDelayEditor(sender as TextBox);
+        AddEnvironmentButton.Focus();
+        e.Handled = true;
+    }
+
+    private void OnDelayEditorLostFocus(object? sender, RoutedEventArgs e)
+    {
+        CommitDelayEditor(sender as TextBox);
+    }
+
+    private static void CommitDelayEditor(TextBox? textBox)
+    {
+        if (textBox?.DataContext is not PythonEnvRow row)
+        {
+            return;
+        }
+
+        row.CommitStartupDelayEdit();
+    }
+
+    private string GetSerializedDefinitions()
+    {
+        var definitions = Environments
+            .Select(static row => (row.Name, row.ScriptPath, row.StartupDelayMs))
+            .ToArray();
+
+        return PythonEnvDefinitionHelper.SerializeDefinitions(definitions);
     }
 
     private string ResolveWorkspaceDirectory(FolderItemModel? ownerItem)
@@ -289,7 +361,7 @@ public partial class PythonEnvManagerSettingsDialogWindow : UserControl, INotify
             {
                 var baseDirectory = ResolveWorkspaceDirectory(ownerItem);
                 var effectivePath = PythonEnvDefinitionHelper.ResolveScriptPath(addedDefinition.ScriptPath, baseDirectory);
-                PythonEnvRowRegistry.GetOrCreate(addedDefinition.Name, addedDefinition.ScriptPath, effectivePath, ownerItem).Start();
+                PythonEnvRowRegistry.GetOrCreate(addedDefinition.Name, addedDefinition.ScriptPath, effectivePath, addedDefinition.StartupDelayMs, ownerItem).Start();
             }
         }
 
@@ -399,9 +471,9 @@ public partial class PythonEnvManagerSettingsDialogWindow : UserControl, INotify
 
 internal static class PythonEnvDefinitionHelper
 {
-    public static IReadOnlyList<(string Name, string ScriptPath)> ParseDefinitions(string definitions)
+    public static IReadOnlyList<(string Name, string ScriptPath, int StartupDelayMs)> ParseDefinitions(string definitions)
     {
-        var result = new List<(string Name, string ScriptPath)>();
+        var result = new List<(string Name, string ScriptPath, int StartupDelayMs)>();
         var lines = definitions.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
         foreach (var rawLine in lines)
@@ -415,6 +487,7 @@ internal static class PythonEnvDefinitionHelper
             var parts = line.Split('|');
             var scriptPart = parts.Length > 1 ? parts[1] : parts[0];
             var namePart = parts.Length > 1 ? parts[0] : string.Empty;
+            var delayPart = parts.Length > 2 ? parts[2] : string.Empty;
 
             var scriptPath = scriptPart.Trim();
             if (string.IsNullOrWhiteSpace(scriptPath))
@@ -422,11 +495,18 @@ internal static class PythonEnvDefinitionHelper
                 continue;
             }
 
+            var startupDelayMs = 0;
+            if (!string.IsNullOrWhiteSpace(delayPart))
+            {
+                _ = int.TryParse(delayPart.Trim(), out startupDelayMs);
+                startupDelayMs = Math.Max(0, startupDelayMs);
+            }
+
             var name = string.IsNullOrWhiteSpace(namePart)
                 ? Path.GetFileNameWithoutExtension(scriptPath)
                 : namePart.Trim();
 
-            result.Add((name, scriptPath));
+            result.Add((name, scriptPath, startupDelayMs));
         }
 
         return result;
@@ -442,8 +522,8 @@ internal static class PythonEnvDefinitionHelper
         return Path.Combine(baseDirectory, scriptPath);
     }
 
-    public static string SerializeDefinitions(IEnumerable<(string Name, string ScriptPath)> definitions)
-        => string.Join(Environment.NewLine, definitions.Select(static env => $"{env.Name} | {env.ScriptPath}"));
+    public static string SerializeDefinitions(IEnumerable<(string Name, string ScriptPath, int StartupDelayMs)> definitions)
+        => string.Join(Environment.NewLine, definitions.Select(static env => $"{env.Name} | {env.ScriptPath} | {Math.Max(0, env.StartupDelayMs)}"));
 
     public static string RemoveDefinition(string definitions, string name, string scriptPath)
     {
@@ -462,11 +542,11 @@ internal static class PythonEnvDefinitionHelper
         return string.Join(Environment.NewLine, remainingLines).Trim();
     }
 
-    private static bool IsSameDefinition((string Name, string ScriptPath) definition, string name, string scriptPath)
+    private static bool IsSameDefinition((string Name, string ScriptPath, int StartupDelayMs) definition, string name, string scriptPath)
         => string.Equals(definition.Name?.Trim(), name?.Trim(), StringComparison.OrdinalIgnoreCase)
            && string.Equals(definition.ScriptPath?.Trim(), scriptPath?.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    private static bool TryParseDefinitionLine(string rawLine, out (string Name, string ScriptPath) definition)
+    private static bool TryParseDefinitionLine(string rawLine, out (string Name, string ScriptPath, int StartupDelayMs) definition)
     {
         definition = default;
 
@@ -479,6 +559,7 @@ internal static class PythonEnvDefinitionHelper
         var parts = line.Split('|');
         var scriptPart = parts.Length > 1 ? parts[1] : parts[0];
         var namePart = parts.Length > 1 ? parts[0] : string.Empty;
+        var delayPart = parts.Length > 2 ? parts[2] : string.Empty;
 
         var scriptPath = scriptPart.Trim();
         if (string.IsNullOrWhiteSpace(scriptPath))
@@ -486,11 +567,18 @@ internal static class PythonEnvDefinitionHelper
             return false;
         }
 
+        var startupDelayMs = 0;
+        if (!string.IsNullOrWhiteSpace(delayPart))
+        {
+            _ = int.TryParse(delayPart.Trim(), out startupDelayMs);
+            startupDelayMs = Math.Max(0, startupDelayMs);
+        }
+
         var name = string.IsNullOrWhiteSpace(namePart)
             ? Path.GetFileNameWithoutExtension(scriptPath)
             : namePart.Trim();
 
-        definition = (name, scriptPath);
+        definition = (name, scriptPath, startupDelayMs);
         return true;
     }
 

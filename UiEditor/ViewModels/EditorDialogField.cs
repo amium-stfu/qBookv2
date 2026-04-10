@@ -14,10 +14,13 @@ namespace Amium.UiEditor.ViewModels;
 
 public sealed class EditorDialogField : ObservableObject
 {
+    private bool _isReadOnly;
+
     public EditorDialogField(EditorDialogBindingDefinition definition, Parameter parameter)
     {
         Definition = definition;
         Parameter = parameter;
+        _isReadOnly = definition.IsReadOnly;
 
         foreach (var axis in new[] { "Y1", "Y2", "Y3", "Y4" })
         {
@@ -59,7 +62,20 @@ public sealed class EditorDialogField : ObservableObject
 
     public EditorPropertyType PropertyType => Definition.PropertyType;
 
-    public bool IsReadOnly => Definition.IsReadOnly;
+    public bool IsReadOnly
+    {
+        get => _isReadOnly;
+        internal set
+        {
+            if (!SetProperty(ref _isReadOnly, value))
+            {
+                return;
+            }
+
+            RaisePropertyChanged(nameof(IsTextInput));
+            RaisePropertyChanged(nameof(ShowPickerButton));
+        }
+    }
 
     public ObservableCollection<string> Options { get; } = [];
 
@@ -80,8 +96,6 @@ public sealed class EditorDialogField : ObservableObject
     public ObservableCollection<string> InteractionActionOptions { get; } = [];
 
     public ObservableCollection<string> InteractionTargetOptions { get; } = [];
-
-    public ObservableCollection<string> InteractionPythonClientOptions { get; } = [];
 
     public ObservableCollection<string> InteractionPythonEnvironmentOptions { get; } = [];
 
@@ -366,7 +380,6 @@ public sealed class EditorDialogField : ObservableObject
 
         RefreshInteractionRuleTargetOptions(
             HostRegistries.Data.GetAllKeys().OrderBy(key => key, StringComparer.OrdinalIgnoreCase),
-            [],
             []);
     }
 
@@ -402,7 +415,7 @@ public sealed class EditorDialogField : ObservableObject
         RaisePropertyChanged(nameof(StructuredEditorSummary));
     }
 
-    public void RefreshInteractionRuleTargetOptions(IEnumerable<string> options, IEnumerable<string>? pythonClientOptions, IEnumerable<string>? pythonEnvironmentOptions)
+    public void RefreshInteractionRuleTargetOptions(IEnumerable<string> options, IEnumerable<string>? pythonEnvironmentOptions)
     {
         if (!IsInteractionRuleList)
         {
@@ -414,14 +427,6 @@ public sealed class EditorDialogField : ObservableObject
         foreach (var option in options.Where(static option => !string.IsNullOrWhiteSpace(option)).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             InteractionTargetOptions.Add(option);
-        }
-
-        InteractionPythonClientOptions.Clear();
-        foreach (var option in (pythonClientOptions ?? [])
-                     .Where(static option => !string.IsNullOrWhiteSpace(option))
-                     .Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            InteractionPythonClientOptions.Add(option);
         }
 
         InteractionPythonEnvironmentOptions.Clear();
@@ -693,11 +698,9 @@ public sealed class EditorDialogField : ObservableObject
     }
 
     public IReadOnlyList<string> GetInteractionTargetOptions(string? actionName)
-        => string.Equals(actionName, nameof(ItemInteractionAction.InvokePythonClientFunction), StringComparison.OrdinalIgnoreCase)
-            ? InteractionPythonClientOptions.ToArray()
-            : string.Equals(actionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase)
-                ? InteractionPythonEnvironmentOptions.ToArray()
-                : InteractionTargetOptions.ToArray();
+        => string.Equals(actionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase)
+            ? InteractionPythonEnvironmentOptions.ToArray()
+            : InteractionTargetOptions.ToArray();
 
     public IReadOnlyList<string> GetInteractionFunctionOptions(string? targetPath)
         => string.IsNullOrWhiteSpace(targetPath)

@@ -16,7 +16,6 @@ public enum ItemInteractionAction
     ToggleBool,
     SetValue,
     SendInputTo,
-    InvokePythonClientFunction,
     InvokePythonFunction
 }
 
@@ -92,7 +91,7 @@ public static class ItemInteractionRuleCodec
             Sanitize(rule.TargetPath, "this")
         };
 
-        if (rule.Action is ItemInteractionAction.InvokePythonClientFunction or ItemInteractionAction.InvokePythonFunction
+        if (rule.Action is ItemInteractionAction.InvokePythonFunction
             || !string.IsNullOrWhiteSpace(rule.FunctionName))
         {
             values.Add(Sanitize(rule.FunctionName, string.Empty));

@@ -1,0 +1,67 @@
+<Window
+    x:Class="Amium.UiEditor.Widgets.PythonEnvErrorDialogWindow"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="860"
+    MinWidth="860"
+    Height="520"
+    MinHeight="520"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    CanResize="True"
+    SystemDecorations="BorderOnly"
+    Background="{Binding DialogBackground}"
+    Title="Python Error Details">
+  <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto">
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+      <TextBlock Text="Python Error" FontSize="18" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" />
+      <TextBlock Text="{Binding SummaryText}" FontSize="13" Foreground="{Binding SecondaryTextBrush}" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Border Grid.Row="1"
+            Margin="0,0,0,12"
+            Padding="10"
+            Background="{Binding ParameterEditBackgrundColor}"
+            BorderBrush="{Binding CardBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+      <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+        <TextBlock Text="Environment" Foreground="{Binding SecondaryTextBrush}" />
+        <TextBlock Grid.Column="1" Margin="10,0,0,0" Text="{Binding EnvironmentName}" Foreground="{Binding PrimaryTextBrush}" TextWrapping="Wrap" />
+
+        <TextBlock Grid.Row="1" Margin="0,6,0,0" Text="File" Foreground="{Binding SecondaryTextBrush}" />
+        <TextBlock Grid.Row="1" Grid.Column="1" Margin="10,6,0,0" Text="{Binding FileText}" Foreground="{Binding PrimaryTextBrush}" TextWrapping="Wrap" />
+
+        <TextBlock Grid.Row="2" Margin="0,6,0,0" Text="Line" Foreground="{Binding SecondaryTextBrush}" />
+        <TextBlock Grid.Row="2" Grid.Column="1" Margin="10,6,0,0" Text="{Binding LineText}" Foreground="{Binding PrimaryTextBrush}" TextWrapping="Wrap" />
+
+        <TextBlock Grid.Row="3" Margin="0,6,0,0" Text="Function" Foreground="{Binding SecondaryTextBrush}" />
+        <TextBlock Grid.Row="3" Grid.Column="1" Margin="10,6,0,0" Text="{Binding FunctionText}" Foreground="{Binding PrimaryTextBrush}" TextWrapping="Wrap" />
+      </Grid>
+    </Border>
+
+    <TextBox Grid.Row="2"
+             Text="{Binding DetailsText}"
+             IsReadOnly="True"
+             AcceptsReturn="True"
+             TextWrapping="Wrap"
+             Background="{Binding ParameterEditBackgrundColor}"
+             Foreground="{Binding ParameterEditForeColor}"
+             BorderBrush="{Binding CardBorderBrush}"
+             BorderThickness="1"
+             CaretBrush="{Binding ParameterEditForeColor}" />
+
+    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button x:Name="CloseButton"
+              MinWidth="100"
+              Padding="12,7"
+              Background="{Binding EditPanelButtonBackground}"
+              BorderBrush="{Binding EditPanelButtonBorderBrush}"
+              Foreground="{Binding PrimaryTextBrush}"
+              Click="OnCloseClicked">
+        <TextBlock Text="Close" />
+      </Button>
+    </StackPanel>
+  </Grid>
+</Window>

@@ -9,8 +9,62 @@ Whenever the helper API changes, this file and the copied runtime doc in `UiEdit
 ## Import
 
 ```python
+from amium_host import host
 from ui_python_client import FunctionResult, PythonClient
 ```
+
+## amium_host
+
+### Host Values
+
+```python
+from amium_host import host
+
+temperature = host.values.temperature.value
+host.values["Runtime/Test/Setpoint"].value = 100
+```
+
+Purpose:
+- access the host-projected value view from Python
+
+Behavior:
+- attribute access uses generated aliases when available
+- index access accepts either a visible alias or a projected registry path
+- writes go back through the host bridge and remain host-administered
+- projected registry paths may include runtime entries like `PythonClients/Raw/raw_b`
+
+### Host Value Metadata
+
+```python
+from amium_host import host
+
+value = host.values.temperature
+unit = value.unit
+path = value.path
+is_writable = value.is_writable
+```
+
+Metadata fields:
+- `alias`
+- `path`
+- `title`
+- `unit`
+- `format`
+- `kind`
+- `data_type`
+- `is_writable`
+
+### Host Log
+
+```python
+from amium_host import host
+
+host.log.info("Python started")
+host.log.warning("Temperature high")
+```
+
+Purpose:
+- write log messages through the active host-managed Python client
 
 ## PythonClient
 
@@ -202,6 +256,7 @@ Editor support:
 - generated Python client folders also receive a local `.vscode/settings.json`
 - the workspace enables `python.analysis.extraPaths` for the script root and turns on auto-import completions
 - `.vscode/extensions.json` recommends the VS Code extensions `ms-python.python` and `ms-python.vscode-pylance`
+- generated folders also receive the `amium_host` package for projected host value access with local type information
 
 ## FunctionResult
 

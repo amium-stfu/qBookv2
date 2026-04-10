@@ -12,10 +12,10 @@ We use it as the working contract until implementation is explicitly approved.
 ## Core Goal
 
 Python may:
-- build interfaces
-- deliver raw values
-- provide functions
-- provide process logic and workflows
+- connect to external systems
+- deliver raw values and derived values
+- provide callable functions
+- encapsulate adapter-specific protocol logic
 
 The host remains responsible for:
 - lifecycle
@@ -30,6 +30,30 @@ The host remains responsible for:
 - logging
 - timeout handling
 - state reporting
+- administration
+
+## Administration Boundary
+
+Hard rule:
+- Python is a provider of data and callable functions.
+- The host is the only owner of administration and orchestration.
+
+This means:
+- Python may expose values, states, diagnostics, and functions.
+- Python may implement protocol-specific adapter logic internally.
+- Python must not own system administration, orchestration, or runtime policy.
+
+Administration remains host-only for:
+- process supervision
+- runtime scheduling
+- start, stop, restart, and hard-stop policy
+- timeout and retry policy
+- configuration ownership
+- project-scope ownership
+- state authority
+- routing and bindings
+- UI and operator interaction
+- fault handling and escalation
 
 ## Architectural Direction
 
@@ -38,9 +62,9 @@ Working name:
 - possible runtime component name later: PythonClient
 
 Principle:
-- Python is an integration and logic layer.
-- The host is the owner of runtime control.
-- Python must never own UI, runtime shutdown, or project lifecycle.
+- Python is a provider layer for adapters, values, and callable functions.
+- The host is the owner of runtime control and all administration.
+- Python must never own UI, orchestration, runtime shutdown, or project lifecycle.
 
 ## Separation of Responsibility
 
@@ -51,14 +75,19 @@ Allowed responsibilities:
 - open custom interfaces
 - implement protocol adapters
 - read and transform raw data
+- calculate derived values
 - expose callable functions
-- implement internal workflows
 - publish values and states through the host bridge
 
 Not allowed as final system responsibility:
 - direct UI rendering
 - direct editor manipulation
 - owning process lifecycle
+- owning scheduling or restart policy
+- owning timeout or retry policy
+- owning configuration truth
+- owning routing or bindings
+- owning system state transitions
 - deciding when the runtime survives project switch
 - bypassing host stop and hard-stop rules
 
@@ -74,6 +103,18 @@ Required responsibilities:
 - define callable surface between UI and Python
 - expose values, commands, and states to the rest of the system
 - manage visualization and operator interaction
+- remain the single administrative authority for runtime behavior
+
+## Architecture Rules
+
+The following rules should stay valid even if the bridge grows later:
+
+1. Python may only contribute data, states, diagnostics, and callable functions.
+2. The host is the only administrative authority for configuration, orchestration, runtime state, and lifecycle.
+3. Python may implement adapter-local logic, but host policy must decide when that logic starts, stops, retries, or is discarded.
+4. No Python runtime may survive a host scope change unless the host explicitly creates a new runtime for the new scope.
+5. Python messages describe or report; they do not administrate the system.
+6. Every escalation path up to hard termination remains host-owned.
 
 ## First Design Assumptions
 
@@ -135,6 +176,25 @@ Python should be able to:
 - return results
 - optionally support long-running operations with progress/status
 
+### Operations / Tasks
+
+Python should also be able to:
+- expose long-running operations
+- emit status and progress updates while running
+- return a final structured result
+- react to host-owned cancellation
+
+Host responsibilities remain unchanged:
+- the host starts operations
+- the host tracks operation state
+- the host applies timeout and cancellation rules
+- the host decides visibility in UI and workflow binding
+- the host owns final escalation if an operation does not stop cleanly
+
+Working rule:
+- simple one-shot behavior should use functions
+- long-running or observable behavior should use operations/tasks
+
 ## Function Registry Model
 
 Preferred direction:
@@ -166,6 +226,97 @@ Possible concepts:
 - `define_function(name, description=None)`
 - `register_function(name, handler, description=None)`
 - `invoke(function_name, args)`
+
+## Function vs Operation Model
+
+Preferred direction:
+- Functions and operations are different concepts and should not be merged into one vague call model.
+- Functions are short request/response calls.
+- Operations are longer-running, stateful executions with progress and final completion.
+
+### Functions
+
+Characteristics:
+- host-invoked
+- request/response only
+- one result at the end
+- no separate runtime identity beyond the request id
+
+Typical use cases:
+- read a value once
+- write a parameter
+- execute a quick calculation
+- trigger a short adapter action
+
+### Operations
+
+Characteristics:
+- host-started
+- long-running or multi-step
+- observable while running
+- have a dedicated `operation_id`
+- may emit progress, status text, and step changes
+- end with a final result, failure, or cancellation
+
+Typical use cases:
+- device initialization sequences
+- protocol workflows with retries or waits
+- mixed workflows with delays and Python-side execution
+- operations that need UI-visible status
+
+### Ownership split
+
+Python side:
+- implements operation logic
+- reports progress and status
+- returns final result
+
+Host side:
+- starts the operation
+- tracks operation lifecycle
+- exposes status in UI
+- applies timeout and cancel rules
+- decides whether a failed or hanging operation is retried, stopped, or escalated
+
+Hard rule:
+- Python may execute operations.
+- The host administrates operations.
+
+### Candidate operation messages
+
+Host -> Python:
+- `start_operation`
+- `cancel_operation`
+
+Python -> Host:
+- `operation_started`
+- `operation_status`
+- `operation_progress`
+- `operation_result`
+- `operation_failed`
+- `operation_cancelled`
+
+### Candidate operation payload fields
+
+Possible concepts:
+- `operation_id`
+- `state`
+- `message`
+- `progress`
+- `current_step`
+- `payload`
+- `error_code`
+
+### Candidate operation states
+
+Possible concepts:
+- `created`
+- `queued`
+- `running`
+- `waiting`
+- `completed`
+- `failed`
+- `cancelled`
 
 ### Result contract for host-invoked functions
 
@@ -459,6 +610,7 @@ Preferred direction:
 - Communication should be host-led.
 - Python may declare and publish.
 - The host remains the runtime controller, invocation owner, and lifecycle owner.
+- The host remains the only administrative authority.
 - Allowed message types should depend on the current runtime state.
 
 This means communication is not fully free-form.
@@ -599,6 +751,8 @@ Current best recommendation:
 - use a state-based communication model
 - keep invocation host-led
 - keep publishing Python-led
+- keep all administrative decisions host-owned
+- distinguish clearly between short function calls and tracked operations
 - validate incoming message types against the current runtime state
 
 ## Robustness Rules
@@ -770,6 +924,74 @@ Preferred rule:
 Not preferred:
 - exporting internal host registry implementation details directly into Python
 
+### Unified host access model
+
+Preferred direction:
+- Python should access host-provided values through a stable, Python-friendly API.
+- The exposed surface should unify the earlier signal-based idea with the newer stub-based editor support.
+- Runtime access and editor autocomplete should describe the same conceptual model.
+
+Working model:
+- the host exposes a filtered view of visible host values to Python
+- this view is shaped as signals/values with metadata and read/write access where allowed
+- Python accesses these values through a stable runtime API
+- generated `.pyi` stubs provide autocomplete for the same visible names and types
+
+Hard rules:
+- Python does not read the raw internal host registries directly
+- Python only sees the host-approved, filtered projection for its scope
+- the host remains the source of truth for value state and permissions
+
+### Preferred runtime shape
+
+Preferred concepts:
+- `host.values` for visible values/signals
+- `host.functions` for visible host-callable functions
+- `host.tasks` or `host.operations` for host-owned long-running workflow capabilities if exposed later
+
+Value access should feel simple in Python:
+- read current value
+- write current value if writable
+- inspect metadata such as unit, format, source path, and display name
+
+### Preferred value object shape
+
+Possible conceptual model:
+- `signal.value`
+- `signal.unit`
+- `signal.format`
+- `signal.source_path`
+- `signal.is_writable`
+
+The exact runtime class names may still change, but the usage model should remain stable.
+
+### Scope mapping model
+
+Preferred direction:
+- the host maps configured and visible targets into Python-visible aliases
+- Python code uses aliases or generated names, not arbitrary raw registry traversal
+
+Examples:
+- UI or workflow scope exposes `speed` -> some approved host target
+- UI or workflow scope exposes `temperature` -> some approved host target
+- Python accesses `host.values.speed` or `host.values["speed"]`
+
+This preserves:
+- scope control
+- autocomplete
+- a stable Python-facing contract
+- freedom for the host to change internal registry structure later
+
+### Relationship to the older signal model
+
+The earlier signal-based idea remains valid as the semantic foundation:
+- Python should see host values as signal-like objects with metadata and live value access
+- reads and writes still go through the host-owned signal/value abstraction
+
+The newer addition is only the developer experience layer:
+- generated `.pyi` stubs make the visible host surface discoverable and typeable in the editor
+- they do not replace the runtime bridge
+
 ### Scope of generated information
 
 The generated Python stubs may include:
@@ -811,6 +1033,105 @@ Possible concepts:
 - define_function(name, description=None)
 - register_function(name, handler, description=None)
 - define_status_channel(name)
+
+## Python Syntax Model
+
+Preferred direction:
+- Python scripts should use a small stable host object model instead of ad-hoc helper globals.
+- The syntax should support both readable script code and generated autocomplete.
+
+### Preferred script entry surface
+
+Possible concepts:
+- `from amium_host import host`
+- `host.values`
+- `host.functions`
+- `host.operations`
+
+### Preferred value access syntax
+
+Attribute-style access should be preferred when a generated alias is a valid Python identifier:
+
+```python
+from amium_host import host
+
+speed = host.values.speed.value
+temperature = host.values.temperature.value
+
+if temperature > 80.0 and host.values.speed.is_writable:
+    host.values.speed.value = 0
+```
+
+Index-style access should remain available for dynamic names or aliases that are not valid identifiers:
+
+```python
+from amium_host import host
+
+setpoint = host.values["motor_setpoint"].value
+host.values["motor_setpoint"].value = 100
+```
+
+### Preferred metadata access syntax
+
+```python
+from amium_host import host
+
+temp = host.values.temperature
+host.log.info(f"Temperature unit: {temp.unit}")
+host.log.info(f"Source path: {temp.source_path}")
+```
+
+### Preferred host function syntax
+
+If host-callable functions are exposed into Python later, the access model should stay parallel to values:
+
+```python
+from amium_host import host
+
+result = host.functions.reset_device(device_id="m1")
+if not result.success:
+    host.log.warning(result.message or "reset failed")
+```
+
+### Preferred Python operation syntax
+
+If Python-backed operations are started from the host workflow model, Python implementation syntax may stay separate from host workflow syntax.
+
+Example conceptual registration:
+
+```python
+from ui_python_client import FunctionResult, PythonClient
+
+client = PythonClient("ModbusClient", capabilities=["functions", "values"])
+
+
+@client.function("read_register")
+def read_register(args: dict[str, object]) -> FunctionResult:
+    register = int(args.get("register", 0))
+    return FunctionResult.ok(payload={"register": register, "value": 42})
+```
+
+Example conceptual host-side workflow usage:
+
+```text
+1. set_value ./xy.Value = 100
+2. delay 3000ms
+3. start_python_operation xy
+```
+
+### Autocomplete expectation
+
+Generated stubs should make code like this discoverable in the editor:
+
+```python
+from amium_host import host
+
+host.values.speed.value
+host.values.temperature.unit
+host.functions.reset_device(...)
+```
+
+This is the preferred replacement for a raw `GetSignal("id")`-style scripting surface.
 
 ### Runtime updates
 
@@ -864,6 +1185,74 @@ Rules:
 - no Python runtime may survive into the next project scope
 - stale callbacks must not update current runtime state
 
+## Workflow Widget Model
+
+Preferred direction:
+- A workflow widget executes simple workflow script files sequentially.
+- The workflow definition is host-owned.
+- A workflow may mix host-native actions and Python operations.
+- Python does not become the workflow administrator.
+
+### Workflow execution principles
+
+Rules:
+- steps execute sequentially unless a later extension explicitly adds branching or parallelism
+- the host owns the workflow runner and current step pointer
+- each step has a defined type and argument payload
+- the host decides step timeout, cancellation, and error behavior
+- Python participates only where a step explicitly invokes a Python function or operation
+
+### Candidate first step types
+
+Possible concepts:
+- `set_value`
+- `delay`
+- `invoke_host_function`
+- `start_python_operation`
+- optional later: `condition`, `repeat`, `wait_for_state`
+
+### Example workflow
+
+Conceptual sequence:
+1. set value `./xy.Value = 100`
+2. delay `3000 ms`
+3. start Python operation `xy`
+
+### Step ownership model
+
+Host-native steps:
+- set value
+- delay
+- invoke host function
+- evaluate later workflow conditions
+
+Python-backed steps:
+- invoke Python function
+- start Python operation
+
+Rule:
+- even for Python-backed steps, the workflow engine stays in the host
+- Python only executes the requested callable or operation and reports status/result
+
+### Python operation step behavior
+
+Preferred behavior:
+- the workflow step starts a Python operation by name
+- the host receives `operation_started`
+- the host may surface `operation_status` and `operation_progress` in the workflow widget
+- the step completes only after `operation_result`, `operation_failed`, or `operation_cancelled`
+- timeout, cancel, and escalation remain host-owned
+
+### Candidate workflow status visibility
+
+The workflow widget should be able to show at least:
+- workflow state
+- current step index
+- current step label
+- current operation message if the active step is Python-backed
+- progress if available
+- final success or failure
+
 ## Registry / UI Expectations
 
 Open question:
@@ -905,6 +1294,7 @@ Runtime isolation expectations:
 
 Required:
 - strict host ownership of process lifetime
+- strict host ownership of administration and orchestration
 - timeout-based shutdown
 - hard kill fallback
 - protection against stale runtime callbacks
@@ -939,8 +1329,8 @@ Optional later:
 
 ### Confirmed
 
-- Python may build interfaces, provide raw values, and provide functions/workflows.
-- Host owns invocation, visualization, control, and lifecycle.
+- Python is limited to adapter behavior, data delivery, diagnostics, states, and callable functions.
+- Host owns invocation, visualization, control, lifecycle, and all administration.
 - We define the architecture first and do not implement until explicitly approved.
 - Preferred developer experience is a stable host API plus generated `.pyi` stubs for autocomplete.
 - Every PythonClient should receive its own ProcessLog automatically.
@@ -952,6 +1342,8 @@ Optional later:
 - Preferred robustness model includes session ids, request correlation, state validation, explicit timeouts, and host-owned escalation.
  - One host-owned PythonManager supervises multiple folder-based Python environments under a common Python root.
  - Each Python environment is represented by its own folder and Python process, while sharing a common PythonClient SDK and helper library surface.
+- Functions and operations are separate concepts: functions are short request/response calls, while operations are tracked long-running executions with status and progress.
+- A future workflow widget may execute host-owned sequential workflow scripts that mix host-native steps with Python-backed operations.
 
 ### Pending
 

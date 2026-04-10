@@ -33,15 +33,18 @@ public sealed class PythonClient : IAsyncDisposable
 
     private readonly PythonClientOptions _options;
     private readonly CancellationTokenSource _lifetimeCts = new();
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
     private readonly TaskCompletionSource _handshakeCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<PythonFunctionResult>> _pendingInvocations = new();
     private readonly ConcurrentDictionary<string, PythonFunctionInfo> _functions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _valueRegistryKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, HostValueDefinitionPayload> _hostValuesByPath = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly object _stateLock = new();
     private Process? _process;
     private Task? _stdoutLoop;
     private Task? _stderrLoop;
+    private bool _hostValueBridgeAttached;
     private bool _ready;
     private bool _disposed;
 
@@ -301,6 +304,7 @@ public sealed class PythonClient : IAsyncDisposable
 
         _disposed = true;
         _lifetimeCts.Cancel();
+        DetachHostValueBridge();
 
         try
         {
@@ -312,6 +316,7 @@ public sealed class PythonClient : IAsyncDisposable
         }
 
         _lifetimeCts.Dispose();
+        _sendLock.Dispose();
     }
 
     private async Task ReadStdoutLoopAsync(Process process, CancellationToken cancellationToken)
@@ -415,6 +420,9 @@ public sealed class PythonClient : IAsyncDisposable
             case "value_update":
                 HandleValueUpdate(envelope);
                 break;
+            case "host_value_write":
+                HandleHostValueWrite(envelope);
+                break;
             case "result":
                 HandleResult(envelope);
                 break;
@@ -485,8 +493,11 @@ public sealed class PythonClient : IAsyncDisposable
                 SoftStopMs = (int)_options.SoftStopTimeout.TotalMilliseconds,
                 DefaultInvokeMs = (int)_options.DefaultInvokeTimeout.TotalMilliseconds
             },
-            RuntimeScopeMetadata = _options.RuntimeScopeMetadata
+            RuntimeScopeMetadata = _options.RuntimeScopeMetadata,
+            HostValues = BuildHostValueProjection().ToArray()
         };
+
+        EnsureHostValueBridgeAttached();
 
         var envelopeOut = new PythonMessageEnvelope
         {
@@ -614,8 +625,29 @@ public sealed class PythonClient : IAsyncDisposable
             HostRegistries.Data.UpdateValue(registryPath, value, payload.Timestamp);
         }
 
-        HostLogger.Log.Debug("PythonClient value updated. Name={ClientName} Value={ValueName} Path={Path} Value={Value}", _options.Name, valueName, registryPath, value);
+//        HostLogger.Log.Debug("PythonClient value updated. Name={ClientName} Value={ValueName} Path={Path} Value={Value}", _options.Name, valueName, registryPath, value);
         ClientLog.Debug($"Value updated: {valueName}={value}");
+    }
+
+    private void HandleHostValueWrite(PythonMessageEnvelope envelope)
+    {
+        var payload = DeserializePayload<HostValueWritePayload>(envelope.Payload);
+        if (payload is null || string.IsNullOrWhiteSpace(payload.Path))
+        {
+            return;
+        }
+
+        var path = NormalizeRegistryPath(payload.Path);
+        var value = ConvertJsonNodeToValue(payload.Value);
+
+        if (!HostRegistries.Data.UpdateValue(path, value, payload.Timestamp))
+        {
+            HostLogger.Log.Warning("PythonClient host value write ignored. Name={Name} Path={Path}", _options.Name, path);
+            ClientLog.Info($"Host value write ignored for unknown path: {path}");
+            return;
+        }
+
+        ClientLog.Debug($"Host value write: {path}={value}");
     }
 
     private void HandleResult(PythonMessageEnvelope envelope)
@@ -638,6 +670,15 @@ public sealed class PythonClient : IAsyncDisposable
         };
 
         var result = new PythonFunctionResult(payload.Success, payload.Message, payload.Payload);
+        if (!payload.Success)
+        {
+            var message = string.IsNullOrWhiteSpace(payload.Message)
+                ? "Python function invocation failed without an error message."
+                : payload.Message!;
+            HostLogger.Log.Warning("PythonClient function invocation failed. Name={Name} RequestId={RequestId} Message={Message}", _options.Name, envelope.RequestId, message);
+            ClientLog.Error($"Function invocation failed. RequestId={envelope.RequestId} Message={message}", new InvalidOperationException(message));
+        }
+
         tcs.TrySetResult(result);
     }
 
@@ -681,6 +722,7 @@ public sealed class PythonClient : IAsyncDisposable
 
         var json = JsonSerializer.Serialize(envelope, JsonOptions);
 
+        await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await stdin.WriteLineAsync(json.AsMemory(), cancellationToken).ConfigureAwait(false);
@@ -691,6 +733,10 @@ public sealed class PythonClient : IAsyncDisposable
             HostLogger.Log.Error(ex, "Failed to send message to PythonClient. Name={Name}", _options.Name);
             ClientLog.Error($"Failed to send message: {ex.Message}", ex);
             throw;
+        }
+        finally
+        {
+            _sendLock.Release();
         }
     }
 
@@ -719,6 +765,9 @@ public sealed class PythonClient : IAsyncDisposable
 
     private async Task HardStopInternalAsync()
     {
+        DetachHostValueBridge();
+        _ready = false;
+
         Process? process;
         lock (_stateLock)
         {
@@ -897,6 +946,281 @@ public sealed class PythonClient : IAsyncDisposable
         }
 
         return root;
+    }
+
+    private IReadOnlyList<HostValueDefinitionPayload> BuildHostValueProjection()
+    {
+        var definitions = new List<HostValueDefinitionPayload>();
+
+        foreach (var rootKey in HostRegistries.Data.GetAllKeys().OrderBy(static key => key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!ShouldProjectHostValuePath(rootKey) || !HostRegistries.Data.TryGet(rootKey, out var rootItem) || rootItem is null)
+            {
+                continue;
+            }
+
+            CollectHostValueDefinitions(rootItem, rootKey, definitions);
+        }
+
+        AssignHostValueAliases(definitions);
+
+        _hostValuesByPath.Clear();
+        foreach (var definition in definitions)
+        {
+            _hostValuesByPath[definition.Path] = definition;
+        }
+
+        return definitions;
+    }
+
+    private void CollectHostValueDefinitions(Item item, string currentPath, ICollection<HostValueDefinitionPayload> definitions)
+    {
+        if (!ShouldProjectHostValuePath(currentPath))
+        {
+            return;
+        }
+
+        var children = item.GetDictionary();
+        var hasChildren = children.Count > 0;
+        var currentValue = item.Params.Has("Value") ? item.Params["Value"].Value : item.Value;
+
+        if (!hasChildren || currentValue is not null)
+        {
+            definitions.Add(new HostValueDefinitionPayload
+            {
+                Path = currentPath,
+                Title = GetItemDisplayTitle(item, currentPath),
+                Unit = GetOptionalItemParameter(item, "Unit"),
+                Format = GetOptionalItemParameter(item, "Format"),
+                Kind = GetOptionalItemParameter(item, "Kind"),
+                DataType = InferHostValueType(currentValue),
+                IsWritable = true,
+                Value = ConvertValueToJsonNode(currentValue)
+            });
+        }
+
+        foreach (var childEntry in children.OrderBy(static entry => entry.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            CollectHostValueDefinitions(childEntry.Value, currentPath + "/" + childEntry.Key, definitions);
+        }
+    }
+
+    private void EnsureHostValueBridgeAttached()
+    {
+        if (_hostValueBridgeAttached)
+        {
+            return;
+        }
+
+        HostRegistries.Data.ItemChanged += OnHostRegistryItemChanged;
+        _hostValueBridgeAttached = true;
+    }
+
+    private void DetachHostValueBridge()
+    {
+        if (!_hostValueBridgeAttached)
+        {
+            return;
+        }
+
+        HostRegistries.Data.ItemChanged -= OnHostRegistryItemChanged;
+        _hostValueBridgeAttached = false;
+    }
+
+    private void OnHostRegistryItemChanged(object? sender, DataChangedEventArgs e)
+    {
+        if (!_ready || _disposed)
+        {
+            return;
+        }
+
+        if (e.ChangeKind == DataChangeKind.ValueUpdated)
+        {
+            SendProjectedHostValueUpdate(e.Key, e.Item, e.Timestamp);
+            return;
+        }
+
+        if (e.ChangeKind != DataChangeKind.SnapshotUpserted)
+        {
+            return;
+        }
+
+        foreach (var projected in _hostValuesByPath.Values.Where(projected => projected.Path.Equals(e.Key, StringComparison.OrdinalIgnoreCase) || projected.Path.StartsWith(e.Key + "/", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!HostRegistries.Data.TryGet(projected.Path, out var item) || item is null)
+            {
+                continue;
+            }
+
+            SendProjectedHostValueUpdate(projected.Path, item, e.Timestamp);
+        }
+    }
+
+    private void SendProjectedHostValueUpdate(string path, Item item, ulong? timestamp)
+    {
+        if (!_hostValuesByPath.TryGetValue(path, out var projected))
+        {
+            return;
+        }
+
+        var currentValue = item.Params.Has("Value") ? item.Params["Value"].Value : item.Value;
+        projected.Value = ConvertValueToJsonNode(currentValue);
+
+        _ = SendAsync(new PythonMessageEnvelope
+        {
+            Type = "host_value_update",
+            BridgeVersion = _options.BridgeVersion,
+            Payload = JsonSerializer.SerializeToNode(new HostValueUpdatePayload
+            {
+                Alias = projected.Alias,
+                Path = projected.Path,
+                Value = projected.Value,
+                Timestamp = timestamp
+            }, JsonOptions)
+        }, CancellationToken.None);
+    }
+
+    private static bool ShouldProjectHostValuePath(string path)
+    {
+        return !string.IsNullOrWhiteSpace(path);
+    }
+
+    private static void AssignHostValueAliases(IReadOnlyList<HostValueDefinitionPayload> definitions)
+    {
+        var preferredCounts = definitions
+            .Select(static definition => CreatePythonAlias(GetLastPathSegment(definition.Path)))
+            .GroupBy(static alias => alias, StringComparer.Ordinal)
+            .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
+
+        var usedAliases = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var definition in definitions)
+        {
+            var preferredAlias = CreatePythonAlias(GetLastPathSegment(definition.Path));
+            var alias = preferredAlias;
+
+            if (string.IsNullOrWhiteSpace(alias)
+                || (preferredCounts.TryGetValue(preferredAlias, out var count) && count > 1)
+                || !usedAliases.Add(alias))
+            {
+                alias = CreateUniquePythonAlias(definition.Path, usedAliases);
+            }
+
+            definition.Alias = alias;
+        }
+    }
+
+    private static string CreateUniquePythonAlias(string path, ISet<string> usedAliases)
+    {
+        var baseAlias = CreatePythonAlias(path.Replace('/', '_').Replace('.', '_'));
+        if (usedAliases.Add(baseAlias))
+        {
+            return baseAlias;
+        }
+
+        for (var suffix = 2; ; suffix++)
+        {
+            var candidate = $"{baseAlias}_{suffix}";
+            if (usedAliases.Add(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    private static string CreatePythonAlias(string rawName)
+    {
+        if (string.IsNullOrWhiteSpace(rawName))
+        {
+            return "value";
+        }
+
+        var builder = new StringBuilder(rawName.Length + 4);
+        foreach (var character in rawName.Trim())
+        {
+            builder.Append(char.IsLetterOrDigit(character) || character == '_' ? char.ToLowerInvariant(character) : '_');
+        }
+
+        var alias = builder.ToString().Trim('_');
+        while (alias.Contains("__", StringComparison.Ordinal))
+        {
+            alias = alias.Replace("__", "_", StringComparison.Ordinal);
+        }
+
+        if (string.IsNullOrWhiteSpace(alias))
+        {
+            alias = "value";
+        }
+
+        if (char.IsDigit(alias[0]))
+        {
+            alias = "v_" + alias;
+        }
+
+        return alias switch
+        {
+            "class" or "def" or "for" or "if" or "import" or "in" or "is" or "lambda" or "not" or "or" or "pass" or "raise" or "return" or "try" or "while" or "with" or "yield" or "true" or "false" or "none" => alias + "_value",
+            _ => alias
+        };
+    }
+
+    private static string GetItemDisplayTitle(Item item, string path)
+        => GetOptionalItemParameter(item, "Title")
+            ?? GetOptionalItemParameter(item, "Text")
+            ?? item.Name
+            ?? GetLastPathSegment(path);
+
+    private static string? GetOptionalItemParameter(Item item, string parameterName)
+        => item.Params.Has(parameterName)
+            ? item.Params[parameterName].Value?.ToString()
+            : null;
+
+    private static string InferHostValueType(object? value)
+    {
+        if (value is null)
+        {
+            return "unknown";
+        }
+
+        var type = Nullable.GetUnderlyingType(value.GetType()) ?? value.GetType();
+        if (type == typeof(bool))
+        {
+            return "bool";
+        }
+
+        if (type == typeof(string))
+        {
+            return "string";
+        }
+
+        if (type.IsEnum)
+        {
+            return "enum";
+        }
+
+        return Type.GetTypeCode(type) switch
+        {
+            TypeCode.Byte or TypeCode.SByte or TypeCode.Int16 or TypeCode.UInt16 or TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64 => "int",
+            TypeCode.Single or TypeCode.Double or TypeCode.Decimal => "float",
+            _ => "object"
+        };
+    }
+
+    private static JsonNode? ConvertValueToJsonNode(object? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.SerializeToNode(value, JsonOptions);
+        }
+        catch
+        {
+            return JsonValue.Create(value.ToString());
+        }
     }
 
     private static object? ConvertJsonNodeToValue(JsonNode? node)
@@ -1114,6 +1438,9 @@ internal sealed class InitPayload
 
     [JsonPropertyName("runtime_scope_metadata")]
     public JsonNode? RuntimeScopeMetadata { get; set; }
+
+    [JsonPropertyName("host_values")]
+    public HostValueDefinitionPayload[] HostValues { get; set; } = Array.Empty<HostValueDefinitionPayload>();
 }
 
 internal sealed class InitTimeoutConfig
@@ -1199,6 +1526,63 @@ internal sealed class ValueUpdatePayload
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+
+    [JsonPropertyName("value")]
+    public JsonNode? Value { get; set; }
+
+    [JsonPropertyName("timestamp")]
+    public ulong? Timestamp { get; set; }
+}
+
+internal sealed class HostValueDefinitionPayload
+{
+    [JsonPropertyName("alias")]
+    public string Alias { get; set; } = string.Empty;
+
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    [JsonPropertyName("unit")]
+    public string? Unit { get; set; }
+
+    [JsonPropertyName("format")]
+    public string? Format { get; set; }
+
+    [JsonPropertyName("kind")]
+    public string? Kind { get; set; }
+
+    [JsonPropertyName("data_type")]
+    public string DataType { get; set; } = "unknown";
+
+    [JsonPropertyName("is_writable")]
+    public bool IsWritable { get; set; }
+
+    [JsonPropertyName("value")]
+    public JsonNode? Value { get; set; }
+}
+
+internal sealed class HostValueUpdatePayload
+{
+    [JsonPropertyName("alias")]
+    public string? Alias { get; set; }
+
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    [JsonPropertyName("value")]
+    public JsonNode? Value { get; set; }
+
+    [JsonPropertyName("timestamp")]
+    public ulong? Timestamp { get; set; }
+}
+
+internal sealed class HostValueWritePayload
+{
     [JsonPropertyName("path")]
     public string? Path { get; set; }
 

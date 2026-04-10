@@ -34,6 +34,8 @@ public sealed class FolderItemDocument
 
     public string ControlCaption { get; init; } = string.Empty;
 
+    public bool SyncText { get; init; } = true;
+
     public bool CaptionVisible { get; init; } = true;
 
     public bool ShowCaption { get; init; } = true;
