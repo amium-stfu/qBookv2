@@ -3,7 +3,7 @@
     x:Name="Root"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Amium.EditorUi.Controls"
+    xmlns:controls="using:Amium.UiEditor.Controls"
     xmlns:widgets="using:Amium.UiEditor.Widgets"
     xmlns:viewModels="using:Amium.UiEditor.ViewModels"
     Width="1220"
@@ -110,7 +110,7 @@
                     <Grid Grid.Column="2" Margin="8,0,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding IsStandardInteractionAction}">
                       <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding TargetPath, Mode=TwoWay}" />
                       <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" ToolTip.Tip="Browse targets" Click="OnBrowseRowTargetClicked">
-                        <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
+                        <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
                       </Button>
                     </Grid>
                     <ComboBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding IsPythonFunctionAction}" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding TargetPath, Mode=TwoWay}">
@@ -149,7 +149,7 @@
             <Grid Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding IsNewStandardAction}">
               <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding NewTargetPath, Mode=TwoWay}" />
               <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" ToolTip.Tip="Browse targets" Click="OnBrowseNewTargetClicked">
-                <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
+                <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
               </Button>
             </Grid>
             <ComboBox Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding IsNewPythonFunctionAction}" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding NewTargetPath, Mode=TwoWay}">

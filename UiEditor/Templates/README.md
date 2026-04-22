@@ -49,8 +49,9 @@ Includes `list_host_values`, `read_host_value`, and `write_host_value`.
 ## Notes
 
 - Value templates publish data via `define_value` and `value_update`.
-- The host maps these messages into the registry under paths like `PythonClients/<ClientName>/<ValueName>`.
+- The host maps these messages into the registry under project-local paths like `Project.<Folder>.Applications.Python.<ClientName>.<ValueName>` when started from the UI.
 - You can target these registry paths from signal widgets after the PythonClient is running.
+- For simple user inputs or local computed values, prefer the `CustomSignals` widget over Python. Keep Python for integrations, external IO, or more complex logic.
 - `LogsTemplate.py` can be used directly from `InteractionRules` with `InvokePythonClientFunction` or `InvokePythonFunction`; pass plain text like `Hello HostLog`.
 - The helper package exposes typed functions like `PythonClient`, `log_info`, `register_value`, `update_value` and `@client.function(...)` for better VS Code autocompletion and debugging.
 - The `amium_host` package exposes `host.values` and `host.log` for projected host registry access with local type information.

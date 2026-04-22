@@ -1,0 +1,86 @@
+<editorUi:EditorTemplateControl
+    x:Class="Amium.UiEditor.Widgets.EditorCircleDisplayControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.UiEditor.Widgets"
+    xmlns:editorUi="using:Amium.UiEditor.Controls">
+
+  <controls:EditorCircleDisplayControl.BodyContent>
+    <Grid x:Name="TableRoot" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Grid x:Name="CircleSurface" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Ellipse x:Name="OuterRing" Stroke="#0F3344" Fill="Transparent" IsHitTestVisible="False" />
+        <Ellipse x:Name="InnerRing" Stroke="#0F3344" Fill="{Binding EffectiveDisplayBackColorBrush}" IsHitTestVisible="False" />
+        <Path x:Name="ProgressArc" Stroke="#FFC107" Fill="Transparent" Stretch="None" StrokeLineCap="Round" IsHitTestVisible="False" />
+        <Path x:Name="BeaconArc" Stroke="#FFC107" Fill="Transparent" Stretch="None" StrokeLineCap="Round" IsHitTestVisible="False" />
+
+        <Grid x:Name="ContentHost" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+          <Grid x:Name="ItemContentGrid"
+                IsHitTestVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}, Converter={StaticResource BoolNegationConverter}}" />
+
+          <ItemsControl ItemsSource="{Binding TableCellSlots}"
+                        IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Columns="{Binding TableColumns}" Rows="{Binding TableRows}" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Margin="1"
+                        BorderThickness="1"
+                        CornerRadius="2"
+                        BorderBrush="#334155"
+                        Background="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#1E3A8A}"
+                        IsVisible="{Binding IsVisibleInLayout}"
+                        PointerPressed="OnCellPointerPressed"
+                        PointerReleased="OnCellPointerReleased"
+                        PointerEntered="OnCellPointerEnter">
+                  <Grid>
+                    <TextBlock HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="10"
+                               Opacity="0.6"
+                               Text="{Binding Label}" />
+
+                    <Button Content="+"
+                            Width="32"
+                            Height="32"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="18"
+                            IsVisible="{Binding IsLastSelected}"
+                            Click="OnAddItemClicked">
+                      <Button.ContextMenu>
+                        <ContextMenu>
+                          <MenuItem Header="Signal" Click="OnAddItemMenuClicked" />
+                          <MenuItem Header="Button" Click="OnAddButtonMenuClicked" />
+                          <MenuItem Header="Realtime Chart" Click="OnAddChartMenuClicked" />
+                          <MenuItem Header="Log" Click="OnAddLogMenuClicked" />
+                          <MenuItem Header="UDL Client" Click="OnAddUdlClientMenuClicked" />
+                        </ContextMenu>
+                      </Button.ContextMenu>
+                    </Button>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Border x:Name="SelectionOverlay"
+                  IsHitTestVisible="False"
+                  BorderBrush="#80FFFFFF"
+                  BorderThickness="2"
+                  CornerRadius="3"
+                  Background="#200000FF"
+                  IsVisible="False"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Top" />
+
+          <Grid x:Name="ItemOverlayGrid"
+                IsHitTestVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}}"
+                IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}}" />
+        </Grid>
+      </Grid>
+    </Grid>
+  </controls:EditorCircleDisplayControl.BodyContent>
+</editorUi:EditorTemplateControl>

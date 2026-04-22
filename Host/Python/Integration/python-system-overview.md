@@ -1,6 +1,6 @@
 # Python System Overview
 
-This document describes how the Python client and Python environment system is structured in AutomationExplorer.
+This document describes how the Python client and Python application system is structured in AutomationExplorer.
 It is the source of truth for the Python bridge/runtime overview used by generated script folders.
 
 Rule:
@@ -17,14 +17,14 @@ Whenever the Python bridge, template workflow, interaction argument shape, or ge
 
 - `Host/Python/Client/`: host-side runtime bridge for Python clients.
 - `Host/Python/Integration/`: source-of-truth docs for the Python bridge.
-- `UiEditor/Templates/`: starter templates copied for widgets and envs.
+- `UiEditor/Templates/`: starter templates copied for widgets and Python applications.
 - `UiEditor/Templates/amium_host/`: bundled host-value access package copied with generated scripts.
 - `UiEditor/Templates/ui_python_client/`: bundled helper package copied with generated scripts.
-- `UiEditor/Widgets/PythonEnvManager/`: editor/runtime UI for Python environments.
+- `UiEditor/Widgets/ApplicationExplorer/`: editor/runtime UI for Python applications, surfaced in the UI as `ApplicationExplorer`.
 
 ## Generated Folder Layout
 
-When a Python script or Python environment is created, the target folder receives:
+When a Python script or Python application is created, the target folder receives:
 
 - the selected `.py` template
 - `PYTHON_SYSTEM.md`
@@ -35,6 +35,12 @@ When a Python script or Python environment is created, the target folder receive
 - `ui_python_client/COMMANDS.md`
 
 This gives the script a local description of the system plus the concrete helper API reference.
+
+Python applications created through `ApplicationExplorer` now live under:
+
+- `<Folder.Directory>/Applications/Python/<ApplicationName>/`
+
+Legacy folders under `<Folder.Directory>/Python/` may still exist and remain supported for migration compatibility.
 
 ## Runtime Model
 
@@ -49,10 +55,10 @@ This gives the script a local description of the system plus the concrete helper
 ## Host Value Access
 
 - Use `from amium_host import host` for projected host value access.
-- Read values via `host.values.some_alias.value` or `host.values["Some/Registry/Path"].value`.
+- Read values via `host.values.some_alias.value` or `host.values["Some.Registry.Path"].value`.
 - Write values back with `host.values.some_alias.value = 42`.
 - The host remains the source of truth and the only administrative authority.
-- Projected paths may also include runtime values such as `PythonClients/Raw/raw_b`.
+- Projected paths may also include runtime values such as `Project.Dummy.Applications.Python.Raw.raw_b`.
 
 Available projected metadata may include:
 

@@ -1,0 +1,60 @@
+Caption: 'Folder1'
+Screens:
+  1: 'HomeScreen'
+  20: 'ApplicationScreen'
+Controls:
+  -
+    Type: 'ApplicationExplorer'
+    Folder: 'Folder1'
+    Caption: 'Folder1'
+    Screens:
+      1: 'HomeScreen'
+      2: 'Screen2'
+    Controls:
+      -
+        Type: 'ApplicationExplorer'
+        Screen: '1'
+        Enabled: true
+        Identity:
+          Name: 'ApplicationExplorer'
+          Text: ''
+          Path: 'Folder1.ApplicationExplorer'
+          Id: 'template-applicationexplorer'
+        Bounds:
+          X: 28
+          Y: 90
+          Width: 420
+          Height: 160
+        Design:
+          CornerRadius: 12
+          BorderWidth: 1
+          BorderColor: null
+          BackColor: null
+          ToolTip: ''
+        Header:
+          ControlCaption: 'ApplicationExplorer'
+          SyncText: true
+          HeaderForeColor: null
+          CaptionVisible: true
+          HeaderCornerRadius: 6
+          HeaderBorderWidth: 0
+          HeaderBorderColor: null
+          HeaderBackColor: null
+        Body:
+          BodyCaption: ''
+          BodyCaptionPosition: 'Top'
+          BodyForeColor: null
+          BodyCaptionVisible: false
+          BodyCornerRadius: 0
+          BodyBorderWidth: 0
+          BodyBorderColor: null
+          BodyBackColor: null
+        Footer:
+          ShowFooter: true
+          FooterCornerRadius: 6
+          FooterBorderWidth: 0
+          FooterBorderColor: null
+          FooterBackColor: null
+        Properties:
+          Applications: ''
+          ApplicationAutoStart: false

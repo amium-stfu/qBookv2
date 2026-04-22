@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.IO;
 using System.Threading;
@@ -9,7 +9,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Amium.EditorUi.Controls;
+using Amium.UiEditor.Controls;
 using Amium.Host;
 using Amium.Host.Python.Client;
 using Amium.UiEditor.Models;
@@ -286,6 +286,7 @@ public partial class PythonClientControl : EditorTemplateControl
                 Name = BuildRuntimeClientName(item),
                 ClientType = "UiPythonClient",
                 ScriptPath = scriptPath,
+                RegistryRootPath = BuildRegistryRootPath(item),
                 AllowedCapabilities = new[] { "functions", "host_log" }
             };
 
@@ -484,4 +485,12 @@ public partial class PythonClientControl : EditorTemplateControl
         => string.IsNullOrWhiteSpace(item.Path)
             ? $"{item.FolderName}.{(string.IsNullOrWhiteSpace(item.Name) ? item.Id : item.Name)}"
             : item.Path;
+
+    private static string BuildRegistryRootPath(FolderItemModel item)
+    {
+        var folderName = string.IsNullOrWhiteSpace(item.FolderName) ? "Page" : item.FolderName.Trim();
+        var widgetName = string.IsNullOrWhiteSpace(item.Name) ? item.Id : item.Name.Trim();
+        return $"Project.{folderName}.{widgetName}";
+    }
 }
+

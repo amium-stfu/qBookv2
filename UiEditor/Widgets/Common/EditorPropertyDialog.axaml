@@ -3,7 +3,7 @@
     x:Class="Amium.UiEditor.Widgets.EditorPropertyDialog"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Amium.EditorUi.Controls"
+    xmlns:controls="using:Amium.UiEditor.Controls"
     xmlns:viewModels="using:Amium.UiEditor.ViewModels"
     xmlns:widgets="using:Amium.UiEditor.Widgets">
   <UserControl.Styles>
@@ -220,7 +220,7 @@
                                         <controls:ThemeSvgIcon
                                             Width="14"
                                             Height="14"
-                                            IconPath="avares://Amium.Editor/EditorIcons/list.svg"
+                                            IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg"
                                             TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
                                       </Button>
                                     </Grid>
@@ -326,7 +326,7 @@
                                   <controls:ThemeSvgIcon
                                       Width="14"
                                       Height="14"
-                                      IconPath="avares://Amium.Editor/EditorIcons/pipette.svg"
+                                      IconPath="avares://AutomationExplorer.Editor/EditorIcons/pipette.svg"
                                       TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
                                 </Button>
 
@@ -342,7 +342,7 @@
                                     <controls:ThemeSvgIcon
                                         Width="14"
                                         Height="14"
-                                        IconPath="avares://Amium.Editor/EditorIcons/list.svg"
+                                        IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg"
                                         TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
                                   </Button>
 
@@ -358,7 +358,7 @@
                                     <controls:ThemeSvgIcon
                                       Width="14"
                                       Height="14"
-                                      IconPath="avares://Amium.Editor/EditorIcons/folder.svg"
+                                      IconPath="avares://AutomationExplorer.Editor/EditorIcons/folder.svg"
                                       TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
                                   </Button>
 
@@ -384,12 +384,12 @@
                                     Click="OnCopyPythonTemplateClicked"
                                     Margin="6,0,0,0" />
 
-                                  <!-- Inline Python environment settings panel for PythonEnvManager -->
-                                  <widgets:PythonEnvManagerSettingsDialogWindow
+                                  <!-- Inline application settings panel for ApplicationExplorer -->
+                                  <widgets:ApplicationExplorerSettingsDialogWindow
                                     Grid.Column="0"
                                     Grid.ColumnSpan="5"
                                     Margin="0,8,0,0"
-                                    IsVisible="{Binding IsPythonEnvManagerPicker}" />
+                                    IsVisible="{Binding IsApplicationExplorerPicker}" />
                               </Grid>
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>
@@ -469,7 +469,7 @@
               <controls:ThemeSvgIcon
                   Width="16"
                   Height="16"
-                  IconPath="avares://Amium.Editor/EditorIcons/pipette.svg"
+                  IconPath="avares://AutomationExplorer.Editor/EditorIcons/pipette.svg"
                   TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
               <TextBlock
                   VerticalAlignment="Center"

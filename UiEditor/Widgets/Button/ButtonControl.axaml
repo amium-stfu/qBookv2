@@ -2,7 +2,7 @@
     x:Class="Amium.UiEditor.Widgets.ButtonControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:editorUi="using:Amium.EditorUi.Controls">
+    xmlns:editorUi="using:Amium.UiEditor.Controls">
     <Border
       x:Name="RootBorder"
       Margin="0,0,0,0"

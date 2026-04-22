@@ -47,10 +47,10 @@ namespace Amium.Logging
         public List<LogObject> LogList = new List<LogObject>();
         public ConcurrentQueue<string> Lines = new ConcurrentQueue<string>();
         private DateTime start;
-        private ATask loggingTask;
-        private ATask writingTask;
+        private ATask? loggingTask;
+        private ATask? writingTask;
 
-        private StreamWriter myWriter;
+        private StreamWriter? myWriter;
 
         public string Filename = "default";
         public string Seperator = ";";
@@ -116,7 +116,7 @@ namespace Amium.Logging
             }
 
             var descriptor = signal.Descriptor;
-            var name = descriptor.Name;
+            var name = descriptor.Name ?? string.Empty;
             var unit = string.IsNullOrWhiteSpace(unitOverride)
                 ? descriptor.Unit ?? string.Empty
                 : unitOverride;
@@ -159,7 +159,7 @@ namespace Amium.Logging
             Debug.WriteLine($"Adding log for item '{item.Name}' with type '{type}' and format '{format}' caption='{caption}'");
 
 
-            LogList.Add(new LogObject(name: item.Name, unit: unit, format: format, value: valueGetter, type: type, caption: caption));
+            LogList.Add(new LogObject(name: item.Name ?? string.Empty, unit: unit, format: format, value: valueGetter, type: type, caption: caption));
         }
 
 
@@ -223,12 +223,12 @@ namespace Amium.Logging
             return myWriter != null;
         }
 
-        public void Init(string file = null)
+        public void Init(string? file = null)
         {
             if (file != null)
             {
                 Directory = Path.GetDirectoryName(file) ?? Directory;
-                Filename = Path.GetFileName(file);
+                Filename = Path.GetFileName(file) ?? Filename;
             }
             else
             {
@@ -406,8 +406,13 @@ namespace Amium.Logging
                 {
                     if (!Lines.IsEmpty)
                     {
-                        while (Lines.TryDequeue(out string result))
+                        while (Lines.TryDequeue(out var result))
                         {
+                            if (result is null)
+                            {
+                                continue;
+                            }
+
                             await myWriter.WriteLineAsync(result);
                         }
                         await myWriter.FlushAsync();
@@ -417,8 +422,13 @@ namespace Amium.Logging
             }
             finally
             {
-                while (Lines.TryDequeue(out string result))
+                while (Lines.TryDequeue(out var result))
                 {
+                    if (result is null)
+                    {
+                        continue;
+                    }
+
                     await myWriter.WriteLineAsync(result);
                 }
 

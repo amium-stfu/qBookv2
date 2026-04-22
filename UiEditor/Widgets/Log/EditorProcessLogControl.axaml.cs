@@ -1,5 +1,5 @@
-using Avalonia;
-using Amium.EditorUi.Controls;
+﻿using Avalonia;
+using Amium.UiEditor.Controls;
 
 namespace Amium.UiEditor.Widgets;
 
@@ -19,3 +19,4 @@ public partial class EditorProcessLogControl : EditorTemplateWidget
         InitializeComponent();
     }
 }
+

@@ -128,26 +128,27 @@ The following rules should stay valid even if the bridge grows later:
 
 Preferred direction:
 - One host-side PythonManager per project/runtime scope.
-- The PythonManager supervises one or more Python environments (Envs).
-- Each Env is represented by a dedicated folder under a common Python root.
+- The PythonManager supervises one or more Python applications (Envs).
+- Each Env is represented by a dedicated folder under a common `Applications/Python` root.
 
 Conceptual layout (example):
 
 ```text
-<ProjectFolder>/Python/
-    lib/                       # shared helper libraries (e.g. ui_python_client)
-    pdfCreator/                # Env 1
-        core/                    # Env-specific core logic
-        scripts/                 # entry scripts / workflows
-        config/                  # configuration for this Env
-    ModbusClient/              # Env 2
-        core/
-        scripts/
-        config/
+<ProjectFolder>/Applications/
+    Python/
+        lib/                       # shared helper libraries (e.g. ui_python_client)
+        pdfCreator/                # Env 1
+            core/                    # Env-specific core logic
+            scripts/                 # entry scripts / workflows
+            config/                  # configuration for this Env
+        ModbusClient/              # Env 2
+            core/
+            scripts/
+            config/
 ```
 
 Principles:
-- Shared, reusable code (such as the PythonClient SDK and common helpers) lives under the shared `lib` root and is imported by all Envs.
+- Shared, reusable code (such as the PythonClient SDK and common helpers) lives under the shared `Applications/Python/lib` root and is imported by all Envs.
 - Each Env folder contains only Env-specific scripts, configuration, and structure.
 - Envs are copyable as self-contained mini-projects (folder-based portability), while still depending on the shared library surface.
 
@@ -1340,8 +1341,8 @@ Optional later:
 - Preferred startup model includes a mandatory handshake with explicit bridge version validation.
 - Preferred communication pattern is state-based and host-led for invocation, while Python remains responsible for declarations and runtime publishing.
 - Preferred robustness model includes session ids, request correlation, state validation, explicit timeouts, and host-owned escalation.
- - One host-owned PythonManager supervises multiple folder-based Python environments under a common Python root.
- - Each Python environment is represented by its own folder and Python process, while sharing a common PythonClient SDK and helper library surface.
+ - One host-owned PythonManager supervises multiple folder-based Python applications under the common `Applications/Python` root.
+ - Each Python application is represented by its own folder and Python process, while sharing a common PythonClient SDK and helper library surface.
 - Functions and operations are separate concepts: functions are short request/response calls, while operations are tracked long-running executions with status and progress.
 - A future workflow widget may execute host-owned sequential workflow scripts that mix host-native steps with Python-backed operations.
 

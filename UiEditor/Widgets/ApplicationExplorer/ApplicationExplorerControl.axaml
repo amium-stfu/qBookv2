@@ -1,0 +1,105 @@
+<editorUi:EditorTemplateControl
+    x:Class="Amium.UiEditor.Widgets.ApplicationExplorerControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.UiEditor.Widgets"
+    xmlns:editorUi="using:Amium.UiEditor.Controls">
+  <controls:ApplicationExplorerControl.HeaderActionsContent>
+    <StackPanel Orientation="Horizontal" Spacing="6">
+      <Button Padding="6,2"
+              Classes="toolbar"
+              Background="{Binding StartAllButtonBackground, RelativeSource={RelativeSource AncestorType=controls:ApplicationExplorerControl}}"
+              Foreground="{Binding StartAllButtonForeground, RelativeSource={RelativeSource AncestorType=controls:ApplicationExplorerControl}}"
+              IsEnabled="{Binding CanStartAll, RelativeSource={RelativeSource AncestorType=controls:ApplicationExplorerControl}}"
+              Click="OnToggleAllClicked">
+        <TextBlock FontSize="11"
+                   FontWeight="SemiBold"
+                   Text="{Binding StartAllButtonText, RelativeSource={RelativeSource AncestorType=controls:ApplicationExplorerControl}}" />
+      </Button>
+    </StackPanel>
+  </controls:ApplicationExplorerControl.HeaderActionsContent>
+
+  <controls:ApplicationExplorerControl.BodyContent>
+    <Border Padding="10,8"
+            Background="{Binding EffectiveBodyBackgroundBrush}"
+            BorderBrush="{Binding EffectiveBodyBorderBrush}"
+            BorderThickness="{Binding EffectiveBodyBorderThickness}"
+            CornerRadius="10">
+      <Grid RowDefinitions="Auto,*,Auto">
+        <!--
+        <TextBlock FontSize="14"
+             FontWeight="SemiBold"
+             Margin="0,0,0,6"
+             Foreground="{Binding EffectiveBodyForegroundBrush}"
+             Text="Python Applications" />
+        -->
+
+        <ScrollViewer Grid.Row="1"
+                      MinHeight="44"
+              Margin="0,0,0,6"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding Environments, RelativeSource={RelativeSource AncestorType=controls:ApplicationExplorerControl}}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Padding="6,4"
+                        CornerRadius="6"
+                        Background="{Binding RowBackground}"
+                        BorderBrush="{Binding RowBorderBrush}"
+                  BorderThickness="{Binding RowBorderThickness}"
+                  PointerPressed="OnEnvironmentRowPointerPressed">
+                  <Border.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="Start" Command="{Binding StartCommand}" />
+                      <MenuItem Header="Stop" Command="{Binding StopCommand}" />
+                    </ContextMenu>
+                  </Border.ContextMenu>
+
+                  <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                    <Border Grid.RowSpan="2"
+                            Width="14"
+                            Height="14"
+                            Margin="0,0,10,0"
+                            CornerRadius="7"
+                            VerticalAlignment="Center"
+                          Background="{Binding StatusIndicatorBackground}"
+                            BorderBrush="{Binding RowBorderBrush}"
+                            BorderThickness="1" />
+
+                    <TextBlock Grid.Column="1"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="{Binding RowPrimaryForeground}"
+                               Text="{Binding StatusText}" />
+
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="1"
+                               Margin="0,2,0,0"
+                               FontSize="11"
+                               Foreground="{Binding RowSecondaryForeground}"
+                               Text="{Binding ScriptSummary}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="2"
+             FontSize="11"
+             Foreground="{Binding EffectiveMutedForegroundBrush}"
+             Text="No applications configured. Use the Applications property to define Python entries."
+             IsVisible="{Binding HasNoEnvironments, RelativeSource={RelativeSource AncestorType=controls:ApplicationExplorerControl}}" />
+      </Grid>
+    </Border>
+  </controls:ApplicationExplorerControl.BodyContent>
+
+  <controls:ApplicationExplorerControl.FooterContent>
+    <Border Padding="8,4">
+      <TextBlock FontSize="11"
+                 Foreground="{Binding EffectiveFooterForegroundBrush}"
+                 Text="{Binding Footer}"
+                 TextWrapping="Wrap" />
+    </Border>
+  </controls:ApplicationExplorerControl.FooterContent>
+</editorUi:EditorTemplateControl>

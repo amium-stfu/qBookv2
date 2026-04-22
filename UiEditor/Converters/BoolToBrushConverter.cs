@@ -2,7 +2,7 @@
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 
-namespace Amium.EditorUi.Converters;
+namespace Amium.UiEditor.Converters;
 
 public sealed class BoolToBrushConverter : IValueConverter
 {

@@ -4,14 +4,14 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Avalonia.Platform;
 
-namespace Amium.EditorUi.Helpers;
+namespace Amium.UiEditor.Helpers;
 
 internal static partial class SvgIconCache
 {
     private static readonly ConcurrentDictionary<string, string> CachedPaths = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly string CacheDirectory = Path.Combine(Path.GetTempPath(), "Amium.Editor", "SvgTintCache");
-    private static readonly string CurrentAssemblyName = typeof(SvgIconCache).Assembly.GetName().Name ?? "Amium.Editor";
-    private static readonly string[] LegacyIconAssemblyNames = ["Amium.UiEditor", "Amium.EditorUi"];
+    private static readonly string CacheDirectory = Path.Combine(Path.GetTempPath(), "AutomationExplorer.Editor", "SvgTintCache");
+    private static readonly string CurrentAssemblyName = typeof(SvgIconCache).Assembly.GetName().Name ?? "AutomationExplorer.Editor";
+    private static readonly string[] LegacyIconAssemblyNames = ["Amium.Editor", "Amium.UiEditor", "Amium.EditorUi"];
 
     public static string? ResolvePath(string? iconPath, string? tintColor)
     {
@@ -98,10 +98,6 @@ internal static partial class SvgIconCache
         tintedSvg = StrokeAttributeRegex().Replace(tintedSvg, match => IsNone(match.Groups[1].Value) ? match.Value : $"stroke=\"{tintColor}\"");
         tintedSvg = StrokeStyleRegex().Replace(tintedSvg, match => IsNone(match.Groups[1].Value) ? match.Value : $"stroke:{tintColor}");
 
-        // Ensure paths without explicit fill also get the tint color as their default fill.
-        // This makes monochrome icons (like play/pause) theme-aware even if only strokes were colored.
-        tintedSvg = SvgTagRegex().Replace(tintedSvg, $"<svg fill=\"{tintColor}\" ", 1);
-
         return tintedSvg;
     }
 
@@ -136,7 +132,4 @@ internal static partial class SvgIconCache
 
     [GeneratedRegex("stroke\\s*:\\s*([^;\"']+)", RegexOptions.IgnoreCase)]
     private static partial Regex StrokeStyleRegex();
-
-    [GeneratedRegex("<svg\\b", RegexOptions.IgnoreCase)]
-    private static partial Regex SvgTagRegex();
 }

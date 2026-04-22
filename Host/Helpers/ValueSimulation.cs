@@ -198,7 +198,7 @@ namespace Amium.Helpers
         }
 
     }
-    public class ReadSetSimulation
+    public class DemoSignal
     {
         private static int _nextInstanceId;
         private readonly string _instanceName;
@@ -281,9 +281,9 @@ namespace Amium.Helpers
 
         public float Value;
 
-        public ReadSetSimulation()
+        public DemoSignal()
         {
-            _instanceName = $"{nameof(ReadSetSimulation)}-{Interlocked.Increment(ref _nextInstanceId)}";
+            _instanceName = $"{nameof(DemoSignal)}-{Interlocked.Increment(ref _nextInstanceId)}";
             Value = 0f;
 
             _tau = 0.1f;

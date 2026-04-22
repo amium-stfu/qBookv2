@@ -1,0 +1,122 @@
+<Window
+    x:Class="Amium.UiEditor.Widgets.ApplicationPickerDialogWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="820"
+    Height="520"
+    MinWidth="760"
+    MinHeight="460"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    Title="New Python Application"
+    Background="{Binding DialogBackground}">
+  <Grid Margin="16" ColumnDefinitions="240,16,*" RowDefinitions="*,Auto">
+    <Border Grid.Row="0"
+            Grid.Column="0"
+            Padding="10"
+            Background="{Binding PanelBackground}"
+            BorderBrush="{Binding BorderColor}"
+            BorderThickness="1"
+            CornerRadius="10">
+      <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <TextBlock FontSize="13"
+                   FontWeight="SemiBold"
+                   Foreground="{Binding PrimaryTextBrush}"
+                   Text="Name" />
+
+        <TextBox Grid.Row="1"
+                 Margin="0,8,0,0"
+                 MinWidth="160"
+                 Background="{Binding EditorBackground}"
+                 BorderBrush="{Binding BorderColor}"
+                 Foreground="{Binding EditorForeground}"
+                 Text="{Binding EnvName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+        <StackPanel Grid.Row="2" Margin="0,8,0,0" Spacing="8">
+          <TextBlock FontSize="13"
+                     FontWeight="SemiBold"
+                     Foreground="{Binding PrimaryTextBrush}"
+                     Text="Templates:" />
+
+          <Border Background="{Binding EditorBackground}"
+                  BorderBrush="{Binding BorderColor}"
+                  BorderThickness="1"
+                  CornerRadius="10"
+                  Padding="4">
+            <ListBox ItemsSource="{Binding Templates}"
+                     SelectedItem="{Binding SelectedTemplate, Mode=TwoWay}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Foreground="{Binding PrimaryTextBrush}"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Stretch"
+                     MinHeight="300">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding DisplayName}" />
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Border>
+        </StackPanel>
+
+        <TextBlock Grid.Row="3"
+                   Margin="0,8,0,0"
+                   FontSize="12"
+                   Foreground="#C2410C"
+                   TextWrapping="Wrap"
+                   Text="{Binding ErrorMessage}" />
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="0"
+            Grid.Column="2"
+            Padding="12"
+            Background="{Binding PanelBackground}"
+            BorderBrush="{Binding BorderColor}"
+            BorderThickness="1"
+            CornerRadius="10">
+      <Grid RowDefinitions="Auto,*">
+        <TextBlock FontSize="13"
+                   FontWeight="SemiBold"
+                   Foreground="{Binding PrimaryTextBrush}"
+                   Text="Template Preview" />
+
+        <TextBox Grid.Row="1"
+                 Margin="0,8,0,0"
+                 IsReadOnly="True"
+                 AcceptsReturn="True"
+                 TextWrapping="NoWrap"
+                 Background="{Binding EditorBackground}"
+                 BorderBrush="{Binding BorderColor}"
+                 Foreground="{Binding EditorForeground}"
+                 FontFamily="Consolas"
+                 FontSize="12"
+                 Text="{Binding TemplatePreview}" />
+      </Grid>
+    </Border>
+
+    <StackPanel
+        Grid.Row="1"
+        Grid.Column="0"
+        Grid.ColumnSpan="3"
+        Margin="0,12,0,0"
+        Orientation="Horizontal"
+        HorizontalAlignment="Right"
+        Spacing="8">
+      <Button Width="88"
+              Background="{Binding ButtonBackground}"
+              BorderBrush="{Binding ButtonBorderBrush}"
+              Foreground="{Binding ButtonForeground}"
+              Content="Cancel"
+              Click="OnCancelClicked" />
+      <Button Width="88"
+              Background="{Binding ButtonBackground}"
+              BorderBrush="{Binding ButtonBorderBrush}"
+              Foreground="{Binding ButtonForeground}"
+              Content="Save"
+              IsEnabled="{Binding CanSave}"
+              Click="OnSaveClicked" />
+    </StackPanel>
+  </Grid>
+</Window>

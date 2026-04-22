@@ -2,10 +2,10 @@
   x:Class="AutomationExplorer.MainWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="clr-namespace:Amium.UiEditor.Widgets;assembly=Amium.Editor"
-    xmlns:models="clr-namespace:Amium.UiEditor.Models;assembly=Amium.Editor"
+    xmlns:controls="clr-namespace:Amium.UiEditor.Widgets;assembly=AutomationExplorer.Editor"
+    xmlns:models="clr-namespace:Amium.UiEditor.Models;assembly=AutomationExplorer.Editor"
   xmlns:viewModels="clr-namespace:AutomationExplorer.ViewModels;assembly=AutomationExplorer"
-    xmlns:editorUi="clr-namespace:Amium.EditorUi.Controls;assembly=Amium.Editor"
+    xmlns:editorUi="clr-namespace:Amium.UiEditor.Controls;assembly=AutomationExplorer.Editor"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -29,7 +29,7 @@
                     BorderBrush="Transparent"
                     Click="OnMainMenuButtonClick"
                     ToolTip.Tip="Main menu">
-              <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/menu.svg" TintColor="{Binding PrimaryTextBrush}" />
+              <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/menu.svg" TintColor="{Binding PrimaryTextBrush}" />
               <Button.ContextMenu>
                 <ContextMenu>
                   <!-- Gruppe 1: User -->
@@ -76,7 +76,7 @@
           <editorUi:ThemeSvgIcon Grid.Column="2"
                                  Width="110"
                                  Height="24"
-                                 IconPath="avares://Amium.Editor/EditorIcons/amium.svg"
+                                 IconPath="avares://AutomationExplorer.Editor/EditorIcons/amium.svg"
                                  TintColor="{Binding PrimaryTextBrush}"
                                  VerticalAlignment="Center"
                                  HorizontalAlignment="Right" />
@@ -98,7 +98,11 @@
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                      <Grid ColumnDefinitions="Auto">
+                                <Grid ColumnDefinitions="Auto"
+                                  DragDrop.AllowDrop="True"
+                                  DragDrop.DragOver="OnLegendItemDragOver"
+                                  DragDrop.DragLeave="OnLegendItemDragLeave"
+                                  DragDrop.Drop="OnLegendItemDrop">
                         <Button Grid.Column="0"
                                 Command="{Binding DataContext.SelectFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding}"
@@ -111,30 +115,56 @@
                               <MenuItem Header="Open Folder" Click="OnOpenFolderClicked" CommandParameter="{Binding}" />
                             </ContextMenu>
                           </Button.ContextMenu>
-                          <Grid ColumnDefinitions="48,40,168,32">
-                            <Border Grid.ColumnSpan="4" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
-                            <Border Grid.ColumnSpan="4" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
+                          <Grid ColumnDefinitions="48,16,40,168,32">
+                            <Border Grid.ColumnSpan="5" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
+                            <Border Grid.ColumnSpan="5" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
 
                             <Border Grid.Column="0" Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsNotSelected}" />
                             <Border Grid.Column="0" Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsSelected}" />
                             <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding Index}" />
                             <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding Index}" />
 
-                            <Button Grid.Column="1"
+                            <Border Grid.Column="1"
+                                    Margin="0,4,0,4"
+                                    Background="Transparent"
+                                  Cursor="SizeAll"
+                                    IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    PointerPressed="OnLegendItemPointerPressed"
+                                    PointerMoved="OnLegendItemPointerMoved"
+                                    ToolTip.Tip="Move folder">
+                              <Grid>
+                                <editorUi:ThemeSvgIcon Width="10"
+                                                       Height="16"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       IconPath="avares://AutomationExplorer.Editor/EditorIcons/vertical_drag.svg"
+                                                       TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       IsVisible="{Binding IsNotSelected}" />
+                                <editorUi:ThemeSvgIcon Width="10"
+                                                       Height="16"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       IconPath="avares://AutomationExplorer.Editor/EditorIcons/vertical_drag.svg"
+                                                       TintColor="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       IsVisible="{Binding IsSelected}" />
+                              </Grid>
+                            </Border>
+
+                            <Button Grid.Column="2"
                                     Width="40"
                                     Padding="0"
                                     Margin="4,4,4,4"
                                     Background="Transparent"
                                     BorderThickness="0"
                                     Click="OnViewsButtonClick"
-                                    ToolTip.Tip="View auswaehlen">
+                                    ToolTip.Tip="Screen auswaehlen">
                               <Grid>
-                                <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
-                                <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="Black" IsVisible="{Binding IsSelected}" />
+                                <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg" TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
+                                <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg" TintColor="Black" IsVisible="{Binding IsSelected}" />
                               </Grid>
                             </Button>
 
-                                <Border Grid.Column="2"
+                                <Border Grid.Column="3"
                                   Margin="4,4,2,4"
                                   Background="Transparent"
                                   CornerRadius="2"
@@ -144,7 +174,7 @@
                                     IsVisible="{Binding IsSelected}" />
                                 </Border>
 
-                            <Grid Grid.Column="2" Margin="4,4,2,4" RowDefinitions="Auto,Auto">
+                            <Grid Grid.Column="3" Margin="4,4,2,4" RowDefinitions="Auto,Auto">
                               <TextBlock Grid.Row="0"
                                          FontSize="16"
                                          FontWeight="SemiBold"
@@ -176,7 +206,7 @@
                                          PointerPressed="OnViewCaptionPointerPressed" />
                             </Grid>
 
-                            <Border Grid.Column="3"
+                                <Border Grid.Column="4"
                                     Margin="0,4,4,4"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
@@ -189,11 +219,43 @@
                                       Command="{Binding DataContext.ToggleEditModeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                       IsVisible="{Binding IsSelected}"
                                       ToolTip.Tip="Edit mode umschalten">
-                                <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.LegendEditIconColor, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.LegendEditIconColor, RelativeSource={RelativeSource AncestorType=Window}}" />
                               </Button>
                             </Border>
                           </Grid>
                         </Button>
+                          <Border Grid.Column="0"
+                            Width="4"
+                            Margin="0,4,0,4"
+                            HorizontalAlignment="Left"
+                            Background="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CornerRadius="2"
+                            IsHitTestVisible="False"
+                            IsVisible="{Binding ShowDropMarkerLeft}" />
+                          <Border Grid.Column="0"
+                            Width="4"
+                            Margin="0,4,0,4"
+                            HorizontalAlignment="Right"
+                            Background="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CornerRadius="2"
+                            IsHitTestVisible="False"
+                            IsVisible="{Binding ShowDropMarkerRight}" />
+                          <Border Grid.Column="0"
+                            Height="4"
+                            Margin="4,0,4,0"
+                            VerticalAlignment="Top"
+                            Background="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CornerRadius="2"
+                            IsHitTestVisible="False"
+                            IsVisible="{Binding ShowDropMarkerTop}" />
+                          <Border Grid.Column="0"
+                            Height="4"
+                            Margin="4,0,4,0"
+                            VerticalAlignment="Bottom"
+                            Background="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CornerRadius="2"
+                            IsHitTestVisible="False"
+                            IsVisible="{Binding ShowDropMarkerBottom}" />
                       </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
@@ -205,19 +267,19 @@
                         Margin="0"
                         Click="OnAddNewPageClicked"
                         IsVisible="{Binding IsEditMode}">
-                  <Grid ColumnDefinitions="48,40,168,32">
-                    <Border Grid.ColumnSpan="4" Background="{Binding TabBackColor}" />
+                  <Grid ColumnDefinitions="48,16,40,168,32">
+                    <Border Grid.ColumnSpan="5" Background="{Binding TabBackColor}" />
                     <Border Grid.Column="0" Background="{Binding TabNumerBackColor}" MinHeight="52" />
-                    <Button Grid.Column="1"
+                    <Button Grid.Column="2"
                             Width="40"
                             Padding="0"
                             Margin="4,4,4,4"
                             Background="Transparent"
                             BorderThickness="0"
                             IsHitTestVisible="False">
-                      <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/new.svg" TintColor="{Binding TabForeColor}" />
+                      <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/new.svg" TintColor="{Binding TabForeColor}" />
                     </Button>
-                    <Grid Grid.Column="2" Margin="4,4,2,4" RowDefinitions="*">
+                    <Grid Grid.Column="3" Margin="4,4,2,4" RowDefinitions="*">
                       <TextBlock Grid.Row="0"
                                  FontSize="16"
                                  FontWeight="SemiBold"
@@ -227,6 +289,42 @@
                     </Grid>
                   </Grid>
                 </Button>
+
+                <Border Background="Transparent"
+                        Margin="0"
+                        IsVisible="{Binding IsEditMode}"
+                        DragDrop.AllowDrop="True"
+                        DragDrop.DragOver="OnLegendDeleteDragOver"
+                        DragDrop.DragLeave="OnLegendDeleteDragLeave"
+                        DragDrop.Drop="OnLegendDeleteDrop">
+                  <Grid ColumnDefinitions="48,16,40,168,32">
+                    <Border Grid.ColumnSpan="5" Background="{Binding DeleteFolderBackColor}" />
+                    <Border Grid.Column="0" Background="{Binding DeleteFolderNumerBackColor}" MinHeight="52" />
+                    <Button Grid.Column="2"
+                            Width="40"
+                            Padding="0"
+                            Margin="4,4,4,4"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            IsHitTestVisible="False">
+                      <editorUi:ThemeSvgIcon Width="22" Height="22" IconPath="avares://AutomationExplorer.Editor/EditorIcons/remove.svg" TintColor="{Binding DeleteFolderForeColor}" />
+                    </Button>
+                    <Grid Grid.Column="3" Margin="4,4,2,4" RowDefinitions="Auto,Auto">
+                      <TextBlock Grid.Row="0"
+                                 FontSize="16"
+                                 FontWeight="SemiBold"
+                                 Foreground="{Binding DeleteFolderForeColor}"
+                                 VerticalAlignment="Center"
+                                 Text="Delete folder" />
+                      <TextBlock Grid.Row="1"
+                                 Margin="0,2,0,0"
+                                 FontSize="12"
+                                 Foreground="{Binding DeleteFolderForeColor}"
+                                 Opacity="0.9"
+                                 Text="Drag folder here to delete" />
+                    </Grid>
+                  </Grid>
+                </Border>
               </StackPanel>
             </ScrollViewer>
           </Border>
@@ -245,7 +343,11 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                       <DataTemplate>
-                        <Grid ColumnDefinitions="Auto">
+                        <Grid ColumnDefinitions="Auto"
+                          DragDrop.AllowDrop="True"
+                          DragDrop.DragOver="OnLegendItemDragOver"
+                          DragDrop.DragLeave="OnLegendItemDragLeave"
+                          DragDrop.Drop="OnLegendItemDrop">
                           <Button Grid.Column="0"
                                   Command="{Binding DataContext.SelectFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                   CommandParameter="{Binding}"
@@ -258,30 +360,56 @@
                                 <MenuItem Header="Open Folder" Click="OnOpenFolderClicked" CommandParameter="{Binding}" />
                               </ContextMenu>
                             </Button.ContextMenu>
-                            <Grid ColumnDefinitions="48,40,168,32">
-                              <Border Grid.ColumnSpan="4" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
-                              <Border Grid.ColumnSpan="4" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
+                            <Grid ColumnDefinitions="48,16,40,168,32">
+                              <Border Grid.ColumnSpan="5" Background="{Binding DataContext.TabBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
+                              <Border Grid.ColumnSpan="5" Background="{Binding DataContext.TabSelectBackColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
 
                               <Border Grid.Column="0" Background="{Binding DataContext.TabNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsNotSelected}" />
                               <Border Grid.Column="0" Background="{Binding DataContext.TabSelectNumerBackColor, RelativeSource={RelativeSource AncestorType=Window}}" MinHeight="52" IsVisible="{Binding IsSelected}" />
                               <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" Text="{Binding Index}" />
                               <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" Text="{Binding Index}" />
 
-                              <Button Grid.Column="1"
+                              <Border Grid.Column="1"
+                                      Margin="0,4,0,4"
+                                      Background="Transparent"
+                                      Cursor="SizeAll"
+                                      IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      PointerPressed="OnLegendItemPointerPressed"
+                                      PointerMoved="OnLegendItemPointerMoved"
+                                      ToolTip.Tip="Move folder">
+                                <Grid>
+                                  <editorUi:ThemeSvgIcon Width="10"
+                                                         Height="16"
+                                                         HorizontalAlignment="Center"
+                                                         VerticalAlignment="Center"
+                                                         IconPath="avares://AutomationExplorer.Editor/EditorIcons/vertical_drag.svg"
+                                                         TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                         IsVisible="{Binding IsNotSelected}" />
+                                  <editorUi:ThemeSvgIcon Width="10"
+                                                         Height="16"
+                                                         HorizontalAlignment="Center"
+                                                         VerticalAlignment="Center"
+                                                         IconPath="avares://AutomationExplorer.Editor/EditorIcons/vertical_drag.svg"
+                                                         TintColor="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                         IsVisible="{Binding IsSelected}" />
+                                </Grid>
+                              </Border>
+
+                              <Button Grid.Column="2"
                                       Width="40"
                                       Padding="0"
                                       Margin="4,4,4,4"
                                       Background="Transparent"
                                       BorderThickness="0"
                                       Click="OnViewsButtonClick"
-                                      ToolTip.Tip="View auswaehlen">
+                                      ToolTip.Tip="Screen auswaehlen">
                                 <Grid>
-                                  <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
-                                  <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/list.svg" TintColor="Black" IsVisible="{Binding IsSelected}" />
+                                  <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg" TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
+                                  <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg" TintColor="Black" IsVisible="{Binding IsSelected}" />
                                 </Grid>
                               </Button>
 
-                                    <Border Grid.Column="2"
+                                    <Border Grid.Column="3"
                                       Margin="4,4,2,4"
                                       Background="Transparent"
                                       CornerRadius="2"
@@ -291,7 +419,7 @@
                                   IsVisible="{Binding IsSelected}" />
                                     </Border>
 
-                              <Grid Grid.Column="2" Margin="4,4,2,4" RowDefinitions="Auto,Auto">
+                              <Grid Grid.Column="3" Margin="4,4,2,4" RowDefinitions="Auto,Auto">
                                 <TextBlock Grid.Row="0"
                                            FontSize="16"
                                            FontWeight="SemiBold"
@@ -323,7 +451,7 @@
                                            PointerPressed="OnViewCaptionPointerPressed" />
                               </Grid>
 
-                              <Border Grid.Column="3"
+                                    <Border Grid.Column="4"
                                       Margin="0,4,4,4"
                                       HorizontalAlignment="Right"
                                       VerticalAlignment="Center"
@@ -336,11 +464,43 @@
                                         Command="{Binding DataContext.ToggleEditModeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         IsVisible="{Binding IsSelected}"
                                         ToolTip.Tip="Edit mode umschalten">
-                                  <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.LegendEditIconColor, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                  <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/pencil.svg" TintColor="{Binding DataContext.LegendEditIconColor, RelativeSource={RelativeSource AncestorType=Window}}" />
                                 </Button>
                               </Border>
                             </Grid>
                           </Button>
+                              <Border Grid.Column="0"
+                                Width="4"
+                                Margin="0,4,0,4"
+                                HorizontalAlignment="Left"
+                                Background="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CornerRadius="2"
+                                IsHitTestVisible="False"
+                                IsVisible="{Binding ShowDropMarkerLeft}" />
+                              <Border Grid.Column="0"
+                                Width="4"
+                                Margin="0,4,0,4"
+                                HorizontalAlignment="Right"
+                                Background="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CornerRadius="2"
+                                IsHitTestVisible="False"
+                                IsVisible="{Binding ShowDropMarkerRight}" />
+                              <Border Grid.Column="0"
+                                Height="4"
+                                Margin="4,0,4,0"
+                                VerticalAlignment="Top"
+                                Background="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CornerRadius="2"
+                                IsHitTestVisible="False"
+                                IsVisible="{Binding ShowDropMarkerTop}" />
+                              <Border Grid.Column="0"
+                                Height="4"
+                                Margin="4,0,4,0"
+                                VerticalAlignment="Bottom"
+                                Background="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CornerRadius="2"
+                                IsHitTestVisible="False"
+                                IsVisible="{Binding ShowDropMarkerBottom}" />
                         </Grid>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -352,19 +512,19 @@
                           Margin="0"
                           Click="OnAddNewPageClicked"
                           IsVisible="{Binding IsEditMode}">
-                    <Grid ColumnDefinitions="48,40,168,32">
-                      <Border Grid.ColumnSpan="4" Background="{Binding TabBackColor}" />
+                    <Grid ColumnDefinitions="48,16,40,168,32">
+                      <Border Grid.ColumnSpan="5" Background="{Binding TabBackColor}" />
                       <Border Grid.Column="0" Background="{Binding TabNumerBackColor}" MinHeight="52" />
-                      <Button Grid.Column="1"
+                      <Button Grid.Column="2"
                               Width="40"
                               Padding="0"
                               Margin="4,4,4,4"
                               Background="Transparent"
                               BorderThickness="0"
                               IsHitTestVisible="False">
-                        <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://Amium.Editor/EditorIcons/new.svg" TintColor="{Binding TabForeColor}" />
+                        <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/new.svg" TintColor="{Binding TabForeColor}" />
                       </Button>
-                      <Grid Grid.Column="2" Margin="4,4,2,4" RowDefinitions="*">
+                      <Grid Grid.Column="3" Margin="4,4,2,4" RowDefinitions="*">
                         <TextBlock Grid.Row="0"
                                    FontSize="16"
                                    FontWeight="SemiBold"
@@ -374,6 +534,42 @@
                       </Grid>
                     </Grid>
                   </Button>
+
+                  <Border Background="Transparent"
+                          Margin="0"
+                          IsVisible="{Binding IsEditMode}"
+                          DragDrop.AllowDrop="True"
+                          DragDrop.DragOver="OnLegendDeleteDragOver"
+                          DragDrop.DragLeave="OnLegendDeleteDragLeave"
+                          DragDrop.Drop="OnLegendDeleteDrop">
+                    <Grid ColumnDefinitions="48,16,40,168,32">
+                      <Border Grid.ColumnSpan="5" Background="{Binding DeleteFolderBackColor}" />
+                      <Border Grid.Column="0" Background="{Binding DeleteFolderNumerBackColor}" MinHeight="52" />
+                      <Button Grid.Column="2"
+                              Width="40"
+                              Padding="0"
+                              Margin="4,4,4,4"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              IsHitTestVisible="False">
+                        <editorUi:ThemeSvgIcon Width="22" Height="22" IconPath="avares://AutomationExplorer.Editor/EditorIcons/remove.svg" TintColor="{Binding DeleteFolderForeColor}" />
+                      </Button>
+                      <Grid Grid.Column="3" Margin="4,4,2,4" RowDefinitions="Auto,Auto">
+                        <TextBlock Grid.Row="0"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{Binding DeleteFolderForeColor}"
+                                   VerticalAlignment="Center"
+                                   Text="Delete folder" />
+                        <TextBlock Grid.Row="1"
+                                   Margin="0,2,0,0"
+                                   FontSize="12"
+                                   Foreground="{Binding DeleteFolderForeColor}"
+                                   Opacity="0.9"
+                                   Text="Drag folder here to delete" />
+                      </Grid>
+                    </Grid>
+                  </Border>
                 </StackPanel>
               </ScrollViewer>
             </Border>

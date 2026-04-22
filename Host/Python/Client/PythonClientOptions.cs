@@ -45,6 +45,12 @@ public sealed class PythonClientOptions
     public JsonNode? RuntimeScopeMetadata { get; init; }
 
     /// <summary>
+    /// Optional registry root for values published by this client.
+    /// If omitted, the host falls back to PythonClients.<ClientName>.
+    /// </summary>
+    public string? RegistryRootPath { get; init; }
+
+    /// <summary>
     /// Maximum time the host waits for a complete handshake (hello -> init -> ready).
     /// </summary>
     public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(10);

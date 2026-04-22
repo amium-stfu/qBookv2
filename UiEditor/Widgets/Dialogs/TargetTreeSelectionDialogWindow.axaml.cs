@@ -261,7 +261,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
         }
 
         var iconName = _viewModel.IsDarkTheme ? "listDark.png" : "listLight.png";
-        var uri = new Uri($"avares://Amium.Editor/EditorIcons/{iconName}");
+        var uri = new Uri($"avares://AutomationExplorer.Editor/EditorIcons/{iconName}");
 
         try
         {
@@ -293,11 +293,11 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
         var displayPrefix = DetermineDisplayPrefix(sourceOptions, selectedValue, pageName);
         var filteredOptions = string.IsNullOrWhiteSpace(displayPrefix)
             ? sourceOptions
-            : sourceOptions.Where(path => !path.Contains('/') || path.StartsWith(displayPrefix, StringComparison.OrdinalIgnoreCase)).ToList();
+            : sourceOptions.Where(path => IsWithinDisplayScope(path, displayPrefix)).ToList();
 
         ScopePath = string.IsNullOrWhiteSpace(displayPrefix)
             ? "No folder prefix detected"
-            : displayPrefix.TrimEnd('/');
+            : displayPrefix.TrimEnd('.');
         ScopeDescription = string.IsNullOrWhiteSpace(pageName)
             ? "Choose a target from the available tree."
             : $"Showing targets within folder '{pageName}'.";
@@ -337,7 +337,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
             for (var index = 0; index < segments.Count; index++)
             {
                 var segment = segments[index];
-                var segmentKey = string.Join('/', fullSegments.Take(prefixSegmentCount + index + 1));
+                var segmentKey = string.Join('.', fullSegments.Take(prefixSegmentCount + index + 1));
                 var node = currentList.FirstOrDefault(candidate => string.Equals(candidate.FullPath, segmentKey, StringComparison.OrdinalIgnoreCase));
                 if (node is null)
                 {
@@ -442,7 +442,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            var preferredProjectPrefix = $"Project/{pageName}/";
+            var preferredProjectPrefix = $"Project.{pageName}.";
             var hasProjectPrefix = availablePrefixes.Any(prefix => string.Equals(prefix, preferredProjectPrefix, StringComparison.OrdinalIgnoreCase));
 
             if (hasProjectPrefix)
@@ -499,7 +499,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
         {
             if (string.Equals(segments[index], pageName, StringComparison.OrdinalIgnoreCase))
             {
-                return string.Join('/', segments.Take(index + 1)) + "/";
+                return string.Join('.', segments.Take(index + 1)) + ".";
             }
         }
 
@@ -509,19 +509,32 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
     private static string RemovePrefix(string fullPath, string prefix)
     {
         var normalizedFullPath = NormalizePath(fullPath);
-        var normalizedPrefix = NormalizePath(prefix).TrimEnd('/');
+        var normalizedPrefix = NormalizePath(prefix).TrimEnd('.');
         if (string.IsNullOrWhiteSpace(normalizedPrefix))
         {
             return normalizedFullPath;
         }
 
-        return normalizedFullPath.StartsWith(normalizedPrefix + "/", StringComparison.OrdinalIgnoreCase)
+        return normalizedFullPath.StartsWith(normalizedPrefix + ".", StringComparison.OrdinalIgnoreCase)
             ? normalizedFullPath[(normalizedPrefix.Length + 1)..]
             : normalizedFullPath;
     }
 
+    private static bool IsWithinDisplayScope(string path, string prefix)
+    {
+        var normalizedPath = NormalizePath(path);
+        var normalizedPrefix = NormalizePath(prefix).TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(normalizedPrefix))
+        {
+            return true;
+        }
+
+        return string.Equals(normalizedPath, normalizedPrefix, StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.StartsWith(normalizedPrefix + ".", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string NormalizePath(string? path)
-        => TargetPathHelper.NormalizeConfiguredTargetPath(path);
+        => TargetPathHelper.NormalizeComparablePath(path);
 
     private void SetAndRaise(ref string field, string value, string propertyName)
     {

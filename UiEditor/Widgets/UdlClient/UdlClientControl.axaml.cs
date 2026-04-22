@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -13,14 +13,13 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Amium.EditorUi.Controls;
+using Amium.UiEditor.Controls;
 using Amium.Host;
 using Amium.Items;
 using Amium.Logging;
 using Amium.UiEditor.Helpers;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
-using UdlClientRuntime = Amium.Host.HostUdlClient;
 
 namespace Amium.UiEditor.Widgets;
 
@@ -63,7 +62,7 @@ public partial class UdlClientControl : EditorTemplateControl
     private Popup? _attachPopup;
     private FolderItemModel? _observedItem;
     private UiFolderContext? _uiFolderContext;
-    private UdlClientRuntime? _client;
+    private IHostUdlClient? _client;
     private CancellationTokenSource? _monitorCts;
     private Task? _monitorTask;
     private DispatcherTimer? _attachedItemsRefreshTimer;
@@ -85,6 +84,7 @@ public partial class UdlClientControl : EditorTemplateControl
     private volatile bool _verboseDiagnosticsEnabled;
     private bool _loggedNoFramesWarning;
     private string _lastLoggedRuntimeRootsSignature = string.Empty;
+    private string _lastSynchronizedAttachSignature = string.Empty;
     private string _socketText = "192.168.178.151:9001";
     private string _connectionStateText = "Disconnected";
     private string _autoConnectText = "False";
@@ -277,6 +277,8 @@ public partial class UdlClientControl : EditorTemplateControl
             or nameof(FolderItemModel.UdlClientPort)
             or nameof(FolderItemModel.UdlClientAutoConnect)
             or nameof(FolderItemModel.UdlClientDebugLogging)
+            or nameof(FolderItemModel.UdlClientDemoEnabled)
+            or nameof(FolderItemModel.UdlDemoModuleDefinitions)
             or nameof(FolderItemModel.UdlAttachedItemPaths)
             or nameof(FolderItemModel.Name)
             or nameof(FolderItemModel.FolderName))
@@ -298,6 +300,16 @@ public partial class UdlClientControl : EditorTemplateControl
         if (e.PropertyName == nameof(FolderItemModel.UdlClientAutoConnect))
         {
             _ = EnsureAutoConnectAsync();
+        }
+
+        if (e.PropertyName is nameof(FolderItemModel.UdlClientDemoEnabled)
+            or nameof(FolderItemModel.UdlDemoModuleDefinitions))
+        {
+            if (_client is not null)
+            {
+                DisconnectInternal();
+                ConnectInternal();
+            }
         }
     }
 
@@ -354,6 +366,24 @@ public partial class UdlClientControl : EditorTemplateControl
         e.Handled = true;
     }
 
+    private async void OnEditDemoModulesClicked(object? sender, RoutedEventArgs e)
+    {
+        if (Item is not { UdlClientDemoEnabled: true } ownerItem || TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var viewModel = owner.DataContext as MainWindowViewModel;
+        var updatedDefinitions = await UdlDemoModulesDialogWindow.ShowAsync(owner, viewModel, ownerItem, ownerItem.UdlDemoModuleDefinitions);
+        if (updatedDefinitions is not null)
+        {
+            ownerItem.UdlDemoModuleDefinitions = updatedDefinitions;
+        }
+
+        e.Handled = true;
+    }
+
     private void ConnectInternal()
     {
         if (!Dispatcher.UIThread.CheckAccess())
@@ -393,9 +423,10 @@ public partial class UdlClientControl : EditorTemplateControl
             _lastPublishedClientItemCount = -1;
             _loggedNoFramesWarning = false;
             _lastLoggedRuntimeRootsSignature = string.Empty;
+            _lastSynchronizedAttachSignature = string.Empty;
             _publishedStatusValues.Clear();
             RemovePublishedAttachOptionItems();
-            var client = new UdlClientRuntime(NormalizeClientName(item), item.UdlClientHost, item.UdlClientPort);
+            var client = CreateClient(item);
             client.FrameReceived += OnClientFrameReceived;
             client.Diagnostic += OnClientDiagnostic;
             client.ConnectAsync().GetAwaiter().GetResult();
@@ -436,6 +467,7 @@ public partial class UdlClientControl : EditorTemplateControl
         _lastPublishedClientItemCount = -1;
         _loggedNoFramesWarning = false;
         _lastLoggedRuntimeRootsSignature = string.Empty;
+        _lastSynchronizedAttachSignature = string.Empty;
         CancelAttachedItemsRefresh();
         _publishedStatusValues.Clear();
         RemovePublishedAttachOptionItems();
@@ -462,6 +494,7 @@ public partial class UdlClientControl : EditorTemplateControl
         _lastPublishedClientItemCount = -1;
         _loggedNoFramesWarning = false;
         _lastLoggedRuntimeRootsSignature = string.Empty;
+        _lastSynchronizedAttachSignature = string.Empty;
         CancelAttachedItemsRefresh();
         RemovePublishedAttachOptionItems();
         ReleaseUiFolderContext();
@@ -500,6 +533,7 @@ public partial class UdlClientControl : EditorTemplateControl
         _lastPublishedClientItemCount = -1;
         _loggedNoFramesWarning = false;
         _lastLoggedRuntimeRootsSignature = string.Empty;
+        _lastSynchronizedAttachSignature = string.Empty;
         CancelAttachedItemsRefresh();
         RemovePublishedAttachOptionItems();
         ReleaseUiFolderContext();
@@ -724,11 +758,14 @@ public partial class UdlClientControl : EditorTemplateControl
             timer.Tick -= OnAttachedItemsRefreshTimerTick;
         }
 
-        SynchronizeAttachedItems();
+        var attachmentsChanged = SynchronizeAttachedItems();
         RebuildAttachRows();
-        Host?.RefreshFolderBindings(Item?.FolderName ?? string.Empty);
+        if (attachmentsChanged)
+        {
+            Host?.RefreshFolderBindings(Item?.FolderName ?? string.Empty);
+        }
         RefreshPresentation();
-        WriteVerboseDiagnosticLog($"AttachToUi refreshed after item-settle delay itemCount={_lastPublishedClientItemCount}");
+        WriteVerboseDiagnosticLog($"AttachToUi refreshed after item-settle delay itemCount={_lastPublishedClientItemCount} changed={attachmentsChanged}");
     }
 
     private void RebuildAttachRows()
@@ -787,25 +824,25 @@ public partial class UdlClientControl : EditorTemplateControl
         RefreshPresentation();
     }
 
-    private void SynchronizeAttachedItems()
+    private bool SynchronizeAttachedItems()
     {
-        ReleaseUiFolderContext();
-
         var item = Item;
         if (item is null || _client is null)
         {
-            return;
+            ReleaseUiFolderContext();
+            _lastSynchronizedAttachSignature = string.Empty;
+            return false;
         }
 
         var attachedPaths = ParseAttachedPaths(item.UdlAttachedItemPaths);
         if (attachedPaths.Count == 0)
         {
-            return;
+            ReleaseUiFolderContext();
+            _lastSynchronizedAttachSignature = string.Empty;
+            return false;
         }
 
-        var folderContext = new UiFolderContext($"{item.FolderName}/{NormalizeClientName(item)}", "Project");
-        _uiFolderContext = folderContext;
-
+        var attachments = new List<(string RelativePath, string Alias, Item RuntimeItem)>();
         foreach (var relativePath in attachedPaths)
         {
             if (!TryResolveRuntimeItem(relativePath, out var runtimeItem) || runtimeItem?.Path is null)
@@ -813,11 +850,38 @@ public partial class UdlClientControl : EditorTemplateControl
                 continue;
             }
 
-            var alias = relativePath.Replace('\\', '/').Trim('/');
-            var attached = folderContext.Attach(runtimeItem, alias);
-            WriteVerboseDiagnosticLog($"Attach snapshot folder={folderContext.FolderPath} client={NormalizeClientName(item)} runtimePath={runtimeItem.Path} alias={alias} attachedPath={attached.Path}");
+            attachments.Add((relativePath, TargetPathHelper.NormalizeConfiguredTargetPath(relativePath), runtimeItem));
+        }
+
+        var signature = string.Join("|", attachments
+            .OrderBy(static entry => entry.RelativePath, StringComparer.OrdinalIgnoreCase)
+            .Select(static entry => $"{entry.RelativePath}>{entry.Alias}>{entry.RuntimeItem.Path}"));
+        if (_uiFolderContext is not null
+            && string.Equals(_lastSynchronizedAttachSignature, signature, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        ReleaseUiFolderContext();
+
+        if (attachments.Count == 0)
+        {
+            _lastSynchronizedAttachSignature = string.Empty;
+            return false;
+        }
+
+        var folderContext = new UiFolderContext($"{item.FolderName}.{NormalizeClientName(item)}", "Project");
+        _uiFolderContext = folderContext;
+        _lastSynchronizedAttachSignature = signature;
+
+        foreach (var attachment in attachments)
+        {
+            var attached = folderContext.Attach(attachment.RuntimeItem, attachment.Alias);
+            WriteVerboseDiagnosticLog($"Attach snapshot folder={folderContext.FolderPath} client={NormalizeClientName(item)} runtimePath={attachment.RuntimeItem.Path} alias={attachment.Alias} attachedPath={attached.Path}");
             HostRegistries.Data.UpsertSnapshot(attached.Path!, attached.Clone(), pruneMissingMembers: true);
         }
+
+        return true;
     }
 
     private void ReleaseUiFolderContext()
@@ -876,7 +940,7 @@ public partial class UdlClientControl : EditorTemplateControl
 
     private IEnumerable<string> GetAttachOptions(FolderItemModel item)
     {
-        var prefix = $"Runtime/UdlClient/{NormalizeClientName(item)}";
+        var prefix = $"Runtime.UdlClient.{NormalizeClientName(item)}";
         var comparablePrefix = TargetPathHelper.NormalizeComparablePath(prefix);
         var runtimeOptions = HostRegistries.Data.GetAllKeys()
             .Select(key => TryGetAttachRootOption(key, prefix, comparablePrefix))
@@ -959,7 +1023,7 @@ public partial class UdlClientControl : EditorTemplateControl
             return;
         }
 
-        var prefix = $"Runtime/UdlClient/{NormalizeClientName(item)}/";
+        var prefix = $"Runtime.UdlClient.{NormalizeClientName(item)}.";
         var registryOptions = HostRegistries.Data.GetAllKeys()
             .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(key => key[prefix.Length..])
@@ -1036,7 +1100,11 @@ public partial class UdlClientControl : EditorTemplateControl
             return;
         }
 
-        SocketText = item is null ? string.Empty : $"{item.UdlClientHost}:{item.UdlClientPort}";
+        SocketText = item is null
+            ? string.Empty
+            : item.UdlClientDemoEnabled
+                ? $"Demo | {item.UdlClientHost}:{item.UdlClientPort}"
+                : $"{item.UdlClientHost}:{item.UdlClientPort}";
         AutoConnectText = item?.UdlClientAutoConnect == true ? "True" : "False";
         ConnectionStateText = _connectionState.ToString();
         ItemCountText = GetRootItemCount().ToString();
@@ -1157,7 +1225,7 @@ public partial class UdlClientControl : EditorTemplateControl
         {
             return;
         }
-        // Verbose Diagnostik: als Debug loggen und nicht über den UI-Thread marshallen,
+        // Verbose Diagnostik: als Debug loggen und nicht Ã¼ber den UI-Thread marshallen,
         // damit hohes Logaufkommen die UI nicht blockiert.
         HostLogger.Log.Debug("[UdlClientControl] {Message}", message);
     }
@@ -1182,7 +1250,7 @@ public partial class UdlClientControl : EditorTemplateControl
     private static bool ShouldLogDiagnosticMessage(string message)
     {
         // Nur Verbindungs-/Initialisierungs-Lifecycle loggen, alles andere ignorieren,
-        // damit das Log übersichtlich bleibt.
+        // damit das Log Ã¼bersichtlich bleibt.
         if (message.Contains("ctor start", StringComparison.OrdinalIgnoreCase)
             || message.Contains("remote resolved endpoint", StringComparison.OrdinalIgnoreCase)
             || message.Contains("udp socket", StringComparison.OrdinalIgnoreCase)
@@ -1240,7 +1308,7 @@ public partial class UdlClientControl : EditorTemplateControl
 
     private void PublishStatusValue(string statusBasePath, string name, object? value, string title)
     {
-        var cacheKey = $"{statusBasePath}/{name}";
+        var cacheKey = $"{statusBasePath}.{name}";
         var serializedValue = value?.ToString() ?? "<null>";
         if (_publishedStatusValues.TryGetValue(cacheKey, out var previousValue)
             && string.Equals(previousValue, serializedValue, StringComparison.Ordinal))
@@ -1279,17 +1347,17 @@ public partial class UdlClientControl : EditorTemplateControl
         var parsed = serialized
             .Replace("\r", string.Empty)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(static path => path.Replace('\\', '/').Trim('/'))
+            .Select(TargetPathHelper.NormalizeConfiguredTargetPath)
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(static path => path.Count(static ch => ch == '/'))
+            .OrderBy(static path => path.Count(static ch => ch == '.'))
             .ThenBy(static path => path, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var normalized = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in parsed)
         {
-            var hasAncestor = normalized.Any(existing => path.StartsWith(existing + "/", StringComparison.OrdinalIgnoreCase));
+            var hasAncestor = normalized.Any(existing => path.StartsWith(existing + ".", StringComparison.OrdinalIgnoreCase));
             if (!hasAncestor)
             {
                 normalized.Add(path);
@@ -1302,8 +1370,22 @@ public partial class UdlClientControl : EditorTemplateControl
     private static string NormalizeClientName(FolderItemModel item)
         => string.IsNullOrWhiteSpace(item.Name) ? "UdlClientControl" : item.Name.Trim();
 
+    private static IHostUdlClient CreateClient(FolderItemModel item)
+    {
+        if (item.UdlClientDemoEnabled)
+        {
+            return new SimulatedHostUdlClient(
+                NormalizeClientName(item),
+                item.UdlClientHost,
+                item.UdlClientPort,
+                UdlDemoModuleDefinitionCodec.ParseDefinitions(item.UdlDemoModuleDefinitions));
+        }
+
+        return new HostUdlClient(NormalizeClientName(item), item.UdlClientHost, item.UdlClientPort);
+    }
+
     private static string GetStatusBasePath(FolderItemModel item)
-        => $"Project/{item.FolderName}/{NormalizeClientName(item)}/Status";
+        => $"Project.{item.FolderName}.{NormalizeClientName(item)}.Status";
 
     private static string GetAttachOptionsBasePath(FolderItemModel item)
         => $"{GetStatusBasePath(item)}/AttachOptions";
@@ -1315,10 +1397,10 @@ public partial class UdlClientControl : EditorTemplateControl
             return;
         }
 
-        var prefix = $"Runtime/UdlClient/{NormalizeClientName(item)}";
+        var prefix = $"Runtime.UdlClient.{NormalizeClientName(item)}";
         var keys = HostRegistries.Data.GetAllKeys()
             .Where(key => string.Equals(key, prefix, StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
+                || key.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
         foreach (var key in keys)
@@ -1358,7 +1440,7 @@ public partial class UdlClientControl : EditorTemplateControl
         }
 
         var relativeSegments = segments.Skip(runtimeRootIndex + 3).ToArray();
-        return relativeSegments.Length == 0 ? string.Empty : string.Join('/', relativeSegments);
+        return relativeSegments.Length == 0 ? string.Empty : string.Join('.', relativeSegments);
     }
 }
 

@@ -56,9 +56,9 @@ public sealed class EditorDialogField : ObservableObject
     public string Label => Definition.Label;
 
     // Display label used in the properties grid; hide the caption
-    // completely for the PythonEnvManager environments editor so the
+    // completely for the ApplicationExplorer editor so the
     // inline panel can use the full width without a left-hand label.
-    public string DisplayLabel => IsPythonEnvManagerPicker ? string.Empty : Label;
+    public string DisplayLabel => IsApplicationExplorerPicker ? string.Empty : Label;
 
     public EditorPropertyType PropertyType => Definition.PropertyType;
 
@@ -97,7 +97,7 @@ public sealed class EditorDialogField : ObservableObject
 
     public ObservableCollection<string> InteractionTargetOptions { get; } = [];
 
-    public ObservableCollection<string> InteractionPythonEnvironmentOptions { get; } = [];
+    public ObservableCollection<string> InteractionApplicationOptions { get; } = [];
 
     private readonly Dictionary<string, string> _chartTargetPathByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _chartTargetNameByPath = new(StringComparer.OrdinalIgnoreCase);
@@ -233,7 +233,7 @@ public sealed class EditorDialogField : ObservableObject
 
     public bool IsColor => PropertyType == EditorPropertyType.Color;
 
-    public bool IsMultilineText => PropertyType == EditorPropertyType.MultilineText && !IsPythonEnvManagerPicker;
+    public bool IsMultilineText => PropertyType == EditorPropertyType.MultilineText && !IsApplicationExplorerPicker;
 
     public bool IsChartSeriesList => PropertyType == EditorPropertyType.ChartSeriesList;
 
@@ -245,7 +245,8 @@ public sealed class EditorDialogField : ObservableObject
 
     public bool IsPythonTemplateSelector => string.Equals(Key, "PythonScriptPath", StringComparison.Ordinal);
 
-    public bool IsPythonEnvManagerPicker => string.Equals(Key, "PythonEnvDefinitions", StringComparison.Ordinal);
+    public bool IsApplicationExplorerPicker => string.Equals(Key, "ApplicationDefinitions", StringComparison.Ordinal)
+                                              || string.Equals(Key, "PythonEnvDefinitions", StringComparison.Ordinal);
 
     public bool IsTextInput => !IsChoice
                                && !IsTargetTree
@@ -254,7 +255,7 @@ public sealed class EditorDialogField : ObservableObject
                                && !IsChartSeriesList
                                && !IsAttachItemList
                                && !IsInteractionRuleList
-                               && !IsPythonEnvManagerPicker;
+                               && !IsApplicationExplorerPicker;
 
     public bool ShowPickerButton => IsColor && !IsReadOnly;
 
@@ -378,7 +379,7 @@ public sealed class EditorDialogField : ObservableObject
             return;
         }
 
-        RefreshInteractionRuleTargetOptions(
+        RefreshInteractionRuleOptions(
             HostRegistries.Data.GetAllKeys().OrderBy(key => key, StringComparer.OrdinalIgnoreCase),
             []);
     }
@@ -415,7 +416,7 @@ public sealed class EditorDialogField : ObservableObject
         RaisePropertyChanged(nameof(StructuredEditorSummary));
     }
 
-    public void RefreshInteractionRuleTargetOptions(IEnumerable<string> options, IEnumerable<string>? pythonEnvironmentOptions)
+    public void RefreshInteractionRuleOptions(IEnumerable<string> options, IEnumerable<string>? pythonEnvironmentOptions)
     {
         if (!IsInteractionRuleList)
         {
@@ -429,12 +430,12 @@ public sealed class EditorDialogField : ObservableObject
             InteractionTargetOptions.Add(option);
         }
 
-        InteractionPythonEnvironmentOptions.Clear();
+        InteractionApplicationOptions.Clear();
         foreach (var option in (pythonEnvironmentOptions ?? [])
                      .Where(static option => !string.IsNullOrWhiteSpace(option))
                      .Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            InteractionPythonEnvironmentOptions.Add(option);
+            InteractionApplicationOptions.Add(option);
         }
 
         if (string.IsNullOrWhiteSpace(NewInteractionTargetPath))
@@ -699,13 +700,13 @@ public sealed class EditorDialogField : ObservableObject
 
     public IReadOnlyList<string> GetInteractionTargetOptions(string? actionName)
         => string.Equals(actionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase)
-            ? InteractionPythonEnvironmentOptions.ToArray()
+            ? InteractionApplicationOptions.ToArray()
             : InteractionTargetOptions.ToArray();
 
     public IReadOnlyList<string> GetInteractionFunctionOptions(string? targetPath)
         => string.IsNullOrWhiteSpace(targetPath)
             ? Array.Empty<string>()
-            : PythonClientRuntimeRegistry.GetFunctionNames(Amium.UiEditor.Widgets.PythonEnvManagerRuntime.ResolveInteractionTargetPath(null, targetPath));
+            : PythonClientRuntimeRegistry.GetFunctionNames(Amium.UiEditor.Widgets.ApplicationExplorerRuntime.ResolveInteractionTargetPath(null, targetPath));
 
     public void RefreshInteractionRuleRowOptions(ItemInteractionEditorRow row)
     {

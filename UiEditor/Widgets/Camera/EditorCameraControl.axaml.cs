@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -9,7 +9,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.Interactivity;
 using Amium.UiEditor.Models;
-using Amium.EditorUi.Controls;
+using Amium.UiEditor.Controls;
 using Amium.Host;
 
 namespace Amium.UiEditor.Widgets;
@@ -212,7 +212,7 @@ public partial class EditorCameraControl : EditorTemplateWidget
         }
         catch
         {
-            // Swallow errors for now – can be improved with logging.
+            // Swallow errors for now â€“ can be improved with logging.
         }
     }
 
@@ -318,3 +318,4 @@ public partial class EditorCameraControl : EditorTemplateWidget
         e.Handled = true;
     }
 }
+

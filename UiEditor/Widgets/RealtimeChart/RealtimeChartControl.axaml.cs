@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
@@ -10,7 +10,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using Amium.EditorUi.Controls;
+using Amium.UiEditor.Controls;
 using Amium.Host;
 using Amium.Items;
 using Amium.UiEditor.Helpers;
@@ -988,7 +988,7 @@ public partial class RealtimeChartControl : EditorTemplateWidget
             // Fallback: use existing display name or target path
             var fallback = !string.IsNullOrWhiteSpace(configuration.DisplayName)
                 ? configuration.DisplayName
-                : configuration.TargetPath.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? configuration.TargetPath;
+                : TargetPathHelper.SplitPathSegments(configuration.TargetPath).LastOrDefault() ?? configuration.TargetPath;
             return $"{axisText} {fallback}";
         }
 
@@ -1329,3 +1329,4 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         }
     }
 }
+

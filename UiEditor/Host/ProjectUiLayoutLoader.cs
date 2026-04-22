@@ -81,7 +81,7 @@ public static class ProjectUiLayoutLoader
         {
             ["Title"] = caption,
             ["Caption"] = caption,
-            ["Views"] = new JsonObject(views.Select(static entry => new KeyValuePair<string, JsonNode?>(entry.Key.ToString(CultureInfo.InvariantCulture), entry.Value)))
+            ["Screens"] = new JsonObject(views.Select(static entry => new KeyValuePair<string, JsonNode?>(entry.Key.ToString(CultureInfo.InvariantCulture), entry.Value)))
         };
 
         return new ProjectFolderLayout
@@ -146,7 +146,7 @@ public static class ProjectUiLayoutLoader
     private static Dictionary<int, string> ReadViews(YamlMappingNode root)
     {
         var views = new Dictionary<int, string>();
-        if (GetMapping(root, "Views") is not { } viewsNode)
+        if ((GetMapping(root, "Screens") ?? GetMapping(root, "Views")) is not { } viewsNode)
         {
             views[1] = "HomeScreen";
             return views;
@@ -181,7 +181,7 @@ public static class ProjectUiLayoutLoader
             ["Type"] = type
         };
 
-        SetPropertyIfPresent(properties, "View", GetScalarJsonNode(node, "View"));
+        SetPropertyIfPresent(properties, "View", GetScalarJsonNode(node, "Screen") ?? GetScalarJsonNode(node, "View"));
         SetPropertyIfPresent(properties, "Enabled", GetScalarJsonNode(node, "Enabled"));
 
         if (GetMapping(node, "Identity") is { } identity)
@@ -293,8 +293,29 @@ public static class ProjectUiLayoutLoader
         SetPropertyIfPresent(properties, "Unit", GetScalarJsonNode(control, "Unit"));
         SetPropertyIfPresent(properties, "TargetPath", GetScalarJsonNode(control, "Uri") ?? GetScalarJsonNode(control, "TargetPath"));
         SetPropertyIfPresent(properties, "PythonScript", GetScalarJsonNode(control, "PythonScript"));
-        SetPropertyIfPresent(properties, "PythonEnvironments", GetScalarJsonNode(control, "PythonEnvironments"));
-        SetPropertyIfPresent(properties, "PythonEnvAutoStart", GetScalarJsonNode(control, "PythonEnvAutoStart"));
+        SetPropertyIfPresent(properties, "Applications", GetScalarJsonNode(control, "Applications") ?? GetScalarJsonNode(control, "PythonEnvironments"));
+        SetPropertyIfPresent(properties, "ApplicationAutoStart", GetScalarJsonNode(control, "ApplicationAutoStart") ?? GetScalarJsonNode(control, "PythonEnvAutoStart"));
+        if (GetSequence(control, "CustomSignals") is { } customSignals)
+        {
+            var array = new JsonArray();
+            foreach (var signalNode in customSignals.Children.OfType<YamlMappingNode>())
+            {
+                array.Add(ConvertYamlMappingToJsonObject(signalNode));
+            }
+
+            properties["CustomSignals"] = array;
+        }
+        var enhancedSignals = GetSequence(control, "EnhancedSignals");
+        if (enhancedSignals is not null)
+        {
+            var array = new JsonArray();
+            foreach (var signalNode in enhancedSignals.Children.OfType<YamlMappingNode>())
+            {
+                array.Add(ConvertYamlMappingToJsonObject(signalNode));
+            }
+
+            properties["EnhancedSignals"] = array;
+        }
         SetPropertyIfPresent(properties, "TargetParameterPath", GetScalarJsonNode(control, "Parameter") ?? GetScalarJsonNode(control, "TargetParameterPath"));
         SetPropertyIfPresent(properties, "TargetParameterFormat", GetScalarJsonNode(control, "Format") ?? GetScalarJsonNode(control, "TargetParameterFormat"));
         SetPropertyIfPresent(properties, "IsReadOnly", GetScalarJsonNode(control, "IsReadOnly"));
@@ -313,7 +334,22 @@ public static class ProjectUiLayoutLoader
         SetPropertyIfPresent(properties, "UdlClientPort", GetScalarJsonNode(control, "UdlClientPort"));
         SetPropertyIfPresent(properties, "UdlClientAutoConnect", GetScalarJsonNode(control, "UdlClientAutoConnect"));
         SetPropertyIfPresent(properties, "UdlClientDebugLogging", GetScalarJsonNode(control, "UdlClientDebugLogging"));
+        SetPropertyIfPresent(properties, "UdlClientDemoEnabled", GetScalarJsonNode(control, "UdlClientDemoEnabled"));
         SetPropertyIfPresent(properties, "UdlAttachedItemPaths", GetScalarJsonNode(control, "UdlAttachedItemPaths"));
+        if (GetSequence(control, "UdlDemoModules") is { } udlDemoModules)
+        {
+            var array = new System.Text.Json.Nodes.JsonArray();
+            foreach (var child in udlDemoModules.Children)
+            {
+                if (TryConvertYamlNode(child, out var converted))
+                {
+                    array.Add(converted);
+                }
+            }
+
+            properties["UdlDemoModuleDefinitions"] = array;
+        }
+
         SetPropertyIfPresent(properties, "CsvDirectory", GetScalarJsonNode(control, "CsvDirectory"));
         SetPropertyIfPresent(properties, "CsvFilename", GetScalarJsonNode(control, "CsvFilename"));
         SetPropertyIfPresent(properties, "CsvAddTimestamp", GetScalarJsonNode(control, "CsvAddTimestamp"));
@@ -326,6 +362,12 @@ public static class ProjectUiLayoutLoader
         SetPropertyIfPresent(properties, "ListItemHeight", GetScalarJsonNode(control, "ListItemHeight"));
         SetPropertyIfPresent(properties, "Rows", GetScalarJsonNode(control, "Rows"));
         SetPropertyIfPresent(properties, "Columns", GetScalarJsonNode(control, "Columns"));
+        SetPropertyIfPresent(properties, "DisplayBackColor", GetScalarJsonNode(control, "DisplayBackColor"));
+        SetPropertyIfPresent(properties, "SignalColor", GetScalarJsonNode(control, "SignalColor"));
+        SetPropertyIfPresent(properties, "SignalRun", GetScalarJsonNode(control, "SignalRun"));
+        SetPropertyIfPresent(properties, "ProgressBar", GetScalarJsonNode(control, "ProgressBar"));
+        SetPropertyIfPresent(properties, "ProgressState", GetScalarJsonNode(control, "ProgressState"));
+        SetPropertyIfPresent(properties, "ProgressBarColor", GetScalarJsonNode(control, "ProgressBarColor"));
 
         if (GetSequence(control, "ChartSeriesDefinitions") is { } chartDefinitions)
         {
@@ -344,7 +386,8 @@ public static class ProjectUiLayoutLoader
             }
         }
 
-        if (string.Equals(type, "TableControl", StringComparison.OrdinalIgnoreCase)
+        if ((string.Equals(type, "TableControl", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "CircleDisplay", StringComparison.OrdinalIgnoreCase))
             && GetSequence(control, "Cells") is { } cells)
         {
             foreach (var cellNode in cells.Children.OfType<YamlMappingNode>())
@@ -464,6 +507,73 @@ public static class ProjectUiLayoutLoader
         }
 
         return JsonValue.Create(DecodeSerializedString(value));
+    }
+
+    private static bool TryConvertYamlNode(YamlNode node, out JsonNode? converted)
+    {
+        switch (node)
+        {
+            case YamlScalarNode scalar:
+                converted = ParseScalar(scalar.Value);
+                return true;
+
+            case YamlSequenceNode sequence:
+            {
+                var array = new JsonArray();
+                foreach (var child in sequence.Children)
+                {
+                    if (TryConvertYamlNode(child, out var childNode))
+                    {
+                        array.Add(childNode);
+                    }
+                }
+
+                converted = array;
+                return true;
+            }
+
+            case YamlMappingNode mapping:
+            {
+                var obj = new JsonObject();
+                foreach (var entry in mapping.Children)
+                {
+                    if (entry.Key is not YamlScalarNode keyNode || string.IsNullOrWhiteSpace(keyNode.Value))
+                    {
+                        continue;
+                    }
+
+                    if (TryConvertYamlNode(entry.Value, out var childNode))
+                    {
+                        obj[keyNode.Value] = childNode;
+                    }
+                }
+
+                converted = obj;
+                return true;
+            }
+        }
+
+        converted = null;
+        return false;
+    }
+
+    private static JsonObject ConvertYamlMappingToJsonObject(YamlMappingNode mapping)
+    {
+        var obj = new JsonObject();
+        foreach (var entry in mapping.Children)
+        {
+            if (entry.Key is not YamlScalarNode keyNode || string.IsNullOrWhiteSpace(keyNode.Value))
+            {
+                continue;
+            }
+
+            if (TryConvertYamlNode(entry.Value, out var childNode))
+            {
+                obj[keyNode.Value] = childNode;
+            }
+        }
+
+        return obj;
     }
 
     private static string DecodeSerializedString(string value)

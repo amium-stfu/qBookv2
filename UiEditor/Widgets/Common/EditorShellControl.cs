@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 
-namespace Amium.EditorUi.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class EditorShellControl : UserControl
 {

@@ -5,7 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Controls"
     xmlns:widgets="using:Amium.UiEditor.Widgets"
-    xmlns:editorUi="using:Amium.EditorUi.Controls"
+    xmlns:editorUi="using:Amium.UiEditor.Controls"
     xmlns:models="using:Amium.UiEditor.Models"
     xmlns:viewModels="using:Amium.UiEditor.ViewModels"
     xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
@@ -51,11 +51,14 @@
                   <controls:EditorButtonControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsButton}" />
                   <controls:EditorSignalControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />
                   <controls:EditorListControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsListControl}" />
+                   <controls:EditorCircleDisplayControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsCircleDisplay}" />
                   <controls:EditorLogControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsLogControl}" PageIsActive="{Binding Page.IsSelected, ElementName=Root}" />
                   <controls:EditorCsvLoggerControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsCsvLoggerControl}" />
                   <widgets:EditorSqlLoggerControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsSqlLoggerControl}" />
                   <controls:RealtimeChartControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsChartControl}" PageIsActive="{Binding Page.IsSelected, ElementName=Root}" />
                   <controls:UdlClientControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsUdlClientControl}" />
+                  <widgets:CustomSignalsControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsCustomSignals}" />
+                  <widgets:EnhancedSignalsControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsEnhancedSignals}" />
 
                   <!-- Auswahlrahmen nur im EditMode anzeigen -->
                   <Border IsVisible="{Binding DataContext.IsEditMode, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" IsHitTestVisible="False">
@@ -89,7 +92,7 @@
                       Click="OnItemSettingsClicked"
                       ToolTip.Tip="Settings">
                         <editorUi:ThemeSvgIcon Width="12" Height="12"
-                          IconPath="avares://Amium.Editor/EditorIcons/cog.svg"
+                          IconPath="avares://AutomationExplorer.Editor/EditorIcons/cog.svg"
                           TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
                       </Button>
                       <Button Classes="toolicon"
@@ -100,7 +103,7 @@
                       Click="OnItemDeleteClicked"
                       ToolTip.Tip="Delete">
                         <editorUi:ThemeSvgIcon Width="12" Height="12"
-                          IconPath="avares://Amium.Editor/EditorIcons/remove.svg"
+                          IconPath="avares://AutomationExplorer.Editor/EditorIcons/remove.svg"
                           TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
                       </Button>
                       <ToggleButton Classes="toolicon"
@@ -124,19 +127,19 @@
 
           <Border IsVisible="{Binding IsEditMode}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Padding="10,8" Background="{Binding EditPanelBackground}" BorderBrush="{Binding EditPanelBorderBrush}" BorderThickness="1" CornerRadius="12" BoxShadow="0 10 24 0 #16000000" ZIndex="40">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ToggleButton Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" IsChecked="{Binding ShowGrid}" ToolTip.Tip="Raster ein/aus"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/grid.svg" TintColor="{Binding EditPanelInputForeground}" /></ToggleButton>
+              <ToggleButton Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" IsChecked="{Binding ShowGrid}" ToolTip.Tip="Raster ein/aus"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://AutomationExplorer.Editor/EditorIcons/grid.svg" TintColor="{Binding EditPanelInputForeground}" /></ToggleButton>
               <TextBox Width="54" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="{Binding EditPanelInputBackground}" Foreground="{Binding EditPanelInputForeground}" Text="{Binding GridSize}" ToolTip.Tip="Rasterweite" />
-              <ToggleButton Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" IsChecked="{Binding SnapToEdges}" ToolTip.Tip="Snap to edge"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/snap_to_edge.svg" TintColor="{Binding EditPanelInputForeground}" /></ToggleButton>
+              <ToggleButton Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" IsChecked="{Binding SnapToEdges}" ToolTip.Tip="Snap to edge"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://AutomationExplorer.Editor/EditorIcons/snap_to_edge.svg" TintColor="{Binding EditPanelInputForeground}" /></ToggleButton>
               <Border Width="1" Margin="4,0" Background="{Binding EditPanelBorderBrush}" />
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignLeftCommand}" ToolTip.Tip="Links ausrichten"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/align_left.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignHorizontalCenterCommand}" ToolTip.Tip="Horizontal zentrieren"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/align_horizontal_center.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignRightCommand}" ToolTip.Tip="Rechts ausrichten"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/align_right.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignTopCommand}" ToolTip.Tip="Oben ausrichten"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/align_top.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignVerticalCenterCommand}" ToolTip.Tip="Vertikal zentrieren"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/align_vertical_center.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignBottomCommand}" ToolTip.Tip="Unten ausrichten"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/align_bottom.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignLeftCommand}" ToolTip.Tip="Links ausrichten"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://AutomationExplorer.Editor/EditorIcons/align_left.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignHorizontalCenterCommand}" ToolTip.Tip="Horizontal zentrieren"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://AutomationExplorer.Editor/EditorIcons/align_horizontal_center.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignRightCommand}" ToolTip.Tip="Rechts ausrichten"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://AutomationExplorer.Editor/EditorIcons/align_right.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignTopCommand}" ToolTip.Tip="Oben ausrichten"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://AutomationExplorer.Editor/EditorIcons/align_top.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignVerticalCenterCommand}" ToolTip.Tip="Vertikal zentrieren"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://AutomationExplorer.Editor/EditorIcons/align_vertical_center.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding AlignBottomCommand}" ToolTip.Tip="Unten ausrichten"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://AutomationExplorer.Editor/EditorIcons/align_bottom.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
               <Border Width="1" Margin="4,0" Background="{Binding EditPanelBorderBrush}" />
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding MatchWidthCommand}" ToolTip.Tip="Gleiche Breite"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/same_width.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
-              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding MatchHeightCommand}" ToolTip.Tip="Gleiche Hoehe"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://Amium.Editor/EditorIcons/same_height.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding MatchWidthCommand}" ToolTip.Tip="Gleiche Breite"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://AutomationExplorer.Editor/EditorIcons/same_width.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
+              <Button Classes="toolicon" Background="{Binding EditPanelButtonBackground}" BorderBrush="{Binding EditPanelButtonBorderBrush}" Command="{Binding MatchHeightCommand}" ToolTip.Tip="Gleiche Hoehe"><editorUi:ThemeSvgIcon Width="16" Height="16" IconPath="avares://AutomationExplorer.Editor/EditorIcons/same_height.svg" TintColor="{Binding EditPanelInputForeground}" /></Button>
             </StackPanel>
           </Border>
 
@@ -149,12 +152,15 @@
                 <Button Classes="toolbar" Click="OnBeginAddButtonClicked" Content="Button" />
                 <Button Classes="toolbar" Click="OnBeginAddSignalClicked" Content="Signal" />
                 <Button Classes="toolbar" Click="OnBeginAddListControlClicked" Content="ListControl" />
+                <Button Classes="toolbar" Click="OnBeginAddCircleDisplayClicked" Content="CircleDisplay" />
                 <Button Classes="toolbar" Click="OnBeginAddLogControlClicked" Content="LogControl" />
                 <Button Classes="toolbar" Click="OnBeginAddCsvLoggerControlClicked" Content="CsvLogger" />
                 <Button Classes="toolbar" Click="OnBeginAddSqlLoggerControlClicked" Content="SqlLogger" />
                 <Button Classes="toolbar" Click="OnBeginAddChartControlClicked" Content="ChartControl" />
                 <Button Classes="toolbar" Click="OnBeginAddCameraControlClicked" Content="Camera" />
                 <Button Classes="toolbar" Click="OnBeginAddUdlClientControlClicked" Content="UdlClientControl" IsVisible="{Binding SupportsUdlClientControl}" />
+                <Button Classes="toolbar" Click="OnBeginAddCustomSignalsClicked" Content="CustomSignals" />
+                <Button Classes="toolbar" Click="OnBeginAddEnhancedSignalsClicked" Content="EnhancedSignals" />
                 <Button Click="OnCancelSelectionClicked" Content="Abbrechen" />
               </StackPanel>
             </Border>

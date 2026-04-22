@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "Amium.Items/1.0.0": {
+        "runtime": {
+          "Amium.Items.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Amium.Items/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

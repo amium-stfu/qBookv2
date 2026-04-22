@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
-using Amium.EditorUi.Controls;
+using Amium.UiEditor.Controls;
 using Amium.Host;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
@@ -55,3 +55,4 @@ public partial class EditorButtonControl : EditorTemplateWidget
 public partial class EditorButtonWidget : EditorButtonControl
 {
 }
+

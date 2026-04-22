@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Versioning;
 using System.Threading;
 using AForge.Video;
 using AForge.Video.DirectShow;
@@ -10,6 +11,7 @@ using System.Drawing.Imaging;
 
 namespace Amium.Host.Helpers;
 
+[SupportedOSPlatform("windows")]
 public sealed class WindowsCameraFrameSource : ICameraFrameSource, IDisposable
 {
     private readonly int _deviceIndex;

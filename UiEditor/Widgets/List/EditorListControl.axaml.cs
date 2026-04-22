@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Specialized;
 using System.Linq;
 using Avalonia;
@@ -7,7 +7,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using Amium.EditorUi.Controls;
+using Amium.UiEditor.Controls;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 
@@ -167,3 +167,4 @@ public partial class EditorListControl : EditorTemplateWidget
 public partial class EditorListWidget : EditorListControl
 {
 }
+

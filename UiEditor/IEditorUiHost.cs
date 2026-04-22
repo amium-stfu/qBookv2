@@ -1,14 +1,5 @@
-namespace Amium.EditorUi;
+namespace Amium.UiEditor;
 
-public interface IEditorUiHost
+public interface IEditorUiHost : Amium.EditorUi.IEditorUiHost
 {
-    bool IsEditMode { get; }
-
-    string? PrimaryTextBrush { get; }
-
-    void OpenItemEditor(object item, double x, double y);
-
-    bool DeleteItem(object item);
-
-    void RefreshFolderBindings(string pageName);
 }

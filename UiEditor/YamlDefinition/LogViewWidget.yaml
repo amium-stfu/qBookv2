@@ -1,11 +1,11 @@
 - Type: LogControl
 
-  View: 1
+  Screen: 1
   Enabled: True
   
   Identity:
     Name: log1
-    Path: UdlBook/Page1/udl1/log1
+    Path: UdlBook.Page1.udl1.log1
     Id: demo-log-1
 
   Bounds:
@@ -54,4 +54,4 @@
       Argument: ""
 
   Properties:
-    TargetLog: Logs/Host
+    TargetLog: Logs.Host

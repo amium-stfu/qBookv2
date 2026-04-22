@@ -72,6 +72,11 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
     private string _infoMessage = string.Empty;
     private readonly List<IconPickerItem> _allIconItems = new();
 
+    public IconPickerDialogWindow()
+        : this(null, null)
+    {
+    }
+
     public new event PropertyChangedEventHandler? PropertyChanged;
 
     public IconPickerDialogWindow(MainWindowViewModel? viewModel, string? currentIconPath)
@@ -334,7 +339,7 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
         }
 
         var iconName = _viewModel.IsDarkTheme ? "listDark.png" : "listLight.png";
-        var uri = new Uri($"avares://Amium.Editor/EditorIcons/{iconName}");
+        var uri = new Uri($"avares://AutomationExplorer.Editor/EditorIcons/{iconName}");
 
         try
         {
@@ -551,7 +556,7 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
 
     private void AddApplicationIconItems()
     {
-        var iconRoot = new Uri("avares://Amium.Editor/EditorIcons");
+        var iconRoot = new Uri("avares://AutomationExplorer.Editor/EditorIcons");
         foreach (var asset in AssetLoader.GetAssets(iconRoot, null))
         {
             var assetPath = asset.ToString();

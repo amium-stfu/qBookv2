@@ -18,7 +18,7 @@ public sealed class PythonInteractionTargetDisplayConverter : IValueConverter
             return string.Empty;
         }
 
-        return PythonEnvManagerRuntime.GetInteractionTargetDisplayText(raw);
+        return ApplicationExplorerRuntime.GetInteractionTargetDisplayText(raw);
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)

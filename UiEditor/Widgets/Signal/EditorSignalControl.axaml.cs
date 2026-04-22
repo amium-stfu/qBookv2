@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
@@ -7,7 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
-using Amium.EditorUi.Controls;
+using Amium.UiEditor.Controls;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 

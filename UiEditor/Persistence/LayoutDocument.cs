@@ -26,6 +26,8 @@ public sealed class FolderDocument
 
 public sealed class FolderItemDocument
 {
+    private List<ExtendedSignalDefinitionDocument> _enhancedSignals = [];
+
     public ControlKind Kind { get; init; }
 
     public string Name { get; init; } = string.Empty;
@@ -138,13 +140,30 @@ public sealed class FolderItemDocument
 
     public string TargetParameterFormat { get; init; } = string.Empty;
 
-    public string PythonEnvironments { get; init; } = string.Empty;
+    public string Applications { get; init; } = string.Empty;
 
-    public bool PythonEnvAutoStart { get; init; }
+    public List<CustomSignalDefinitionDocument> CustomSignals { get; init; } = [];
+
+    [JsonPropertyName("EnhancedSignals")]
+    public List<ExtendedSignalDefinitionDocument> EnhancedSignals
+    {
+        get => _enhancedSignals;
+        init => _enhancedSignals = value ?? [];
+    }
+
+    public bool ApplicationAutoStart { get; init; }
+
+    [JsonPropertyName("PythonEnvironments")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyPythonEnvironments { get; init; }
+
+    [JsonPropertyName("PythonEnvAutoStart")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool LegacyPythonEnvAutoStart { get; init; }
 
     public string Unit { get; init; } = string.Empty;
 
-    public string TargetLog { get; init; } = "Logs/Host";
+    public string TargetLog { get; init; } = "Logs.Host";
 
     public int RefreshRateMs { get; init; } = 1000;
 
@@ -164,7 +183,11 @@ public sealed class FolderItemDocument
 
     public bool UdlClientDebugLogging { get; init; }
 
+    public bool UdlClientDemoEnabled { get; init; }
+
     public string UdlAttachedItemPaths { get; init; } = string.Empty;
+
+    public string UdlDemoModuleDefinitions { get; init; } = string.Empty;
 
     public string CsvDirectory { get; init; } = string.Empty;
 
@@ -189,6 +212,22 @@ public sealed class FolderItemDocument
     public double ListItemHeight { get; init; } = 72;
 
     public double ControlHeight { get; init; } = 72;
+
+    public int TableRows { get; init; }
+
+    public int TableColumns { get; init; }
+
+    public string? DisplayBackColor { get; init; }
+
+    public string? SignalColor { get; init; }
+
+    public bool SignalRun { get; init; }
+
+    public bool ProgressBar { get; init; }
+
+    public double ProgressState { get; init; }
+
+    public string? ProgressBarColor { get; init; }
 
     public double ControlBorderWidth { get; init; } = 0;
 

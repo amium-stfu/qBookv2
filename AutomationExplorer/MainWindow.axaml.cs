@@ -11,7 +11,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Amium.Host;
-using Amium.EditorUi.Controls;
+using Amium.UiEditor.Controls;
 using Amium.UiEditor.Widgets;
 using Amium.UiEditor.Models;
 using AutomationExplorer.ViewModels;
@@ -20,12 +20,16 @@ namespace AutomationExplorer;
 
 public partial class MainWindow : Window
 {
+    private const string LegendFolderDragDataFormat = "application/x-automationexplorer-folder";
     private LogWindow? _logWindow;
     private Window? _keyboardWindow;
     private TextBox? _keyboardTarget;
     private Action? _keyboardApplyAction;
     private Action? _keyboardCancelAction;
     private MainWindowViewModel? _boundViewModel;
+    private Point? _legendDragStartPoint;
+    private FolderModel? _legendDragSourceFolder;
+    private bool _legendDragInProgress;
 
     public MainWindow()
     {
@@ -37,7 +41,7 @@ public partial class MainWindow : Window
 
     private void InitializeWindowIcon()
     {
-        var uri = new Uri("avares://Amium.Editor/EditorIcons/aae.png");
+        var uri = new Uri("avares://AutomationExplorer.Editor/EditorIcons/aae.png");
 
         try
         {
@@ -94,7 +98,7 @@ public partial class MainWindow : Window
         foreach (var kvp in orderedViews)
         {
             var viewId = kvp.Key;
-            var header = string.IsNullOrWhiteSpace(kvp.Value) ? $"View {viewId}" : kvp.Value;
+            var header = string.IsNullOrWhiteSpace(kvp.Value) ? $"Screen {viewId}" : kvp.Value;
 
             var item = new MenuItem
             {
@@ -123,7 +127,7 @@ public partial class MainWindow : Window
                 var name = await EditorInputDialogs.EditTextAsync(
                     this,
                     header: header,
-                    subHeader: "Enter view name",
+                    subHeader: "Enter screen name",
                     initialValue: string.Empty);
 
                 if (string.IsNullOrWhiteSpace(name))
@@ -170,9 +174,9 @@ public partial class MainWindow : Window
                 menu.Items.Add(item);
             }
 
-            AddRangeMenuItem("Add new user view", 1, 10);
-            AddRangeMenuItem("Add new service view", 11, 20);
-            AddRangeMenuItem("Add new admin view", 20, 30);
+            AddRangeMenuItem("Add new user screen", 1, 10);
+            AddRangeMenuItem("Add new service screen", 11, 20);
+            AddRangeMenuItem("Add new admin screen", 20, 30);
         }
 
         // Kontextmenü korrekt an den Button anhängen, damit Avalonia eine
@@ -253,8 +257,8 @@ public partial class MainWindow : Window
 
         var newCaption = await EditorInputDialogs.EditTextAsync(
             this,
-            header: "Edit view text",
-            subHeader: "View text",
+            header: "Edit screen text",
+            subHeader: "Screen text",
             initialValue: currentCaption ?? string.Empty);
 
         if (string.IsNullOrWhiteSpace(newCaption))
@@ -290,6 +294,259 @@ public partial class MainWindow : Window
                 header: "Folder creation blocked",
                 subHeader: errorMessage,
                 initialValue: string.Empty);
+        }
+    }
+
+    private void OnLegendItemPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || !viewModel.IsEditMode)
+        {
+            _legendDragStartPoint = null;
+            _legendDragSourceFolder = null;
+            return;
+        }
+
+        if (sender is not Control control || control.DataContext is not FolderModel folder)
+        {
+            _legendDragStartPoint = null;
+            _legendDragSourceFolder = null;
+            return;
+        }
+
+        _legendDragStartPoint = e.GetPosition(control);
+        _legendDragSourceFolder = folder;
+    }
+
+    private async void OnLegendItemPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_legendDragInProgress
+            || _legendDragStartPoint is null
+            || _legendDragSourceFolder is null
+            || DataContext is not MainWindowViewModel viewModel
+            || !viewModel.IsEditMode)
+        {
+            return;
+        }
+
+        if (sender is not Control control || !e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        var currentPoint = e.GetPosition(control);
+        var delta = currentPoint - _legendDragStartPoint.Value;
+        if (Math.Abs(delta.X) < 6 && Math.Abs(delta.Y) < 6)
+        {
+            return;
+        }
+
+        var data = new DataObject();
+        data.Set(LegendFolderDragDataFormat, _legendDragSourceFolder.Name);
+
+        _legendDragInProgress = true;
+        Cursor = new Cursor(StandardCursorType.SizeAll);
+        try
+        {
+            await DragDrop.DoDragDrop(e, data, DragDropEffects.Move);
+        }
+        finally
+        {
+            if (DataContext is MainWindowViewModel dragViewModel)
+            {
+                dragViewModel.IsDeleteFolderDropTargetActive = false;
+            }
+
+            Cursor = null;
+            _legendDragInProgress = false;
+            _legendDragStartPoint = null;
+            _legendDragSourceFolder = null;
+        }
+    }
+
+    private void OnLegendItemDragOver(object? sender, DragEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        if (!viewModel.IsEditMode)
+        {
+            ClearLegendDropMarkers(viewModel);
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        var sourceFolder = ResolveDraggedFolder(e.Data, viewModel);
+        var targetFolder = (sender as Control)?.DataContext as FolderModel;
+        if (sourceFolder is null || targetFolder is null || ReferenceEquals(sourceFolder, targetFolder))
+        {
+            ClearLegendDropMarkers(viewModel);
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        UpdateLegendDropMarkers(viewModel, targetFolder, ShouldInsertAfter((Control)sender!, e, viewModel));
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private void OnLegendItemDragLeave(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        ClearLegendDropMarkers(viewModel);
+    }
+
+    private void OnLegendItemDrop(object? sender, DragEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || sender is not Control control || control.DataContext is not FolderModel targetFolder)
+        {
+            return;
+        }
+
+        var sourceFolder = ResolveDraggedFolder(e.Data, viewModel);
+        if (sourceFolder is null || ReferenceEquals(sourceFolder, targetFolder))
+        {
+            ClearLegendDropMarkers(viewModel);
+            return;
+        }
+
+        var insertAfter = ShouldInsertAfter(control, e, viewModel);
+        if (viewModel.TryMoveFolder(sourceFolder, targetFolder, insertAfter))
+        {
+            e.Handled = true;
+        }
+
+        ClearLegendDropMarkers(viewModel);
+    }
+
+    private void OnLegendDeleteDragOver(object? sender, DragEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        if (!viewModel.IsEditMode)
+        {
+            viewModel.IsDeleteFolderDropTargetActive = false;
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        var sourceFolder = ResolveDraggedFolder(e.Data, viewModel);
+        viewModel.IsDeleteFolderDropTargetActive = sourceFolder is not null;
+        e.DragEffects = sourceFolder is null ? DragDropEffects.None : DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private void OnLegendDeleteDragLeave(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.IsDeleteFolderDropTargetActive = false;
+        }
+    }
+
+    private async void OnLegendDeleteDrop(object? sender, DragEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.IsDeleteFolderDropTargetActive = false;
+        var sourceFolder = ResolveDraggedFolder(e.Data, viewModel);
+        if (sourceFolder is null)
+        {
+            return;
+        }
+
+        var confirmed = await EditorInputDialogs.ConfirmAsync(
+            this,
+            $"Delete folder '{sourceFolder.TabTitle}'?",
+            "The folder will be fully removed from the project, active UDL and Python clients will be stopped, references in Project.aaep will be updated, and the folder directory will be moved to the Recycle Bin. This action cannot be undone from inside the application.",
+            confirmText: "Delete",
+            cancelText: "Cancel");
+
+        if (!confirmed)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (!viewModel.TryDeleteFolder(sourceFolder, out var errorMessage) && !string.IsNullOrWhiteSpace(errorMessage))
+        {
+            await EditorInputDialogs.EditTextAsync(
+                this,
+                "Folder deletion failed",
+                errorMessage,
+                string.Empty);
+        }
+
+        e.Handled = true;
+    }
+
+    private static FolderModel? ResolveDraggedFolder(IDataObject dataObject, MainWindowViewModel viewModel)
+    {
+        if (!dataObject.Contains(LegendFolderDragDataFormat))
+        {
+            return null;
+        }
+
+        var folderName = dataObject.Get(LegendFolderDragDataFormat) as string;
+        if (string.IsNullOrWhiteSpace(folderName))
+        {
+            return null;
+        }
+
+        return viewModel.Folders.FirstOrDefault(folder => string.Equals(folder.Name, folderName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool ShouldInsertAfter(Control control, DragEventArgs e, MainWindowViewModel viewModel)
+    {
+        var position = e.GetPosition(control);
+        var bounds = control.Bounds;
+
+        return viewModel.IsTopTabStripPlacement
+            ? position.X >= bounds.Width / 2d
+            : position.Y >= bounds.Height / 2d;
+    }
+
+    private static void UpdateLegendDropMarkers(MainWindowViewModel viewModel, FolderModel targetFolder, bool insertAfter)
+    {
+        ClearLegendDropMarkers(viewModel);
+
+        if (viewModel.IsTopTabStripPlacement)
+        {
+            targetFolder.ShowDropMarkerLeft = !insertAfter;
+            targetFolder.ShowDropMarkerRight = insertAfter;
+            return;
+        }
+
+        targetFolder.ShowDropMarkerTop = !insertAfter;
+        targetFolder.ShowDropMarkerBottom = insertAfter;
+    }
+
+    private static void ClearLegendDropMarkers(MainWindowViewModel viewModel)
+    {
+        foreach (var folder in viewModel.Folders)
+        {
+            folder.ShowDropMarkerLeft = false;
+            folder.ShowDropMarkerRight = false;
+            folder.ShowDropMarkerTop = false;
+            folder.ShowDropMarkerBottom = false;
         }
     }
 
@@ -867,7 +1124,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            Amium.UiEditor.Widgets.PythonEnvManagerRuntime.StopAllEnvironments();
+            Amium.UiEditor.Widgets.ApplicationExplorerRuntime.StopAllEnvironments();
             Amium.Host.HostShutdownManager.ShutdownApplication("MainWindow closing");
             Amium.Host.HostShutdownManager.StopAllRuntimeScopes("MainWindow closing");
         }

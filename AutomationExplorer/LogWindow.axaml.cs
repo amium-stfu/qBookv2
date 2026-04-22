@@ -18,8 +18,8 @@ public partial class LogWindow : Window
             Kind = ControlKind.LogControl,
             Name = "HostLogWindow",
             Title = "Host ProcessLog",
-            Footer = "Logs/Host",
-            TargetLog = "Logs/Host",
+            Footer = "Logs.Host",
+            TargetLog = "Logs.Host",
             Width = 860,
             Height = 580
         };

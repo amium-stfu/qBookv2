@@ -1,11 +1,11 @@
 - Type: UdlClientControl
 
-  View: 1
+  Screen: 1
   Enabled: True
 
   Identity:
     Name: udl1
-    Path: UdlBook/Page1/udl1
+    Path: UdlBook.Page1.udl1
     Id: demo-udl-1
 
   Bounds:

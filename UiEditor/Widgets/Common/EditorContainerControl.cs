@@ -2,7 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 
-namespace Amium.EditorUi.Controls;
+namespace Amium.UiEditor.Controls;
 
 public class EditorContainerWidget : ContentControl
 {

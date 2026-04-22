@@ -1,10 +1,10 @@
 - Type: Button
 
-  View: 1
+  Screen: 1
   
   Identity:
     Name: Button
-    Path: UdlBook/Page1/Button
+    Path: UdlBook.Page1.Button
     Id: 31f1e6da8dea4cef89ba0b005110d0a2
 
   Bounds:
@@ -49,7 +49,7 @@
   InteractionRules:
     - Event: BodyLeftClick
       Action: SendInputTo
-      TargetPath: "UdlBook/Page1/udl1/m310/Set/Request"
+      TargetPath: "UdlBook.Page1.udl1.m310.Set.Request"
       Argument: ""
 
   Properties:

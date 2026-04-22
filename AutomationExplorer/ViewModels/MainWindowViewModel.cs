@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,7 +9,9 @@ using Amium.Host;
 using Amium.Logging;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
+using VBFileSystem = Microsoft.VisualBasic.FileIO.FileSystem;
 using System.Text.Json.Nodes;
+using YamlDotNet.RepresentationModel;
 
 namespace AutomationExplorer.ViewModels;
 
@@ -26,11 +29,69 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
     private const string StructuredLayoutWatcherFilter = "*.yaml";
     private const string ScriptsDirectoryName = "Scripts";
     private const string AssetsDirectoryName = "Assets";
+    private const string FolderTemplateRelativePath = "Templates\\Folder.yaml";
+    private const string FallbackFolderTemplate = "Folder: 'Folder1'\n"
+        + "Caption: 'Folder1'\n"
+        + "Screens:\n"
+        + "  1: 'HomeScreen'\n"
+        + "  2: 'Screen2'\n"
+        + "Controls:\n"
+        + "  -\n"
+        + "    Type: 'ApplicationExplorer'\n"
+        + "    Screen: '1'\n"
+        + "    Enabled: true\n"
+        + "    Identity:\n"
+        + "      Name: 'ApplicationExplorer'\n"
+        + "      Text: ''\n"
+        + "      Path: 'ApplicationExplorer'\n"
+        + "      Id: 'template-applicationexplorer'\n"
+        + "    Bounds:\n"
+        + "      X: 28\n"
+        + "      Y: 90\n"
+        + "      Width: 420\n"
+        + "      Height: 160\n"
+        + "    Design:\n"
+        + "      CornerRadius: 12\n"
+        + "      BorderWidth: 1\n"
+        + "      BorderColor: null\n"
+        + "      BackColor: null\n"
+        + "      ToolTip: ''\n"
+        + "    Header:\n"
+        + "      ControlCaption: 'ApplicationExplorer'\n"
+        + "      SyncText: true\n"
+        + "      HeaderForeColor: null\n"
+        + "      CaptionVisible: true\n"
+        + "      HeaderCornerRadius: 6\n"
+        + "      HeaderBorderWidth: 0\n"
+        + "      HeaderBorderColor: null\n"
+        + "      HeaderBackColor: null\n"
+        + "    Body:\n"
+        + "      BodyCaption: ''\n"
+        + "      BodyCaptionPosition: 'Top'\n"
+        + "      BodyForeColor: null\n"
+        + "      BodyCaptionVisible: false\n"
+        + "      BodyCornerRadius: 0\n"
+        + "      BodyBorderWidth: 0\n"
+        + "      BodyBorderColor: null\n"
+        + "      BodyBackColor: null\n"
+        + "    Footer:\n"
+        + "      ShowFooter: true\n"
+        + "      FooterCornerRadius: 6\n"
+        + "      FooterBorderWidth: 0\n"
+        + "      FooterBorderColor: null\n"
+        + "      FooterBackColor: null\n"
+        + "    Properties:\n"
+        + "      Applications: ''\n"
+        + "      ApplicationAutoStart: false\n";
     private readonly string _configPath;
     private readonly string _defaultLayoutPath;
+    private static readonly TimeSpan WatcherSaveSuppressionWindow = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan WatcherUpsertDebounceWindow = TimeSpan.FromMilliseconds(1200);
     private readonly Dictionary<string, WatchedPage> _watchedPages = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _watcherSuppressedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTime> _watcherSuppressedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTime> _watcherDebouncedUpserts = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _watcherUpsertsInProgress = new(StringComparer.OrdinalIgnoreCase);
+    private List<string> _folderOrder = [];
     private FileSystemWatcher? _bookWatcher;
     private readonly AutomationExplorerAppConfig _config;
     private string _startupPagePath;
@@ -44,6 +105,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
     private bool _hasLayout;
     private bool _isDefaultLayout;
     private bool _isBookOperationRunning;
+    private bool _isDeleteFolderDropTargetActive;
     private bool _isStructuredBook;
 
     public MainWindowViewModel()
@@ -116,10 +178,19 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             {
                 OnPropertyChanged(nameof(LegendEditIconColor));
             }
+            else if (e.PropertyName == nameof(IsDeleteFolderDropTargetActive))
+            {
+                OnPropertyChanged(nameof(DeleteFolderBackColor));
+                OnPropertyChanged(nameof(DeleteFolderNumerBackColor));
+                OnPropertyChanged(nameof(DeleteFolderForeColor));
+            }
             else if (e.PropertyName == nameof(IsDarkTheme))
             {
                 _config.DefaultTheme = IsDarkTheme ? "Dark" : "Light";
                 _config.Save(_configPath);
+                OnPropertyChanged(nameof(DeleteFolderBackColor));
+                OnPropertyChanged(nameof(DeleteFolderNumerBackColor));
+                OnPropertyChanged(nameof(DeleteFolderForeColor));
             }
         };
 
@@ -129,7 +200,6 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
     private sealed class WatchedPage
     {
         public string FilePath { get; set; } = string.Empty;
-        public int PageIndex { get; set; }
         public string PageName { get; set; } = string.Empty;
         public ProjectFolderLayout Layout { get; set; } = default!;
     }
@@ -255,6 +325,27 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         }
     }
 
+    public bool IsDeleteFolderDropTargetActive
+    {
+        get => _isDeleteFolderDropTargetActive;
+        set => SetProperty(ref _isDeleteFolderDropTargetActive, value);
+    }
+
+    public string DeleteFolderBackColor
+        => IsDeleteFolderDropTargetActive
+            ? "#B91C1C"
+            : (IsDarkTheme ? "#3B1F22" : "#FEE2E2");
+
+    public string DeleteFolderNumerBackColor
+        => IsDeleteFolderDropTargetActive
+            ? "#991B1B"
+            : (IsDarkTheme ? "#7F1D1D" : "#FCA5A5");
+
+    public string DeleteFolderForeColor
+        => IsDarkTheme || IsDeleteFolderDropTargetActive
+            ? "#FEF2F2"
+            : "#7F1D1D";
+
     public string StartLayoutIconColor => IsCurrentLayoutStartLayout ? "#F97316" : PrimaryTextBrush;
 
     public bool IsBookOperationRunning
@@ -313,10 +404,28 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             if (!File.Exists(firstPageLayoutPath))
             {
                 CreatePageDirectoryStructure(firstPageDirectory);
-                File.WriteAllText(firstPageLayoutPath, BuildNewPageYaml("Folder1", 1));
+                File.WriteAllText(firstPageLayoutPath, BuildNewPageYaml("Folder1", "Folder1"));
             }
 
-            LoadStructuredBookFromEntryFile(normalizedEntryPath);
+            if (!File.Exists(normalizedEntryPath))
+            {
+                File.WriteAllText(normalizedEntryPath, BuildBookEntryContent(rootDirectory));
+            }
+
+            if (!File.Exists(firstPageLayoutPath))
+            {
+                File.WriteAllText(firstPageLayoutPath, BuildNewPageYaml("Folder1", "Folder1"));
+            }
+
+            try
+            {
+                LoadStructuredBookFromEntryFile(normalizedEntryPath);
+            }
+            catch (Exception ex)
+            {
+                AddMessage("CreateBook", "Warning", $"Project created, but initial load failed: {ex.Message}", normalizedEntryPath);
+            }
+
             StatusText = $"Project created: {normalizedEntryPath}";
             return true;
         }
@@ -387,8 +496,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return false;
         }
 
-        var pageIndex = Folders.Count + 1;
-        var yamlContent = BuildNewPageYaml(trimmedName, pageIndex);
+        var yamlContent = BuildNewPageYaml(trimmedName, safeDirectoryName);
 
         try
         {
@@ -411,6 +519,118 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         {
             AddMessage("CreatePage", "Error", ex.Message, fullPath);
             errorMessage = $"Could not create folder: {ex.Message}";
+            StatusText = errorMessage;
+            return false;
+        }
+    }
+
+    public bool TryDeleteFolder(FolderModel? folder, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+
+        if (folder is null)
+        {
+            errorMessage = "No folder selected for deletion.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        if (!IsDirectoryBook)
+        {
+            errorMessage = "Folder deletion is only supported for loaded project directories.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        if (Folders.Count <= 1)
+        {
+            errorMessage = "The last remaining folder cannot be deleted.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(ProjectPath) || !Directory.Exists(ProjectPath))
+        {
+            errorMessage = "No valid project directory loaded.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        var folderDirectory = ResolveFolderDirectory(folder);
+        if (string.IsNullOrWhiteSpace(folderDirectory) || !Directory.Exists(folderDirectory))
+        {
+            errorMessage = $"Folder directory not found: {folderDirectory}";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        var folderIndex = Folders.IndexOf(folder);
+        if (folderIndex < 0)
+        {
+            errorMessage = "Folder is no longer part of the current project.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        var remainingFolders = Folders.Where(candidate => !ReferenceEquals(candidate, folder)).ToList();
+        if (remainingFolders.Count == 0)
+        {
+            errorMessage = "The last remaining folder cannot be deleted.";
+            StatusText = errorMessage;
+            return false;
+        }
+
+        var preferredSelection = remainingFolders[Math.Min(folderIndex, remainingFolders.Count - 1)];
+        var previousFolderOrder = _folderOrder.ToList();
+        var entryPath = string.IsNullOrWhiteSpace(_currentBookEntryPath)
+            ? GetBookEntryPath(ProjectPath)
+            : _currentBookEntryPath;
+
+        try
+        {
+            if (ReferenceEquals(SelectedFolder, folder))
+            {
+                SelectedFolder = preferredSelection;
+            }
+
+            Folders.Remove(folder);
+            ReindexFolders();
+            IsDeleteFolderDropTargetActive = false;
+            _folderOrder = GetBookManifestFolderOrder().ToList();
+
+            if (!TrySaveBookManifest(out _))
+            {
+                throw new InvalidOperationException("Project.aaep could not be updated before deleting the folder.");
+            }
+
+            VBFileSystem.DeleteDirectory(
+                folderDirectory,
+                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin,
+                Microsoft.VisualBasic.FileIO.UICancelOption.DoNothing);
+
+            LoadStructuredBookFromDirectory(ProjectPath, entryPath);
+            var restoredFolder = Folders.FirstOrDefault(candidate => string.Equals(candidate.Name, preferredSelection.Name, StringComparison.OrdinalIgnoreCase));
+            if (restoredFolder is not null)
+            {
+                SelectedFolder = restoredFolder;
+            }
+
+            StatusText = $"Folder deleted: {folder.TabTitle}";
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            RestoreFolderDeleteState(previousFolderOrder, entryPath, folder.Name);
+            errorMessage = "Folder deletion was canceled.";
+            StatusText = errorMessage;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            RestoreFolderDeleteState(previousFolderOrder, entryPath, folder.Name);
+            AddMessage("DeleteFolder", "Error", ex.Message, folderDirectory);
+            errorMessage = $"Folder could not be deleted: {ex.Message}";
             StatusText = errorMessage;
             return false;
         }
@@ -679,7 +899,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                         }
 
                         var content = "Caption: 'Default Layout'\n" +
-                                      "Views:\n" +
+                                      "Screens:\n" +
                                       "  1: 'HomeScreen'\n" +
                                       "Controls: []\n";
 
@@ -730,16 +950,180 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         return sanitized.Trim('.');
     }
 
-    private static string BuildNewPageYaml(string pageName, int pageIndex)
+    private static string BuildNewPageYaml(string caption, string folderName)
     {
-        var escapedName = EscapeYamlSingleQuoted(pageName);
-        return $"Folder: '{escapedName}'{Environment.NewLine}"
-            + $"Caption: '{escapedName}'{Environment.NewLine}"
-            + $"PageIndex: {Math.Max(1, pageIndex)}{Environment.NewLine}"
-            + "Views:" + Environment.NewLine
-            + "  1: 'HomeScreen'" + Environment.NewLine
-            + "Controls: []" + Environment.NewLine;
+        try
+        {
+            var yaml = new YamlStream();
+            using var reader = new StringReader(LoadFolderTemplateContent());
+            yaml.Load(reader);
+
+            if (yaml.Documents.Count == 0 || yaml.Documents[0].RootNode is not YamlMappingNode root)
+            {
+                return BuildFallbackPageYaml(caption, folderName);
+            }
+
+            SetYamlScalar(root, "Folder", folderName);
+            SetYamlScalar(root, "Caption", caption);
+
+            if (TryGetYamlSequence(root, "Controls", out var controls))
+            {
+                foreach (var control in controls.Children.OfType<YamlMappingNode>())
+                {
+                    RefreshTemplateControlIdentity(control, folderName);
+                }
+            }
+
+            using var writer = new StringWriter();
+            yaml.Save(writer, assignAnchors: false);
+            return writer.ToString();
+        }
+        catch
+        {
+            return BuildFallbackPageYaml(caption, folderName);
+        }
     }
+
+    private static string LoadFolderTemplateContent()
+    {
+        var templatePath = Path.Combine(AppContext.BaseDirectory, FolderTemplateRelativePath);
+        return File.Exists(templatePath)
+            ? File.ReadAllText(templatePath)
+            : FallbackFolderTemplate;
+    }
+
+    private static string BuildFallbackPageYaml(string caption, string folderName)
+    {
+        var escapedCaption = EscapeYamlSingleQuoted(caption);
+        var escapedFolderName = EscapeYamlSingleQuoted(folderName);
+        var widgetId = Guid.NewGuid().ToString("N");
+
+        return $"Folder: '{escapedFolderName}'{Environment.NewLine}"
+            + $"Caption: '{escapedCaption}'{Environment.NewLine}"
+            + "Screens:" + Environment.NewLine
+            + "  1: 'HomeScreen'" + Environment.NewLine
+            + "  2: 'Screen2'" + Environment.NewLine
+            + "Controls:" + Environment.NewLine
+            + "  -" + Environment.NewLine
+            + "    Type: 'ApplicationExplorer'" + Environment.NewLine
+            + "    Screen: '1'" + Environment.NewLine
+            + "    Enabled: true" + Environment.NewLine
+            + "    Identity:" + Environment.NewLine
+            + "      Name: 'ApplicationExplorer'" + Environment.NewLine
+            + "      Text: ''" + Environment.NewLine
+            + $"      Path: '{escapedFolderName}.ApplicationExplorer'" + Environment.NewLine
+            + $"      Id: '{widgetId}'" + Environment.NewLine
+            + "    Bounds:" + Environment.NewLine
+            + "      X: 28" + Environment.NewLine
+            + "      Y: 90" + Environment.NewLine
+            + "      Width: 420" + Environment.NewLine
+            + "      Height: 160" + Environment.NewLine
+            + "    Design:" + Environment.NewLine
+            + "      CornerRadius: 12" + Environment.NewLine
+            + "      BorderWidth: 1" + Environment.NewLine
+            + "      BorderColor: null" + Environment.NewLine
+            + "      BackColor: null" + Environment.NewLine
+            + "      ToolTip: ''" + Environment.NewLine
+            + "    Header:" + Environment.NewLine
+            + "      ControlCaption: 'ApplicationExplorer'" + Environment.NewLine
+            + "      SyncText: true" + Environment.NewLine
+            + "      HeaderForeColor: null" + Environment.NewLine
+            + "      CaptionVisible: true" + Environment.NewLine
+            + "      HeaderCornerRadius: 6" + Environment.NewLine
+            + "      HeaderBorderWidth: 0" + Environment.NewLine
+            + "      HeaderBorderColor: null" + Environment.NewLine
+            + "      HeaderBackColor: null" + Environment.NewLine
+            + "    Body:" + Environment.NewLine
+            + "      BodyCaption: ''" + Environment.NewLine
+            + "      BodyCaptionPosition: 'Top'" + Environment.NewLine
+            + "      BodyForeColor: null" + Environment.NewLine
+            + "      BodyCaptionVisible: false" + Environment.NewLine
+            + "      BodyCornerRadius: 0" + Environment.NewLine
+            + "      BodyBorderWidth: 0" + Environment.NewLine
+            + "      BodyBorderColor: null" + Environment.NewLine
+            + "      BodyBackColor: null" + Environment.NewLine
+            + "    Footer:" + Environment.NewLine
+            + "      ShowFooter: true" + Environment.NewLine
+            + "      FooterCornerRadius: 6" + Environment.NewLine
+            + "      FooterBorderWidth: 0" + Environment.NewLine
+            + "      FooterBorderColor: null" + Environment.NewLine
+            + "      FooterBackColor: null" + Environment.NewLine
+            + "    Properties:" + Environment.NewLine
+            + "      Applications: ''" + Environment.NewLine
+            + "      ApplicationAutoStart: false" + Environment.NewLine;
+    }
+
+    private static void RefreshTemplateControlIdentity(YamlMappingNode control, string folderName)
+    {
+        if (TryGetYamlMapping(control, "Identity", out var identity))
+        {
+            var itemName = GetYamlScalar(identity, "Name");
+            SetYamlScalar(identity, "Id", Guid.NewGuid().ToString("N"));
+
+            if (!string.IsNullOrWhiteSpace(itemName))
+            {
+                SetYamlScalar(identity, "Path", itemName);
+            }
+        }
+
+        if (TryGetYamlSequence(control, "Children", out var children))
+        {
+            foreach (var child in children.Children.OfType<YamlMappingNode>())
+            {
+                RefreshTemplateControlIdentity(child, folderName);
+            }
+        }
+
+        if (!TryGetYamlSequence(control, "Cells", out var cells))
+        {
+            return;
+        }
+
+        foreach (var cell in cells.Children.OfType<YamlMappingNode>())
+        {
+            if (TryGetYamlMapping(cell, "Child", out var child))
+            {
+                RefreshTemplateControlIdentity(child, folderName);
+            }
+        }
+    }
+
+    private static bool TryGetYamlMapping(YamlMappingNode node, string key, out YamlMappingNode mapping)
+    {
+        if (node.Children.TryGetValue(new YamlScalarNode(key), out var child) && child is YamlMappingNode result)
+        {
+            mapping = result;
+            return true;
+        }
+
+        mapping = null!;
+        return false;
+    }
+
+    private static bool TryGetYamlSequence(YamlMappingNode node, string key, out YamlSequenceNode sequence)
+    {
+        if (node.Children.TryGetValue(new YamlScalarNode(key), out var child) && child is YamlSequenceNode result)
+        {
+            sequence = result;
+            return true;
+        }
+
+        sequence = null!;
+        return false;
+    }
+
+    private static string? GetYamlScalar(YamlMappingNode node, string key)
+    {
+        if (node.Children.TryGetValue(new YamlScalarNode(key), out var child) && child is YamlScalarNode scalar)
+        {
+            return scalar.Value;
+        }
+
+        return null;
+    }
+
+    private static void SetYamlScalar(YamlMappingNode node, string key, string value)
+        => node.Children[new YamlScalarNode(key)] = new YamlScalarNode(value);
 
     private static string EscapeYamlSingleQuoted(string value)
         => (value ?? string.Empty).Replace("'", "''", StringComparison.Ordinal);
@@ -1098,11 +1482,9 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                     var fallbackName = GetPageNameFallback(filePath);
                     var layout = ProjectUiLayoutLoader.LoadYaml(filePath, fallbackName);
                     var pageName = GetTechnicalPageName(filePath);
-                    var pageIndex = GetFolderIndex(layout) ?? int.MaxValue;
                     var watchedPage = new WatchedPage
                     {
                         FilePath = filePath,
-                        PageIndex = pageIndex,
                         PageName = pageName,
                         Layout = layout
                     };
@@ -1221,11 +1603,9 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
                         continue;
                     }
 
-                    var pageIndex = GetFolderIndex(layout) ?? int.MaxValue;
                     _watchedPages[filePath] = new WatchedPage
                     {
                         FilePath = filePath,
-                        PageIndex = pageIndex,
                         PageName = pageName,
                         Layout = layout
                     };
@@ -1424,7 +1804,71 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             });
         }
 
-        return pages;
+        return ApplyFolderOrder(pages);
+    }
+
+    protected override IReadOnlyList<string> GetBookManifestFolderOrder()
+        => Folders
+            .Select(GetFolderOrderKey)
+            .Where(static key => !string.IsNullOrWhiteSpace(key))
+            .ToArray();
+
+    protected override void ApplyBookManifestFolderOrder(IReadOnlyList<string> folderOrder)
+    {
+        _folderOrder = folderOrder
+            .Where(static entry => !string.IsNullOrWhiteSpace(entry))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public bool TryMoveFolder(FolderModel? sourceFolder, FolderModel? targetFolder, bool insertAfter)
+    {
+        if (!IsEditMode || sourceFolder is null || targetFolder is null || ReferenceEquals(sourceFolder, targetFolder))
+        {
+            return false;
+        }
+
+        var sourceIndex = Folders.IndexOf(sourceFolder);
+        var targetIndex = Folders.IndexOf(targetFolder);
+        if (sourceIndex < 0 || targetIndex < 0)
+        {
+            return false;
+        }
+
+        var destinationIndex = targetIndex + (insertAfter ? 1 : 0);
+        if (sourceIndex < destinationIndex)
+        {
+            destinationIndex--;
+        }
+
+        if (destinationIndex < 0)
+        {
+            destinationIndex = 0;
+        }
+        else if (destinationIndex >= Folders.Count)
+        {
+            destinationIndex = Folders.Count - 1;
+        }
+
+        if (sourceIndex == destinationIndex)
+        {
+            return false;
+        }
+
+        Folders.Move(sourceIndex, destinationIndex);
+        ReindexFolders();
+        _folderOrder = GetBookManifestFolderOrder().ToList();
+
+        if (TrySaveBookManifest(out _))
+        {
+            StatusText = $"Folder order updated: {sourceFolder.TabTitle}";
+        }
+        else
+        {
+            StatusText = $"Folder moved: {sourceFolder.TabTitle}";
+        }
+
+        return true;
     }
 
     private FolderModel CreateFolderFromProject(ProjectFolderDefinition page, int index)
@@ -1483,6 +1927,97 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         }
     }
 
+    private string GetFolderOrderKey(FolderModel folder)
+        => folder.Name;
+
+    private void RestoreFolderDeleteState(IReadOnlyList<string> previousFolderOrder, string entryPath, string preferredFolderName)
+    {
+        LoadStructuredBookFromDirectory(ProjectPath, entryPath);
+
+        _folderOrder = previousFolderOrder
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        TrySaveBookManifest(out _);
+
+        var restoredFolder = Folders.FirstOrDefault(folder => string.Equals(folder.Name, preferredFolderName, StringComparison.OrdinalIgnoreCase));
+        if (restoredFolder is not null)
+        {
+            SelectedFolder = restoredFolder;
+        }
+    }
+
+    private string ResolveFolderDirectory(FolderModel folder)
+    {
+        if (!string.IsNullOrWhiteSpace(folder.UiFilePath))
+        {
+            var uiDirectory = Path.GetDirectoryName(folder.UiFilePath);
+            if (!string.IsNullOrWhiteSpace(uiDirectory))
+            {
+                return Path.GetFullPath(uiDirectory);
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(ProjectPath))
+        {
+            return string.Empty;
+        }
+
+        return Path.Combine(GetPagesDirectoryPath(ProjectPath), folder.Name);
+    }
+
+    private IReadOnlyList<FolderModel> ApplyFolderOrder(IEnumerable<FolderModel> folders)
+    {
+        var orderedFolders = folders.ToList();
+        if (orderedFolders.Count <= 1 || _folderOrder.Count == 0)
+        {
+            ReindexFolders(orderedFolders);
+            return orderedFolders;
+        }
+
+        var resolvedFolders = new List<FolderModel>(orderedFolders.Count);
+        var usedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var key in _folderOrder)
+        {
+            var folder = orderedFolders.FirstOrDefault(candidate =>
+                !usedKeys.Contains(GetFolderOrderKey(candidate))
+                && string.Equals(GetFolderOrderKey(candidate), key, StringComparison.OrdinalIgnoreCase));
+
+            if (folder is null)
+            {
+                continue;
+            }
+
+            resolvedFolders.Add(folder);
+            usedKeys.Add(GetFolderOrderKey(folder));
+        }
+
+        foreach (var folder in orderedFolders)
+        {
+            if (usedKeys.Add(GetFolderOrderKey(folder)))
+            {
+                resolvedFolders.Add(folder);
+            }
+        }
+
+        ReindexFolders(resolvedFolders);
+        return resolvedFolders;
+    }
+
+    private void ReindexFolders()
+        => ReindexFolders(Folders);
+
+    private static void ReindexFolders(IEnumerable<FolderModel> folders)
+    {
+        var index = 1;
+        foreach (var folder in folders)
+        {
+            folder.Index = index++;
+        }
+    }
+
     private IEnumerable<FolderItemModel> CreateItemsFromNode(string pageName, ProjectUiNode node, double defaultX, double defaultY)
     {
         if (IsContainerNode(node))
@@ -1515,6 +2050,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         var isButton = kind == ControlKind.Button;
         var isListControl = kind == ControlKind.ListControl;
         var isChartControl = kind == ControlKind.ChartControl;
+        var isCircleDisplay = kind == ControlKind.CircleDisplay;
         var item = new FolderItemModel
         {
             Kind = kind,
@@ -1524,8 +2060,8 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             Footer = isButton ? "Action" : type,
             X = node.X ?? defaultX,
             Y = node.Y ?? defaultY,
-            Width = node.Width ?? (isButton ? 320 : (kind == ControlKind.LogControl ? 420 : (isChartControl ? 520 : 260))),
-            Height = node.Height ?? (isButton ? 96 : (kind == ControlKind.LogControl ? 260 : (isChartControl ? 260 : (isListControl ? 220 : 84)))),
+            Width = node.Width ?? (isButton ? 320 : (kind == ControlKind.LogControl ? 420 : (isChartControl ? 520 : (isCircleDisplay ? 280 : 260)))),
+            Height = node.Height ?? (isButton ? 96 : (kind == ControlKind.LogControl ? 260 : (isChartControl ? 260 : (isListControl ? 220 : (isCircleDisplay ? 280 : 84))))),
             IsAutoHeight = isListControl,
             UiNodeType = string.IsNullOrWhiteSpace(type) ? GetDefaultUiType(kind) : type,
             UiProperties = CloneJsonObject(node.Properties)
@@ -1581,6 +2117,11 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return ControlKind.TableControl;
         }
 
+        if (string.Equals(type, "CircleDisplay", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.CircleDisplay;
+        }
+
         if (string.Equals(type, "LogControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "ProcessLog", StringComparison.OrdinalIgnoreCase))
         {
             return ControlKind.LogControl;
@@ -1611,9 +2152,20 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return ControlKind.CameraControl;
         }
 
-        if (string.Equals(type, "PythonEnvManager", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(type, "PythonEnvManager", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "ApplicationExplorer", StringComparison.OrdinalIgnoreCase))
         {
-            return ControlKind.PythonEnvManager;
+            return ControlKind.ApplicationExplorer;
+        }
+
+        if (string.Equals(type, "CustomSignals", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.CustomSignals;
+        }
+
+        if (string.Equals(type, "EnhancedSignals", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.EnhancedSignals;
         }
 
         return ControlKind.Signal;
@@ -1639,34 +2191,6 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         return item;
     }
 
-    private static int? GetFolderIndex(ProjectFolderLayout layout)
-    {
-        try
-        {
-            if (layout.DocumentProperties.TryGetPropertyValue("PageIndex", out var value) && value is not null)
-            {
-                if (value is JsonValue jsonValue)
-                {
-                    if (jsonValue.TryGetValue<int>(out var intValue))
-                    {
-                        return intValue;
-                    }
-
-                    if (jsonValue.TryGetValue<string>(out var text) && int.TryParse(text, out var parsed))
-                    {
-                        return parsed;
-                    }
-                }
-            }
-        }
-        catch
-        {
-            // Ignore PageIndex parsing errors; fall back to default ordering.
-        }
-
-        return null;
-    }
-
     private FolderModel CreateFolderModelFromLayout(string uiFilePath, ProjectFolderLayout layout, int index, string pageName)
     {
         var model = new FolderModel
@@ -1683,6 +2207,10 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         {
             model.Items.Add(item);
         }
+
+        model.ActualViewId = model.Views.ContainsKey(1)
+            ? 1
+            : model.Views.Keys.OrderBy(static key => key).FirstOrDefault();
 
         return model;
     }
@@ -1768,7 +2296,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         {
             if (e.ChangeType is WatcherChangeTypes.Created or WatcherChangeTypes.Changed)
             {
-                if (_watcherSuppressedPaths.Remove(fullPath))
+                if (ShouldIgnoreWatcherUpsert(fullPath, DateTime.UtcNow))
                 {
                     return;
                 }
@@ -1778,12 +2306,24 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         });
     }
 
+    protected override void OnPageYamlFileSaving(string yamlPath)
+    {
+        var fullPath = Path.GetFullPath(yamlPath);
+        _watcherSuppressedPaths[fullPath] = DateTime.UtcNow.Add(WatcherSaveSuppressionWindow);
+        _watcherDebouncedUpserts[fullPath] = DateTime.UtcNow;
+    }
+
     private void OnBookFileDeleted(object sender, FileSystemEventArgs e)
     {
         var fullPath = Path.GetFullPath(e.FullPath);
 
         Dispatcher.UIThread.Post(() =>
         {
+            if (ShouldIgnoreWatcherUpsert(fullPath, DateTime.UtcNow))
+            {
+                return;
+            }
+
             if (_watchedPages.Remove(fullPath))
             {
                 UpdatePagesFromWatchedPages(ProjectPath);
@@ -1798,9 +2338,37 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
         Dispatcher.UIThread.Post(() =>
         {
+            var now = DateTime.UtcNow;
+            if (ShouldIgnoreWatcherUpsert(newFullPath, now) || ShouldIgnoreWatcherUpsert(oldFullPath, now))
+            {
+                return;
+            }
+
             _watchedPages.Remove(oldFullPath);
             _ = HandleBookFileUpsertAsync(newFullPath);
         });
+    }
+
+    private bool ShouldIgnoreWatcherUpsert(string fullPath, DateTime now)
+    {
+        if (_watcherSuppressedPaths.TryGetValue(fullPath, out var suppressedUntil))
+        {
+            if (suppressedUntil >= now)
+            {
+                return true;
+            }
+
+            _watcherSuppressedPaths.TryRemove(fullPath, out _);
+        }
+
+        if (_watcherDebouncedUpserts.TryGetValue(fullPath, out var lastAcceptedChange)
+            && now - lastAcceptedChange < WatcherUpsertDebounceWindow)
+        {
+            return true;
+        }
+
+        _watcherDebouncedUpserts[fullPath] = now;
+        return false;
     }
 
     private async Task HandleBookFileUpsertAsync(string filePath)
@@ -1836,11 +2404,9 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             }
 
             pageName = GetTechnicalPageName(effectivePath);
-            var pageIndex = GetFolderIndex(layout) ?? int.MaxValue;
             var watchedPage = new WatchedPage
             {
                 FilePath = effectivePath,
-                PageIndex = pageIndex,
                 PageName = pageName,
                 Layout = layout
             };
@@ -1855,6 +2421,11 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         finally
         {
             _watcherUpsertsInProgress.Remove(filePath);
+            if (_watcherDebouncedUpserts.TryGetValue(filePath, out var lastAcceptedChange)
+                && DateTime.UtcNow - lastAcceptedChange >= WatcherUpsertDebounceWindow)
+            {
+                _watcherDebouncedUpserts.TryRemove(filePath, out _);
+            }
         }
     }
 
@@ -1965,14 +2536,15 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
 
     private void UpdatePagesFromWatchedPages(string directory)
     {
-        var orderedPages = _watchedPages
+        ApplyBookManifestSettings(directory);
+
+        var watchedPages = _watchedPages
             .Values
-            .OrderBy(page => page.PageIndex)
-            .ThenBy(page => page.PageName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(page => page.PageName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(page => page.FilePath, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (orderedPages.Count == 0)
+        if (watchedPages.Count == 0)
         {
             ProjectPath = directory;
             _currentLayoutFilePath = string.Empty;
@@ -1987,24 +2559,24 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return;
         }
 
-        var pages = new List<FolderModel>(orderedPages.Count);
-        for (var i = 0; i < orderedPages.Count; i++)
+        var pages = new List<FolderModel>(watchedPages.Count);
+        for (var i = 0; i < watchedPages.Count; i++)
         {
-            var watched = orderedPages[i];
+            var watched = watchedPages[i];
             var model = CreateFolderModelFromLayout(watched.FilePath, watched.Layout, i + 1, watched.PageName);
             pages.Add(model);
         }
 
-        ApplyBookManifestSettings(directory);
-        SetFolders(pages);
+        var orderedPages = ApplyFolderOrder(pages);
+        SetFolders(orderedPages);
         ProjectPath = directory;
-        _currentLayoutFilePath = orderedPages[0].FilePath;
+        _currentLayoutFilePath = orderedPages[0].UiFilePath ?? watchedPages[0].FilePath;
         HasLayout = true;
         IsDefaultLayout = false;
         HeaderTitle = Path.GetFileName(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) ?? "AutomationExplorer";
         LoadedProjectSummary = _isStructuredBook
-            ? $"AutomationExplorer | Folders: {pages.Count}"
-            : $"Directory project | Folders: {pages.Count}";
+            ? $"AutomationExplorer | Folders: {orderedPages.Count}"
+            : $"Directory project | Folders: {orderedPages.Count}";
         StatusText = _isStructuredBook
             ? $"AutomationExplorer loaded: {directory}"
             : $"Directory loaded: {directory}";

@@ -77,14 +77,14 @@ Bedeutung:
 
 Fuer InteractionRules mit Widget-Zielen soll dieselbe Trennung gelten.
 
-Beispiel fuer PythonEnvManager-Funktionen:
+Beispiel fuer ApplicationExplorer-Funktionen:
 
 ```yaml
 InteractionRules:
   -
     Event: 'BodyLeftClick'
     Action: 'InvokePythonFunction'
-    TargetPath: 'PythonEnvManager:Log'
+    TargetPath: 'ApplicationExplorer:Log'
     TargetWidgetId: '16a3196adee44f7683132f47c4bc2a2a'
     TargetMember: 'Log'
     FunctionName: 'write_host_log'
@@ -177,7 +177,7 @@ Alle Editor-Felder, die bisher nur einen String speichern, muessen geprueft werd
 - `ChartSeriesDefinitions`
 - `InteractionRules`
 - PythonClient-Targets
-- PythonEnvManager-Targets
+- ApplicationExplorer-Targets
 
 Je nach Feld braucht es:
 

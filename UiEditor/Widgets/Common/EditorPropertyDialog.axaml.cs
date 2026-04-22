@@ -432,10 +432,10 @@ public partial class EditorPropertyDialog : UserControl
         e.Handled = true;
     }
 
-    // Legacy PythonEnvManager picker handler retained for compatibility; no longer used now that the
-    // Python environment list is embedded inline in the properties panel via
-    // PythonEnvManagerSettingsDialogWindow UserControl.
-    private void OnOpenPythonEnvPickerClicked(object? sender, RoutedEventArgs e)
+    // Legacy ApplicationExplorer picker handler retained for compatibility; no longer used now that the
+    // application list is embedded inline in the properties panel via
+    // ApplicationExplorerSettingsDialogWindow UserControl.
+    private void OnOpenApplicationPickerClicked(object? sender, RoutedEventArgs e)
     {
         e.Handled = true;
     }

@@ -92,7 +92,7 @@ public partial class EditorPropertyDialogWindow : Window
     private void UpdateWindowIcon(MainWindowViewModel vm)
     {
         var iconName = vm.IsDarkTheme ? "cogDark.png" : "cogLight.png";
-        var uri = new Uri($"avares://Amium.Editor/EditorIcons/{iconName}");
+        var uri = new Uri($"avares://AutomationExplorer.Editor/EditorIcons/{iconName}");
 
         try
         {

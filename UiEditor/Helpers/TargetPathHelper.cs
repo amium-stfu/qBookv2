@@ -5,9 +5,9 @@ namespace Amium.UiEditor.Helpers;
 
 internal static class TargetPathHelper
 {
-    private static readonly string[] ProjectRootPrefixes = ["Project/", "UdlProject/", "UdlBook/"];
-    private static readonly string[] NonProjectRootPrefixes = ["Runtime/", "Logs/", "Commands/"];
-    private static readonly char[] HierarchySeparators = ['/', '.'];
+    private static readonly string[] ProjectRootSegments = ["Project", "UdlProject", "UdlBook"];
+    private static readonly string[] NonProjectRootSegments = ["Runtime", "Logs", "Commands"];
+    private static readonly char[] HierarchySeparators = ['.', '/'];
 
     public static string NormalizeConfiguredTargetPath(string? path)
     {
@@ -17,9 +17,17 @@ internal static class TargetPathHelper
         }
 
         var normalized = path.Trim().Replace('\\', '/').Trim('/', '.');
-        return string.Equals(normalized, "this", StringComparison.OrdinalIgnoreCase)
-            ? "this"
-            : normalized;
+        if (string.Equals(normalized, "this", StringComparison.OrdinalIgnoreCase))
+        {
+            return "this";
+        }
+
+        var segments = normalized
+            .Split(HierarchySeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        return segments.Length == 0
+            ? string.Empty
+            : string.Join('.', segments);
     }
 
     public static string NormalizeComparablePath(string? path)
@@ -27,7 +35,7 @@ internal static class TargetPathHelper
         var segments = SplitPathSegments(path);
         return segments.Count == 0
             ? string.Empty
-            : string.Join('/', segments);
+            : string.Join('.', segments);
     }
 
     public static IReadOnlyList<string> SplitPathSegments(string? path)
@@ -103,31 +111,38 @@ internal static class TargetPathHelper
 
         var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (yielded.Add(normalized))
+        foreach (var candidate in ExpandCandidateForms(normalized))
         {
-            yield return normalized;
+            if (yielded.Add(candidate))
+            {
+                yield return candidate;
+            }
         }
 
         if (ShouldResolveAgainstFolderRoot(normalized))
         {
             foreach (var folderRootPrefix in GetFolderRootPrefixes(pageName))
             {
-                var folderScopedPath = folderRootPrefix + normalized;
-                if (yielded.Add(folderScopedPath))
+                foreach (var candidate in ExpandCandidateForms(JoinPath(folderRootPrefix, normalized)))
                 {
-                    yield return folderScopedPath;
+                    if (yielded.Add(candidate))
+                    {
+                        yield return candidate;
+                    }
                 }
             }
         }
 
         if (ShouldPrependProjectRoot(normalized))
         {
-            foreach (var projectRootPrefix in ProjectRootPrefixes)
+            foreach (var projectRootPrefix in ProjectRootSegments)
             {
-                var projectScopedPath = projectRootPrefix + normalized;
-                if (yielded.Add(projectScopedPath))
+                foreach (var candidate in ExpandCandidateForms(JoinPath(projectRootPrefix, normalized)))
                 {
-                    yield return projectScopedPath;
+                    if (yielded.Add(candidate))
+                    {
+                        yield return candidate;
+                    }
                 }
             }
         }
@@ -182,14 +197,14 @@ internal static class TargetPathHelper
         }
 
         var rootSegment = segments[0];
-        if (ProjectRootPrefixes.Select(static prefix => prefix.TrimEnd('/')).Contains(rootSegment, StringComparer.OrdinalIgnoreCase))
+        if (ProjectRootSegments.Contains(rootSegment, StringComparer.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        foreach (var prefix in NonProjectRootPrefixes)
+        foreach (var prefix in NonProjectRootSegments)
         {
-            if (string.Equals(rootSegment, prefix.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(rootSegment, prefix, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -208,14 +223,14 @@ internal static class TargetPathHelper
         }
 
         var rootSegment = segments[0];
-        if (ProjectRootPrefixes.Select(static prefix => prefix.TrimEnd('/')).Contains(rootSegment, StringComparer.OrdinalIgnoreCase))
+        if (ProjectRootSegments.Contains(rootSegment, StringComparer.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        foreach (var prefix in NonProjectRootPrefixes)
+        foreach (var prefix in NonProjectRootSegments)
         {
-            if (string.Equals(rootSegment, prefix.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(rootSegment, prefix, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -226,31 +241,24 @@ internal static class TargetPathHelper
 
     private static IEnumerable<string> GetFolderRootPrefixes(string? pageName)
     {
-        var normalizedPageName = string.IsNullOrWhiteSpace(pageName)
-            ? string.Empty
-            : pageName.Trim().Replace('\\', '/').Trim('/', '.');
+        var normalizedPageName = NormalizeConfiguredTargetPath(pageName);
 
         if (string.IsNullOrWhiteSpace(normalizedPageName))
         {
             yield break;
         }
 
-        yield return $"{normalizedPageName}/";
-        yield return $"{normalizedPageName}.";
+        yield return normalizedPageName;
 
-        foreach (var projectRootPrefix in ProjectRootPrefixes)
+        foreach (var projectRootPrefix in ProjectRootSegments)
         {
-            yield return $"{projectRootPrefix}{normalizedPageName}/";
-            yield return $"{projectRootPrefix.TrimEnd('/')}.{normalizedPageName}.";
-            yield return $"{projectRootPrefix}{normalizedPageName}.";
+            yield return JoinPath(projectRootPrefix, normalizedPageName);
         }
     }
 
     private static string RemoveFolderContextPrefix(string path, string? pageName)
     {
-        var normalizedPageName = string.IsNullOrWhiteSpace(pageName)
-            ? string.Empty
-            : pageName.Trim().Replace('\\', '/').Trim('/', '.');
+        var normalizedPageName = NormalizeConfiguredTargetPath(pageName);
         if (string.IsNullOrWhiteSpace(normalizedPageName))
         {
             return string.Empty;
@@ -268,16 +276,27 @@ internal static class TargetPathHelper
         return string.Empty;
     }
 
-    private static bool StartsWithAny(string path, IEnumerable<string> prefixes)
+    private static IEnumerable<string> ExpandCandidateForms(string path)
     {
-        foreach (var prefix in prefixes)
+        var configured = NormalizeConfiguredTargetPath(path);
+        if (!string.IsNullOrWhiteSpace(configured))
         {
-            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
+            yield return configured;
+        }
+    }
+
+    private static string JoinPath(string prefix, string path)
+    {
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return NormalizeConfiguredTargetPath(path);
         }
 
-        return false;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return NormalizeConfiguredTargetPath(prefix);
+        }
+
+        return $"{NormalizeConfiguredTargetPath(prefix)}.{NormalizeConfiguredTargetPath(path)}";
     }
 }

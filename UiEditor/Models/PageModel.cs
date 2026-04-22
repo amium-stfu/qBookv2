@@ -9,13 +9,22 @@ public sealed class FolderModel : ObservableObject
 {
     private bool _isSelected;
     private int _actualViewId = 1;
+    private int _index;
+    private bool _showDropMarkerLeft;
+    private bool _showDropMarkerRight;
+    private bool _showDropMarkerTop;
+    private bool _showDropMarkerBottom;
 
     public FolderModel()
     {
         Items.CollectionChanged += OnItemsCollectionChanged;
     }
 
-    public int Index { get; init; }
+    public int Index
+    {
+        get => _index;
+        set => SetProperty(ref _index, value);
+    }
     public Dictionary<int, string> Views { get; init; } = new();
 
     public int ActualViewId
@@ -81,6 +90,30 @@ public sealed class FolderModel : ObservableObject
 
             return string.Empty;
         }
+    }
+
+    public bool ShowDropMarkerLeft
+    {
+        get => _showDropMarkerLeft;
+        set => SetProperty(ref _showDropMarkerLeft, value);
+    }
+
+    public bool ShowDropMarkerRight
+    {
+        get => _showDropMarkerRight;
+        set => SetProperty(ref _showDropMarkerRight, value);
+    }
+
+    public bool ShowDropMarkerTop
+    {
+        get => _showDropMarkerTop;
+        set => SetProperty(ref _showDropMarkerTop, value);
+    }
+
+    public bool ShowDropMarkerBottom
+    {
+        get => _showDropMarkerBottom;
+        set => SetProperty(ref _showDropMarkerBottom, value);
     }
 
     public string ItemSummary => $"{Items.Count} Controls";

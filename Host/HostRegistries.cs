@@ -156,7 +156,8 @@ public sealed class DataRegistry : IDataRegistry
         }
 
         var rootKey = _items.Keys
-            .Where(existingKey => key.StartsWith(existingKey + "/", StringComparison.OrdinalIgnoreCase))
+            .Where(existingKey => key.StartsWith(existingKey + ".", StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(existingKey + "/", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(existingKey => existingKey.Length)
             .FirstOrDefault();
 
@@ -167,7 +168,7 @@ public sealed class DataRegistry : IDataRegistry
         }
 
         var current = rootItem;
-        foreach (var segment in key[(rootKey.Length + 1)..].Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var segment in key[(rootKey.Length + 1)..].Split(['.', '/', '\\'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             if (!current.Has(segment))
             {
@@ -340,7 +341,7 @@ public static class HostRegistries
         Cameras = new CameraRegistry();
         ProcessLogs = new ProcessLogRegistry();
         TryInitializeDefaultCamera();
-        UiPublisher.Publish("Logs/Host", HostLogger.ProcessLog, "Host");
+        UiPublisher.Publish("Logs.Host", HostLogger.ProcessLog, "Host");
 
         var assembly = typeof(HostRegistries).Assembly;
         var loadContext = AssemblyLoadContext.GetLoadContext(assembly);
@@ -361,6 +362,12 @@ public static class HostRegistries
 
     private static void TryInitializeDefaultCamera()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            HostLogger.Log.Information("[Cameras] Default camera initialization skipped on non-Windows platform.");
+            return;
+        }
+
         try
         {
             var devices = new FilterInfoCollection(FilterCategory.VideoInputDevice);

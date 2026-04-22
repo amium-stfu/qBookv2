@@ -21,7 +21,7 @@ from ui_python_client import FunctionResult, PythonClient
 from amium_host import host
 
 temperature = host.values.temperature.value
-host.values["Runtime/Test/Setpoint"].value = 100
+host.values["Runtime.Test.Setpoint"].value = 100
 ```
 
 Purpose:
@@ -31,7 +31,7 @@ Behavior:
 - attribute access uses generated aliases when available
 - index access accepts either a visible alias or a projected registry path
 - writes go back through the host bridge and remain host-administered
-- projected registry paths may include runtime entries like `PythonClients/Raw/raw_b`
+- projected registry paths may include runtime entries like `Project.Dummy.Applications.Python.Raw.raw_b`
 
 ### Host Value Metadata
 

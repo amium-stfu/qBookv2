@@ -10,7 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using Amium.EditorUi.Controls;
+using Amium.UiEditor.Controls;
 using Amium.Host;
 using Amium.Logging;
 using Amium.UiEditor.Models;
@@ -403,8 +403,8 @@ public partial class EditorLogControl : UserControl
         ApplyThemeButtonState(_pauseButton);
         _pauseButton.Opacity = 1;
         _pauseIcon.IconPath = isPaused
-            ? "avares://Amium.Editor/EditorIcons/play.svg"
-            : "avares://Amium.Editor/EditorIcons/pause.svg";
+            ? "avares://AutomationExplorer.Editor/EditorIcons/play.svg"
+            : "avares://AutomationExplorer.Editor/EditorIcons/pause.svg";
     }
 
     private void UpdateChromeButtons()
@@ -528,7 +528,7 @@ public partial class EditorLogControl : UserControl
             return resolved;
         }
 
-        return TryResolveProcessLog("Logs/Host", out resolved) ? resolved : null;
+        return TryResolveProcessLog("Logs.Host", out resolved) ? resolved : null;
     }
 
     private static bool TryResolveProcessLog(string? targetLog, out ProcessLog? resolved)
@@ -539,7 +539,7 @@ public partial class EditorLogControl : UserControl
             return false;
         }
 
-        var normalized = targetLog.Trim().Replace('\\', '/').Trim('/');
+        var normalized = Amium.UiEditor.Helpers.TargetPathHelper.NormalizeConfiguredTargetPath(targetLog);
         if (string.IsNullOrWhiteSpace(normalized))
         {
             return false;
@@ -551,8 +551,8 @@ public partial class EditorLogControl : UserControl
             return true;
         }
 
-        if (!normalized.Contains('/', StringComparison.Ordinal)
-            && HostRegistries.Data.TryGet($"Logs/{normalized}", out item)
+        if (!normalized.Contains('.', StringComparison.Ordinal)
+            && HostRegistries.Data.TryGet($"Logs.{normalized}", out item)
             && item?.Value is ProcessLog legacyProcessLog)
         {
             resolved = legacyProcessLog;
@@ -609,3 +609,4 @@ public sealed class LogDisplayEntry : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }
+

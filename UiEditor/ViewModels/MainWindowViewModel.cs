@@ -2,23 +2,25 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using Amium.EditorUi;
 using Amium.Items;
 using Amium.Host;
 using Amium.Logging;
+using Amium.UiEditor;
 using Amium.UiEditor.Helpers;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.Persistence;
@@ -28,7 +30,7 @@ namespace Amium.UiEditor.ViewModels;
 public class MainWindowViewModel : ObservableObject, IEditorUiHost
 {
     private const string DemoTargetPath = "Demo/Item/Demo 1";
-    private static readonly IReadOnlyList<string> ParameterFormatOptions = ["Text", "Numeric", "Hex", "bool", "b4", "b8", "b16"];
+    private static readonly IReadOnlyList<string> ParameterFormatOptions = ["Text", "Numeric", "Hex", "bool", "EpochToDatetime", "b4", "b8", "b16"];
     private static readonly IReadOnlyList<string> AlignmentOptions = ["Left", "Center", "Right"];
 
     private static IReadOnlyList<string> GetCameraOptions()
@@ -118,6 +120,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private double _editorDialogX;
     private double _editorDialogY;
     private int _dataRegistryRefreshQueued;
+    private readonly ConcurrentDictionary<string, byte> _runningPageYamlSaves = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _pendingPageYamlSaves = new(StringComparer.OrdinalIgnoreCase);
     private FolderItemModel? _activeValueInputItem;
     private bool _isValueInputOpen;
     private UserLevel _currentUser = UserLevel.Default;
@@ -717,13 +721,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public void ToggleTableCellSelection(FolderItemModel table, int row, int column, bool toggle)
     {
-        if (table is null || !table.IsTableControl)
+        if (table is null || !table.UsesTableLayout)
         {
             return;
         }
 
         var target = table.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == column);
-        if (target is null)
+        if (target is null || !target.IsVisibleInLayout)
         {
             return;
         }
@@ -785,18 +789,18 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public void AddControlToSelectedTableCells(FolderItemModel table, ControlKind kind)
     {
-        if (table is null || !table.IsTableControl)
+        if (table is null || !table.UsesTableLayout)
         {
             return;
         }
 
         // Keine verschachtelten Container-Controls im Table zulassen.
-        if (kind == ControlKind.TableControl || kind == ControlKind.ListControl)
+        if (kind == ControlKind.TableControl || kind == ControlKind.CircleDisplay || kind == ControlKind.ListControl)
         {
             return;
         }
 
-        var selected = table.TableCellSlots.Where(c => c.IsSelected).ToList();
+        var selected = table.TableCellSlots.Where(c => c.IsSelected && c.IsVisibleInLayout).ToList();
         if (selected.Count == 0)
         {
             return;
@@ -826,7 +830,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         // Neues Control im Editor sichtbar machen: selektieren und Status aktualisieren.
         SelectItem(draft);
-        StatusText = $"Control '{draft.Name}' ({kind}) in Table '{table.Name}' hinzugefuegt ({minRow},{minColumn}..{maxRow},{maxColumn})";
+        StatusText = $"Control '{draft.Name}' ({kind}) in {(table.IsCircleDisplay ? "CircleDisplay" : "Table")} '{table.Name}' hinzugefuegt ({minRow},{minColumn}..{maxRow},{maxColumn})";
 
         // Theme-Regeln auch fuer neu hinzugefuegte Table-Widgets sofort anwenden.
         draft.ApplyTheme(IsDarkTheme);
@@ -841,7 +845,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public void SelectTableRectangle(FolderItemModel table, int startRow, int startColumn, int endRow, int endColumn)
     {
-        if (table is null || !table.IsTableControl)
+        if (table is null || !table.UsesTableLayout)
         {
             return;
         }
@@ -857,7 +861,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             for (var col = minColumn; col <= maxColumn; col++)
             {
                 var slot = table.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == col);
-                if (slot is null || slot.ChildItem is not null)
+                if (slot is null || !slot.IsVisibleInLayout || slot.ChildItem is not null)
                 {
                     return;
                 }
@@ -866,7 +870,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         foreach (var cell in table.TableCellSlots)
         {
-            cell.IsSelected = cell.Row >= minRow && cell.Row <= maxRow
+            cell.IsSelected = cell.IsVisibleInLayout
+                               && cell.Row >= minRow && cell.Row <= maxRow
                                && cell.Column >= minColumn && cell.Column <= maxColumn;
         }
 
@@ -892,7 +897,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             for (var col = minColumn; col <= maxColumn; col++)
             {
                 var cell = table.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == col);
-                if (cell is null || !cell.IsSelected)
+                if (cell is null || !cell.IsVisibleInLayout)
+                {
+                    continue;
+                }
+
+                if (!cell.IsSelected)
                 {
                     return false;
                 }
@@ -1199,7 +1209,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return true;
     }
 
-    void IEditorUiHost.OpenItemEditor(object item, double x, double y)
+    void Amium.EditorUi.IEditorUiHost.OpenItemEditor(object item, double x, double y)
     {
         if (item is FolderItemModel pageItem)
         {
@@ -1207,12 +1217,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    bool IEditorUiHost.DeleteItem(object item)
+    bool Amium.EditorUi.IEditorUiHost.DeleteItem(object item)
         => item is FolderItemModel pageItem && DeleteItem(pageItem);
 
-    bool IEditorUiHost.IsEditMode => IsEditMode;
+    bool Amium.EditorUi.IEditorUiHost.IsEditMode => IsEditMode;
 
-    string? IEditorUiHost.PrimaryTextBrush => PrimaryTextBrush;
+    string? Amium.EditorUi.IEditorUiHost.PrimaryTextBrush => PrimaryTextBrush;
 
     public void CancelListPopup()
     {
@@ -1300,35 +1310,166 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     }
 
     private bool TrySaveSelectedPageYaml(out string savedTarget)
+        => TrySavePageYamlForPage(SelectedFolder, out savedTarget);
+
+    public bool TrySaveOwningPageYaml(FolderItemModel item, out string savedTarget)
     {
         savedTarget = string.Empty;
-        var uiFilePath = SelectedFolder.UiFilePath;
+        if (item is null)
+        {
+            return false;
+        }
+
+        var page = FindOwningPage(item);
+        return page is not null && TrySavePageYamlForPage(page, out savedTarget);
+    }
+
+    public void QueueSaveOwningPageYaml(FolderItemModel item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        var page = FindOwningPage(item);
+        if (page is null || string.IsNullOrWhiteSpace(page.UiFilePath))
+        {
+            return;
+        }
+
+        var pageKey = page.UiFilePath;
+        _pendingPageYamlSaves[pageKey] = 0;
+        StartQueuedPageYamlSave(page, pageKey);
+    }
+
+    private void StartQueuedPageYamlSave(FolderModel page, string pageKey)
+    {
+        if (!_runningPageYamlSaves.TryAdd(pageKey, 0))
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            ProcessQueuedPageYamlSave(page, pageKey);
+        }, DispatcherPriority.Background);
+    }
+
+    private void ProcessQueuedPageYamlSave(FolderModel page, string pageKey)
+    {
+        if (!_pendingPageYamlSaves.TryRemove(pageKey, out _))
+        {
+            _runningPageYamlSaves.TryRemove(pageKey, out _);
+            return;
+        }
+
+        if (!TryBuildPageYamlSnapshot(page, out var yamlPath, out var yamlContent))
+        {
+            _runningPageYamlSaves.TryRemove(pageKey, out _);
+            if (_pendingPageYamlSaves.ContainsKey(pageKey))
+            {
+                StartQueuedPageYamlSave(page, pageKey);
+            }
+
+            return;
+        }
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                WritePageYamlFile(yamlPath, yamlContent);
+            }
+            catch
+            {
+                // YAML is an optional companion format; queued save failures are ignored.
+            }
+        }).ContinueWith(completedTask =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_pendingPageYamlSaves.ContainsKey(pageKey))
+                {
+                    ProcessQueuedPageYamlSave(page, pageKey);
+                    return;
+                }
+
+                _runningPageYamlSaves.TryRemove(pageKey, out _);
+            }, DispatcherPriority.Background);
+        }, TaskScheduler.Default);
+    }
+
+    private bool TrySavePageYamlForPage(FolderModel page, out string savedTarget)
+    {
+        savedTarget = string.Empty;
+        if (!TryBuildPageYamlSnapshot(page, out var yamlPath, out var yamlContent))
+        {
+            return false;
+        }
+
+        WritePageYamlFile(yamlPath, yamlContent);
+        savedTarget = $"Folder.yaml: {Path.GetFileName(Path.GetDirectoryName(yamlPath))}";
+        return true;
+    }
+
+    private void WritePageYamlFile(string yamlPath, string yamlContent)
+    {
+        var fullYamlPath = Path.GetFullPath(yamlPath);
+        OnPageYamlFileSaving(fullYamlPath);
+        WriteTextFileAtomically(fullYamlPath, yamlContent);
+    }
+
+    private bool TryBuildPageYamlSnapshot(FolderModel page, out string yamlPath, out string yamlContent)
+    {
+        yamlPath = string.Empty;
+        yamlContent = string.Empty;
+
+        var uiFilePath = page.UiFilePath;
         if (string.IsNullOrWhiteSpace(uiFilePath))
         {
             return false;
         }
 
-        var template = SelectedFolder.UiLayoutDefinition;
+        var template = page.UiLayoutDefinition;
         var documentObject = CloneJsonObject(template?.DocumentProperties);
         documentObject.Remove("Page");
-        documentObject["Title"] = !string.IsNullOrWhiteSpace(template?.Title) ? template!.Title : SelectedFolder.Name;
+        documentObject["Title"] = !string.IsNullOrWhiteSpace(template?.Title) ? template!.Title : page.Name;
         documentObject["Layout"] = ToUiNodeDocument(
             template?.Layout,
-            SelectedFolder.Items,
+            page.Items,
             defaultType: "Canvas");
 
-        var directory = Path.GetDirectoryName(uiFilePath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
+        yamlPath = Path.ChangeExtension(uiFilePath, ".yaml");
+        using var writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
+        WriteYamlObject(BuildPageYamlRoot(page, documentObject), writer, indent: 0);
+        yamlContent = writer.ToString();
 
-        TrySavePageYaml(uiFilePath, documentObject);
-        savedTarget = $"Folder.yaml: {Path.GetFileName(Path.GetDirectoryName(uiFilePath))}";
         return true;
     }
 
-    private bool TrySaveBookManifest(out string savedTarget)
+    private JsonObject BuildPageYamlRoot(FolderModel page, JsonObject documentObject)
+    {
+        var root = new JsonObject();
+        var title = !string.IsNullOrWhiteSpace(page.DisplayText)
+            ? page.DisplayText
+            : GetStringProperty(documentObject, "Title") ?? page.Name;
+        root["Caption"] = title;
+
+        var pageViews = page.Views.Count > 0
+            ? page.Views
+            : new Dictionary<int, string> { [1] = "HomeScreen" };
+
+        var views = new JsonObject(pageViews
+            .OrderBy(static entry => entry.Key)
+            .Select(static entry => new KeyValuePair<string, JsonNode?>(entry.Key.ToString(System.Globalization.CultureInfo.InvariantCulture), entry.Value)));
+        root["Screens"] = views;
+
+        var controls = new JsonArray(page.Items.Select(item => (JsonNode?)BuildYamlControlDefinition(item)).ToArray());
+        root["Controls"] = controls;
+        return root;
+    }
+
+    protected bool TrySaveBookManifest(out string savedTarget)
     {
         savedTarget = string.Empty;
         if (!Folders.Any(page => !string.IsNullOrWhiteSpace(page.UiFilePath)))
@@ -1399,7 +1540,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["FooterBorderWidth"] = item.FooterBorderWidth;
         nodeObject["FooterCornerRadius"] = item.FooterCornerRadius;
         nodeObject["ToolTipText"] = item.ToolTipText;
-        nodeObject["View"] = item.View;
+        nodeObject["Screen"] = item.View;
         nodeObject["Enabled"] = item.Enabled;
         nodeObject["ButtonText"] = item.ButtonText;
         SetOptionalJsonValue(nodeObject, "ButtonIcon", IconPathHelper.NormalizeStoredPath(item.ButtonIcon, item.FolderLayoutPath));
@@ -1429,8 +1570,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
         nodeObject["TargetParameterPath"] = item.TargetParameterPath;
         nodeObject["TargetParameterFormat"] = item.TargetParameterFormat;
-        SetOptionalJsonValue(nodeObject, "PythonEnvironments", item.PythonEnvDefinitions);
-        nodeObject["PythonEnvAutoStart"] = item.PythonEnvAutoStart;
+        SetOptionalJsonValue(nodeObject, "Applications", item.ApplicationDefinitions);
+        nodeObject["ApplicationAutoStart"] = item.ApplicationAutoStart;
         nodeObject["Unit"] = item.Unit;
         nodeObject["TargetLog"] = item.TargetLog;
         nodeObject["RefreshRateMs"] = item.RefreshRateMs;
@@ -1449,7 +1590,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["UdlClientPort"] = item.UdlClientPort;
         nodeObject["UdlClientAutoConnect"] = item.UdlClientAutoConnect;
         nodeObject["UdlClientDebugLogging"] = item.UdlClientDebugLogging;
+        nodeObject["UdlClientDemoEnabled"] = item.UdlClientDemoEnabled;
         nodeObject["UdlAttachedItemPaths"] = item.UdlAttachedItemPaths;
+        nodeObject["UdlDemoModuleDefinitions"] = item.UdlDemoModuleDefinitions;
         nodeObject["IsReadOnly"] = item.IsReadOnly;
         nodeObject["IsAutoHeight"] = item.IsAutoHeight;
         nodeObject["ListItemHeight"] = item.ListItemHeight;
@@ -1457,6 +1600,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         // Table layout
         nodeObject["Rows"] = item.TableRows;
         nodeObject["Columns"] = item.TableColumns;
+        SetOptionalJsonValue(nodeObject, "DisplayBackColor", item.DisplayBackColor);
+        SetOptionalJsonValue(nodeObject, "SignalColor", item.SignalColor);
+        nodeObject["SignalRun"] = item.SignalRun;
+        nodeObject["ProgressBar"] = item.ProgressBar;
+        nodeObject["ProgressState"] = item.ProgressState;
+        SetOptionalJsonValue(nodeObject, "ProgressBarColor", item.ProgressBarColor);
         nodeObject["TableCellRow"] = item.TableCellRow;
         nodeObject["TableCellColumn"] = item.TableCellColumn;
         nodeObject["TableCellRowSpan"] = item.TableCellRowSpan;
@@ -1481,7 +1630,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var node = new JsonObject
         {
             ["Type"] = !string.IsNullOrWhiteSpace(item.UiNodeType) ? item.UiNodeType : GetDefaultUiType(item.Kind),
-            ["View"] = item.View,
+            ["Screen"] = item.View,
             ["Enabled"] = item.Enabled
         };
 
@@ -1489,7 +1638,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             ["Name"] = item.Name,
             ["Text"] = item.Title,
-            ["Path"] = item.Path,
+            ["Path"] = GetPersistedIdentityPath(item),
             ["Id"] = item.Id
         };
         node["Identity"] = identity;
@@ -1585,8 +1734,19 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 control["Children"] = listChildren;
                 break;
             case ControlKind.TableControl:
+            case ControlKind.CircleDisplay:
                 control["Rows"] = item.TableRows;
                 control["Columns"] = item.TableColumns;
+                if (item.Kind == ControlKind.CircleDisplay)
+                {
+                    control["DisplayBackColor"] = item.DisplayBackColor is null ? null : JsonValue.Create(item.DisplayBackColor);
+                    control["SignalColor"] = item.SignalColor is null ? null : JsonValue.Create(item.SignalColor);
+                    control["SignalRun"] = item.SignalRun;
+                    control["ProgressBar"] = item.ProgressBar;
+                    control["ProgressState"] = item.ProgressState;
+                    control["ProgressBarColor"] = item.ProgressBarColor is null ? null : JsonValue.Create(item.ProgressBarColor);
+                }
+
                 var cells = new JsonArray();
                 foreach (var child in item.Items.Where(c => c.IsTableChildControl))
                 {
@@ -1636,14 +1796,26 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 control["UdlClientPort"] = item.UdlClientPort;
                 control["UdlClientAutoConnect"] = item.UdlClientAutoConnect;
                 control["UdlClientDebugLogging"] = item.UdlClientDebugLogging;
+                control["UdlClientDemoEnabled"] = item.UdlClientDemoEnabled;
                 control["UdlAttachedItemPaths"] = item.UdlAttachedItemPaths;
+                if (!string.IsNullOrWhiteSpace(item.UdlDemoModuleDefinitions))
+                {
+                    control["UdlDemoModules"] = UdlDemoModuleDefinitionCodec.ToJsonArray(item.UdlDemoModuleDefinitions);
+                }
+
                 break;
             case ControlKind.PythonClient:
                 control["PythonScript"] = item.PythonScriptPath;
                 break;
-            case ControlKind.PythonEnvManager:
-                control["PythonEnvironments"] = item.PythonEnvDefinitions;
-                control["PythonEnvAutoStart"] = item.PythonEnvAutoStart;
+            case ControlKind.ApplicationExplorer:
+                control["Applications"] = item.ApplicationDefinitions;
+                control["ApplicationAutoStart"] = item.ApplicationAutoStart;
+                break;
+            case ControlKind.CustomSignals:
+                control["CustomSignals"] = CustomSignalDefinitionCodec.ToJsonArray(item.CustomSignalDefinitions, item.FolderName);
+                break;
+            case ControlKind.EnhancedSignals:
+                control["EnhancedSignals"] = ExtendedSignalDefinitionCodec.ToJsonArray(item.EnhancedSignalDefinitions, item.FolderName);
                 break;
         }
 
@@ -1692,6 +1864,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.Button => "Button",
             ControlKind.ListControl => "ListControl",
             ControlKind.TableControl => "TableControl",
+            ControlKind.CircleDisplay => "CircleDisplay",
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClient",
@@ -1699,7 +1872,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
             ControlKind.PythonClient => "PythonClient",
-            ControlKind.PythonEnvManager => "PythonEnvManager",
+            ControlKind.ApplicationExplorer => "ApplicationExplorer",
+            ControlKind.CustomSignals => "CustomSignals",
+            ControlKind.EnhancedSignals => "EnhancedSignals",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -1710,7 +1885,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.Name = GetStringProperty(properties, "Name") ?? item.Name;
         item.Id = GetStringProperty(properties, "Id") ?? item.Id;
         item.Enabled = GetBoolProperty(properties, "Enabled") ?? item.Enabled;
-        item.View = GetIntProperty(properties, "View") ?? item.View;
+        item.View = GetFirstIntProperty(properties, "Screen", "View") ?? item.View;
         item.Title = GetFirstStringProperty(properties, "Text", "Title") ?? item.Title;
         item.SyncText = GetBoolProperty(properties, "SyncText") ?? item.SyncText;
         item.ControlCaption = GetFirstStringProperty(properties, "ControlCaption", "Header") ?? item.ControlCaption;
@@ -1759,6 +1934,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.HeaderCornerRadius = GetDoubleProperty(properties, "HeaderCornerRadius") ?? item.HeaderCornerRadius;
         item.BodyForeColor = GetFirstStringProperty(properties, "BodyForeColor", "PrimaryForegroundColor") ?? item.BodyForeColor;
         item.BodyBackColor = GetFirstStringProperty(properties, "BodyBackColor", "ContainerBackgroundColor") ?? item.BodyBackColor;
+        item.DisplayBackColor = GetStringProperty(properties, "DisplayBackColor") ?? item.DisplayBackColor;
         item.BodyBorderColor = GetFirstStringProperty(properties, "BodyBorderColor", "ContainerBorder") ?? item.BodyBorderColor;
         item.BodyBorderWidth = GetFirstDoubleProperty(properties, "BodyBorderWidth", "ContainerBorderWidth") ?? item.BodyBorderWidth;
         item.BodyCornerRadius = GetFirstDoubleProperty(properties, "BodyCornerRadius", "ControlCornerRadius") ?? item.BodyCornerRadius;
@@ -1769,8 +1945,19 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.FooterCornerRadius = GetDoubleProperty(properties, "FooterCornerRadius") ?? item.FooterCornerRadius;
         item.TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(GetFirstStringProperty(properties, "Uri", "TargetPath") ?? item.TargetPath);
         item.PythonScriptPath = GetStringProperty(properties, "PythonScript") ?? item.PythonScriptPath;
-        item.PythonEnvDefinitions = GetStringProperty(properties, "PythonEnvironments") ?? item.PythonEnvDefinitions;
-        item.PythonEnvAutoStart = GetBoolProperty(properties, "PythonEnvAutoStart") ?? item.PythonEnvAutoStart;
+        item.ApplicationDefinitions = GetStringProperty(properties, "Applications")
+            ?? GetStringProperty(properties, "PythonEnvironments")
+            ?? item.ApplicationDefinitions;
+        item.CustomSignalDefinitions = CustomSignalDefinitionCodec.FromJsonNode(properties["CustomSignals"], pageName);
+        item.EnhancedSignalDefinitions = ExtendedSignalDefinitionCodec.FromJsonNode(properties["EnhancedSignals"], pageName);
+        if (item.IsEnhancedSignals)
+        {
+            Core.LogInfo($"[EnhancedSignalsSet] origin=from-json-node item={item.Path} page={pageName} summary={SummarizeEnhancedSignalDefinitions(item.EnhancedSignalDefinitions)} raw={item.EnhancedSignalDefinitions}");
+        }
+
+        item.ApplicationAutoStart = GetBoolProperty(properties, "ApplicationAutoStart")
+            ?? GetBoolProperty(properties, "PythonEnvAutoStart")
+            ?? item.ApplicationAutoStart;
         item.TargetParameterPath = GetFirstStringProperty(properties, "Parameter", "TargetParameterPath") ?? item.TargetParameterPath;
         item.TargetParameterFormat = GetFirstStringProperty(properties, "Format", "TargetParameterFormat") ?? item.TargetParameterFormat;
         item.Unit = GetFirstStringProperty(properties, "Unit", "Footer") ?? item.Unit;
@@ -1784,7 +1971,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.UdlClientPort = GetIntProperty(properties, "UdlClientPort") ?? item.UdlClientPort;
         item.UdlClientAutoConnect = GetBoolProperty(properties, "UdlClientAutoConnect") ?? item.UdlClientAutoConnect;
         item.UdlClientDebugLogging = GetBoolProperty(properties, "UdlClientDebugLogging") ?? item.UdlClientDebugLogging;
+        item.UdlClientDemoEnabled = GetBoolProperty(properties, "UdlClientDemoEnabled") ?? item.UdlClientDemoEnabled;
         item.UdlAttachedItemPaths = GetStringProperty(properties, "UdlAttachedItemPaths") ?? item.UdlAttachedItemPaths;
+        item.UdlDemoModuleDefinitions = properties["UdlDemoModuleDefinitions"] is { } udlDemoDefinitionsNode
+            ? UdlDemoModuleDefinitionCodec.FromJsonNode(udlDemoDefinitionsNode)
+            : item.UdlDemoModuleDefinitions;
         item.CsvDirectory = GetStringProperty(properties, "CsvDirectory") ?? item.CsvDirectory;
         item.CsvFilename = GetStringProperty(properties, "CsvFilename") ?? item.CsvFilename;
         item.CsvAddTimestamp = GetBoolProperty(properties, "CsvAddTimestamp") ?? item.CsvAddTimestamp;
@@ -1800,6 +1991,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         // Table layout
         item.TableRows = GetIntProperty(properties, "Rows") ?? item.TableRows;
         item.TableColumns = GetIntProperty(properties, "Columns") ?? item.TableColumns;
+        item.SignalColor = GetStringProperty(properties, "SignalColor") ?? item.SignalColor;
+        item.SignalRun = GetBoolProperty(properties, "SignalRun") ?? item.SignalRun;
+        item.ProgressBar = GetBoolProperty(properties, "ProgressBar") ?? item.ProgressBar;
+        item.ProgressState = GetDoubleProperty(properties, "ProgressState") ?? item.ProgressState;
+        item.ProgressBarColor = GetStringProperty(properties, "ProgressBarColor") ?? item.ProgressBarColor;
         item.TableCellRow = GetIntProperty(properties, "TableCellRow") ?? item.TableCellRow;
         item.TableCellColumn = GetIntProperty(properties, "TableCellColumn") ?? item.TableCellColumn;
         item.TableCellRowSpan = GetIntProperty(properties, "TableCellRowSpan") ?? item.TableCellRowSpan;
@@ -1818,13 +2014,21 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static bool TryBuildInteractionRulesJson(string definitions, string? pageName, out JsonArray array)
     {
         var rules = ItemInteractionRuleCodec.ParseDefinitions(definitions);
-        array = new JsonArray(rules.Select(rule => (JsonNode?)new JsonObject
+        array = new JsonArray(rules.Select(rule =>
         {
-            ["Event"] = rule.Event.ToString(),
-            ["Action"] = rule.Action.ToString(),
-            ["TargetPath"] = ToPersistedInteractionRuleTargetPath(rule, pageName),
-            ["FunctionName"] = rule.FunctionName,
-            ["Argument"] = rule.Argument
+            var jsonRule = new JsonObject
+            {
+                ["Event"] = rule.Event.ToString(),
+                ["Action"] = rule.Action.ToString(),
+                ["TargetPath"] = ToPersistedInteractionRuleTargetPath(rule, pageName),
+                ["Argument"] = rule.Argument
+            };
+
+            jsonRule["FunctionName"] = rule.Action == ItemInteractionAction.InvokePythonFunction
+                ? rule.FunctionName
+                : string.Empty;
+
+            return (JsonNode?)jsonRule;
         }).ToArray());
 
         return rules.Count > 0;
@@ -1845,13 +2049,22 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                         ? parsedActionKind
                         : ItemInteractionAction.OpenValueEditor;
 
+                    var functionName = GetJsonNodeText(ruleObject["FunctionName"]);
+                    var argument = GetJsonNodeText(ruleObject["Argument"]);
+
+                    if (actionKind != ItemInteractionAction.InvokePythonFunction)
+                    {
+                        argument = string.IsNullOrWhiteSpace(argument) ? functionName : argument;
+                        functionName = string.Empty;
+                    }
+
                     return new ItemInteractionRule
                     {
                         Event = eventKind,
                         Action = actionKind,
                         TargetPath = NormalizeInteractionRuleTargetPath(actionKind, GetStringValue(ruleObject, "TargetPath") ?? "this"),
-                        FunctionName = GetStringValue(ruleObject, "FunctionName") ?? string.Empty,
-                        Argument = GetStringValue(ruleObject, "Argument") ?? string.Empty
+                        FunctionName = functionName,
+                        Argument = argument
                     };
                 }));
         }
@@ -1866,6 +2079,21 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             JsonValue jsonValue when jsonValue.TryGetValue<string>(out var result) => result,
             _ => null
+        };
+    }
+
+    private static string GetJsonNodeText(JsonNode? value)
+    {
+        return value switch
+        {
+            null => string.Empty,
+            JsonValue jsonValue when jsonValue.TryGetValue<string>(out var stringResult) => stringResult,
+            JsonValue jsonValue when jsonValue.TryGetValue<bool>(out var boolResult) => boolResult ? "true" : "false",
+            JsonValue jsonValue when jsonValue.TryGetValue<int>(out var intResult) => intResult.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            JsonValue jsonValue when jsonValue.TryGetValue<long>(out var longResult) => longResult.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            JsonValue jsonValue when jsonValue.TryGetValue<double>(out var doubleResult) => doubleResult.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            JsonValue jsonValue => jsonValue.ToJsonString().Trim('"'),
+            _ => value.ToJsonString().Trim('"')
         };
     }
 
@@ -1929,6 +2157,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         };
     }
 
+    private static int? GetFirstIntProperty(JsonObject properties, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            var value = GetIntProperty(properties, propertyName);
+            if (value.HasValue)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
     private static bool? GetBoolProperty(JsonObject properties, string propertyName)
     {
         var value = properties[propertyName];
@@ -1965,6 +2207,31 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject[propertyName] = value;
     }
 
+    private static string GetPersistedIdentityPath(FolderItemModel item)
+    {
+        if (item.ParentItem is not null)
+        {
+            var relativeToParent = TargetPathHelper.TryGetRelativePath(item.Path, item.ParentItem.Path, out var childRelativePath)
+                ? childRelativePath
+                : string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(relativeToParent))
+            {
+                return relativeToParent;
+            }
+        }
+
+        var relativePath = TargetPathHelper.ToPersistedLayoutTargetPath(item.Path, item.FolderName);
+        if (!string.IsNullOrWhiteSpace(relativePath))
+        {
+            return relativePath;
+        }
+
+        return !string.IsNullOrWhiteSpace(item.Name)
+            ? item.Name
+            : item.Path;
+    }
+
     protected static string GetDefaultUiType(ControlKind kind)
     {
         return kind switch
@@ -1972,6 +2239,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.Button => "Button",
             ControlKind.ListControl => "ListControl",
             ControlKind.TableControl => "TableControl",
+            ControlKind.CircleDisplay => "CircleDisplay",
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClientControl",
@@ -1979,7 +2247,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
             ControlKind.PythonClient => "PythonClient",
-            ControlKind.PythonEnvManager => "PythonEnvManager",
+            ControlKind.ApplicationExplorer => "ApplicationExplorer",
+            ControlKind.CustomSignals => "CustomSignals",
+            ControlKind.EnhancedSignals => "EnhancedSignals",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -1990,7 +2260,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return source?.DeepClone() as JsonObject ?? new JsonObject();
     }
 
-    private void TrySavePageYaml(string uiFilePath, JsonObject documentObject)
+    private void WritePageYaml(FolderModel page, string uiFilePath, JsonObject documentObject)
     {
         var yamlPath = Path.ChangeExtension(uiFilePath, ".yaml");
 
@@ -2002,27 +2272,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Directory.CreateDirectory(directory);
             }
 
-            var root = new JsonObject();
-            var title = !string.IsNullOrWhiteSpace(SelectedFolder.DisplayText)
-                ? SelectedFolder.DisplayText
-                : GetStringProperty(documentObject, "Title") ?? SelectedFolder.Name;
-            // In der YAML-Repräsentation verwenden wir "Caption" als Folder-Titel.
-            root["Caption"] = title;
-
-            var pageViews = SelectedFolder.Views.Count > 0
-                ? SelectedFolder.Views
-                : new Dictionary<int, string> { [1] = "HomeScreen" };
-
-            var views = new JsonObject(pageViews
-                .OrderBy(static entry => entry.Key)
-                .Select(static entry => new KeyValuePair<string, JsonNode?>(entry.Key.ToString(System.Globalization.CultureInfo.InvariantCulture), entry.Value)));
-            root["Views"] = views;
-
-            var controls = new JsonArray(SelectedFolder.Items.Select(item => (JsonNode?)BuildYamlControlDefinition(item)).ToArray());
-            root["Controls"] = controls;
-
             using var writer = new StreamWriter(yamlPath, append: false);
-            WriteYamlObject(root, writer, indent: 0);
+            WriteYamlObject(BuildPageYamlRoot(page, documentObject), writer, indent: 0);
         }
         catch
         {
@@ -2070,10 +2321,22 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         switch (value)
         {
             case JsonObject childObj:
+                if (childObj.Count == 0)
+                {
+                    writer.WriteLine($"{indentText}{key}: {{}}");
+                    break;
+                }
+
                 writer.WriteLine($"{indentText}{key}:");
                 WriteYamlObject(childObj, writer, indent + 2);
                 break;
             case JsonArray array:
+                if (array.Count == 0)
+                {
+                    writer.WriteLine($"{indentText}{key}: []");
+                    break;
+                }
+
                 writer.WriteLine($"{indentText}{key}:");
                 WriteYamlArray(array, writer, indent + 2);
                 break;
@@ -2091,11 +2354,24 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             switch (element)
             {
                 case JsonObject obj:
+                    if (obj.Count == 0)
+                    {
+                        writer.WriteLine($"{indentText}- {{}}");
+                        break;
+                    }
+
                     writer.WriteLine($"{indentText}-");
                     WriteYamlObject(obj, writer, indent + 2);
                     break;
                 case JsonArray nestedArray:
+                    if (nestedArray.Count == 0)
+                    {
+                        writer.WriteLine($"{indentText}- []");
+                        break;
+                    }
+
                     writer.WriteLine($"{indentText}-");
+                    WriteYamlArray(nestedArray, writer, indent + 2);
                     break;
                 default:
                     writer.WriteLine($"{indentText}- {FormatYamlScalar(element)}");
@@ -2153,6 +2429,37 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return $"'{normalized}'";
     }
 
+    private static void WriteTextFileAtomically(string path, string content)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var tempPath = Path.Combine(directory ?? string.Empty, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+        File.WriteAllText(tempPath, content);
+
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Replace(tempPath, path, null, ignoreMetadataErrors: true);
+            }
+            else
+            {
+                File.Move(tempPath, path);
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+    }
+
     private void SetTabStripPlacement(string? placement)
     {
         TabStripPlacement = ParseTabStripPlacement(placement);
@@ -2177,6 +2484,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         var manifest = ReadBookManifest(GetBookManifestPath(bookRootDirectory));
         TabStripPlacement = ParseTabStripPlacement(manifest.TabStripPlacement);
+        ApplyBookManifestFolderOrder(manifest.FolderOrder);
 
         if (!string.IsNullOrWhiteSpace(manifest.Theme))
         {
@@ -2185,6 +2493,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     }
 
     protected virtual string? CurrentProjectRootDirectory => null;
+
+    protected virtual void OnPageYamlFileSaving(string yamlPath)
+    {
+    }
 
     protected string? GetBookManifestPath(string? bookRootDirectory = null)
     {
@@ -2215,10 +2527,24 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         try
         {
             using var writer = new StreamWriter(path, false);
+            var folderOrder = GetBookManifestFolderOrder()
+                .Where(static name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             writer.WriteLine("Design:");
             writer.WriteLine($"  TabStripPlacement: {QuoteYamlString(TabStripPlacement.ToString())}");
             writer.WriteLine($"  SaveDate: {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)}");
             writer.WriteLine($"  Theme: {(IsDarkTheme ? "Dark" : "Light")}");
+            if (folderOrder.Count > 0)
+            {
+                writer.WriteLine("  FolderOrder:");
+                foreach (var folderName in folderOrder)
+                {
+                    writer.WriteLine($"    - {QuoteYamlString(folderName)}");
+                }
+            }
+
             writer.WriteLine("Passwords:");
             writer.WriteLine("  Service: \"service\"");
             writer.WriteLine("  Admin: \"admin\"");
@@ -2240,6 +2566,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             string? tabStripPlacement = null;
             string? theme = null;
+            var folderOrder = new List<string>();
+            var inFolderOrder = false;
             var lines = File.ReadAllLines(path);
             foreach (var rawLine in lines)
             {
@@ -2247,6 +2575,25 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal))
                 {
                     continue;
+                }
+
+                if (inFolderOrder)
+                {
+                    if (rawLine.StartsWith("    - ", StringComparison.Ordinal) || rawLine.StartsWith("  - ", StringComparison.Ordinal))
+                    {
+                        var folderName = line[1..].Trim().Trim('\'', '"');
+                        if (!string.IsNullOrWhiteSpace(folderName))
+                        {
+                            folderOrder.Add(folderName.Replace("''", "'"));
+                        }
+
+                        continue;
+                    }
+
+                    if (!rawLine.StartsWith(" ", StringComparison.Ordinal))
+                    {
+                        inFolderOrder = false;
+                    }
                 }
 
                 if (line.StartsWith("TabStripPlacement:", StringComparison.OrdinalIgnoreCase))
@@ -2258,13 +2605,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 if (line.StartsWith("Theme:", StringComparison.OrdinalIgnoreCase))
                 {
                     theme = line[(line.IndexOf(':') + 1)..].Trim().Trim('\'', '"');
+                    continue;
+                }
+
+                if (line.StartsWith("FolderOrder:", StringComparison.OrdinalIgnoreCase))
+                {
+                    inFolderOrder = true;
                 }
             }
 
             return new BookManifestSettings
             {
                 TabStripPlacement = tabStripPlacement,
-                Theme = theme
+                Theme = theme,
+                FolderOrder = folderOrder
             };
         }
         catch
@@ -2277,6 +2631,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         public string? TabStripPlacement { get; init; }
         public string? Theme { get; init; }
+        public IReadOnlyList<string> FolderOrder { get; init; } = Array.Empty<string>();
+    }
+
+    protected virtual IReadOnlyList<string> GetBookManifestFolderOrder()
+        => Array.Empty<string>();
+
+    protected virtual void ApplyBookManifestFolderOrder(IReadOnlyList<string> folderOrder)
+    {
     }
 
     protected static JsonObject LoadJsonObject(string? path)
@@ -2394,6 +2756,25 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlBorderWidth = 0,
                 ControlCornerRadius = 0
             },
+            ControlKind.CircleDisplay => new FolderItemModel
+            {
+                Kind = ControlKind.CircleDisplay,
+                ControlCaption = string.Empty,
+                BodyCaption = "CircleDisplay",
+                BodyCaptionVisible = false,
+                Footer = string.Empty,
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 280),
+                Height = Math.Max(height, 280),
+                BorderWidth = 0,
+                BackgroundColor = "Transparent",
+                TableRows = 9,
+                TableColumns = 9,
+                ContainerBorderWidth = 0,
+                ControlBorderWidth = 0,
+                ControlCornerRadius = 0
+            },
             ControlKind.LogControl => new FolderItemModel
             {
                 Kind = ControlKind.LogControl,
@@ -2401,7 +2782,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 BodyCaption = string.Empty,
                 BodyCaptionVisible = false,
                 ShowFooter = true,
-                Footer = "Logs/Host",
+                Footer = "Logs.Host",
                 X = x,
                 Y = y,
                 Width = Math.Max(width, 420),
@@ -2474,6 +2855,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 UdlClientPort = 9001,
                 UdlClientAutoConnect = false,
                 UdlClientDebugLogging = false,
+                UdlClientDemoEnabled = false,
                 X = x,
                 Y = y,
                 Width = Math.Max(width, 420),
@@ -2495,19 +2877,49 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Height = Math.Max(height, 80),
                 ContainerBorderWidth = 0
             },
-            ControlKind.PythonEnvManager => new FolderItemModel
+            ControlKind.ApplicationExplorer => new FolderItemModel
             {
-                Kind = ControlKind.PythonEnvManager,
-                Name = "PythonEnvManager",
-                ControlCaption = "PythonEnvManager",
+                Kind = ControlKind.ApplicationExplorer,
+                Name = "ApplicationExplorer",
+                ControlCaption = "ApplicationExplorer",
                 BodyCaption = string.Empty,
                 BodyCaptionVisible = false,
                 ShowFooter = true,
-                Footer = "No Python environments configured",
+                Footer = "No applications configured",
                 X = x,
                 Y = y,
                 Width = Math.Max(width, 420),
                 Height = Math.Max(height, 160),
+                ContainerBorderWidth = 0
+            },
+            ControlKind.CustomSignals => new FolderItemModel
+            {
+                Kind = ControlKind.CustomSignals,
+                Name = "CustomSignals",
+                ControlCaption = "CustomSignals",
+                BodyCaption = string.Empty,
+                BodyCaptionVisible = false,
+                ShowFooter = true,
+                Footer = "No custom signals configured",
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 420),
+                Height = Math.Max(height, 220),
+                ContainerBorderWidth = 0
+            },
+            ControlKind.EnhancedSignals => new FolderItemModel
+            {
+                Kind = ControlKind.EnhancedSignals,
+                Name = "EnhancedSignals",
+                ControlCaption = "EnhancedSignals",
+                BodyCaption = string.Empty,
+                BodyCaptionVisible = false,
+                ShowFooter = true,
+                Footer = "No enhanced signals configured",
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 420),
+                Height = Math.Max(height, 220),
                 ContainerBorderWidth = 0
             },
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
@@ -2665,12 +3077,18 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     protected void SetFolders(IReadOnlyList<FolderModel> pages)
     {
+        foreach (var existingPage in Folders)
+        {
+            EnhancedSignalRuntimeManager.ReleaseFolder(existingPage.Name);
+        }
+
         Folders.Clear();
 
         foreach (var page in pages)
         {
             AttachPage(page);
             AttachHierarchy(page);
+            SyncEnhancedSignals(page, forceRecreate: false);
             Folders.Add(page);
         }
 
@@ -2684,7 +3102,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         _selectedPage.IsSelected = true;
         RefreshCurrentFolderWorkspacePath();
         ApplyThemeToAllItems();
-        StartAutoStartPythonEnvironments();
+        StartAutoStartApplications();
         ClearItemSelection();
         CancelSelection();
         CancelEditorDialog();
@@ -2833,9 +3251,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
                 if (field.IsInteractionRuleList)
                 {
-                    field.RefreshInteractionRuleTargetOptions(
+                    field.RefreshInteractionRuleOptions(
                         GetSelectableTargetOptions(item),
-                        GetSelectablePythonEnvironmentOptions(item));
+                        GetSelectableApplicationOptions(item));
                     continue;
                 }
 
@@ -3257,17 +3675,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    public string? CreatePythonEnvironmentFromTemplate(string envName, string? templateFilePath)
+    public string? CreatePythonApplicationFromTemplate(string envName, string? templateFilePath)
     {
         if (string.IsNullOrWhiteSpace(envName))
         {
-            EditorDialogError = "Environment name is required.";
+            EditorDialogError = "Application name is required.";
             return null;
         }
 
         if (_editorDialogItem is null)
         {
-            EditorDialogError = "No active item for Python environment creation.";
+            EditorDialogError = "No active item for Python application creation.";
             return null;
         }
 
@@ -3283,10 +3701,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 safeName = "Env";
             }
 
-            var envRootDirectory = Path.Combine(layoutDirectory, "Python", safeName);
+            var envRootDirectory = Amium.UiEditor.Widgets.ApplicationDefinitionHelper.GetPythonApplicationsRootDirectory(layoutDirectory, safeName);
             Directory.CreateDirectory(envRootDirectory);
 
-            // Ensure the environment contains the shared Python client library and VS Code workspace.
+            // Ensure the application contains the shared Python client library and VS Code workspace.
             EnsurePythonSupportLibrary(envRootDirectory, overwriteExisting: false);
 
             var fileName = "main.py";
@@ -3306,8 +3724,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             }
             else
             {
-                // Fallback minimal environment script when no explicit template is selected.
-                template = $"# Python environment script for '{envName}'{Environment.NewLine}{Environment.NewLine}" +
+                // Fallback minimal application script when no explicit template is selected.
+                template = $"# Python application script for '{envName}'{Environment.NewLine}{Environment.NewLine}" +
                            "from ui_python_client import PythonClient" + Environment.NewLine +
                            Environment.NewLine +
                            "client = PythonClient(name=\"" + envName.Replace("\"", "'") + "\")" + Environment.NewLine +
@@ -3330,7 +3748,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
         catch (Exception ex)
         {
-            EditorDialogError = $"Failed to create Python environment: {ex.Message}";
+            EditorDialogError = $"Failed to create Python application: {ex.Message}";
             return null;
         }
     }
@@ -3772,7 +4190,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         var identity = new List<EditorDialogBindingDefinition>
         {
-            BindChoice("View", "View", GetViewOptionLabel, ApplyViewOption, GetViewOptions),
+            BindChoice("Screen", "Screen", GetViewOptionLabel, ApplyViewOption, GetViewOptions),
             BindText("Name", "Name", current => current.Name, (current, value) => { current.Name = value; return null; }),
             BindText("Text", "Text", current => current.Title, (current, value) => { current.Title = value; return null; }),
             BindReadOnly("Path", "Path", current => current.Path),
@@ -3895,6 +4313,19 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindInt("Columns", "Columns", current => current.TableColumns, (current, value) => current.TableColumns = value)
                 }));
                 break;
+            case ControlKind.CircleDisplay:
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
+                {
+                    BindInt("Rows", "Rows", current => current.TableRows, (current, value) => current.TableRows = value),
+                    BindInt("Columns", "Columns", current => current.TableColumns, (current, value) => current.TableColumns = value),
+                    BindText("SignalColor", "SignalColor", current => current.SignalColor ?? string.Empty, (current, value) => { current.SignalColor = EmptyToNull(value) ?? string.Empty; return null; }, EditorPropertyType.Color),
+                    BindChoice("SignalRun", "SignalRun", current => current.SignalRun ? "True" : "False", (current, value) => { current.SignalRun = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindChoice("ProgressBar", "ProgressBar", current => current.ProgressBar ? "True" : "False", (current, value) => { current.ProgressBar = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindDouble("ProgressState", "ProgressState", current => current.ProgressState, (current, value) => current.ProgressState = Math.Clamp(value, 0d, 100d)),
+                    BindText("ProgressBarColor", "ProgressBarColor", current => current.ProgressBarColor ?? string.Empty, (current, value) => { current.ProgressBarColor = EmptyToNull(value) ?? string.Empty; return null; }, EditorPropertyType.Color),
+                    BindText("DisplayBackColor", "DisplayBackColor", current => current.DisplayBackColor ?? string.Empty, (current, value) => { current.DisplayBackColor = EmptyToNull(value); return null; }, EditorPropertyType.Color)
+                }));
+                break;
             case ControlKind.LogControl:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
@@ -3942,6 +4373,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindInt("UdlClientPort", "Port", current => current.UdlClientPort, (current, value) => current.UdlClientPort = value),
                     BindChoice("UdlClientAutoConnect", "AutoConnect", current => current.UdlClientAutoConnect ? "True" : "False", (current, value) => { current.UdlClientAutoConnect = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindChoice("UdlClientDebugLogging", "DebugLogging", current => current.UdlClientDebugLogging ? "True" : "False", (current, value) => { current.UdlClientDebugLogging = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindChoice("UdlClientDemoEnabled", "Demo", current => current.UdlClientDemoEnabled ? "True" : "False", (current, value) => { current.UdlClientDemoEnabled = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindAttachItemList("UdlAttachedItemPaths", "AttachToUi", current => current.UdlAttachedItemPaths, (current, value) => { current.UdlAttachedItemPaths = value; return null; }, GetUdlAttachItemOptions)
                 }));
                 break;
@@ -3966,20 +4398,26 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     })
                 }));
                 break;
-            case ControlKind.PythonEnvManager:
+            case ControlKind.ApplicationExplorer:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
-                    BindChoice("PythonEnvAutoStart", "AutoStart", current => current.PythonEnvAutoStart ? "True" : "False", (current, value) =>
+                    BindChoice("ApplicationAutoStart", "AutoStart", current => current.ApplicationAutoStart ? "True" : "False", (current, value) =>
                     {
-                        current.PythonEnvAutoStart = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase);
+                        current.ApplicationAutoStart = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase);
                         return null;
                     }, _ => new[] { "False", "True" }),
-                    BindMultiline("PythonEnvDefinitions", "Environments (one per line: Name | ScriptPath)", current => current.PythonEnvDefinitions, (current, value) =>
+                    BindMultiline("ApplicationDefinitions", "Applications (one per line: Name | ScriptPath)", current => current.ApplicationDefinitions, (current, value) =>
                     {
-                        current.PythonEnvDefinitions = value;
+                        current.ApplicationDefinitions = value;
                         return null;
                     })
                 }));
+                break;
+            case ControlKind.CustomSignals:
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>()));
+                break;
+            case ControlKind.EnhancedSignals:
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>()));
                 break;
         }
 
@@ -4518,7 +4956,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         if (!TryParseViewOption(raw, item, out var viewId))
         {
-            return "Invalid view selection.";
+            return "Invalid screen selection.";
         }
 
         item.View = viewId;
@@ -4539,9 +4977,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return viewId > 0;
         }
 
-        if (trimmed.StartsWith("View ", StringComparison.OrdinalIgnoreCase))
+        if (trimmed.StartsWith("Screen ", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("View ", StringComparison.OrdinalIgnoreCase))
         {
-            var suffix = trimmed.Substring(5);
+            var suffix = trimmed.StartsWith("Screen ", StringComparison.OrdinalIgnoreCase)
+                ? trimmed.Substring(7)
+                : trimmed.Substring(5);
             var separatorIndex = suffix.IndexOf(" - ", StringComparison.Ordinal);
             var numberText = separatorIndex >= 0 ? suffix[..separatorIndex] : suffix;
             if (int.TryParse(numberText, out viewId))
@@ -4565,8 +5006,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         var safeViewId = viewId <= 0 ? 1 : viewId;
         return string.IsNullOrWhiteSpace(caption)
-            ? $"View {safeViewId}"
-            : $"View {safeViewId} - {caption}";
+            ? $"Screen {safeViewId}"
+            : $"Screen {safeViewId} - {caption}";
     }
 
     private static EditorDialogBindingDefinition BindDouble(string key, string label, Func<FolderItemModel, double> read, Action<FolderItemModel, double> apply)
@@ -4769,6 +5210,101 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
+    private IReadOnlyList<EnhancedSignalRuntime> SyncEnhancedSignals(FolderModel page, bool forceRecreate = false)
+    {
+        var enhancedSignalItems = EnumeratePageItems(page.Items)
+            .Where(static item => item.IsEnhancedSignals)
+            .ToArray();
+
+        if (enhancedSignalItems.Length == 0)
+        {
+            EnhancedSignalRuntimeManager.ReleaseFolder(page.Name);
+            return Array.Empty<EnhancedSignalRuntime>();
+        }
+
+        string BuildCombinedRawDefinitions()
+        {
+            var definitions = enhancedSignalItems
+                .SelectMany(item => ExtendedSignalDefinitionCodec.ParseDefinitions(item.EnhancedSignalDefinitions))
+                .ToArray();
+
+            return ExtendedSignalDefinitionCodec.SerializeDefinitions(definitions);
+        }
+
+        void ApplyCombinedRawDefinitions(string rawDefinitions)
+        {
+            var currentOwnerByDefinitionName = enhancedSignalItems
+                .SelectMany(item => ExtendedSignalDefinitionCodec.ParseDefinitions(item.EnhancedSignalDefinitions)
+                    .Select(definition => (item, definition.Name)))
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.Name))
+                .GroupBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First().item, StringComparer.OrdinalIgnoreCase);
+
+            var updatedDefinitions = ExtendedSignalDefinitionCodec.ParseDefinitions(rawDefinitions);
+            var updatedRawByItem = enhancedSignalItems.ToDictionary(
+                item => item,
+                _ => new List<ExtendedSignalDefinition>());
+
+            foreach (var definition in updatedDefinitions)
+            {
+                if (string.IsNullOrWhiteSpace(definition.Name)
+                    || !currentOwnerByDefinitionName.TryGetValue(definition.Name, out var ownerItem))
+                {
+                    continue;
+                }
+
+                updatedRawByItem[ownerItem].Add(definition);
+            }
+
+            foreach (var item in enhancedSignalItems)
+            {
+                item.EnhancedSignalDefinitions = ExtendedSignalDefinitionCodec.SerializeDefinitions(updatedRawByItem[item]);
+            }
+        }
+
+        return EnhancedSignalRuntimeManager.SyncDefinitions(
+            page.Name,
+            BuildCombinedRawDefinitions(),
+            forceRecreate,
+            rawDefinitionsGetter: BuildCombinedRawDefinitions,
+            rawDefinitionsSetter: rawDefinitions =>
+            {
+                if (Dispatcher.UIThread.CheckAccess())
+                {
+                    ApplyCombinedRawDefinitions(rawDefinitions);
+                    return;
+                }
+
+                Dispatcher.UIThread.Post(() => ApplyCombinedRawDefinitions(rawDefinitions));
+            });
+    }
+
+    public IReadOnlyList<EnhancedSignalRuntime> GetEnhancedSignalRuntimes(FolderItemModel ownerItem, bool forceRecreate = false)
+    {
+        ArgumentNullException.ThrowIfNull(ownerItem);
+
+        var page = FindOwningPage(ownerItem) ?? Folders.FirstOrDefault(candidate => string.Equals(candidate.Name, ownerItem.FolderName, StringComparison.Ordinal));
+        if (page is null)
+        {
+            return Array.Empty<EnhancedSignalRuntime>();
+        }
+
+        var ownerDefinitionNames = ExtendedSignalDefinitionCodec.ParseDefinitions(ownerItem.EnhancedSignalDefinitions)
+            .Select(definition => definition.Name)
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (ownerDefinitionNames.Count == 0)
+        {
+            SyncEnhancedSignals(page, forceRecreate);
+            return Array.Empty<EnhancedSignalRuntime>();
+        }
+
+        return SyncEnhancedSignals(page, forceRecreate)
+            .Where(runtime => ownerDefinitionNames.Contains(runtime.Definition.Name))
+            .ToArray();
+    }
+
     private static IEnumerable<FolderItemModel> EnumeratePageItems(IEnumerable<FolderItemModel> items)
     {
         foreach (var item in items)
@@ -4781,16 +5317,16 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
     }
 
-    private void StartAutoStartPythonEnvironments()
+    private void StartAutoStartApplications()
     {
         foreach (var item in Folders.SelectMany(page => EnumeratePageItems(page.Items)))
         {
-            if (!item.IsPythonEnvManager || !item.PythonEnvAutoStart)
+            if (!item.IsApplicationExplorer || !item.ApplicationAutoStart)
             {
                 continue;
             }
 
-            Amium.UiEditor.Widgets.PythonEnvManagerRuntime.StartAutoStartEnvironments(item, ResolveWorkspaceDirectory(item));
+            Amium.UiEditor.Widgets.ApplicationExplorerRuntime.StartAutoStartEnvironments(item, ResolveWorkspaceDirectory(item));
         }
     }
 
@@ -4880,8 +5416,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             TargetPath = TargetPathHelper.ToPersistedLayoutTargetPath(item.TargetPath, item.FolderName),
             TargetParameterPath = item.TargetParameterPath,
             TargetParameterFormat = item.TargetParameterFormat,
-            PythonEnvironments = item.PythonEnvDefinitions,
-            PythonEnvAutoStart = item.PythonEnvAutoStart,
+            Applications = item.ApplicationDefinitions,
+            CustomSignals = CustomSignalDefinitionCodec.ToDocuments(item.CustomSignalDefinitions, item.FolderName),
+            EnhancedSignals = ExtendedSignalDefinitionCodec.ToDocuments(item.EnhancedSignalDefinitions, item.FolderName),
+            ApplicationAutoStart = item.ApplicationAutoStart,
             Unit = item.Unit,
             TargetLog = item.TargetLog,
             RefreshRateMs = item.RefreshRateMs,
@@ -4906,6 +5444,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             IsAutoHeight = item.IsAutoHeight,
             ListItemHeight = item.ListItemHeight,
             ControlHeight = item.ControlHeight,
+            TableRows = item.TableRows,
+            TableColumns = item.TableColumns,
+            DisplayBackColor = item.DisplayBackColor,
+            SignalColor = item.SignalColor,
+            SignalRun = item.SignalRun,
+            ProgressBar = item.ProgressBar,
+            ProgressState = item.ProgressState,
+            ProgressBarColor = item.ProgressBarColor,
             ControlBorderWidth = item.ControlBorderWidth,
             ControlBorderColor = item.ControlBorderColor,
             ControlCornerRadius = item.ControlCornerRadius,
@@ -4930,9 +5476,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private static FolderItemModel ToModel(FolderItemDocument item)
     {
+        var enhancedSignalDefinitions = ExtendedSignalDefinitionCodec.FromDocuments(item.EnhancedSignals, null);
+        var effectiveKind = ResolveDocumentKind(item);
+
         var model = new FolderItemModel
         {
-            Kind = item.Kind == ControlKind.Signal ? ControlKind.Item : item.Kind,
+            Kind = effectiveKind == ControlKind.Signal ? ControlKind.Item : effectiveKind,
             Name = item.Name,
             Id = item.Id,
             Title = item.Title,
@@ -4986,8 +5535,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             TargetPath = TargetPathHelper.NormalizeConfiguredTargetPath(item.TargetPath),
             TargetParameterPath = item.TargetParameterPath,
             TargetParameterFormat = item.TargetParameterFormat,
-            PythonEnvDefinitions = item.PythonEnvironments,
-            PythonEnvAutoStart = item.PythonEnvAutoStart,
+            ApplicationDefinitions = string.IsNullOrWhiteSpace(item.Applications) ? item.LegacyPythonEnvironments ?? string.Empty : item.Applications,
+            CustomSignalDefinitions = CustomSignalDefinitionCodec.FromDocuments(item.CustomSignals, null),
+            EnhancedSignalDefinitions = enhancedSignalDefinitions,
+            ApplicationAutoStart = item.ApplicationAutoStart || item.LegacyPythonEnvAutoStart,
             Unit = item.Unit,
             TargetLog = item.TargetLog,
             RefreshRateMs = item.RefreshRateMs,
@@ -5011,49 +5562,70 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             IsReadOnly = item.IsReadOnly,
             IsAutoHeight = item.IsAutoHeight,
             ListItemHeight = item.ControlHeight > 0 ? item.ControlHeight : item.ListItemHeight,
+            TableRows = item.TableRows,
+            TableColumns = item.TableColumns,
+            DisplayBackColor = item.DisplayBackColor,
+            SignalColor = item.SignalColor,
+            SignalRun = item.SignalRun,
+            ProgressBar = item.ProgressBar,
+            ProgressState = item.ProgressState,
+            ProgressBarColor = item.ProgressBarColor,
             ControlBorderWidth = item.ControlBorderWidth,
             ControlBorderColor = item.ControlBorderColor,
             ControlCornerRadius = item.ControlCornerRadius,
             X = item.X,
             Y = item.Y,
-            Width = Math.Max(item.Width, item.Kind switch
+            Width = Math.Max(item.Width, effectiveKind switch
             {
                 ControlKind.Button => 140,
                 ControlKind.Signal => 150,
                 ControlKind.Item => 150,
                 ControlKind.ListControl => 240,
+                ControlKind.TableControl => 240,
+                ControlKind.CircleDisplay => 280,
                 ControlKind.LogControl => 320,
                 ControlKind.CsvLoggerControl => 260,
                 ControlKind.SqlLoggerControl => 260,
                 ControlKind.ChartControl => 360,
                 ControlKind.CameraControl => 260,
                 ControlKind.PythonClient => 220,
+                ControlKind.CustomSignals => 420,
+                ControlKind.EnhancedSignals => 420,
                 _ => 140
             }),
-            Height = Math.Max(item.Height, item.Kind switch
+            Height = Math.Max(item.Height, effectiveKind switch
             {
                 ControlKind.Button => 56,
                 ControlKind.Signal => 72,
                 ControlKind.Item => 72,
                 ControlKind.ListControl => 180,
                 ControlKind.TableControl => 180,
+                ControlKind.CircleDisplay => 220,
                 ControlKind.LogControl => 220,
                 ControlKind.CsvLoggerControl => 120,
                 ControlKind.SqlLoggerControl => 120,
                 ControlKind.ChartControl => 220,
                 ControlKind.CameraControl => 160,
                 ControlKind.PythonClient => 80,
+                ControlKind.CustomSignals => 180,
+                ControlKind.EnhancedSignals => 180,
                 _ => 72
             })
         };
 
+        if (model.IsEnhancedSignals)
+        {
+            Core.LogInfo($"[EnhancedSignalsSet] origin=from-documents item={model.Path} summary={SummarizeEnhancedSignalDefinitions(enhancedSignalDefinitions)} raw={enhancedSignalDefinitions}");
+        }
+
         if (string.IsNullOrWhiteSpace(model.Name))
         {
-            model.Name = item.Kind switch
+            model.Name = effectiveKind switch
             {
                 ControlKind.Button => "Button",
                 ControlKind.ListControl => "ListControl",
                 ControlKind.TableControl => "TableControl",
+                ControlKind.CircleDisplay => "CircleDisplay",
                 ControlKind.LogControl => "LogControl",
                 ControlKind.ChartControl => "ChartControl",
                 ControlKind.UdlClientControl => "UdlClientControl",
@@ -5061,7 +5633,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlKind.SqlLoggerControl => "SqlLoggerControl",
                 ControlKind.CameraControl => "CameraControl",
                 ControlKind.PythonClient => "PythonClient",
-                ControlKind.PythonEnvManager => "PythonEnvManager",
+                ControlKind.ApplicationExplorer => "ApplicationExplorer",
+                ControlKind.CustomSignals => "CustomSignals",
+                ControlKind.EnhancedSignals => "EnhancedSignals",
                 ControlKind.Item or ControlKind.Signal => "Signal",
                 _ => "Signal"
             };
@@ -5084,6 +5658,29 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         model.SyncChildWidths();
         model.ApplyListHeightRules();
         return model;
+    }
+
+    private static ControlKind ResolveDocumentKind(FolderItemDocument item)
+    {
+        if (item.Kind == ControlKind.Signal || item.Kind == ControlKind.Item)
+        {
+            var looksLikeCircleDisplay = (item.TableRows > 0 && item.TableColumns > 0)
+                || !string.IsNullOrWhiteSpace(item.DisplayBackColor)
+                || !string.IsNullOrWhiteSpace(item.SignalColor)
+                || !string.IsNullOrWhiteSpace(item.ProgressBarColor)
+                || item.SignalRun
+                || item.ProgressBar
+                || item.ProgressState > 0d
+                || string.Equals(item.BodyCaption, "CircleDisplay", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(item.Name, "CircleDisplay", StringComparison.OrdinalIgnoreCase);
+
+            if (looksLikeCircleDisplay)
+            {
+                return ControlKind.CircleDisplay;
+            }
+        }
+
+        return item.Kind;
     }
 
     private static List<ItemInteractionRuleDocument> ToInteractionRuleDocuments(string definitions, string? pageName)
@@ -5110,7 +5707,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private static string ToPersistedInteractionRuleTargetPath(ItemInteractionRule rule, string? pageName)
         => rule.Action == ItemInteractionAction.InvokePythonFunction
-            ? Amium.UiEditor.Widgets.PythonEnvManagerRuntime.ToPersistedInteractionTargetPath(rule.TargetPath)
+            ? Amium.UiEditor.Widgets.ApplicationExplorerRuntime.ToPersistedInteractionTargetPath(rule.TargetPath)
             : TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath, pageName);
 
     private static string NormalizeInteractionRuleTargetPath(ItemInteractionAction action, string? targetPath)
@@ -5144,6 +5741,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         if (string.Equals(trimmed, "hex", StringComparison.OrdinalIgnoreCase))
         {
             return ("Hex", string.Empty);
+        }
+
+        if (trimmed.StartsWith("EpochToDatetime:", StringComparison.OrdinalIgnoreCase))
+        {
+            var epochParameter = trimmed[16..].Trim();
+            return ("EpochToDatetime", string.IsNullOrWhiteSpace(epochParameter) ? "UtcDefault" : epochParameter);
+        }
+
+        if (string.Equals(trimmed, "EpochToDatetime", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("EpochToDatetime", "UtcDefault");
         }
 
         if (trimmed.StartsWith("h", StringComparison.OrdinalIgnoreCase) && trimmed.Length >= 2)
@@ -5188,6 +5796,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return string.IsNullOrWhiteSpace(normalizedParameter) ? "hex" : $"hex:{normalizedParameter}";
         }
 
+        if (string.Equals(normalizedKind, "EpochToDatetime", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.IsNullOrWhiteSpace(normalizedParameter) || string.Equals(normalizedParameter, "UtcDefault", StringComparison.OrdinalIgnoreCase)
+                ? "EpochToDatetime"
+                : $"EpochToDatetime:{normalizedParameter}";
+        }
+
         return FormatUsesParameter(normalizedKind) && !string.IsNullOrWhiteSpace(normalizedParameter)
             ? $"{normalizedKind}:{normalizedParameter}"
             : normalizedKind;
@@ -5203,6 +5818,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return string.Equals(kind, "Numeric", StringComparison.OrdinalIgnoreCase)
             || string.Equals(kind, "Hex", StringComparison.OrdinalIgnoreCase)
             || string.Equals(kind, "bool", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(kind, "EpochToDatetime", StringComparison.OrdinalIgnoreCase)
             || string.Equals(kind, "b4", StringComparison.OrdinalIgnoreCase)
             || string.Equals(kind, "b8", StringComparison.OrdinalIgnoreCase)
             || string.Equals(kind, "b16", StringComparison.OrdinalIgnoreCase);
@@ -5218,7 +5834,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         if (string.Equals(kind, "bool", StringComparison.OrdinalIgnoreCase))
         {
-            return "Optionale Labels fuer true,false. Beispiel: AN,AUS";
+            return "Optional labels for true,false. Example: ON,OFF or toggle:On,Off for a single toggle button.";
         }
 
         if (string.Equals(kind, "b4", StringComparison.OrdinalIgnoreCase))
@@ -5244,6 +5860,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         if (string.Equals(kind, "Hex", StringComparison.OrdinalIgnoreCase))
         {
             return "Optionale Stellenzahl ohne 0x. Beispiel: 2 | 4 | 8";
+        }
+
+        if (string.Equals(kind, "EpochToDatetime", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Optional date/time format. Empty or UtcDefault uses ISO-8601 with offset. Example: yyyy-MM-dd HH:mm:ss.fff";
         }
 
         if (string.Equals(kind, "Text", StringComparison.OrdinalIgnoreCase))
@@ -5344,6 +5965,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.Button => "Button",
             ControlKind.ListControl => "ListControl",
             ControlKind.TableControl => "TableControl",
+            ControlKind.CircleDisplay => "CircleDisplay",
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClientControl",
@@ -5351,7 +5973,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
             ControlKind.PythonClient => "PythonClient",
-            ControlKind.PythonEnvManager => "PythonEnvManager",
+            ControlKind.ApplicationExplorer => "ApplicationExplorer",
+            ControlKind.CustomSignals => "CustomSignals",
+            ControlKind.EnhancedSignals => "EnhancedSignals",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -5405,9 +6029,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         var prefixes = new[]
         {
-            $"Project/{item.FolderName}/{normalizedName}/Status/AttachOptions",
-            $"UdlProject/{item.FolderName}/{normalizedName}/Status/AttachOptions",
-            $"Runtime/UdlClient/{normalizedName}"
+            $"Project.{item.FolderName}.{normalizedName}.Status.AttachOptions",
+            $"UdlProject.{item.FolderName}.{normalizedName}.Status.AttachOptions",
+            $"Runtime.UdlClient.{normalizedName}"
         };
 
         return HostRegistries.Data.GetAllKeys()
@@ -5585,7 +6209,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         if (isNew)
         {
-            var relativeName = relativePath.Replace('/', '.');
+            var relativeName = relativePath;
             childItem.Name = string.IsNullOrWhiteSpace(parentItem.Name)
                 ? relativeName
                 : $"{parentItem.Name}.{relativeName}";
@@ -5625,12 +6249,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return null;
         }
 
-        if (!childTargetPath.StartsWith(rootTargetPath + "/", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return childTargetPath[(rootTargetPath.Length + 1)..];
+        return TargetPathHelper.TryGetRelativePath(childTargetPath, rootTargetPath, out var relativePath)
+            ? relativePath
+            : null;
     }
 
     private static IEnumerable<string> EnumerateRelativeChildItemPaths(Item rootItem)
@@ -5646,7 +6267,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
             foreach (var descendantPath in EnumerateRelativeChildItemPaths(child))
             {
-                yield return $"{child.Name}/{descendantPath}";
+                yield return $"{child.Name}.{descendantPath}";
             }
         }
     }
@@ -5656,7 +6277,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var excludedPrefixes = GetNonSelectableTargetPrefixes();
         var allOptions = HostRegistries.Data.GetAllKeys()
             .SelectMany(static key => EnumerateSelectablePaths(key))
-            .Where(static key => !key.StartsWith("Runtime/UdlClient/", StringComparison.OrdinalIgnoreCase))
+            .Where(static key => !key.StartsWith("Runtime.UdlClient.", StringComparison.OrdinalIgnoreCase))
             .Where(path => !HasExcludedTargetPrefix(path, excludedPrefixes))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
@@ -5682,11 +6303,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .ToArray();
     }
 
-    private IEnumerable<string> GetSelectablePythonEnvironmentOptions(FolderItemModel? item = null)
+    private IEnumerable<string> GetSelectableApplicationOptions(FolderItemModel? item = null)
     {
         return EnumeratePageItems(SelectedFolder.Items)
-            .Where(candidate => candidate.IsPythonEnvManager)
-            .SelectMany(candidate => candidate.GetPythonEnvironmentInteractionTargets())
+            .Where(candidate => candidate.IsApplicationExplorer)
+            .SelectMany(candidate => candidate.GetApplicationInteractionTargets())
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
@@ -5725,7 +6346,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         var filteredOptions = allOptions
-            .Where(path => clientPrefixes.Any(prefix => path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase)))
+            .Where(path => clientPrefixes.Any(prefix => path.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase)))
             .ToArray();
 
         return filteredOptions.Length == 0 ? [] : filteredOptions;
@@ -5734,7 +6355,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static string BuildAttachedUdlPrefix(string pageName, FolderItemModel clientItem)
     {
         var clientName = string.IsNullOrWhiteSpace(clientItem.Name) ? "UdlClientControl" : clientItem.Name.Trim();
-        return $"Project/{pageName}/{clientName}";
+        return $"Project.{pageName}.{clientName}";
     }
 
     private HashSet<string> GetNonSelectableTargetPrefixes()
@@ -5762,9 +6383,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     continue;
                 }
 
-                prefixes.Add($"Project/{pageName}/{itemName}/Status");
-                prefixes.Add($"UdlProject/{pageName}/{itemName}/Status");
-                prefixes.Add($"UdlBook/{pageName}/{itemName}/Status");
+                prefixes.Add($"Project.{pageName}.{itemName}.Status");
+                prefixes.Add($"UdlProject.{pageName}.{itemName}.Status");
+                prefixes.Add($"UdlBook.{pageName}.{itemName}.Status");
             }
         }
 
@@ -5778,11 +6399,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return false;
         }
 
-        var normalizedPath = path.Replace('\\', '/').Trim('/');
+        var normalizedPath = TargetPathHelper.NormalizeComparablePath(path);
         foreach (var prefix in excludedPrefixes)
         {
             if (string.Equals(normalizedPath, prefix, StringComparison.OrdinalIgnoreCase)
-                || normalizedPath.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
+                || normalizedPath.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -5805,7 +6426,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return string.Empty;
         }
 
-        var preferredProjectPrefix = $"Project/{pageName}/";
+        var preferredProjectPrefix = $"Project.{pageName}.";
         if (allOptions.Any(path => path.StartsWith(preferredProjectPrefix, StringComparison.OrdinalIgnoreCase)))
         {
             return preferredProjectPrefix;
@@ -5828,7 +6449,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     }
 
     private static string NormalizeTargetPathSegment(string? value)
-        => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().Trim('/');
+        => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().Trim('.', '/', '\\');
 
     private static string? TryExtractPageTargetPrefix(string? path, string pageName)
     {
@@ -5837,15 +6458,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return null;
         }
 
-        var segments = path
-            .Replace('\\', '/')
-            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var segments = TargetPathHelper.SplitPathSegments(path);
 
-        for (var index = 1; index < segments.Length; index++)
+        for (var index = 1; index < segments.Count; index++)
         {
             if (string.Equals(segments[index], pageName, StringComparison.OrdinalIgnoreCase))
             {
-                return string.Join('/', segments.Take(index + 1)) + "/";
+                return string.Join('.', segments.Take(index + 1)) + ".";
             }
         }
 
@@ -5945,7 +6564,48 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private FolderModel? FindOwningPage(FolderItemModel item)
     {
-        return Folders.FirstOrDefault(page => EnumeratePageItems(page.Items).Any(candidate => ReferenceEquals(candidate, item)));
+        var byReference = Folders.FirstOrDefault(page => EnumeratePageItems(page.Items).Any(candidate => ReferenceEquals(candidate, item)));
+        if (byReference is not null)
+        {
+            return byReference;
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Path))
+        {
+            var byPath = Folders.FirstOrDefault(page => EnumeratePageItems(page.Items).Any(candidate => string.Equals(candidate.Path, item.Path, StringComparison.OrdinalIgnoreCase)));
+            if (byPath is not null)
+            {
+                return byPath;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Id))
+        {
+            var byId = Folders.FirstOrDefault(page => EnumeratePageItems(page.Items).Any(candidate => string.Equals(candidate.Id, item.Id, StringComparison.OrdinalIgnoreCase)));
+            if (byId is not null)
+            {
+                return byId;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.FolderName))
+        {
+            return Folders.FirstOrDefault(page => string.Equals(page.Name, item.FolderName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return null;
+    }
+
+    private static string SummarizeEnhancedSignalDefinitions(string? rawDefinitions)
+    {
+        var definitions = ExtendedSignalDefinitionCodec.ParseDefinitions(rawDefinitions);
+        if (definitions.Count == 0)
+        {
+            return "count=0";
+        }
+
+        return string.Join("; ", definitions.Select(definition =>
+            $"name={definition.Name},mode={definition.Adjustment.MappingMode},enabled={definition.Adjustment.Enabled},offset={definition.Adjustment.Offset.ToString(System.Globalization.CultureInfo.InvariantCulture)},gain={definition.Adjustment.Gain.ToString(System.Globalization.CultureInfo.InvariantCulture)},spline={definition.Adjustment.SplinePoints.Count},inverse={definition.Adjustment.SupportsInverseMapping}"));
     }
 
     protected static List<FolderModel> CreateDefaultPages()
@@ -5984,6 +6644,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             item.ResolveTarget();
             item.RefreshTargetBindings();
         }
+
+        SyncEnhancedSignals(page, forceRecreate: false);
 
         if (IsEditorDialogOpen && _editorDialogItem is not null && string.Equals(_editorDialogItem.FolderName, pageName, StringComparison.Ordinal))
         {

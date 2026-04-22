@@ -3,7 +3,7 @@
     x:Name="Root"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Amium.EditorUi.Controls"
+    xmlns:controls="using:Amium.UiEditor.Controls"
     Width="640"
     Height="420"
     MinWidth="520"
@@ -169,7 +169,7 @@
         <controls:ThemeSvgIcon
             Width="16"
             Height="16"
-            IconPath="avares://Amium.Editor/EditorIcons/pipette.svg"
+            IconPath="avares://AutomationExplorer.Editor/EditorIcons/pipette.svg"
             TintColor="{Binding ButtonForeground, ElementName=Root}" />
       </Button>
       <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">

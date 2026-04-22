@@ -1,11 +1,11 @@
 - Type: ChartControl
 
-  View: 1
+  Screen: 1
   Enabled: True
 
   Identity:
     Name: chart1
-    Path: UdlBook/Page1/udl1/chart1
+    Path: UdlBook.Page1.udl1.chart1
     Id: demo-chart-1
 
   Bounds:
@@ -58,5 +58,5 @@
     HistorySeconds: 120
     ViewSeconds: 30
     ChartSeriesDefinitions:
-      - "Runtime/UdlClient/udl1/m310|Y1"
-      - "Runtime/UdlClient/udl1/m310/Set|Y1"
+      - "Runtime.UdlClient.udl1.m310|Y1"
+      - "Runtime.UdlClient.udl1.m310.Set|Y1"

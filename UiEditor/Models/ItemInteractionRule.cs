@@ -63,8 +63,12 @@ public static class ItemInteractionRuleCodec
             var targetPath = parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2])
                 ? parts[2].Trim()
                 : "this";
-            var functionName = parts.Length > 3 ? parts[3].Trim() : string.Empty;
-            var argument = parts.Length > 4 ? parts[4].Trim() : (parts.Length > 3 ? parts[3].Trim() : string.Empty);
+            var functionName = actionKind is ItemInteractionAction.InvokePythonFunction
+                ? (parts.Length > 3 ? parts[3].Trim() : string.Empty)
+                : string.Empty;
+            var argument = actionKind is ItemInteractionAction.InvokePythonFunction
+                ? (parts.Length > 4 ? parts[4].Trim() : string.Empty)
+                : (parts.Length > 3 ? parts[3].Trim() : string.Empty);
 
             rules.Add(new ItemInteractionRule
             {

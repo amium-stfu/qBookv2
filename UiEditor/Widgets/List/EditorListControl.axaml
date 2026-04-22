@@ -3,7 +3,7 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Widgets"
-  xmlns:editorUi="using:Amium.EditorUi.Controls"
+  xmlns:editorUi="using:Amium.UiEditor.Controls"
     xmlns:models="using:Amium.UiEditor.Models"
     Width="{Binding Width}"
     Height="{Binding Height}">

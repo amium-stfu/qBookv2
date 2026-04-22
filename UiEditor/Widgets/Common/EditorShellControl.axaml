@@ -1,9 +1,9 @@
 <controls:EditorShellControl
     x:Name="Root"
-    x:Class="Amium.EditorUi.Controls.EditorShellControl"
+    x:Class="Amium.UiEditor.Controls.EditorShellControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Amium.EditorUi.Controls">
+    xmlns:controls="using:Amium.UiEditor.Controls">
   <Border
       Background="{Binding ShellBackground, ElementName=Root}"
       BorderBrush="{Binding ShellBorderBrush, ElementName=Root}"

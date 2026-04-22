@@ -4,7 +4,7 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Widgets"
-    xmlns:editorUi="using:Amium.EditorUi.Controls"
+    xmlns:editorUi="using:Amium.UiEditor.Controls"
     xmlns:ScottPlot="clr-namespace:ScottPlot.Avalonia;assembly=ScottPlot.Avalonia"
     xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
   <controls:RealtimeChartControl.HeaderActionsContent>
@@ -15,10 +15,10 @@
               CornerRadius="0" Click="OnPauseClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Live/Pause">
         <Grid>
           <Grid IsVisible="{Binding IsPaused, ElementName=Root}">
-            <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.Editor/EditorIcons/play.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
+            <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://AutomationExplorer.Editor/EditorIcons/play.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
           </Grid>
           <Grid IsVisible="{Binding IsPaused, ElementName=Root, Converter={StaticResource BoolNegationConverter}}">
-            <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.Editor/EditorIcons/pause.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
+            <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://AutomationExplorer.Editor/EditorIcons/pause.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
           </Grid>
         </Grid>
       </Button>
@@ -27,14 +27,14 @@
               Background="Transparent"
               BorderBrush="Transparent"
               CornerRadius="0" Click="OnClearClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Chart leeren">
-        <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.Editor/EditorIcons/clear.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
+        <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://AutomationExplorer.Editor/EditorIcons/clear.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
       </Button>
 
       <Button x:Name="AdjustAxesButton" Classes="toolicon" Width="30" Height="30" MinWidth="30" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center"
               Background="Transparent"
               BorderBrush="Transparent"
               CornerRadius="0" Click="OnAdjustAxesClicked" PointerPressed="OnInteractivePointerPressed" ToolTip.Tip="Achsen einstellen">
-        <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://Amium.Editor/EditorIcons/balance.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
+        <editorUi:ThemeSvgIcon Width="18" Height="18" IconPath="avares://AutomationExplorer.Editor/EditorIcons/balance.svg" TintColor="{Binding DataContext.PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}" />
         <Button.ContextMenu>
           <ContextMenu>
             <MenuItem Header="Y1">

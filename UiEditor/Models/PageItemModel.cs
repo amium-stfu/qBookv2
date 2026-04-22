@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.Globalization;
 using System.IO;
 using System.Collections.Generic;
+using System.Threading;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Layout;
@@ -23,6 +24,7 @@ public enum ControlKind
     Item,
     ListControl,
     TableControl,
+    CircleDisplay,
     LogControl,
     ChartControl,
     UdlClientControl,
@@ -30,7 +32,9 @@ public enum ControlKind
     SqlLoggerControl,
     CameraControl,
     PythonClient,
-    PythonEnvManager
+    ApplicationExplorer,
+    CustomSignals,
+    EnhancedSignals
 }
 
 public sealed class FolderItemModel : ObservableObject
@@ -55,6 +59,13 @@ public sealed class FolderItemModel : ObservableObject
     private const string DarkMutedForeground = "#9CA3AF";
     private const string DarkAccentBackground = "#1E3A8A";
     private const string DarkAccentForeground = "#DBEAFE";
+    private const string CircleDisplayDefaultSignalColor = "#FFC107";
+    private const string CircleDisplayDefaultProgressBarColor = "#FFC107";
+    private const string CircleDisplaySignalColorItemName = "SignalColor";
+    private const string CircleDisplaySignalRunItemName = "SignalRun";
+    private const string CircleDisplayProgressBarItemName = "ProgressBar";
+    private const string CircleDisplayProgressStateItemName = "ProgressState";
+    private const string CircleDisplayProgressBarColorItemName = "ProgressBarColor";
     private const int FooterSubItemColumns = 2;
     private const double FooterSubItemRowSpacing = 6;
     private const double FooterSubItemDesiredHeight = 32;
@@ -114,6 +125,7 @@ public sealed class FolderItemModel : ObservableObject
     private double _headerCornerRadius = 6;
     private string? _bodyForeColor;
     private string? _bodyBackColor;
+    private string? _displayBackColor;
     private string? _bodyBorderColor;
     private double _bodyBorderWidth;
     private double _bodyCornerRadius;
@@ -123,15 +135,22 @@ public sealed class FolderItemModel : ObservableObject
     private double _footerBorderWidth;
     private double _footerCornerRadius = 6;
     private string _targetPath = string.Empty;
+    private string? _signalColor = CircleDisplayDefaultSignalColor;
+    private bool _signalRun;
+    private bool _progressBar;
+    private double _progressState;
+    private string? _progressBarColor = CircleDisplayDefaultProgressBarColor;
     private string _pythonScriptPath = string.Empty;
-    private string _pythonEnvDefinitions = string.Empty;
-    private bool _pythonEnvAutoStart;
+    private string _applicationDefinitions = string.Empty;
+    private string _customSignalDefinitions = string.Empty;
+    private string _enhancedSignalDefinitions = string.Empty;
+    private bool _applicationAutoStart;
     private string _blockedLegacyScriptPath = string.Empty;
     private DateTime _blockedLegacyScriptWriteTimeUtc;
     private string _targetParameterPath = string.Empty;
     private string _targetParameterFormat = string.Empty;
     private string _unit = string.Empty;
-    private string _targetLog = "Logs/Host";
+    private string _targetLog = "Logs.Host";
     private int _view = 1;
     private int _activeViewId = 1;
     private int _historySeconds = 120;
@@ -151,7 +170,9 @@ public sealed class FolderItemModel : ObservableObject
     private int _udlClientPort = 9001;
     private bool _udlClientAutoConnect;
     private bool _udlClientDebugLogging;
+    private bool _udlClientDemoEnabled;
     private string _udlAttachedItemPaths = string.Empty;
+    private string _udlDemoModuleDefinitions = string.Empty;
     private Item? _target;
     private int _refreshRateMs = 1000;
     private bool _isReadOnly;
@@ -168,12 +189,14 @@ public sealed class FolderItemModel : ObservableObject
     private string _effectiveHeaderBorder = LightBorder;
     private string _effectiveBodyForeground = LightPrimaryForeground;
     private string _effectiveBodyBackground = "Transparent";
+    private string _effectiveDisplayBackColor = LightInnerBackground;
     private string _effectiveBodyBorder = LightBorder;
     private string _effectiveFooterForeground = LightMutedForeground;
     private string _effectiveFooterBackground = "Transparent";
     private string _effectiveFooterBorder = LightBorder;
     private DispatcherTimer? _pendingRefreshTimer;
     private DispatcherTimer? _scriptTimer;
+    private int _registryRefreshQueued;
     private DateTimeOffset _lastTargetRefreshUtc = DateTimeOffset.MinValue;
     private bool _hasPendingTargetRefresh;
     private object? _scriptValue;
@@ -314,6 +337,67 @@ public sealed class FolderItemModel : ObservableObject
         }
     }
 
+    public string? SignalColor
+    {
+        get => _signalColor;
+        set
+        {
+            if (SetProperty(ref _signalColor, value))
+            {
+                EnsureCircleDisplayRuntimeSignals();
+            }
+        }
+    }
+
+    public bool SignalRun
+    {
+        get => _signalRun;
+        set
+        {
+            if (SetProperty(ref _signalRun, value))
+            {
+                EnsureCircleDisplayRuntimeSignals();
+            }
+        }
+    }
+
+    public bool ProgressBar
+    {
+        get => _progressBar;
+        set
+        {
+            if (SetProperty(ref _progressBar, value))
+            {
+                EnsureCircleDisplayRuntimeSignals();
+            }
+        }
+    }
+
+    public double ProgressState
+    {
+        get => _progressState;
+        set
+        {
+            var normalized = System.Math.Clamp(value, 0d, 100d);
+            if (SetProperty(ref _progressState, normalized))
+            {
+                EnsureCircleDisplayRuntimeSignals();
+            }
+        }
+    }
+
+    public string? ProgressBarColor
+    {
+        get => _progressBarColor;
+        set
+        {
+            if (SetProperty(ref _progressBarColor, value))
+            {
+                EnsureCircleDisplayRuntimeSignals();
+            }
+        }
+    }
+
     // Positionierung eines Kindes innerhalb eines TableControl
     public int TableCellRow
     {
@@ -355,7 +439,7 @@ public sealed class FolderItemModel : ObservableObject
 
     public void UpdateTableCellContentFromChildren()
     {
-        if (!IsTableControl)
+        if (!UsesTableLayout)
         {
             return;
         }
@@ -382,6 +466,24 @@ public sealed class FolderItemModel : ObservableObject
                 }
             }
         }
+    }
+
+    public bool IsCircleCellVisible(int row, int column)
+    {
+        if (!IsCircleDisplay || TableRows <= 0 || TableColumns <= 0)
+        {
+            return true;
+        }
+
+        var top = (((row - 1) / (double)TableRows) * 2d) - 1d;
+        var bottom = ((row / (double)TableRows) * 2d) - 1d;
+        var left = (((column - 1) / (double)TableColumns) * 2d) - 1d;
+        var right = ((column / (double)TableColumns) * 2d) - 1d;
+
+        return IsInsideCircle(top, left)
+            && IsInsideCircle(top, right)
+            && IsInsideCircle(bottom, left)
+            && IsInsideCircle(bottom, right);
     }
 
     public string Header
@@ -803,6 +905,10 @@ public sealed class FolderItemModel : ObservableObject
 
     public bool IsTableControl => Kind == ControlKind.TableControl;
 
+    public bool IsCircleDisplay => Kind == ControlKind.CircleDisplay;
+
+    public bool UsesTableLayout => Kind is ControlKind.TableControl or ControlKind.CircleDisplay;
+
     public bool IsLogControl => Kind == ControlKind.LogControl;
 
     public bool IsCsvLoggerControl => Kind == ControlKind.CsvLoggerControl;
@@ -815,7 +921,11 @@ public sealed class FolderItemModel : ObservableObject
 
     public bool IsUdlClientControl => Kind == ControlKind.UdlClientControl;
 
-    public bool IsPythonEnvManager => Kind == ControlKind.PythonEnvManager;
+    public bool IsApplicationExplorer => Kind == ControlKind.ApplicationExplorer;
+
+    public bool IsCustomSignals => Kind == ControlKind.CustomSignals;
+
+    public bool IsEnhancedSignals => Kind == ControlKind.EnhancedSignals;
 
     // Controls, die als Child in einem Table gerendert und selektiert werden duerfen.
     public bool IsTableChildControl => Kind is ControlKind.Item
@@ -827,7 +937,9 @@ public sealed class FolderItemModel : ObservableObject
         or ControlKind.CsvLoggerControl
         or ControlKind.SqlLoggerControl
         or ControlKind.CameraControl
-        or ControlKind.PythonEnvManager;
+        or ControlKind.ApplicationExplorer
+        or ControlKind.CustomSignals
+        or ControlKind.EnhancedSignals;
 
     public bool IsSelected
     {
@@ -1216,6 +1328,18 @@ public sealed class FolderItemModel : ObservableObject
         }
     }
 
+    public string? DisplayBackColor
+    {
+        get => _displayBackColor;
+        set
+        {
+            if (SetProperty(ref _displayBackColor, value))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
+    }
+
     public string? BodyBorderColor
     {
         get => _bodyBorderColor;
@@ -1372,22 +1496,34 @@ public sealed class FolderItemModel : ObservableObject
     }
 
     /// <summary>
-    /// Optional environment definitions for the PythonEnvManager widget.
+    /// Optional application definitions for the ApplicationExplorer widget.
     ///
     /// Current minimum format (one environment per line):
     ///   Name | ScriptPath
     /// If Name is omitted, the script file name is used.
     /// </summary>
-    public string PythonEnvDefinitions
+    public string ApplicationDefinitions
     {
-        get => _pythonEnvDefinitions;
-        set => SetProperty(ref _pythonEnvDefinitions, value ?? string.Empty);
+        get => _applicationDefinitions;
+        set => SetProperty(ref _applicationDefinitions, value ?? string.Empty);
     }
 
-    public bool PythonEnvAutoStart
+    public string CustomSignalDefinitions
     {
-        get => _pythonEnvAutoStart;
-        set => SetProperty(ref _pythonEnvAutoStart, value);
+        get => _customSignalDefinitions;
+        set => SetProperty(ref _customSignalDefinitions, value ?? string.Empty);
+    }
+
+    public string EnhancedSignalDefinitions
+    {
+        get => _enhancedSignalDefinitions;
+        set => SetProperty(ref _enhancedSignalDefinitions, value ?? string.Empty);
+    }
+
+    public bool ApplicationAutoStart
+    {
+        get => _applicationAutoStart;
+        set => SetProperty(ref _applicationAutoStart, value);
     }
 
     public string TargetParameterPath
@@ -1514,10 +1650,22 @@ public sealed class FolderItemModel : ObservableObject
         set => SetProperty(ref _udlClientDebugLogging, value);
     }
 
+    public bool UdlClientDemoEnabled
+    {
+        get => _udlClientDemoEnabled;
+        set => SetProperty(ref _udlClientDemoEnabled, value);
+    }
+
     public string UdlAttachedItemPaths
     {
         get => _udlAttachedItemPaths;
         set => SetProperty(ref _udlAttachedItemPaths, value ?? string.Empty);
+    }
+
+    public string UdlDemoModuleDefinitions
+    {
+        get => _udlDemoModuleDefinitions;
+        set => SetProperty(ref _udlDemoModuleDefinitions, value ?? string.Empty);
     }
 
     public bool IsReadOnly
@@ -1684,6 +1832,14 @@ public sealed class FolderItemModel : ObservableObject
 
     public IBrush EffectiveBodyBackgroundBrush => ParseBrush(EffectiveBodyBackground);
 
+    public string EffectiveDisplayBackColor
+    {
+        get => _effectiveDisplayBackColor;
+        private set => SetProperty(ref _effectiveDisplayBackColor, value);
+    }
+
+    public IBrush EffectiveDisplayBackColorBrush => ParseBrush(EffectiveDisplayBackColor);
+
     public string EffectiveBodyBorder
     {
         get => _effectiveBodyBorder;
@@ -1829,7 +1985,7 @@ public sealed class FolderItemModel : ObservableObject
 
     public string EffectiveButtonIconPath => HasButtonIcon
         ? IconPathHelper.ResolvePath(ButtonIcon, FolderLayoutPath) ?? ButtonIcon
-        : "avares://Amium.Editor/EditorIcons/clear.svg";
+        : "avares://AutomationExplorer.Editor/EditorIcons/clear.svg";
 
     public string EffectiveButtonCommand => ButtonCommand;
 
@@ -2129,6 +2285,7 @@ public sealed class FolderItemModel : ObservableObject
         ControlKind.Item => 50,
         ControlKind.ListControl => 240,
         ControlKind.TableControl => 240,
+        ControlKind.CircleDisplay => 240,
         ControlKind.LogControl => 320,
         ControlKind.ChartControl => 360,
         ControlKind.CsvLoggerControl => 260,
@@ -2144,6 +2301,7 @@ public sealed class FolderItemModel : ObservableObject
         ControlKind.Item => 1,
         ControlKind.ListControl => 180,
         ControlKind.TableControl => 180,
+        ControlKind.CircleDisplay => 220,
         ControlKind.LogControl => 220,
         ControlKind.ChartControl => 220,
         ControlKind.CsvLoggerControl => 120,
@@ -2218,7 +2376,7 @@ public sealed class FolderItemModel : ObservableObject
                 RaisePropertyChanged(nameof(FooterPanelHeight));
 
                 // Tabelle: Kinder proportional mitskalieren, damit Schriftgroesse zum Zellenbereich passt.
-                if (IsTableControl)
+                if (UsesTableLayout)
                 {
                     SyncTableChildHeights();
                 }
@@ -2252,6 +2410,9 @@ public sealed class FolderItemModel : ObservableObject
         EffectiveBodyBackground = string.IsNullOrWhiteSpace(BodyBackColor)
             ? (string.IsNullOrWhiteSpace(ContainerBackgroundColor) ? "Transparent" : ContainerBackgroundColor!)
             : BodyBackColor!;
+        EffectiveDisplayBackColor = string.IsNullOrWhiteSpace(DisplayBackColor)
+            ? EffectiveInnerBackground
+            : DisplayBackColor!;
         EffectiveBodyBorder = string.IsNullOrWhiteSpace(BodyBorderColor)
             ? (string.IsNullOrWhiteSpace(ContainerBorder) ? EffectiveBorderBrush : ContainerBorder!)
             : BodyBorderColor!;
@@ -2271,6 +2432,7 @@ public sealed class FolderItemModel : ObservableObject
         RaisePropertyChanged(nameof(EffectiveHeaderBorderBrush));
         RaisePropertyChanged(nameof(EffectiveBodyForegroundBrush));
         RaisePropertyChanged(nameof(EffectiveBodyBackgroundBrush));
+        RaisePropertyChanged(nameof(EffectiveDisplayBackColorBrush));
         RaisePropertyChanged(nameof(EffectiveBodyBorderBrush));
         RaisePropertyChanged(nameof(EffectiveFooterForegroundBrush));
         RaisePropertyChanged(nameof(EffectiveFooterBackgroundBrush));
@@ -2749,7 +2911,7 @@ public sealed class FolderItemModel : ObservableObject
                 return TryApplyInteractionWrite(setTarget!, rule.TargetPath, rule.Argument, out error);
 
             case ItemInteractionAction.InvokePythonFunction:
-                return TryInvokePythonEnvironmentFunction(rule, out error);
+                return TryInvokeApplicationFunction(rule, out error);
 
             default:
                 error = $"Action {rule.Action} wird noch nicht unterstuetzt.";
@@ -2757,11 +2919,11 @@ public sealed class FolderItemModel : ObservableObject
         }
     }
 
-    private bool TryInvokePythonEnvironmentFunction(ItemInteractionRule rule, out string error)
+    private bool TryInvokeApplicationFunction(ItemInteractionRule rule, out string error)
     {
         if (string.IsNullOrWhiteSpace(rule.TargetPath))
         {
-            error = "Kein Python-Env-Ziel konfiguriert.";
+            error = "Kein Python-Anwendungsziel konfiguriert.";
             return false;
         }
 
@@ -2771,10 +2933,10 @@ public sealed class FolderItemModel : ObservableObject
             return false;
         }
 
-        var resolvedTargetPath = Amium.UiEditor.Widgets.PythonEnvManagerRuntime.ResolveInteractionTargetPath(this, rule.TargetPath);
+        var resolvedTargetPath = Amium.UiEditor.Widgets.ApplicationExplorerRuntime.ResolveInteractionTargetPath(this, rule.TargetPath);
         if (!PythonClientRuntimeRegistry.TryGetClient(resolvedTargetPath, out var client) || client is null)
         {
-            error = $"Python-Env '{rule.TargetPath}' ist nicht aktiv.";
+            error = $"Python-Anwendung '{rule.TargetPath}' ist nicht aktiv.";
             return false;
         }
 
@@ -2791,16 +2953,16 @@ public sealed class FolderItemModel : ObservableObject
                 error = string.IsNullOrWhiteSpace(result.Message)
                     ? $"Python-Funktion '{rule.FunctionName}' ist fehlgeschlagen."
                     : result.Message!;
-                if (Amium.UiEditor.Widgets.PythonEnvRowRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var failedRow))
+                if (Amium.UiEditor.Widgets.ApplicationEntryRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var failedRow))
                 {
-                    failedRow?.SetInvocationError(Amium.UiEditor.Widgets.PythonEnvErrorDetails.FromResultPayload(failedRow.Name, error, result.Payload));
+                    failedRow?.SetInvocationError(Amium.UiEditor.Widgets.ApplicationErrorDetails.FromResultPayload(failedRow.Name, error, result.Payload));
                 }
 
-                Core.LogWarn($"[PythonEnvManager] Python-Funktion '{rule.FunctionName}' in '{resolvedTargetPath}' fehlgeschlagen: {error}");
+                Core.LogWarn($"[ApplicationExplorer] Python-Funktion '{rule.FunctionName}' in '{resolvedTargetPath}' fehlgeschlagen: {error}");
                 return false;
             }
 
-            if (Amium.UiEditor.Widgets.PythonEnvRowRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var successRow))
+            if (Amium.UiEditor.Widgets.ApplicationEntryRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var successRow))
             {
                 successRow?.ClearInvocationError();
             }
@@ -2811,25 +2973,25 @@ public sealed class FolderItemModel : ObservableObject
         catch (Exception ex)
         {
             error = ex.Message;
-            if (Amium.UiEditor.Widgets.PythonEnvRowRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var failedRow))
+            if (Amium.UiEditor.Widgets.ApplicationEntryRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var failedRow))
             {
                 failedRow?.SetInvocationError(error);
             }
 
-            Core.LogWarn($"[PythonEnvManager] Python-Funktion '{rule.FunctionName}' in '{resolvedTargetPath}' wurde mit Ausnahme beendet: {error}", ex);
+            Core.LogWarn($"[ApplicationExplorer] Python-Funktion '{rule.FunctionName}' in '{resolvedTargetPath}' wurde mit Ausnahme beendet: {error}", ex);
             return false;
         }
     }
 
-    public IReadOnlyList<string> GetPythonEnvironmentInteractionTargets()
+    public IReadOnlyList<string> GetApplicationInteractionTargets()
     {
-        if (!IsPythonEnvManager)
+        if (!IsApplicationExplorer)
         {
             return [];
         }
 
-        return Amium.UiEditor.Widgets.PythonEnvDefinitionHelper.ParseDefinitions(PythonEnvDefinitions)
-            .Select(env => Amium.UiEditor.Widgets.PythonEnvManagerRuntime.BuildInteractionTargetPath(this, env.Name))
+        return Amium.UiEditor.Widgets.ApplicationDefinitionHelper.ParseDefinitions(ApplicationDefinitions)
+            .Select(env => Amium.UiEditor.Widgets.ApplicationExplorerRuntime.BuildInteractionTargetPath(this, env.Name))
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
@@ -3148,23 +3310,32 @@ public sealed class FolderItemModel : ObservableObject
 
     private void OnDataRegistryChanged(object? sender, DataChangedEventArgs e)
     {
-        if (!Dispatcher.UIThread.CheckAccess())
-        {
-            var forwarded = e;
-            Dispatcher.UIThread.Post(() => OnDataRegistryChanged(sender, forwarded));
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(TargetPath))
         {
             return;
         }
 
-        var isDirectTarget = TargetPathHelper.PathsEqual(e.Key, TargetPath);
-        var isChildTarget = TargetPathHelper.IsDescendantPath(e.Key, TargetPath);
-        var isAncestorTarget = TargetPathHelper.IsDescendantPath(TargetPath, e.Key);
+        var matchedTargetPath = TargetPathHelper.EnumerateResolutionCandidates(TargetPath, FolderName)
+            .FirstOrDefault(candidate => TargetPathHelper.PathsEqual(e.Key, candidate)
+                || TargetPathHelper.IsDescendantPath(e.Key, candidate)
+                || TargetPathHelper.IsDescendantPath(candidate, e.Key));
+
+        if (string.IsNullOrWhiteSpace(matchedTargetPath))
+        {
+            return;
+        }
+
+        var isDirectTarget = TargetPathHelper.PathsEqual(e.Key, matchedTargetPath);
+        var isChildTarget = TargetPathHelper.IsDescendantPath(e.Key, matchedTargetPath);
+        var isAncestorTarget = TargetPathHelper.IsDescendantPath(matchedTargetPath, e.Key);
         if (!isDirectTarget && !isChildTarget && !isAncestorTarget)
         {
+            return;
+        }
+
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            QueueRegistryRefresh();
             return;
         }
 
@@ -3174,7 +3345,7 @@ public sealed class FolderItemModel : ObservableObject
         }
 
         if (isAncestorTarget
-            && TargetPathHelper.TryGetRelativePath(TargetPath, e.Key, out var targetRelativePath)
+            && TargetPathHelper.TryGetRelativePath(matchedTargetPath, e.Key, out var targetRelativePath)
             && TryResolveRelativeChild(e.Item, targetRelativePath, out var resolvedTarget)
             && resolvedTarget is not null)
         {
@@ -3183,7 +3354,7 @@ public sealed class FolderItemModel : ObservableObject
 
         if (isChildTarget && Target is not null)
         {
-            if (TargetPathHelper.TryGetRelativePath(e.Key, TargetPath, out var childRelativePath))
+            if (TargetPathHelper.TryGetRelativePath(e.Key, matchedTargetPath, out var childRelativePath))
             {
                 ApplyChildRegistryUpdate(Target, childRelativePath, e);
             }
@@ -3195,6 +3366,26 @@ public sealed class FolderItemModel : ObservableObject
         }
 
         RequestTargetRefresh();
+    }
+
+    private void QueueRegistryRefresh()
+    {
+        if (Interlocked.Exchange(ref _registryRefreshQueued, 1) == 1)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            Interlocked.Exchange(ref _registryRefreshQueued, 0);
+            if (string.IsNullOrWhiteSpace(TargetPath))
+            {
+                return;
+            }
+
+            ResolveTarget();
+            RequestTargetRefresh();
+        }, DispatcherPriority.Background);
     }
 
     private static void ApplyChildRegistryUpdate(Item rootItem, string relativePath, DataChangedEventArgs e)
@@ -3437,25 +3628,25 @@ public sealed class FolderItemModel : ObservableObject
             return;
         }
 
-        var normalizedPath = runtimePath.Replace('\\', '/').Trim('/');
+        var normalizedPath = TargetPathHelper.NormalizeConfiguredTargetPath(runtimePath);
         if (string.IsNullOrWhiteSpace(normalizedPath))
         {
             return;
         }
 
-        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (segments.Length == 0)
+        var segments = TargetPathHelper.SplitPathSegments(normalizedPath);
+        if (segments.Count == 0)
         {
             return;
         }
 
         var nameSegment = segments[^1];
-        var parentPath = segments.Length > 1
-            ? string.Join('/', segments[..^1])
+        var parentPath = segments.Count > 1
+            ? string.Join('.', segments.Take(segments.Count - 1))
             : string.Empty;
 
         // Einzelnes Script-Signal als eigenstaendigen Snapshot publizieren, so dass
-        // es unter Project/<Folder>/Python/<Name> im Target-Tree und RealtimeChart
+        // es unter Project.<Folder>.Applications.Python.<Name> im Target-Tree und RealtimeChart
         // sichtbar und direkt aufloesbar ist.
         Item item;
         if (string.IsNullOrWhiteSpace(parentPath))
@@ -3467,8 +3658,6 @@ public sealed class FolderItemModel : ObservableObject
             item = new Item(nameSegment, value, parentPath);
         }
 
-        // Pfad explizit im Slash-Stil hinterlegen, damit EnumerateItemPaths
-        // denselben Stil wie andere Runtime-Signale verwendet.
         item.Params["Path"].Value = normalizedPath;
 
         HostRegistries.Data.UpsertSnapshot(normalizedPath, item, pruneMissingMembers: false);
@@ -3488,7 +3677,7 @@ public sealed class FolderItemModel : ObservableObject
                 return string.Empty;
             }
 
-            return value.Replace('\\', '/').Trim('/');
+            return value.Trim().Trim('.', '/', '\\');
         }
 
         var folderSegment = NormalizeSegment(FolderName);
@@ -3506,15 +3695,13 @@ public sealed class FolderItemModel : ObservableObject
             nameSegment = Id;
         }
 
-        // Script-Signale als Projekt-lokale Werte publizieren, so dass sie
-        // unter Project/<Folder>/Python/<Name> wie andere Projekt-Signale
-        // auswählbar sind.
-        return $"Project/{folderSegment}/Python/{nameSegment}";
+        return $"Project.{folderSegment}.Applications.Python.{nameSegment}";
     }
 
     private void RefreshPathRecursive()
     {
         Path = BuildPath();
+        EnsureCircleDisplayRuntimeSignals();
 
         foreach (var child in Items)
         {
@@ -3558,7 +3745,7 @@ public sealed class FolderItemModel : ObservableObject
             RaisePropertyChanged(nameof(ItemUnitFontSize));
         }
 
-        if (IsTableControl)
+        if (UsesTableLayout)
         {
             UpdateTableCellContentFromChildren();
         }
@@ -3566,7 +3753,7 @@ public sealed class FolderItemModel : ObservableObject
 
     private void SyncTableChildHeights()
     {
-        if (!IsTableControl || TableRows <= 0)
+        if (!UsesTableLayout || TableRows <= 0)
         {
             return;
         }
@@ -3646,22 +3833,76 @@ public sealed class FolderItemModel : ObservableObject
             && item is not null;
     }
 
+    private void EnsureCircleDisplayRuntimeSignals()
+    {
+        if (!IsCircleDisplay || string.IsNullOrWhiteSpace(Path))
+        {
+            return;
+        }
+
+        var segments = TargetPathHelper.SplitPathSegments(Path);
+        if (segments.Count == 0)
+        {
+            return;
+        }
+
+        Item snapshot;
+        if (HostRegistries.Data.TryGet(Path, out var existing) && existing is not null)
+        {
+            snapshot = existing.Clone();
+        }
+        else
+        {
+            var nameSegment = segments[^1];
+            var parentPath = segments.Count > 1
+                ? string.Join('.', segments.Take(segments.Count - 1))
+                : string.Empty;
+
+            snapshot = string.IsNullOrWhiteSpace(parentPath)
+                ? new Item(nameSegment)
+                : new Item(nameSegment, null, parentPath);
+        }
+
+        snapshot.Params["Path"].Value = Path;
+        snapshot.Params["Kind"].Value = "CircleDisplay";
+        snapshot.Params["Text"].Value = string.IsNullOrWhiteSpace(Name) ? Title : Name;
+        snapshot[CircleDisplaySignalColorItemName].Value = string.IsNullOrWhiteSpace(SignalColor)
+            ? CircleDisplayDefaultSignalColor
+            : SignalColor;
+        snapshot[CircleDisplaySignalColorItemName].Params["Text"].Value = CircleDisplaySignalColorItemName;
+        snapshot[CircleDisplaySignalRunItemName].Value = SignalRun;
+        snapshot[CircleDisplaySignalRunItemName].Params["Text"].Value = CircleDisplaySignalRunItemName;
+        snapshot[CircleDisplayProgressBarItemName].Value = ProgressBar;
+        snapshot[CircleDisplayProgressBarItemName].Params["Text"].Value = CircleDisplayProgressBarItemName;
+        snapshot[CircleDisplayProgressStateItemName].Value = System.Math.Clamp(ProgressState, 0d, 100d);
+        snapshot[CircleDisplayProgressStateItemName].Params["Text"].Value = CircleDisplayProgressStateItemName;
+        snapshot[CircleDisplayProgressBarColorItemName].Value = string.IsNullOrWhiteSpace(ProgressBarColor)
+            ? CircleDisplayDefaultProgressBarColor
+            : ProgressBarColor;
+        snapshot[CircleDisplayProgressBarColorItemName].Params["Text"].Value = CircleDisplayProgressBarColorItemName;
+
+        HostRegistries.Data.UpsertSnapshot(Path, snapshot, pruneMissingMembers: false);
+    }
+
+    private static bool IsInsideCircle(double normalizedRow, double normalizedColumn)
+        => (normalizedRow * normalizedRow) + (normalizedColumn * normalizedColumn) <= 0.92d;
+
     private static string NormalizeLogTargetPath(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return "Logs/Host";
+            return "Logs.Host";
         }
 
-        var normalized = value.Trim().Replace('\\', '/').Trim('/');
+        var normalized = TargetPathHelper.NormalizeConfiguredTargetPath(value);
         if (string.IsNullOrWhiteSpace(normalized))
         {
-            return "Logs/Host";
+            return "Logs.Host";
         }
 
-        return normalized.Contains('/', StringComparison.Ordinal)
+        return normalized.Contains('.', StringComparison.Ordinal)
             ? normalized
-            : $"Logs/{normalized}";
+            : $"Logs.{normalized}";
     }
 
     private static string NormalizeAlignment(string? value, string fallback)
@@ -3736,9 +3977,40 @@ public sealed class FolderItemModel : ObservableObject
     private string GetSuggestedNameFromTargetPath(string? targetPath)
     {
         var normalizedPath = NormalizeTargetRelativePath(targetPath);
-        return string.IsNullOrWhiteSpace(normalizedPath)
-            ? string.Empty
-            : normalizedPath.Replace('/', '.');
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            return string.Empty;
+        }
+
+        var segments = TargetPathHelper.SplitPathSegments(normalizedPath);
+        if (segments.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var ignoredTailSegments = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Value",
+            "Request",
+            "Status",
+            "Command",
+            "Set",
+            "Read",
+            "Write"
+        };
+
+        for (var index = segments.Count - 1; index >= 0; index--)
+        {
+            var candidate = segments[index];
+            if (string.IsNullOrWhiteSpace(candidate) || ignoredTailSegments.Contains(candidate))
+            {
+                continue;
+            }
+
+            return candidate.Replace('.', '_');
+        }
+
+        return segments[^1].Replace('.', '_');
     }
 
     private string NormalizeTargetRelativePath(string? targetPath)
@@ -3750,35 +4022,33 @@ public sealed class FolderItemModel : ObservableObject
 
         targetPath = TargetPathHelper.ToPersistedLayoutTargetPath(targetPath, FolderName);
 
-        var segments = targetPath
-            .Replace('\\', '/')
-            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var segments = TargetPathHelper.SplitPathSegments(targetPath);
 
-        if (segments.Length == 0)
+        if (segments.Count == 0)
         {
             return string.Empty;
         }
 
-        if (segments.Length > 3
+        if (segments.Count > 3
             && string.Equals(segments[0], "Runtime", StringComparison.OrdinalIgnoreCase)
             && string.Equals(segments[1], "UdlClient", StringComparison.OrdinalIgnoreCase))
         {
-            return string.Join('/', segments.Skip(3));
+            return string.Join('.', segments.Skip(3));
         }
 
-        if (segments.Length > 3
+        if (segments.Count > 3
             && string.Equals(segments[0], "UdlProject", StringComparison.OrdinalIgnoreCase))
         {
-            return string.Join('/', segments.Skip(3));
+            return string.Join('.', segments.Skip(3));
         }
 
-        if (segments.Length > 3
+        if (segments.Count > 3
             && string.Equals(segments[0], "UdlBook", StringComparison.OrdinalIgnoreCase))
         {
-            return string.Join('/', segments.Skip(3));
+            return string.Join('.', segments.Skip(3));
         }
 
-        return string.Join('/', segments);
+        return string.Join('.', segments);
     }
 
     private static string NormalizeBodyCaptionPosition(string? value)
@@ -3806,7 +4076,7 @@ public sealed class FolderItemModel : ObservableObject
             ControlKind.CsvLoggerControl => "CsvLoggerControl",
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
-            ControlKind.PythonEnvManager => "PythonEnvManager",
+            ControlKind.ApplicationExplorer => "ApplicationExplorer",
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -4098,6 +4368,8 @@ public sealed class FolderItemModel : ObservableObject
             get => _isLastSelected;
             set => SetProperty(ref _isLastSelected, value);
         }
+
+        public bool IsVisibleInLayout => !_owner.IsCircleDisplay || _owner.IsCircleCellVisible(Row, Column);
 
         // Bezieht ein evtl. vorhandenes Child-Widget fuer alle belegten Zellen mit ein,
         // auch wenn das Widget ueber mehrere Zeilen/Spalten geht.

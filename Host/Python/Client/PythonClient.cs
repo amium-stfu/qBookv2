@@ -592,7 +592,7 @@ public sealed class PythonClient : IAsyncDisposable
             ConvertJsonNodeToValue(payload.InitialValue),
             payload.ValueType);
 
-        HostRegistries.Data.UpsertSnapshot(GetRootRegistryKey(registryPath), snapshot, pruneMissingMembers: false);
+        HostRegistries.Data.UpsertSnapshot(registryPath, snapshot, pruneMissingMembers: false);
 
         HostLogger.Log.Information("PythonClient value registered. Name={ClientName} Value={ValueName} Path={Path}", _options.Name, valueName, registryPath);
         ClientLog.Info($"Value registered: {valueName} -> {registryPath}");
@@ -621,7 +621,7 @@ public sealed class PythonClient : IAsyncDisposable
         if (!HostRegistries.Data.UpdateValue(registryPath, value, payload.Timestamp))
         {
             var snapshot = BuildValueSnapshot(registryPath, valueName, null, value, null);
-            HostRegistries.Data.UpsertSnapshot(GetRootRegistryKey(registryPath), snapshot, pruneMissingMembers: false);
+            HostRegistries.Data.UpsertSnapshot(registryPath, snapshot, pruneMissingMembers: false);
             HostRegistries.Data.UpdateValue(registryPath, value, payload.Timestamp);
         }
 
@@ -856,18 +856,25 @@ public sealed class PythonClient : IAsyncDisposable
             return existingPath;
         }
 
-        return $"PythonClients/{SanitizePathSegment(_options.Name)}/{SanitizePathSegment(valueName)}";
+        var registryRootPath = NormalizeRegistryPath(_options.RegistryRootPath ?? string.Empty);
+        if (!string.IsNullOrWhiteSpace(registryRootPath))
+        {
+            return $"{registryRootPath}.{SanitizePathSegment(valueName)}";
+        }
+
+        return $"PythonClients.{SanitizePathSegment(_options.Name)}.{SanitizePathSegment(valueName)}";
     }
 
     private static string NormalizeRegistryPath(string path)
     {
         var segments = path
-            .Replace('\\', '/')
-            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Replace('\\', '.')
+            .Replace('/', '.')
+            .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(SanitizePathSegment)
             .Where(static segment => !string.IsNullOrWhiteSpace(segment));
 
-        return string.Join('/', segments);
+        return string.Join('.', segments);
     }
 
     private static string SanitizePathSegment(string? name)
@@ -887,9 +894,6 @@ public sealed class PythonClient : IAsyncDisposable
         return string.IsNullOrWhiteSpace(sanitized) ? "item" : sanitized;
     }
 
-    private static string GetRootRegistryKey(string fullPath)
-        => fullPath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? fullPath;
-
     private static string GetLastPathSegment(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -898,45 +902,30 @@ public sealed class PythonClient : IAsyncDisposable
         }
 
         var normalized = NormalizeRegistryPath(path);
-        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var segments = normalized.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return segments.Length == 0 ? string.Empty : segments[^1];
     }
 
     private Item BuildValueSnapshot(string fullPath, string title, string? unit, object? initialValue, string? valueType)
     {
         var segments = NormalizeRegistryPath(fullPath)
-            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         if (segments.Length == 0)
         {
             throw new InvalidOperationException("Registry path must not be empty.");
         }
 
-        var root = new Item(segments[0]);
-        root.Params["Path"].Value = segments[0];
-        root.Params["Kind"].Value = "RegistryRoot";
-        root.Params["Text"].Value = segments[0];
-        root.Params["Title"].Value = segments[0];
+        var leafName = segments[^1];
+        var parentPath = segments.Length > 1
+            ? string.Join('.', segments.Take(segments.Length - 1))
+            : null;
 
-        var current = root;
-        var currentPath = segments[0];
+        var current = string.IsNullOrWhiteSpace(parentPath)
+            ? new Item(leafName, initialValue)
+            : new Item(leafName, initialValue, parentPath);
 
-        for (var index = 1; index < segments.Length; index++)
-        {
-            var segment = segments[index];
-            currentPath += "/" + segment;
-            current = current[segment];
-            current.Params["Path"].Value = currentPath;
-
-            if (index == 1 && string.Equals(segments[0], "PythonClients", StringComparison.OrdinalIgnoreCase))
-            {
-                current.Params["Kind"].Value = "PythonClient";
-                current.Params["Text"].Value = _options.Name;
-                current.Params["Title"].Value = _options.Name;
-            }
-        }
-
-        current.Value = initialValue;
+        current.Params["Path"].Value = fullPath;
         current.Params["Kind"].Value = string.IsNullOrWhiteSpace(valueType) ? "PythonValue" : valueType!;
         current.Params["Text"].Value = title;
         current.Params["Title"].Value = title;
@@ -945,7 +934,7 @@ public sealed class PythonClient : IAsyncDisposable
             current.Params["Unit"].Value = unit;
         }
 
-        return root;
+        return current;
     }
 
     private IReadOnlyList<HostValueDefinitionPayload> BuildHostValueProjection()
@@ -1001,7 +990,7 @@ public sealed class PythonClient : IAsyncDisposable
 
         foreach (var childEntry in children.OrderBy(static entry => entry.Key, StringComparer.OrdinalIgnoreCase))
         {
-            CollectHostValueDefinitions(childEntry.Value, currentPath + "/" + childEntry.Key, definitions);
+            CollectHostValueDefinitions(childEntry.Value, currentPath + "." + childEntry.Key, definitions);
         }
     }
 
@@ -1045,7 +1034,7 @@ public sealed class PythonClient : IAsyncDisposable
             return;
         }
 
-        foreach (var projected in _hostValuesByPath.Values.Where(projected => projected.Path.Equals(e.Key, StringComparison.OrdinalIgnoreCase) || projected.Path.StartsWith(e.Key + "/", StringComparison.OrdinalIgnoreCase)))
+        foreach (var projected in _hostValuesByPath.Values.Where(projected => projected.Path.Equals(e.Key, StringComparison.OrdinalIgnoreCase) || projected.Path.StartsWith(e.Key + ".", StringComparison.OrdinalIgnoreCase)))
         {
             if (!HostRegistries.Data.TryGet(projected.Path, out var item) || item is null)
             {

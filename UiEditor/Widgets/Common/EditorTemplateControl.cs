@@ -7,7 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
 
-namespace Amium.EditorUi.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class EditorTemplateControl : EditorShellControl
 {

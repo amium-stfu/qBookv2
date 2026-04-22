@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
@@ -75,6 +76,12 @@ public partial class ParameterControl : UserControl
 
     public static readonly StyledProperty<bool> InlineCaptionVisibleProperty =
         AvaloniaProperty.Register<ParameterControl, bool>(nameof(InlineCaptionVisible), false);
+
+    public static readonly StyledProperty<double> BoolChoiceWidthProperty =
+        AvaloniaProperty.Register<ParameterControl, double>(nameof(BoolChoiceWidth), double.NaN);
+
+    public static readonly StyledProperty<HorizontalAlignment> BoolChoiceHorizontalAlignmentProperty =
+        AvaloniaProperty.Register<ParameterControl, HorizontalAlignment>(nameof(BoolChoiceHorizontalAlignment), HorizontalAlignment.Left);
 
     public ParameterControl()
     {
@@ -168,6 +175,18 @@ public partial class ParameterControl : UserControl
         set => SetValue(InlineCaptionVisibleProperty, value);
     }
 
+    public double BoolChoiceWidth
+    {
+        get => GetValue(BoolChoiceWidthProperty);
+        set => SetValue(BoolChoiceWidthProperty, value);
+    }
+
+    public HorizontalAlignment BoolChoiceHorizontalAlignment
+    {
+        get => GetValue(BoolChoiceHorizontalAlignmentProperty);
+        set => SetValue(BoolChoiceHorizontalAlignmentProperty, value);
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -175,6 +194,7 @@ public partial class ParameterControl : UserControl
         if (change.Property == PresentationProperty)
         {
             BitColumns = ResolveBitColumns(Presentation?.Definition.BitCount ?? 0);
+            RecalculateBoolLayout();
         }
 
         if (change.Property == PresentationProperty
@@ -184,7 +204,15 @@ public partial class ParameterControl : UserControl
             || change.Property == BoundsProperty)
         {
             RecalculateTextMetrics();
+            RecalculateBoolLayout();
         }
+    }
+
+    private void RecalculateBoolLayout()
+    {
+        var isToggle = Presentation?.IsBoolToggle == true;
+        BoolChoiceHorizontalAlignment = isToggle ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+        BoolChoiceWidth = isToggle && Bounds.Width > 0 ? Bounds.Width : double.NaN;
     }
 
     private void RecalculateTextMetrics()

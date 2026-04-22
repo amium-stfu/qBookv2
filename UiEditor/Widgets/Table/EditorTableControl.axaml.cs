@@ -6,7 +6,7 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
-using Amium.EditorUi.Controls;
+using Amium.UiEditor.Controls;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 using TableCellSlot = Amium.UiEditor.Models.FolderItemModel.TableCellSlot;
@@ -228,7 +228,7 @@ public partial class EditorTableControl : EditorTemplateWidget
             {
                 Width = 10,
                 Height = 10,
-                IconPath = "avares://Amium.Editor/EditorIcons/cog.svg"
+                IconPath = "avares://AutomationExplorer.Editor/EditorIcons/cog.svg"
             };
             settingsButton.Content = settingsIcon;
 
@@ -250,7 +250,7 @@ public partial class EditorTableControl : EditorTemplateWidget
             {
                 Width = 10,
                 Height = 10,
-                IconPath = "avares://Amium.Editor/EditorIcons/remove.svg"
+                IconPath = "avares://AutomationExplorer.Editor/EditorIcons/remove.svg"
             };
             deleteButton.Content = deleteIcon;
 
@@ -315,6 +315,19 @@ public partial class EditorTableControl : EditorTemplateWidget
             return;
         }
         var modifiers = e.KeyModifiers;
+
+        if (point.Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
+        {
+            _isSelecting = true;
+            _selectionAnchorRow = slot.Row;
+            _selectionAnchorColumn = slot.Column;
+            _selectionCurrentRow = slot.Row;
+            _selectionCurrentColumn = slot.Column;
+            _previousCursor = control.Cursor;
+            control.Cursor = new Cursor(StandardCursorType.Cross);
+            e.Pointer.Capture(control);
+            UpdateSelectionOverlay(_selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
+        }
 
         // STRG + Linksklick: rechteckige Bereichsauswahl (Startpunkt -> Endpunkt).
         if (point.Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed
@@ -525,3 +538,4 @@ public partial class EditorTableControl : EditorTemplateWidget
         e.Handled = true;
     }
 }
+

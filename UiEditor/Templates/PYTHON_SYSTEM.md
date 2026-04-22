@@ -1,6 +1,6 @@
 # Python System Overview
 
-This file is copied into generated Python script and Python environment folders.
+This file is copied into generated Python script and Python application folders.
 It gives a compact overview of how the local script fits into the host system.
 
 ## What This Folder Contains
@@ -11,6 +11,8 @@ It gives a compact overview of how the local script fits into the host system.
 - `amium_host/`
 - `ui_python_client/`
 - `ui_python_client/COMMANDS.md`
+
+When created from `ApplicationExplorer`, Python applications are stored under `Applications/Python/<ApplicationName>/`.
 
 ## How The Script Runs
 
@@ -31,10 +33,10 @@ It gives a compact overview of how the local script fits into the host system.
 ## Host Value Access
 
 - read with `host.values.some_alias.value`
-- read by path with `host.values["Some/Registry/Path"].value`
+- read by path with `host.values["Some.Registry.Path"].value`
 - write with `host.values.some_alias.value = 42`
 - inspect metadata like `unit`, `path`, and `is_writable`
-- projected paths may also include runtime values such as `PythonClients/Raw/raw_b`
+- projected paths may also include runtime values such as `Project.Dummy.Applications.Python.Raw.raw_b`
 
 ## InteractionRules Arguments
 

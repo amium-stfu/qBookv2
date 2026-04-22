@@ -1,9 +1,9 @@
 ﻿using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
-using Amium.EditorUi.Helpers;
+using Amium.UiEditor.Helpers;
 
-namespace Amium.EditorUi.Controls;
+namespace Amium.UiEditor.Controls;
 
 public partial class ThemeSvgIcon : UserControl
 {

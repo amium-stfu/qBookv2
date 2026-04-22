@@ -21,23 +21,23 @@ public static class ItemPathExtensions
 
         foreach (var parameterEntry in item.Params.Dictionary)
         {
-            parameterEntry.Value.Path = $"{absolutePath}/{parameterEntry.Key}";
+            parameterEntry.Value.Path = $"{absolutePath}.{parameterEntry.Key}";
         }
 
         foreach (var childEntry in item.Dictionary)
         {
             var child = childEntry.Value;
             var childName = child.Name ?? childEntry.Key;
-            ApplyPath(child, $"{absolutePath}/{childName}");
+            ApplyPath(child, $"{absolutePath}.{childName}");
         }
     }
 
     private static string NormalizePath(string value)
-        => value.Replace('\\', '/').Trim('/');
+        => value.Replace('\\', '.').Replace('/', '.').Trim('.');
 
     private static string GetLastSegment(string path)
     {
-        var lastSeparatorIndex = path.LastIndexOf('/');
+        var lastSeparatorIndex = Math.Max(path.LastIndexOf('/'), Math.Max(path.LastIndexOf('\\'), path.LastIndexOf('.')));
         return lastSeparatorIndex >= 0 ? path[(lastSeparatorIndex + 1)..] : path;
     }
 }

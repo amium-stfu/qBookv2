@@ -70,6 +70,13 @@ Widget for connecting the Udl client (CAN/network):
 
 - UdlClientControl.axaml(.cs) – connection widget for the UdlClient (connect/disconnect, status, attached items)
 
+## CustomSignals
+
+Widget for project-local input, constant, and computed signals:
+
+- CustomSignals/CustomSignalsControl.axaml(.cs) – list-based management widget that publishes custom signals into the registry
+- CustomSignals/CustomSignalEditorDialogWindow.axaml(.cs) – dialog for creating and editing individual custom signal definitions
+
 ## Dialogs
 
 Dialogs used by editor widgets:

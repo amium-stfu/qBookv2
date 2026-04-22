@@ -18,8 +18,8 @@ public static class UiPublisher
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(log);
 
-        var normalizedPath = path.Replace('\\', '/').Trim('/');
-        var lastSeparatorIndex = normalizedPath.LastIndexOf('/');
+        var normalizedPath = NormalizeProcessLogPath(path);
+        var lastSeparatorIndex = normalizedPath.LastIndexOf('.');
         var itemName = lastSeparatorIndex >= 0 ? normalizedPath[(lastSeparatorIndex + 1)..] : normalizedPath;
         var parentPath = lastSeparatorIndex >= 0 ? normalizedPath[..lastSeparatorIndex] : null;
         var displayTitle = string.IsNullOrWhiteSpace(title) ? itemName : title.Trim();
@@ -32,8 +32,19 @@ public static class UiPublisher
         item.Params["Title"].Value = displayTitle;
         item.Params["Text"].Value = displayTitle;
         // Wichtig: Der Registry-Schlüssel soll exakt dem TargetLog-Pfad entsprechen,
-        // damit EditorLogControl den Log über "Logs/Host" o.ä. direkt auflösen kann.
+        // damit EditorLogControl den Log über "Logs.Host" o.ä. direkt auflösen kann.
         return HostRegistries.Data.UpsertSnapshot(normalizedPath, item, pruneMissingMembers);
+    }
+
+    private static string NormalizeProcessLogPath(string path)
+    {
+        var normalized = path.Replace('\\', '.').Replace('/', '.').Trim('.');
+        while (normalized.Contains("..", StringComparison.Ordinal))
+        {
+            normalized = normalized.Replace("..", ".", StringComparison.Ordinal);
+        }
+
+        return normalized;
     }
 
     public static void Publish(HostCommand command)

@@ -64,7 +64,7 @@ namespace Amium.Logging
         public bool Running = false;
         bool initDb = false;
 
-        string connectionString;
+        string connectionString = string.Empty;
 
         public string Directory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "AmiumLogs");
 
@@ -77,7 +77,6 @@ namespace Amium.Logging
         private ATask? writingTask;
 
         protected Dictionary<string, int> loggers = new Dictionary<string, int>();
-        string insertString;
         public string Name { get; set; } = "SqlLogger";
 
         /// <summary>
@@ -173,14 +172,15 @@ namespace Amium.Logging
                         command.Parameters.AddWithValue("@sqlTable", i.Value.SqlTable ?? string.Empty);
                         command.ExecuteNonQuery();
 
-                        if (!tables.ContainsKey(i.Value.SqlTable))
+                        var sqlTable = i.Value.SqlTable ?? string.Empty;
+                        if (!tables.ContainsKey(sqlTable))
                         {
-                            tables.Add(i.Value.SqlTable, new List<string>()
+                            tables.Add(sqlTable, new List<string>()
                                 { i.Value.Name + " " + i.Value.ValueType });
                         }
                         else
                         {
-                            tables[i.Value.SqlTable].Add(i.Value.Name + " " + i.Value.ValueType);
+                            tables[sqlTable].Add(i.Value.Name + " " + i.Value.ValueType);
                         }
                     }
 
@@ -388,8 +388,13 @@ namespace Amium.Logging
                     database.Open();
                     while (!token.IsCancellationRequested || !Lines.IsEmpty)
                     {
-                        while (Lines.TryDequeue(out string cmd))
+                        while (Lines.TryDequeue(out var cmd))
                         {
+                            if (string.IsNullOrWhiteSpace(cmd))
+                            {
+                                continue;
+                            }
+
                             SQLiteCommand command = new SQLiteCommand(cmd, database);
                             command.ExecuteNonQuery();
                         }
@@ -468,7 +473,7 @@ namespace Amium.Logging
             };
         }
 
-        private static string ToSqlLiteral(object value, string format)
+        private static string ToSqlLiteral(object? value, string format)
         {
             if (value == null)
                 return "NULL";

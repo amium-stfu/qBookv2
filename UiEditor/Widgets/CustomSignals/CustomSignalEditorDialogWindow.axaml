@@ -1,0 +1,107 @@
+<Window
+    x:Class="Amium.UiEditor.Widgets.CustomSignalEditorDialogWindow"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Amium.UiEditor.Controls"
+    Width="720"
+    MinWidth="680"
+    Height="620"
+    MinHeight="560"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    Title="Custom Signal"
+    Background="{Binding DialogBackground}">
+  <Window.Styles>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="{Binding ButtonBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground}" />
+    </Style>
+  </Window.Styles>
+  <controls:EditorShellControl Margin="16"
+                               ShellBackground="{Binding DialogBackground}"
+                               ShellBorderBrush="{Binding BorderColor}"
+                               ShellBorderThickness="1"
+                               ShellCornerRadius="10"
+                               ShellPadding="16"
+                               ShowHeader="True"
+                               ShowFooter="True">
+    <controls:EditorShellControl.HeaderContent>
+      <StackPanel>
+        <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Custom Signal" />
+        <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="Configure an input, constant, or computed project signal." TextWrapping="Wrap" />
+      </StackPanel>
+    </controls:EditorShellControl.HeaderContent>
+
+    <controls:EditorShellControl.BodyContent>
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+            <TextBlock VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Name" />
+            <TextBox Grid.Column="1" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding Name, Mode=TwoWay}" />
+
+            <TextBlock Grid.Row="1" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Mode" />
+            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ModeOptions}" SelectedItem="{Binding SelectedMode, Mode=TwoWay}" />
+
+            <TextBlock Grid.Row="2" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Type" />
+            <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding DataTypeOptions}" SelectedItem="{Binding SelectedDataType, Mode=TwoWay}" />
+
+            <TextBlock Grid.Row="3" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Writable" />
+            <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding IsWritable, Mode=TwoWay}" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="4" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Unit" />
+            <TextBox Grid.Row="4" Grid.Column="1" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding Unit, Mode=TwoWay}" />
+
+            <TextBlock Grid.Row="5" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Format" />
+            <TextBox Grid.Row="5" Grid.Column="1" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding Format, Mode=TwoWay}" />
+
+            <TextBlock Grid.Row="6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Value" IsVisible="{Binding IsValueVisible}" />
+            <TextBox Grid.Row="6" Grid.Column="1" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding ValueText, Mode=TwoWay}" IsVisible="{Binding IsValueVisible}" />
+
+            <TextBlock Grid.Row="7" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Operation" IsVisible="{Binding IsComputed}" />
+            <ComboBox Grid.Row="7" Grid.Column="1" ItemsSource="{Binding OperationOptions}" SelectedItem="{Binding SelectedOperation, Mode=TwoWay}" IsVisible="{Binding IsComputed}" />
+
+            <TextBlock Grid.Row="8" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Source A" IsVisible="{Binding ShowSourceA}" />
+            <Grid Grid.Row="8" Grid.Column="1" ColumnDefinitions="*,Auto" IsVisible="{Binding ShowSourceA}">
+              <TextBox Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding SourcePath, Mode=TwoWay}" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" Content="Pick" Click="OnPickSourceAClicked" />
+            </Grid>
+
+            <TextBlock Grid.Row="9" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Source B" IsVisible="{Binding ShowSourceB}" />
+            <Grid Grid.Row="9" Grid.Column="1" ColumnDefinitions="*,Auto" IsVisible="{Binding ShowSourceB}">
+              <TextBox Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding SourcePath2, Mode=TwoWay}" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" Content="Pick" Click="OnPickSourceBClicked" />
+            </Grid>
+          </Grid>
+
+          <Grid ColumnDefinitions="140,*" IsVisible="{Binding ShowSourceC}">
+            <TextBlock VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Source C" />
+            <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+              <TextBox Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding SourcePath3, Mode=TwoWay}" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" Content="Pick" Click="OnPickSourceCClicked" />
+            </Grid>
+          </Grid>
+
+          <Border Padding="10" Background="{Binding SectionBackground}" BorderBrush="{Binding BorderColor}" BorderThickness="1" CornerRadius="8">
+            <StackPanel Spacing="4">
+              <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="Published path" />
+              <TextBlock FontSize="12" Foreground="{Binding PrimaryTextBrush}" Text="{Binding PreviewPath}" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <TextBlock FontSize="12" Foreground="#B42318" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </StackPanel>
+      </ScrollViewer>
+    </controls:EditorShellControl.BodyContent>
+
+    <controls:EditorShellControl.FooterContent>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <Button Classes="dialog-button" Content="Save" Click="OnSaveClicked" />
+        <Button Classes="dialog-button" Content="Cancel" Click="OnCancelClicked" />
+      </StackPanel>
+    </controls:EditorShellControl.FooterContent>
+  </controls:EditorShellControl>
+</Window>
