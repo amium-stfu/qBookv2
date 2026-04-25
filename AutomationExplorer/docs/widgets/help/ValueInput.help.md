@@ -1,0 +1,66 @@
+# ValueInput Help
+
+## Component Type
+
+Editor helper component
+
+## Overview
+
+The ValueInput component provides the on-screen editing surface for writable target values.
+
+## Properties
+
+### CardBorderBrush
+
+Border color for the editor card.
+
+### ParameterEditBackgrundColor
+
+Background color used for parameter editing surfaces.
+
+### ParameterEditForeColor
+
+Foreground color for parameter text.
+
+### ParameterHoverColor
+
+Hover color used by parameter selection surfaces.
+
+### ButtonBackColor / ButtonForeColor / ButtonHoverColor
+
+Theme-related button colors for on-screen input pads.
+
+### EditPanelButtonBorderBrush
+
+Border color for edit panel buttons.
+
+## Functions and Behavior
+
+### Select input mode
+
+The control selects text, numeric, hex, or bits input mode based on the target parameter kind.
+
+### Handle on-screen pad input
+
+The control routes key and action events from the text and numeric input pads.
+
+### Toggle bit values
+
+Bit-oriented editing is supported through toggle buttons.
+
+### Bind to selected item
+
+The editor observes the current item and refreshes the input mode and state when the target changes.
+
+## Runtime Notes
+
+This is an editor support component used by the shared value editing workflow, not a persisted top-level widget type.
+
+## Suggested Help Window Metadata
+
+- Summary file: `AutomationExplorer/docs/widgets/ValueInput.md`
+- Help file: `AutomationExplorer/docs/widgets/help/ValueInput.help.md`
+
+## Source
+
+- `UiEditor/Widgets/ValueInput/EditorValueInputControl.axaml.cs`

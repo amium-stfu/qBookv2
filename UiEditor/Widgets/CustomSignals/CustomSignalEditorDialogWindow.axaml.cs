@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Markup.Xaml;
+using Amium.UiEditor.Helpers;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
 
@@ -12,6 +16,7 @@ namespace Amium.UiEditor.Widgets;
 
 public partial class CustomSignalEditorDialogWindow : Window
 {
+    private TextBox? _formulaEditorTextBox;
     private readonly MainWindowViewModel? _viewModel;
     private FolderItemModel? _ownerItem;
     private IReadOnlyList<string> _sourceOptions = Array.Empty<string>();
@@ -22,6 +27,7 @@ public partial class CustomSignalEditorDialogWindow : Window
         ViewModel = new CustomSignalEditorDialogViewModel(null, new FolderItemModel(), null);
         DataContext = ViewModel;
         InitializeComponent();
+        _formulaEditorTextBox = this.FindControl<TextBox>("FormulaEditorTextBox");
     }
 
     public CustomSignalEditorDialogWindow(MainWindowViewModel? viewModel, FolderItemModel ownerItem, CustomSignalDefinition? definition, IEnumerable<string> sourceOptions)
@@ -42,21 +48,50 @@ public partial class CustomSignalEditorDialogWindow : Window
         return await dialog.ShowDialog<CustomSignalDefinition?>(owner);
     }
 
-    private async void OnPickSourceAClicked(object? sender, RoutedEventArgs e)
+    private async void OnPickVariableSourceClicked(object? sender, RoutedEventArgs e)
     {
-        ViewModel.SourcePath = await PickTargetAsync(ViewModel.SourcePath) ?? ViewModel.SourcePath;
+        if (sender is not Button { CommandParameter: CustomSignalVariableEntryViewModel variable })
+        {
+            return;
+        }
+
+        variable.SourcePath = await PickTargetAsync(variable.SourcePath) ?? variable.SourcePath;
         e.Handled = true;
     }
 
-    private async void OnPickSourceBClicked(object? sender, RoutedEventArgs e)
+    private void OnAddVariableClicked(object? sender, RoutedEventArgs e)
     {
-        ViewModel.SourcePath2 = await PickTargetAsync(ViewModel.SourcePath2) ?? ViewModel.SourcePath2;
+        ViewModel.AddVariable();
         e.Handled = true;
     }
 
-    private async void OnPickSourceCClicked(object? sender, RoutedEventArgs e)
+    private void OnDeleteVariableClicked(object? sender, RoutedEventArgs e)
     {
-        ViewModel.SourcePath3 = await PickTargetAsync(ViewModel.SourcePath3) ?? ViewModel.SourcePath3;
+        if (sender is not Button { CommandParameter: CustomSignalVariableEntryViewModel variable })
+        {
+            return;
+        }
+
+        ViewModel.RemoveVariable(variable);
+        e.Handled = true;
+    }
+
+    private void OnInsertFormulaTokenClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { CommandParameter: FormulaInsertButtonDefinition token })
+        {
+            return;
+        }
+
+        var caretIndex = _formulaEditorTextBox?.CaretIndex ?? ViewModel.FormulaText.Length;
+        var nextCaretIndex = ViewModel.InsertFormulaToken(token.Token, caretIndex, token.CaretBacktrack);
+
+        if (_formulaEditorTextBox is not null)
+        {
+            _formulaEditorTextBox.Focus();
+            _formulaEditorTextBox.CaretIndex = Math.Clamp(nextCaretIndex, 0, _formulaEditorTextBox.Text?.Length ?? 0);
+        }
+
         e.Handled = true;
     }
 
@@ -89,7 +124,11 @@ public partial class CustomSignalEditorDialogWindow : Window
 
 public sealed class CustomSignalEditorDialogViewModel : ObservableObject
 {
+    private static readonly IReadOnlyList<string> ComputedDataTypeOptions = [nameof(CustomSignalDataType.Number), nameof(CustomSignalDataType.Boolean)];
+
     private readonly FolderItemModel _ownerItem;
+    private readonly IReadOnlyList<string> _allDataTypeOptions = Enum.GetNames<CustomSignalDataType>();
+    private static readonly IReadOnlyList<string> ReadOnlyOptions = ["True", "False"];
     private string _name = string.Empty;
     private string _selectedMode = CustomSignalMode.Input.ToString();
     private string _selectedDataType = CustomSignalDataType.Number.ToString();
@@ -97,18 +136,24 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
     private string _unit = string.Empty;
     private string _format = string.Empty;
     private string _valueText = string.Empty;
-    private string _selectedOperation = CustomSignalOperation.Copy.ToString();
-    private string _sourcePath = string.Empty;
-    private string _sourcePath2 = string.Empty;
-    private string _sourcePath3 = string.Empty;
+    private string _formulaText = string.Empty;
+    private string _selectedTrigger = CustomSignalComputationTrigger.OnSourceChange.ToString();
+    private string _triggerIntervalText = "1";
     private string _errorMessage = string.Empty;
+    private string _formulaStatusMessage = string.Empty;
+    private string _formulaStatusBrush = "#5E6777";
+    private IReadOnlyList<string> _availableDataTypeOptions;
+    private bool _isInitializing;
 
     public CustomSignalEditorDialogViewModel(MainWindowViewModel? mainWindowViewModel, FolderItemModel ownerItem, CustomSignalDefinition? definition)
     {
+        _isInitializing = true;
         _ownerItem = ownerItem;
+        _availableDataTypeOptions = _allDataTypeOptions;
         ModeOptions = Enum.GetNames<CustomSignalMode>();
-        DataTypeOptions = Enum.GetNames<CustomSignalDataType>();
-        OperationOptions = Enum.GetNames<CustomSignalOperation>();
+        TriggerOptions = Enum.GetNames<CustomSignalComputationTrigger>();
+        OperatorButtons = CreateOperatorButtons();
+        Variables.CollectionChanged += OnVariablesCollectionChanged;
 
         DialogBackground = mainWindowViewModel?.DialogBackground ?? "#E3E5EE";
         SectionBackground = mainWindowViewModel?.EditorDialogSectionContentBackground ?? "#EEF3F8";
@@ -121,29 +166,55 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
         ButtonBorderBrush = mainWindowViewModel?.EditPanelButtonBorderBrush ?? "#CBD5E1";
         ButtonForeground = mainWindowViewModel?.PrimaryTextBrush ?? "#111827";
 
-        if (definition is null)
+        if (definition is not null)
         {
-            return;
+            Name = definition.Name;
+            SelectedMode = definition.Mode.ToString();
+            SelectedDataType = definition.DataType.ToString();
+            IsWritable = definition.IsWritable;
+            Unit = definition.Unit;
+            Format = definition.Format;
+            ValueText = definition.ValueText;
+            FormulaText = definition.Formula;
+            SelectedTrigger = definition.Trigger.ToString();
+            TriggerIntervalText = Math.Max(1, definition.TriggerIntervalSeconds).ToString();
+
+            foreach (var variable in definition.Variables.Where(static variable => variable is not null))
+            {
+                AddVariable(variable.Name, variable.SourcePath);
+            }
         }
 
-        Name = definition.Name;
-        SelectedMode = definition.Mode.ToString();
-        SelectedDataType = definition.DataType.ToString();
-        IsWritable = definition.IsWritable;
-        Unit = definition.Unit;
-        Format = definition.Format;
-        ValueText = definition.ValueText;
-        SelectedOperation = definition.Operation.ToString();
-        SourcePath = definition.SourcePath;
-        SourcePath2 = definition.SourcePath2;
-        SourcePath3 = definition.SourcePath3;
+        if (IsComputed && Variables.Count == 0)
+        {
+            AddVariable();
+        }
+
+        UpdateAvailableDataTypeOptions();
+        UpdateFormulaValidation();
+        _isInitializing = false;
     }
 
     public IReadOnlyList<string> ModeOptions { get; }
 
-    public IReadOnlyList<string> DataTypeOptions { get; }
+    public IReadOnlyList<string> TriggerOptions { get; }
 
-    public IReadOnlyList<string> OperationOptions { get; }
+    public IReadOnlyList<string> ReadOnlyValueOptions => ReadOnlyOptions;
+
+    public ObservableCollection<CustomSignalVariableEntryViewModel> Variables { get; } = [];
+
+    public IReadOnlyList<string> AvailableDataTypeOptions => _availableDataTypeOptions;
+
+    public IReadOnlyList<FormulaInsertButtonDefinition> OperatorButtons { get; }
+
+    public string ExampleText => string.Equals(SelectedDataType, nameof(CustomSignalDataType.Boolean), StringComparison.OrdinalIgnoreCase)
+        ? "Examples: ({A} > {B}) && {Ready}   or   !{Fault}"
+        : "Examples: ({A} + {B}) / {C}   or   sqrt({A}) + max({B}, {C})";
+
+    public IReadOnlyList<FormulaInsertButtonDefinition> VariableButtons => Variables
+        .Where(static variable => !string.IsNullOrWhiteSpace(variable.Name))
+        .Select(variable => new FormulaInsertButtonDefinition(variable.Name.Trim(), $"{{{variable.Name.Trim()}}}"))
+        .ToArray();
 
     public string DialogBackground { get; }
 
@@ -165,6 +236,17 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
 
     public string ButtonForeground { get; }
 
+    public string AddVariableIconPath => SvgIconCache.ResolvePath("avares://AutomationExplorer.Editor/EditorIcons/circle-plus-solid-full.svg", ButtonForeground)
+        ?? "avares://AutomationExplorer.Editor/EditorIcons/circle-plus-solid-full.svg";
+
+    public string TokenButtonForeground => ButtonForeground;
+
+    public string TokenButtonBackground => ButtonBackground;
+
+    public string TokenButtonBorderBrush => ButtonBorderBrush;
+
+    public string FormulaPanelBackground => EditorBackground;
+
     public string Name
     {
         get => _name;
@@ -184,8 +266,15 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedMode, value ?? CustomSignalMode.Input.ToString()))
             {
+                if (!_isInitializing && IsComputed && Variables.Count == 0)
+                {
+                    AddVariable();
+                }
+
+                UpdateAvailableDataTypeOptions();
                 RaiseComputedVisibilityChanged();
                 RaisePropertyChanged(nameof(PreviewPath));
+                UpdateFormulaValidation();
             }
         }
     }
@@ -193,13 +282,35 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
     public string SelectedDataType
     {
         get => _selectedDataType;
-        set => SetProperty(ref _selectedDataType, value ?? CustomSignalDataType.Number.ToString());
+        set
+        {
+            if (SetProperty(ref _selectedDataType, value ?? CustomSignalDataType.Number.ToString()))
+            {
+                RaisePropertyChanged(nameof(ExampleText));
+                UpdateFormulaValidation();
+            }
+        }
     }
 
     public bool IsWritable
     {
         get => _isWritable;
         set => SetProperty(ref _isWritable, value);
+    }
+
+    public string SelectedReadOnlyValue
+    {
+        get => IsWritable ? "False" : "True";
+        set
+        {
+            var nextIsWritable = !string.Equals(value, "True", StringComparison.OrdinalIgnoreCase);
+            if (IsWritable != nextIsWritable)
+            {
+                IsWritable = nextIsWritable;
+            }
+
+            RaisePropertyChanged(nameof(SelectedReadOnlyValue));
+        }
     }
 
     public string Unit
@@ -220,34 +331,41 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
         set => SetProperty(ref _valueText, value ?? string.Empty);
     }
 
-    public string SelectedOperation
+    public string FormulaText
     {
-        get => _selectedOperation;
+        get => _formulaText;
         set
         {
-            if (SetProperty(ref _selectedOperation, value ?? CustomSignalOperation.Copy.ToString()))
+            if (SetProperty(ref _formulaText, value ?? string.Empty))
             {
-                RaiseComputedVisibilityChanged();
+                UpdateFormulaValidation();
             }
         }
     }
 
-    public string SourcePath
+    public string SelectedTrigger
     {
-        get => _sourcePath;
-        set => SetProperty(ref _sourcePath, value ?? string.Empty);
+        get => _selectedTrigger;
+        set
+        {
+            if (SetProperty(ref _selectedTrigger, value ?? CustomSignalComputationTrigger.OnSourceChange.ToString()))
+            {
+                RaisePropertyChanged(nameof(IsTimerTrigger));
+                UpdateFormulaValidation();
+            }
+        }
     }
 
-    public string SourcePath2
+    public string TriggerIntervalText
     {
-        get => _sourcePath2;
-        set => SetProperty(ref _sourcePath2, value ?? string.Empty);
-    }
-
-    public string SourcePath3
-    {
-        get => _sourcePath3;
-        set => SetProperty(ref _sourcePath3, value ?? string.Empty);
+        get => _triggerIntervalText;
+        set
+        {
+            if (SetProperty(ref _triggerIntervalText, value ?? "1"))
+            {
+                UpdateFormulaValidation();
+            }
+        }
     }
 
     public string ErrorMessage
@@ -256,15 +374,35 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
         set => SetProperty(ref _errorMessage, value ?? string.Empty);
     }
 
+    public string FormulaStatusMessage
+    {
+        get => _formulaStatusMessage;
+        private set => SetProperty(ref _formulaStatusMessage, value ?? string.Empty);
+    }
+
+    public string FormulaStatusBrush
+    {
+        get => _formulaStatusBrush;
+        private set => SetProperty(ref _formulaStatusBrush, value ?? SecondaryTextBrush);
+    }
+
+    public string ValidationErrorBrush => "#B42318";
+
     public bool IsComputed => string.Equals(SelectedMode, CustomSignalMode.Computed.ToString(), StringComparison.OrdinalIgnoreCase);
 
-    public bool IsValueVisible => !IsComputed;
+    public bool IsInput => !IsComputed;
 
-    public bool ShowSourceA => IsComputed;
+    public bool IsValueVisible => IsInput;
 
-    public bool ShowSourceB => IsComputed && SelectedOperation is not nameof(CustomSignalOperation.Copy);
+    public bool IsWritableVisible => IsInput;
 
-    public bool ShowSourceC => IsComputed && SelectedOperation == nameof(CustomSignalOperation.If);
+    public bool IsTriggerVisible => IsComputed;
+
+    public bool IsTimerTrigger => IsComputed && string.Equals(SelectedTrigger, CustomSignalComputationTrigger.Timer.ToString(), StringComparison.OrdinalIgnoreCase);
+
+    public bool ShowComputedEditor => IsComputed;
+
+    public bool ShowFormulaStatus => IsComputed && !string.IsNullOrWhiteSpace(FormulaStatusMessage);
 
     public string PreviewPath
     {
@@ -273,6 +411,45 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
             var definition = new CustomSignalDefinition { Name = Name };
             return CustomSignalsControl.BuildRegistryPath(_ownerItem, definition);
         }
+    }
+
+    public void AddVariable()
+    {
+        AddVariable(GenerateNextVariableName(), string.Empty);
+    }
+
+    public void AddVariable(string name, string sourcePath)
+    {
+        var trimmedName = (name ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(trimmedName)
+            && Variables.Any(variable => string.Equals(variable.Name, trimmedName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        var variable = new CustomSignalVariableEntryViewModel(name, sourcePath);
+        variable.PropertyChanged += OnVariablePropertyChanged;
+        Variables.Add(variable);
+    }
+
+    public void RemoveVariable(CustomSignalVariableEntryViewModel variable)
+    {
+        if (!Variables.Remove(variable))
+        {
+            return;
+        }
+
+        variable.PropertyChanged -= OnVariablePropertyChanged;
+        RaisePropertyChanged(nameof(VariableButtons));
+        UpdateFormulaValidation();
+    }
+
+    public int InsertFormulaToken(string token, int caretIndex, int caretBacktrack = 0)
+    {
+        var formula = FormulaText ?? string.Empty;
+        var insertIndex = Math.Clamp(caretIndex, 0, formula.Length);
+        FormulaText = formula.Insert(insertIndex, token);
+        return Math.Clamp(insertIndex + token.Length + caretBacktrack, 0, FormulaText.Length);
     }
 
     public bool TryBuildDefinition(out CustomSignalDefinition? definition, out string errorMessage)
@@ -298,15 +475,55 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
             return false;
         }
 
-        if (!Enum.TryParse<CustomSignalOperation>(SelectedOperation, true, out var operation))
+        if (mode == CustomSignalMode.Computed)
         {
-            operation = CustomSignalOperation.Copy;
-        }
+            if (dataType == CustomSignalDataType.Text)
+            {
+                errorMessage = "Computed signals support only Number or Boolean type.";
+                return false;
+            }
 
-        if (mode == CustomSignalMode.Computed && string.IsNullOrWhiteSpace(SourcePath))
-        {
-            errorMessage = "Source A is required for computed signals.";
-            return false;
+            if (!Enum.TryParse<CustomSignalComputationTrigger>(SelectedTrigger, true, out var trigger))
+            {
+                errorMessage = "Trigger is invalid.";
+                return false;
+            }
+
+            if (!TryBuildVariables(out var variables, out errorMessage))
+            {
+                return false;
+            }
+
+            if (!int.TryParse(TriggerIntervalText, out var triggerIntervalSeconds) || triggerIntervalSeconds < 1)
+            {
+                errorMessage = "Timer interval must be a positive whole number of seconds.";
+                return false;
+            }
+
+            definition = new CustomSignalDefinition
+            {
+                Name = Name.Trim(),
+                Mode = mode,
+                DataType = dataType,
+                IsWritable = false,
+                Unit = Unit.Trim(),
+                Format = Format.Trim(),
+                Formula = FormulaText.Trim(),
+                Trigger = trigger,
+                TriggerIntervalSeconds = Math.Max(1, triggerIntervalSeconds),
+                Variables = variables,
+                Operation = CustomSignalOperation.Copy,
+                SourcePath = variables.ElementAtOrDefault(0)?.SourcePath ?? string.Empty,
+                SourcePath2 = variables.ElementAtOrDefault(1)?.SourcePath ?? string.Empty,
+                SourcePath3 = variables.ElementAtOrDefault(2)?.SourcePath ?? string.Empty
+            };
+
+            if (!CustomSignalFormulaEngine.TryValidate(definition, out errorMessage))
+            {
+                return false;
+            }
+
+            return true;
         }
 
         definition = new CustomSignalDefinition
@@ -314,25 +531,257 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
             Name = Name.Trim(),
             Mode = mode,
             DataType = dataType,
-            IsWritable = mode == CustomSignalMode.Input && IsWritable,
+            IsWritable = IsWritable,
             Unit = Unit.Trim(),
             Format = Format.Trim(),
             ValueText = ValueText,
-            Operation = operation,
-            SourcePath = SourcePath.Trim(),
-            SourcePath2 = SourcePath2.Trim(),
-            SourcePath3 = SourcePath3.Trim()
+            Trigger = CustomSignalComputationTrigger.OnSourceChange,
+            TriggerIntervalSeconds = 1,
+            Variables = []
         };
 
         return true;
     }
 
+    private void UpdateAvailableDataTypeOptions()
+    {
+        _availableDataTypeOptions = IsComputed ? ComputedDataTypeOptions : _allDataTypeOptions;
+        if (!_availableDataTypeOptions.Contains(SelectedDataType, StringComparer.OrdinalIgnoreCase))
+        {
+            SelectedDataType = _availableDataTypeOptions[0];
+        }
+
+        RaisePropertyChanged(nameof(AvailableDataTypeOptions));
+    }
+
     private void RaiseComputedVisibilityChanged()
     {
         RaisePropertyChanged(nameof(IsComputed));
+        RaisePropertyChanged(nameof(IsInput));
         RaisePropertyChanged(nameof(IsValueVisible));
-        RaisePropertyChanged(nameof(ShowSourceA));
-        RaisePropertyChanged(nameof(ShowSourceB));
-        RaisePropertyChanged(nameof(ShowSourceC));
+        RaisePropertyChanged(nameof(IsWritableVisible));
+        RaisePropertyChanged(nameof(IsTriggerVisible));
+        RaisePropertyChanged(nameof(IsTimerTrigger));
+        RaisePropertyChanged(nameof(ShowComputedEditor));
+        RaisePropertyChanged(nameof(ShowFormulaStatus));
+        RaisePropertyChanged(nameof(VariableButtons));
+        RaisePropertyChanged(nameof(ExampleText));
     }
+
+    private void OnVariablesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        RaisePropertyChanged(nameof(VariableButtons));
+        UpdateFormulaValidation();
+    }
+
+    private void OnVariablePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        RaisePropertyChanged(nameof(VariableButtons));
+        UpdateFormulaValidation();
+    }
+
+    private bool TryBuildVariables(out List<CustomSignalVariableDefinition> variables, out string errorMessage)
+    {
+        variables = [];
+        errorMessage = string.Empty;
+
+        if (Variables.Count == 0)
+        {
+            errorMessage = "At least one variable is required for computed signals.";
+            return false;
+        }
+
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var variable in Variables)
+        {
+            var name = (variable.Name ?? string.Empty).Trim();
+            if (!IsValidVariableName(name))
+            {
+                errorMessage = $"Variable name '{name}' is invalid.";
+                return false;
+            }
+
+            if (!usedNames.Add(name))
+            {
+                errorMessage = $"Variable name '{name}' is used more than once.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(variable.SourcePath))
+            {
+                errorMessage = $"Variable '{name}' requires a source path.";
+                return false;
+            }
+
+            variables.Add(new CustomSignalVariableDefinition
+            {
+                Name = name,
+                SourcePath = variable.SourcePath.Trim()
+            });
+        }
+
+        return true;
+    }
+
+    private void UpdateFormulaValidation()
+    {
+        if (!IsComputed)
+        {
+            FormulaStatusMessage = string.Empty;
+            FormulaStatusBrush = SecondaryTextBrush;
+            RaisePropertyChanged(nameof(ShowFormulaStatus));
+            return;
+        }
+
+        if (!Enum.TryParse<CustomSignalDataType>(SelectedDataType, true, out var dataType))
+        {
+            FormulaStatusMessage = "Select a valid type.";
+            FormulaStatusBrush = "#B42318";
+            RaisePropertyChanged(nameof(ShowFormulaStatus));
+            return;
+        }
+
+        if (!TryBuildVariables(out var variables, out var variableError))
+        {
+            FormulaStatusMessage = variableError;
+            FormulaStatusBrush = "#B42318";
+            RaisePropertyChanged(nameof(ShowFormulaStatus));
+            return;
+        }
+
+        if (!Enum.TryParse<CustomSignalComputationTrigger>(SelectedTrigger, true, out var trigger))
+        {
+            trigger = CustomSignalComputationTrigger.OnSourceChange;
+        }
+
+        var previewDefinition = new CustomSignalDefinition
+        {
+            Name = string.IsNullOrWhiteSpace(Name) ? "Preview" : Name.Trim(),
+            Mode = CustomSignalMode.Computed,
+            DataType = dataType,
+            Formula = FormulaText.Trim(),
+            Trigger = trigger,
+            TriggerIntervalSeconds = int.TryParse(TriggerIntervalText, out var seconds) ? Math.Max(1, seconds) : 1,
+            Variables = variables
+        };
+
+        if (CustomSignalFormulaEngine.TryValidate(previewDefinition, out var errorMessage))
+        {
+            FormulaStatusMessage = "Formula looks valid.";
+            FormulaStatusBrush = "#027A48";
+        }
+        else
+        {
+            FormulaStatusMessage = errorMessage;
+            FormulaStatusBrush = "#B42318";
+        }
+
+        RaisePropertyChanged(nameof(ShowFormulaStatus));
+    }
+
+    private string GenerateNextVariableName()
+    {
+        for (var offset = 0; offset < 26; offset++)
+        {
+            var candidate = ((char)('A' + offset)).ToString();
+            if (Variables.All(variable => !string.Equals(variable.Name, candidate, StringComparison.OrdinalIgnoreCase)))
+            {
+                return candidate;
+            }
+        }
+
+        var suffix = 1;
+        while (true)
+        {
+            for (var offset = 0; offset < 26; offset++)
+            {
+                var candidate = $"{(char)('A' + offset)}{suffix}";
+                if (Variables.All(variable => !string.Equals(variable.Name, candidate, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return candidate;
+                }
+            }
+
+            suffix++;
+        }
+    }
+
+    private static bool IsValidVariableName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || !char.IsLetter(name[0]))
+        {
+            return false;
+        }
+
+        return name.All(character => char.IsLetterOrDigit(character) || character == '_');
+    }
+
+    private static IReadOnlyList<FormulaInsertButtonDefinition> CreateOperatorButtons()
+    {
+        return
+        [
+            new FormulaInsertButtonDefinition("+", " + ", tooltip: "Plus"),
+            new FormulaInsertButtonDefinition("−", " - ", tooltip: "Minus"),
+            new FormulaInsertButtonDefinition("×", " * ", tooltip: "Mal"),
+            new FormulaInsertButtonDefinition("÷", " / ", tooltip: "Geteilt"),
+            new FormulaInsertButtonDefinition("xʸ", " ^ ", tooltip: "Potenz"),
+            new FormulaInsertButtonDefinition("√x", "sqrt()", -1, "Wurzel"),
+            new FormulaInsertButtonDefinition("min", "min(, )", -3, "Minimum"),
+            new FormulaInsertButtonDefinition("max", "max(, )", -3, "Maximum"),
+            new FormulaInsertButtonDefinition("|x|", "abs()", -1, "Absolutwert"),
+            new FormulaInsertButtonDefinition("if", "if(, , )", -5, "Bedingung"),
+            new FormulaInsertButtonDefinition("∧", " && ", tooltip: "Und"),
+            new FormulaInsertButtonDefinition("∨", " || ", tooltip: "Oder"),
+            new FormulaInsertButtonDefinition("¬", "!", tooltip: "Nicht"),
+            new FormulaInsertButtonDefinition("=", " == ", tooltip: "Gleich"),
+            new FormulaInsertButtonDefinition("≠", " != ", tooltip: "Ungleich"),
+            new FormulaInsertButtonDefinition(">", " > ", tooltip: "Größer"),
+            new FormulaInsertButtonDefinition("<", " < ", tooltip: "Kleiner"),
+            new FormulaInsertButtonDefinition("(", "(", tooltip: "Klammer auf"),
+            new FormulaInsertButtonDefinition(")", ")", tooltip: "Klammer zu")
+        ];
+    }
+}
+
+public sealed class CustomSignalVariableEntryViewModel : ObservableObject
+{
+    private string _name;
+    private string _sourcePath;
+
+    public CustomSignalVariableEntryViewModel(string name, string sourcePath)
+    {
+        _name = name ?? string.Empty;
+        _sourcePath = sourcePath ?? string.Empty;
+    }
+
+    public string Name
+    {
+        get => _name;
+        set => SetProperty(ref _name, value ?? string.Empty);
+    }
+
+    public string SourcePath
+    {
+        get => _sourcePath;
+        set => SetProperty(ref _sourcePath, value ?? string.Empty);
+    }
+}
+
+public sealed class FormulaInsertButtonDefinition
+{
+    public FormulaInsertButtonDefinition(string label, string token, int caretBacktrack = 0, string? tooltip = null)
+    {
+        Label = label;
+        Token = token;
+        CaretBacktrack = caretBacktrack;
+        ToolTip = tooltip ?? label;
+    }
+
+    public string Label { get; }
+
+    public string Token { get; }
+
+    public int CaretBacktrack { get; }
+
+    public string ToolTip { get; }
 }

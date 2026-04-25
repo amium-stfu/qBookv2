@@ -4,8 +4,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Widgets"
   xmlns:editorUi="using:Amium.UiEditor.Controls"
+    BodyPadding="0"
     xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
   <controls:EditorButtonControl.BodyContent>
-    <controls:ButtonControl />
+    <controls:ButtonControl HorizontalAlignment="Stretch" />
   </controls:EditorButtonControl.BodyContent>
 </editorUi:EditorTemplateControl>

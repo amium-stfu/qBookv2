@@ -2,13 +2,15 @@
     x:Class="Amium.UiEditor.Widgets.ButtonControl"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:editorUi="using:Amium.UiEditor.Controls">
+    xmlns:editorUi="using:Amium.UiEditor.Controls"
+    HorizontalAlignment="Stretch">
     <Border
       x:Name="RootBorder"
       Margin="0,0,0,0"
       Padding="0"
       CornerRadius="8"
       BorderThickness="0"
+      HorizontalAlignment="Stretch"
       IsEnabled="{Binding Enabled}">
     <Border.Styles>
       <Style Selector="Border#RootBorder">

@@ -48,7 +48,7 @@ public partial class CachedFolderHostControl : UserControl
         }
 
         ReconcileFolderEditors();
-        EnsureSelectedFolderEditor();
+        EnsureFolderEditors();
         UpdateVisibleFolder();
     }
 
@@ -56,7 +56,7 @@ public partial class CachedFolderHostControl : UserControl
     {
         if (e.PropertyName == nameof(MainWindowViewModel.SelectedFolder))
         {
-            EnsureSelectedFolderEditor();
+            EnsureFolderEditors();
             UpdateVisibleFolder();
         }
     }
@@ -64,7 +64,7 @@ public partial class CachedFolderHostControl : UserControl
     private void OnFoldersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         ReconcileFolderEditors();
-        EnsureSelectedFolderEditor();
+        EnsureFolderEditors();
         UpdateVisibleFolder();
     }
 
@@ -88,27 +88,32 @@ public partial class CachedFolderHostControl : UserControl
         }
     }
 
-    private void EnsureSelectedFolderEditor()
+    private void EnsureFolderEditors()
     {
-        if (_viewModel?.SelectedFolder is not { } selectedFolder)
+        if (_viewModel is null)
         {
             return;
         }
 
-        if (_folderEditors.ContainsKey(selectedFolder))
+        foreach (var folder in _viewModel.Folders)
         {
-            return;
+            if (_folderEditors.ContainsKey(folder))
+            {
+                continue;
+            }
+
+            var editor = new FolderEditorWidget
+            {
+                DataContext = _viewModel,
+                Folder = folder,
+                IsVisible = true,
+                IsHitTestVisible = false,
+                Opacity = 0
+            };
+
+            _folderEditors[folder] = editor;
+            HostGrid.Children.Add(editor);
         }
-
-        var editor = new FolderEditorWidget
-        {
-            DataContext = _viewModel,
-            Folder = selectedFolder,
-            IsVisible = false
-        };
-
-        _folderEditors[selectedFolder] = editor;
-        HostGrid.Children.Add(editor);
     }
 
     private void UpdateVisibleFolder()
@@ -117,7 +122,9 @@ public partial class CachedFolderHostControl : UserControl
         foreach (var pair in _folderEditors)
         {
             var isActive = ReferenceEquals(pair.Key, selectedFolder);
-            pair.Value.IsVisible = isActive;
+            pair.Value.IsVisible = true;
+            pair.Value.IsHitTestVisible = isActive;
+            pair.Value.Opacity = isActive ? 1 : 0;
             pair.Value.ZIndex = isActive ? 1 : 0;
         }
     }

@@ -65,8 +65,23 @@ namespace Amium.Logging
         bool initDb = false;
 
         string connectionString = string.Empty;
+        private string _baseFilePath = string.Empty;
+        private string _baseFileNameWithoutExtension = string.Empty;
+        private string _baseFileExtension = ".db";
+        private string _currentFilePath = string.Empty;
+        private string _currentSegmentStamp = string.Empty;
+        private int _currentSplitIndex;
+        private DateTime _nextDailyRotationAt = DateTime.MaxValue;
+        private DateTime _lastCommitUtc = DateTime.MinValue;
+        private int _pendingCommitCount;
 
         public string Directory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "AmiumLogs");
+        public bool SplitDaily = false;
+        public string SplitDailyTime = "00:00:00";
+        public int SplitMaxFileSizeMb = 0;
+        public string PersistenceMode = "Balanced";
+        public int FlushIntervalMs = 0;
+        public int FlushBatchSize = 0;
 
         /// <summary>
         /// Gets or sets the path to the database file. If set to "default", a new file is created with a timestamp.
@@ -120,23 +135,33 @@ namespace Amium.Logging
         public bool Init()
         {
             initDb = true;
-            if (File == "default")
+            if (string.IsNullOrWhiteSpace(_baseFilePath))
             {
-                System.IO.Directory.CreateDirectory(Directory);
-                string dbFile = System.IO.Path.Combine(Directory, DateTime.Now.ToString("yyyy-MM-dd_HH.mm.ss") + "_" + Name + ".db");
-                SQLiteConnection.CreateFile(dbFile);
-                connectionString = $"Data Source={dbFile};Version=3;";
-            }
-            else
-            {
-                var directory = System.IO.Path.GetDirectoryName(File);
-                if (!string.IsNullOrWhiteSpace(directory))
+                if (File == "default")
                 {
-                    System.IO.Directory.CreateDirectory(directory);
+                    System.IO.Directory.CreateDirectory(Directory);
+                    _baseFilePath = System.IO.Path.Combine(Directory, DateTime.Now.ToString("yyyy-MM-dd_HH.mm.ss") + "_" + Name + ".db");
+                }
+                else
+                {
+                    _baseFilePath = File;
                 }
 
-                SQLiteConnection.CreateFile(File);
-                connectionString = $"Data Source={File};Version=3;";
+                _baseFileNameWithoutExtension = Path.GetFileNameWithoutExtension(_baseFilePath);
+                _baseFileExtension = Path.GetExtension(_baseFilePath);
+                if (string.IsNullOrWhiteSpace(_baseFileExtension))
+                {
+                    _baseFileExtension = ".db";
+                }
+
+                _nextDailyRotationAt = SplitDaily ? GetNextDailyRotationAt(DateTime.Now) : DateTime.MaxValue;
+                _lastCommitUtc = DateTime.UtcNow;
+                _pendingCommitCount = 0;
+            }
+
+            if (string.IsNullOrWhiteSpace(_currentFilePath))
+            {
+                RotateDatabaseFile(DateTime.Now, dueToDailyRotation: false, dueToSizeRotation: false);
             }
 
             string cmd = "";
@@ -218,6 +243,155 @@ namespace Amium.Logging
         public void Reset()
         {
             initDb = false;
+            _currentFilePath = string.Empty;
+        }
+
+        private bool IsRotationEnabled => SplitDaily || SplitMaxFileSizeMb > 0;
+
+        private bool IsSafePersistenceMode
+            => string.Equals(PersistenceMode, "Safe", StringComparison.OrdinalIgnoreCase);
+
+        private int GetEffectiveCommitIntervalMs()
+            => FlushIntervalMs > 0 ? FlushIntervalMs : (IsSafePersistenceMode ? 100 : 500);
+
+        private int GetEffectiveCommitBatchSize()
+            => FlushBatchSize > 0 ? FlushBatchSize : (IsSafePersistenceMode ? 10 : 50);
+
+        private bool ShouldCommitNow()
+        {
+            if (_pendingCommitCount <= 0)
+            {
+                return false;
+            }
+
+            if (_pendingCommitCount >= GetEffectiveCommitBatchSize())
+            {
+                return true;
+            }
+
+            return (DateTime.UtcNow - _lastCommitUtc).TotalMilliseconds >= GetEffectiveCommitIntervalMs();
+        }
+
+        private static void CommitAndRenewTransaction(ref SQLiteTransaction? transaction, SQLiteConnection database)
+        {
+            transaction?.Commit();
+            transaction?.Dispose();
+            transaction = database.BeginTransaction();
+        }
+
+        private TimeSpan GetConfiguredSplitTime()
+        {
+            if (TimeSpan.TryParseExact(SplitDailyTime, @"hh\:mm\:ss", CultureInfo.InvariantCulture, out var exactTime))
+            {
+                return exactTime;
+            }
+
+            if (TimeSpan.TryParse(SplitDailyTime, CultureInfo.InvariantCulture, out var parsedTime))
+            {
+                return parsedTime;
+            }
+
+            return TimeSpan.Zero;
+        }
+
+        private DateTime GetCurrentDailySegmentStart(DateTime now)
+        {
+            var splitTime = GetConfiguredSplitTime();
+            var todaySplit = now.Date.Add(splitTime);
+            return now >= todaySplit ? todaySplit : todaySplit.AddDays(-1);
+        }
+
+        private DateTime GetNextDailyRotationAt(DateTime now)
+        {
+            var splitTime = GetConfiguredSplitTime();
+            var todaySplit = now.Date.Add(splitTime);
+            return now >= todaySplit ? todaySplit.AddDays(1) : todaySplit;
+        }
+
+        private string GetSegmentStamp(DateTime now)
+            => SplitDaily
+                ? GetCurrentDailySegmentStart(now).ToString("yyyy-MM-dd_HHmmss", CultureInfo.InvariantCulture)
+                : now.ToString("yyyy-MM-dd_HHmmss", CultureInfo.InvariantCulture);
+
+        private string BuildFilePath(string segmentStamp, int splitIndex)
+        {
+            if (!IsRotationEnabled)
+            {
+                return _baseFilePath;
+            }
+
+            var suffix = splitIndex > 0
+                ? $"_{segmentStamp}_{splitIndex:000}"
+                : $"_{segmentStamp}";
+
+            return Path.Combine(Directory, $"{_baseFileNameWithoutExtension}{suffix}{_baseFileExtension}");
+        }
+
+        private void RotateDatabaseFile(DateTime now, bool dueToDailyRotation, bool dueToSizeRotation)
+        {
+            if (!IsRotationEnabled)
+            {
+                _currentFilePath = _baseFilePath;
+                _currentSegmentStamp = string.Empty;
+                _currentSplitIndex = 0;
+            }
+            else if (SplitDaily)
+            {
+                var nextSegmentStamp = GetSegmentStamp(now);
+                if (!string.Equals(_currentSegmentStamp, nextSegmentStamp, StringComparison.Ordinal))
+                {
+                    _currentSegmentStamp = nextSegmentStamp;
+                    _currentSplitIndex = 0;
+                }
+                else if (dueToSizeRotation)
+                {
+                    _currentSplitIndex++;
+                }
+
+                _currentFilePath = BuildFilePath(_currentSegmentStamp, _currentSplitIndex);
+                _nextDailyRotationAt = GetNextDailyRotationAt(now);
+            }
+            else
+            {
+                var nextSegmentStamp = GetSegmentStamp(now);
+                if (string.Equals(_currentSegmentStamp, nextSegmentStamp, StringComparison.Ordinal))
+                {
+                    _currentSplitIndex++;
+                }
+                else
+                {
+                    _currentSegmentStamp = nextSegmentStamp;
+                    _currentSplitIndex = 0;
+                }
+
+                _currentFilePath = BuildFilePath(_currentSegmentStamp, _currentSplitIndex);
+            }
+
+            var directory = Path.GetDirectoryName(_currentFilePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                System.IO.Directory.CreateDirectory(directory);
+            }
+
+            File = _currentFilePath;
+            SQLiteConnection.CreateFile(File);
+            connectionString = $"Data Source={File};Version=3;";
+            _pendingCommitCount = 0;
+            _lastCommitUtc = DateTime.UtcNow;
+        }
+
+        private bool ShouldRotateForDaily(DateTime now)
+            => SplitDaily && now >= _nextDailyRotationAt;
+
+        private bool ShouldRotateForSize()
+        {
+            if (SplitMaxFileSizeMb <= 0 || string.IsNullOrWhiteSpace(_currentFilePath) || !System.IO.File.Exists(_currentFilePath))
+            {
+                return false;
+            }
+
+            var maxBytes = (long)SplitMaxFileSizeMb * 1024L * 1024L;
+            return maxBytes > 0 && new FileInfo(_currentFilePath).Length >= maxBytes;
         }
         /// <summary>
         /// Starts the logging process by initiating background tasks for data collection and writing.
@@ -383,9 +557,11 @@ namespace Amium.Logging
 
             using (var database = new SQLiteConnection(connectionString))
             {
+                SQLiteTransaction? transaction = null;
                 try
                 {
                     database.Open();
+                    transaction = database.BeginTransaction();
                     while (!token.IsCancellationRequested || !Lines.IsEmpty)
                     {
                         while (Lines.TryDequeue(out var cmd))
@@ -395,25 +571,87 @@ namespace Amium.Logging
                                 continue;
                             }
 
+                            var now = DateTime.Now;
+                            if (ShouldRotateForDaily(now) || ShouldRotateForSize())
+                            {
+                                if (_pendingCommitCount > 0)
+                                {
+                                    transaction?.Commit();
+                                    transaction?.Dispose();
+                                    transaction = null;
+                                    _pendingCommitCount = 0;
+                                    _lastCommitUtc = DateTime.UtcNow;
+                                }
+
+                                database.Close();
+                                RotateDatabaseFile(now, ShouldRotateForDaily(now), ShouldRotateForSize());
+                                if (!Init())
+                                {
+                                    return;
+                                }
+
+                                database.ConnectionString = connectionString;
+                                database.Open();
+                                transaction = database.BeginTransaction();
+                            }
+
                             SQLiteCommand command = new SQLiteCommand(cmd, database);
+                            command.Transaction = transaction;
                             command.ExecuteNonQuery();
+                            _pendingCommitCount++;
+
+                            if (ShouldCommitNow())
+                            {
+                                CommitAndRenewTransaction(ref transaction, database);
+                                _pendingCommitCount = 0;
+                                _lastCommitUtc = DateTime.UtcNow;
+                            }
+                        }
+
+                        if (_pendingCommitCount > 0 && ShouldCommitNow())
+                        {
+                            CommitAndRenewTransaction(ref transaction, database);
+                            _pendingCommitCount = 0;
+                            _lastCommitUtc = DateTime.UtcNow;
                         }
 
                         if (!token.IsCancellationRequested)
                             await Task.Delay(50, token); // Adjust delay for batch writing
                     }
+
+                    if (_pendingCommitCount > 0)
+                    {
+                        transaction?.Commit();
+                        _pendingCommitCount = 0;
+                        _lastCommitUtc = DateTime.UtcNow;
+                    }
+
+                    transaction?.Dispose();
                     database.Close();
                 }
                 catch (TaskCanceledException)
                 {
+                    transaction?.Commit();
+                    transaction?.Dispose();
                     Debug.WriteLine($"{Name}.SqlLogger writing task canceled successfully.");
                 }
                 catch (Exception ex)
                 {
+                    try
+                    {
+                        transaction?.Rollback();
+                    }
+                    catch
+                    {
+                        // ignore rollback errors
+                    }
+
+                    transaction?.Dispose();
                     Debug.WriteLine($"{Name}.SqlLogger writing task encountered an error: {ex.Message}");
                 }
                 finally
                 {
+                    transaction?.Dispose();
                     database.Close();
                 }
             }

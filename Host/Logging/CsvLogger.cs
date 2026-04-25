@@ -51,11 +51,28 @@ namespace Amium.Logging
         private ATask? writingTask;
 
         private StreamWriter? myWriter;
+        private string _baseFilePath = string.Empty;
+        private string _baseFileNameWithoutExtension = string.Empty;
+        private string _baseFileExtension = ".csv";
+        private string _currentFilePath = string.Empty;
+        private string _currentSegmentStamp = string.Empty;
+        private int _currentSplitIndex;
+        private DateTime _nextDailyRotationAt = DateTime.MaxValue;
+        private long _currentFileSizeBytes;
+        private int _currentDataLineCount;
+        private DateTime _lastFlushUtc = DateTime.MinValue;
+        private int _pendingFlushLineCount;
 
         public string Filename = "default";
         public string Seperator = ";";
         public string DecimalSeperator = ".";
         public string Directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "AmiumLogs");
+        public bool SplitDaily = false;
+        public string SplitDailyTime = "00:00:00";
+        public int SplitMaxFileSizeMb = 0;
+        public string PersistenceMode = "Balanced";
+        public int FlushIntervalMs = 0;
+        public int FlushBatchSize = 0;
 
         public int Interval = 1000;
         public bool Running = false;
@@ -237,11 +254,66 @@ namespace Amium.Logging
 
             System.IO.Directory.CreateDirectory(Directory);
 
-            using var writer = new StreamWriter(Path.Combine(Directory, Filename), append: true, encoding: Encoding.UTF8);
+            _baseFilePath = Path.Combine(Directory, Filename);
+            _baseFileNameWithoutExtension = Path.GetFileNameWithoutExtension(_baseFilePath);
+            _baseFileExtension = Path.GetExtension(_baseFilePath);
+            if (string.IsNullOrWhiteSpace(_baseFileExtension))
+            {
+                _baseFileExtension = ".csv";
+            }
 
-            static string Quote(string value) => "\"" + (value?.Replace("\"", "\"\"") ?? string.Empty) + "\"";
+            _currentFilePath = string.Empty;
+            _currentSegmentStamp = string.Empty;
+            _currentSplitIndex = 0;
+            _currentFileSizeBytes = 0;
+            _currentDataLineCount = 0;
+            _pendingFlushLineCount = 0;
+            _lastFlushUtc = DateTime.UtcNow;
+            _nextDailyRotationAt = SplitDaily ? GetNextDailyRotationAt(DateTime.Now) : DateTime.MaxValue;
+        }
 
-            // Zeile 1: "datetime";"timeRel";{Signal.Name};{Signal.Name};..
+        private bool IsSafePersistenceMode
+            => string.Equals(PersistenceMode, "Safe", StringComparison.OrdinalIgnoreCase);
+
+        private int GetEffectiveFlushIntervalMs()
+            => FlushIntervalMs > 0 ? FlushIntervalMs : (IsSafePersistenceMode ? 100 : 500);
+
+        private int GetEffectiveFlushBatchSize()
+            => FlushBatchSize > 0 ? FlushBatchSize : (IsSafePersistenceMode ? 10 : 50);
+
+        private bool ShouldFlushNow()
+        {
+            if (_pendingFlushLineCount <= 0)
+            {
+                return false;
+            }
+
+            if (_pendingFlushLineCount >= GetEffectiveFlushBatchSize())
+            {
+                return true;
+            }
+
+            return (DateTime.UtcNow - _lastFlushUtc).TotalMilliseconds >= GetEffectiveFlushIntervalMs();
+        }
+
+        private async Task FlushWriterAsync()
+        {
+            if (myWriter is null)
+            {
+                return;
+            }
+
+            await myWriter.FlushAsync();
+            _pendingFlushLineCount = 0;
+            _lastFlushUtc = DateTime.UtcNow;
+        }
+
+        private bool IsRotationEnabled => SplitDaily || SplitMaxFileSizeMb > 0;
+
+        private static string Quote(string value) => "\"" + (value?.Replace("\"", "\"\"") ?? string.Empty) + "\"";
+
+        private IEnumerable<string> BuildHeaderLines()
+        {
             var headerNames = new StringBuilder();
             headerNames.Append(Quote("datetime")).Append(Seperator);
             headerNames.Append(Quote("timeRel"));
@@ -249,9 +321,9 @@ namespace Amium.Logging
             {
                 headerNames.Append(Seperator).Append(Quote(obj.Name));
             }
-            writer.WriteLine(headerNames.ToString());
 
-            // Zeile 2: "DateTime";"Time relativ";{Signal.Header.Caption};{Signal.Header.Caption};..
+            yield return headerNames.ToString();
+
             var headerCaptions = new StringBuilder();
             headerCaptions.Append(Quote("DateTime")).Append(Seperator);
             headerCaptions.Append(Quote("Time relativ"));
@@ -260,9 +332,9 @@ namespace Amium.Logging
                 var caption = string.IsNullOrWhiteSpace(obj.Caption) ? obj.Name : obj.Caption;
                 headerCaptions.Append(Seperator).Append(Quote(caption));
             }
-            writer.WriteLine(headerCaptions.ToString());
 
-            // Zeile 3: "";"s";{Signal.Unit};{Signal.Unit};..
+            yield return headerCaptions.ToString();
+
             var headerUnits = new StringBuilder();
             headerUnits.Append(Quote(string.Empty)).Append(Seperator);
             headerUnits.Append(Quote("s"));
@@ -270,8 +342,162 @@ namespace Amium.Logging
             {
                 headerUnits.Append(Seperator).Append(Quote(obj.Unit));
             }
-            writer.WriteLine(headerUnits.ToString());
+
+            yield return headerUnits.ToString();
         }
+
+        private TimeSpan GetConfiguredSplitTime()
+        {
+            if (TimeSpan.TryParseExact(SplitDailyTime, @"hh\:mm\:ss", CultureInfo.InvariantCulture, out var exactTime))
+            {
+                return exactTime;
+            }
+
+            if (TimeSpan.TryParse(SplitDailyTime, CultureInfo.InvariantCulture, out var parsedTime))
+            {
+                return parsedTime;
+            }
+
+            return TimeSpan.Zero;
+        }
+
+        private DateTime GetCurrentDailySegmentStart(DateTime now)
+        {
+            var splitTime = GetConfiguredSplitTime();
+            var todaySplit = now.Date.Add(splitTime);
+            return now >= todaySplit ? todaySplit : todaySplit.AddDays(-1);
+        }
+
+        private DateTime GetNextDailyRotationAt(DateTime now)
+        {
+            var splitTime = GetConfiguredSplitTime();
+            var todaySplit = now.Date.Add(splitTime);
+            return now >= todaySplit ? todaySplit.AddDays(1) : todaySplit;
+        }
+
+        private string GetSegmentStamp(DateTime now, bool dueToDailyRotation)
+        {
+            if (SplitDaily)
+            {
+                var segmentStart = dueToDailyRotation ? GetCurrentDailySegmentStart(now) : GetCurrentDailySegmentStart(now);
+                return segmentStart.ToString("yyyy-MM-dd_HHmmss", CultureInfo.InvariantCulture);
+            }
+
+            return now.ToString("yyyy-MM-dd_HHmmss", CultureInfo.InvariantCulture);
+        }
+
+        private string BuildFilePath(string segmentStamp, int splitIndex)
+        {
+            if (!IsRotationEnabled)
+            {
+                return _baseFilePath;
+            }
+
+            var suffix = splitIndex > 0
+                ? $"_{segmentStamp}_{splitIndex:000}"
+                : $"_{segmentStamp}";
+
+            return Path.Combine(Directory, $"{_baseFileNameWithoutExtension}{suffix}{_baseFileExtension}");
+        }
+
+        private void OpenWriter(DateTime now, bool dueToDailyRotation, bool dueToSizeRotation)
+        {
+            if (!string.IsNullOrWhiteSpace(_currentFilePath))
+            {
+                try
+                {
+                    myWriter?.Flush();
+                    myWriter?.Close();
+                }
+                catch
+                {
+                    // ignore rotation close errors
+                }
+            }
+
+            if (!IsRotationEnabled)
+            {
+                _currentFilePath = _baseFilePath;
+                _currentSegmentStamp = string.Empty;
+                _currentSplitIndex = 0;
+            }
+            else if (SplitDaily)
+            {
+                var nextSegmentStamp = GetSegmentStamp(now, dueToDailyRotation);
+                if (!string.Equals(_currentSegmentStamp, nextSegmentStamp, StringComparison.Ordinal))
+                {
+                    _currentSegmentStamp = nextSegmentStamp;
+                    _currentSplitIndex = 0;
+                }
+                else if (dueToSizeRotation)
+                {
+                    _currentSplitIndex++;
+                }
+
+                _currentFilePath = BuildFilePath(_currentSegmentStamp, _currentSplitIndex);
+                _nextDailyRotationAt = GetNextDailyRotationAt(now);
+            }
+            else
+            {
+                var nextSegmentStamp = GetSegmentStamp(now, dueToDailyRotation: false);
+                if (string.Equals(_currentSegmentStamp, nextSegmentStamp, StringComparison.Ordinal))
+                {
+                    _currentSplitIndex++;
+                }
+                else
+                {
+                    _currentSegmentStamp = nextSegmentStamp;
+                    _currentSplitIndex = 0;
+                }
+
+                _currentFilePath = BuildFilePath(_currentSegmentStamp, _currentSplitIndex);
+            }
+
+            System.IO.Directory.CreateDirectory(Path.GetDirectoryName(_currentFilePath) ?? Directory);
+            var fileExists = System.IO.File.Exists(_currentFilePath);
+            var fileLength = fileExists ? new FileInfo(_currentFilePath).Length : 0;
+
+            myWriter = new StreamWriter(_currentFilePath, append: true, encoding: Encoding.UTF8);
+            if (fileLength == 0)
+            {
+                foreach (var line in BuildHeaderLines())
+                {
+                    myWriter.WriteLine(line);
+                }
+
+                myWriter.Flush();
+                _currentDataLineCount = 0;
+                _pendingFlushLineCount = 0;
+                _lastFlushUtc = DateTime.UtcNow;
+            }
+            else
+            {
+                _currentDataLineCount = 1;
+            }
+
+            _currentFileSizeBytes = new FileInfo(_currentFilePath).Length;
+        }
+
+        private bool ShouldRotateForDaily(DateTime now)
+            => SplitDaily && now >= _nextDailyRotationAt;
+
+        private bool ShouldRotateForSize(string nextLine)
+        {
+            if (SplitMaxFileSizeMb <= 0 || _currentDataLineCount <= 0)
+            {
+                return false;
+            }
+
+            var maxBytes = (long)SplitMaxFileSizeMb * 1024L * 1024L;
+            if (maxBytes <= 0)
+            {
+                return false;
+            }
+
+            var nextLineBytes = Encoding.UTF8.GetByteCount(nextLine + Environment.NewLine);
+            return _currentFileSizeBytes + nextLineBytes > maxBytes;
+        }
+
         public void OpenFolder()
         {
             System.Diagnostics.Process.Start("explorer.exe", Directory);
@@ -397,8 +623,7 @@ namespace Amium.Logging
 
         private async Task WriteLogsToFile(System.Threading.CancellationToken token)
         {
-            System.IO.Directory.CreateDirectory(Directory);
-            myWriter = new StreamWriter(Path.Combine(Directory, Filename), append: true, encoding: Encoding.UTF8);
+            OpenWriter(DateTime.Now, dueToDailyRotation: false, dueToSizeRotation: false);
 
             try
             {
@@ -413,9 +638,30 @@ namespace Amium.Logging
                                 continue;
                             }
 
+                            var now = DateTime.Now;
+                            if (ShouldRotateForDaily(now))
+                            {
+                                OpenWriter(now, dueToDailyRotation: true, dueToSizeRotation: false);
+                            }
+                            else if (ShouldRotateForSize(result))
+                            {
+                                OpenWriter(now, dueToDailyRotation: false, dueToSizeRotation: true);
+                            }
+
                             await myWriter.WriteLineAsync(result);
+                            _currentFileSizeBytes += Encoding.UTF8.GetByteCount(result + Environment.NewLine);
+                            _currentDataLineCount++;
+                            _pendingFlushLineCount++;
+
+                            if (ShouldFlushNow())
+                            {
+                                await FlushWriterAsync();
+                            }
                         }
-                        await myWriter.FlushAsync();
+                        if (_pendingFlushLineCount > 0)
+                        {
+                            await FlushWriterAsync();
+                        }
                     }
                     await Task.Delay(50, token); // Adjust delay for batch writing
                 }
@@ -430,9 +676,12 @@ namespace Amium.Logging
                     }
 
                     await myWriter.WriteLineAsync(result);
+                    _currentFileSizeBytes += Encoding.UTF8.GetByteCount(result + Environment.NewLine);
+                    _currentDataLineCount++;
+                    _pendingFlushLineCount++;
                 }
 
-                await myWriter.FlushAsync();
+                await FlushWriterAsync();
                 myWriter.Close();
             }
         }

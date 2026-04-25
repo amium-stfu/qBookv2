@@ -53,7 +53,9 @@ public partial class RealtimeChartControl : EditorTemplateWidget
     private Border? _crosshairVerticalLine;
     private Border? _crosshairHorizontalLine;
     private Border? _crosshairInfoBorder;
+    private Border? _emptyStateBorder;
     private TextBlock? _crosshairInfoTextBlock;
+    private TextBlock? _emptyStateTextBlock;
     private IYAxis? _yAxis2;
     private IYAxis? _yAxis3;
     private IYAxis? _yAxis4;
@@ -94,6 +96,8 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         _crosshairHorizontalLine = this.FindControl<Border>("CrosshairHorizontalLine");
         _crosshairInfoBorder = this.FindControl<Border>("CrosshairInfoBorder");
         _crosshairInfoTextBlock = this.FindControl<TextBlock>("CrosshairInfoTextBlock");
+        _emptyStateBorder = this.FindControl<Border>("EmptyStateBorder");
+        _emptyStateTextBlock = this.FindControl<TextBlock>("EmptyStateTextBlock");
 
         ConfigurePlot();
         HookChartItem(DataContext as FolderItemModel);
@@ -115,6 +119,8 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         _crosshairHorizontalLine = null;
         _crosshairInfoBorder = null;
         _crosshairInfoTextBlock = null;
+        _emptyStateBorder = null;
+        _emptyStateTextBlock = null;
         _yAxis2 = null;
         _yAxis3 = null;
         _yAxis4 = null;
@@ -403,6 +409,8 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         }
 
         var seriesSnapshots = _chartState?.GetSeriesSnapshots() ?? [];
+        var hasSeries = seriesSnapshots.Count > 0;
+        var hasData = false;
         var activeAxisIndexes = seriesSnapshots
             .Where(snapshot => snapshot.Points.Length > 0)
             .Select(snapshot => snapshot.Configuration.AxisIndex)
@@ -419,7 +427,6 @@ public partial class RealtimeChartControl : EditorTemplateWidget
 
             var axisMap = CreateAxisMap(plot, activeAxisIndexes);
             var now = DateTime.Now;
-            var hasData = false;
 
             for (var i = 0; i < seriesSnapshots.Count; i++)
             {
@@ -463,7 +470,28 @@ public partial class RealtimeChartControl : EditorTemplateWidget
         }
 
         _avaPlot.Refresh();
+        UpdateEmptyStateIndicator(hasSeries: hasSeries, hasData: hasData);
         UpdateStatusText();
+    }
+
+    private void UpdateEmptyStateIndicator(bool hasSeries, bool hasData)
+    {
+        if (_emptyStateBorder is null || _emptyStateTextBlock is null)
+        {
+            return;
+        }
+
+        if (hasData)
+        {
+            _emptyStateBorder.IsVisible = false;
+            _emptyStateTextBlock.Text = string.Empty;
+            return;
+        }
+
+        _emptyStateTextBlock.Text = hasSeries
+            ? "No data available"
+            : "No series configured";
+        _emptyStateBorder.IsVisible = true;
     }
 
     private Dictionary<int, IYAxis> CreateAxisMap(Plot plot, IReadOnlyCollection<int> activeAxisIndexes)

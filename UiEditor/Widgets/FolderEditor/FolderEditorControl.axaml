@@ -159,35 +159,6 @@
           <Canvas>
             <Border IsVisible="{Binding SelectionState.IsSelecting}" Canvas.Left="{Binding SelectionState.X}" Canvas.Top="{Binding SelectionState.Y}" Width="{Binding SelectionState.Width}" Height="{Binding SelectionState.Height}" Background="#33F5A300" BorderBrush="#F5A300" BorderThickness="2" IsHitTestVisible="False" />
 
-            <Border IsVisible="{Binding SelectionState.ShowPicker}" Canvas.Left="{Binding SelectionState.PopupX}" Canvas.Top="{Binding SelectionState.PopupY}" Width="180" Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}" BorderThickness="1" CornerRadius="10" BoxShadow="0 8 24 0 #22000000">
-              <StackPanel Margin="10" Spacing="8">
-                <TextBlock FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Select Widgettype" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddButtonClicked" Content="Button" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddSignalClicked" Content="Signal" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddListControlClicked" Content="SignalList" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddTableControlClicked" Content="WidgetTabe" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddCircleDisplayClicked" Content="CircleDisplay" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddLogControlClicked" Content="Log" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddCsvLoggerControlClicked" Content="CsvLogger" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddSqlLoggerControlClicked" Content="SqlLogger" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddChartControlClicked" Content="RealtimeChart" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddCameraControlClicked" Content="Camera" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddUdlClientControlClicked" Content="UdlClient" IsVisible="{Binding SupportsUdlClientControl}" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddApplicationExplorerClicked" Content="ApplicationExplorer" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddCustomSignalsClicked" Content="CustomSignals" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddEnhancedSignalsClicked" Content="EnhancedSignals" />
-                <Button HorizontalAlignment="Stretch" Click="OnCancelSelectionClicked" Content="Cancel" />
-              </StackPanel>
-            </Border>
-
-            <Border IsVisible="{Binding SelectionState.ShowListPicker}" Canvas.Left="{Binding SelectionState.ListPopupX}" Canvas.Top="{Binding SelectionState.ListPopupY}" Width="180" Background="{Binding CardBackground}" BorderBrush="#60A5FA" BorderThickness="1" CornerRadius="10" BoxShadow="0 8 24 0 #22000000">
-              <StackPanel Margin="10" Spacing="8">
-                <TextBlock FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Insert into List" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddButtonToListClicked" Content="Button" />
-                <Button Classes="toolbar" HorizontalAlignment="Stretch" Click="OnBeginAddSignalToListClicked" Content="Signal" />
-                <Button HorizontalAlignment="Stretch" Click="OnCancelListSelectionClicked" Content="Cancel" />
-              </StackPanel>
-            </Border>
           </Canvas>
           </Grid>
         </ScrollViewer>

@@ -405,7 +405,7 @@ public partial class EditorPropertyDialog : UserControl
             ]
         });
 
-        var selectedPath = result.FirstOrDefault()?.Path.LocalPath;
+        var selectedPath = TryGetStoragePath(result.FirstOrDefault());
         if (!string.IsNullOrWhiteSpace(selectedPath))
         {
             var targetPath = ViewModel?.GetPythonScriptTargetPath(field, Path.GetExtension(selectedPath));
@@ -545,13 +545,34 @@ public partial class EditorPropertyDialog : UserControl
             SuggestedStartLocation = startFolder
         });
 
-        var selectedPath = result.FirstOrDefault()?.Path.LocalPath;
+        var selectedPath = TryGetStoragePath(result.FirstOrDefault());
         if (!string.IsNullOrWhiteSpace(selectedPath))
         {
             field.Value = selectedPath;
         }
 
         e.Handled = true;
+    }
+
+    private static string? TryGetStoragePath(IStorageItem? item)
+    {
+        if (item?.TryGetLocalPath() is { } localPath && !string.IsNullOrWhiteSpace(localPath))
+        {
+            return localPath;
+        }
+
+        var path = item?.Path;
+        if (path is null)
+        {
+            return null;
+        }
+
+        if (path.IsAbsoluteUri)
+        {
+            return path.LocalPath;
+        }
+
+        return Uri.UnescapeDataString(path.OriginalString);
     }
 
     private void OnConfirmClicked(object? sender, RoutedEventArgs e)

@@ -199,6 +199,18 @@ public sealed class FolderItemDocument
 
     public string CsvSignalPaths { get; init; } = string.Empty;
 
+    public bool CsvSplitDaily { get; init; }
+
+    public string CsvSplitDailyTime { get; init; } = "00:00:00";
+
+    public int CsvSplitMaxFileSizeMb { get; init; }
+
+    public string CsvPersistenceMode { get; init; } = "Balanced";
+
+    public int CsvFlushIntervalMs { get; init; }
+
+    public int CsvFlushBatchSize { get; init; }
+
     public string CameraName { get; init; } = string.Empty;
 
     public string CameraResolution { get; init; } = string.Empty;

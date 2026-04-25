@@ -204,12 +204,18 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         get => _newTargetPath;
         set
         {
-            if (_newTargetPath == (value ?? string.Empty))
+            var normalized = value ?? string.Empty;
+            if (!IsNewPythonFunctionAction && string.IsNullOrWhiteSpace(normalized))
+            {
+                normalized = "this";
+            }
+
+            if (_newTargetPath == normalized)
             {
                 return;
             }
 
-            _newTargetPath = value ?? string.Empty;
+            _newTargetPath = normalized;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewTargetPath)));
             RefreshNewEntryFunctionOptions();
         }
@@ -277,7 +283,10 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
 
     private async void OnBrowseNewTargetClicked(object? sender, RoutedEventArgs e)
     {
-        var selectedTarget = await SelectTargetAsync(TargetOptions, NewTargetPath);
+        var currentTarget = string.IsNullOrWhiteSpace(NewTargetPath) && IsNewStandardAction
+            ? "this"
+            : NewTargetPath;
+        var selectedTarget = await SelectTargetAsync(TargetOptions, currentTarget);
         if (!string.IsNullOrWhiteSpace(selectedTarget))
         {
             NewTargetPath = selectedTarget;

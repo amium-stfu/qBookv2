@@ -7,7 +7,9 @@
     xmlns:models="using:Amium.UiEditor.Models">
 
   <controls:EditorTableControl.BodyContent>
-    <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" x:Name="TableRoot">
+    <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" x:Name="TableRoot"
+          PointerMoved="OnSelectionPointerMoved"
+          PointerReleased="OnSelectionPointerReleased">
     <!-- Inhaltliche SignalWidgets: im View-Mode interaktiv, im EditMode deaktiviert, damit die Zellselektion greift. -->
       <Grid x:Name="ItemContentGrid"
       IsHitTestVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}, Converter={StaticResource BoolNegationConverter}}" />
@@ -30,16 +32,8 @@
                   CornerRadius="2"
                   BorderBrush="#334155"
                     Background="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#1E3A8A}"
-                    PointerPressed="OnCellPointerPressed"
-                    PointerReleased="OnCellPointerReleased"
-                    PointerEntered="OnCellPointerEnter">
+                    PointerPressed="OnCellPointerPressed">
               <Grid>
-                <TextBlock HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           FontSize="10"
-                           Opacity="0.6"
-                           Text="{Binding Label}" />
-
                 <!-- Plus-Button nur in der zuletzt gewaelten Zelle, gross in der Mitte.
                      Linksklick oeffnet eine Typauswahl (Whitelist von Control-Typen). -->
                 <Button Content="+"
@@ -56,7 +50,6 @@
                       <MenuItem Header="Button" Click="OnAddButtonMenuClicked" />
                       <MenuItem Header="Realtime Chart" Click="OnAddChartMenuClicked" />
                       <MenuItem Header="Log" Click="OnAddLogMenuClicked" />
-                      <MenuItem Header="UDL Client" Click="OnAddUdlClientMenuClicked" />
                     </ContextMenu>
                   </Button.ContextMenu>
                 </Button>

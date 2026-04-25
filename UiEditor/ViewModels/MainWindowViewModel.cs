@@ -76,6 +76,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         None,
         AddCanvas,
         AddList,
+        AddTableLayout,
         Edit
     }
 
@@ -616,7 +617,6 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         SelectionState.Width = 0;
         SelectionState.Height = 0;
         SelectionState.IsSelecting = true;
-        SelectionState.ShowPicker = false;
         CancelEditorDialog();
     }
 
@@ -630,7 +630,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         SelectionState.Height = Math.Abs(y - anchorY);
     }
 
-    public void FinishSelection(double x, double y, bool addToSelection)
+    public bool FinishSelection(double x, double y, bool addToSelection)
     {
         UpdateSelection(x, y);
 
@@ -641,7 +641,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             {
                 ClearItemSelection();
             }
-            return;
+            return false;
         }
 
         SelectionState.IsSelecting = false;
@@ -661,26 +661,23 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 SetSelectedItems(selectedItems, selectedItems.Last());
             }
 
-            SelectionState.ShowPicker = false;
             StatusText = _selectedItems.Count == 1 ? $"{_selectedItems[0].Title} ausgewaehlt" : $"{_selectedItems.Count} Widgets ausgewaehlt";
-            return;
+            return false;
         }
 
         if (addToSelection)
         {
             CancelSelection();
-            return;
+            return false;
         }
 
         ClearItemSelection();
-        SelectionState.PopupX = Math.Max(8, SelectionState.X + 12);
-        SelectionState.PopupY = Math.Max(8, SelectionState.Y + 12);
-        SelectionState.ShowPicker = true;
+        return true;
     }
 
     public void BeginSelectionAdd(ControlKind kind)
     {
-        if (!SelectionState.ShowPicker)
+        if (SelectionState.Width < 24 || SelectionState.Height < 24)
         {
             return;
         }
@@ -691,16 +688,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         draft.SetLayoutFilePath(SelectedFolder.UiFilePath);
         draft.SetHierarchy(SelectedFolder.Name, null);
 
-        OpenEditorDialog(EditorDialogMode.AddCanvas, draft, null, SelectionState.PopupX + 16, SelectionState.PopupY + 16, $"Create {kind}");
-        SelectionState.ShowPicker = false;
+        OpenEditorDialog(EditorDialogMode.AddCanvas, draft, null, SelectionState.X + 24, SelectionState.Y + 24, $"Create {kind}");
     }
 
     public void OpenListPopup(FolderItemModel listControl, double x, double y)
     {
         _listPopupTarget = listControl;
-        SelectionState.ListPopupX = x;
-        SelectionState.ListPopupY = y;
-        SelectionState.ShowListPicker = true;
     }
 
     public void BeginListAdd(ControlKind kind)
@@ -715,7 +708,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         draft.Id = Guid.NewGuid().ToString("N");
         draft.SetHierarchy(SelectedFolder.Name, _listPopupTarget);
 
-        OpenEditorDialog(EditorDialogMode.AddList, draft, _listPopupTarget, SelectionState.ListPopupX + 16, SelectionState.ListPopupY + 16, $"Create {kind}");
+        OpenEditorDialog(EditorDialogMode.AddList, draft, _listPopupTarget, EditorDialogX + 16, EditorDialogY + 16, $"Create {kind}");
         CancelListPopup();
     }
 
@@ -795,7 +788,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         // Keine verschachtelten Container-Controls im Table zulassen.
-        if (kind == ControlKind.TableControl || kind == ControlKind.CircleDisplay || kind == ControlKind.ListControl)
+        if (kind == ControlKind.TableControl || kind == ControlKind.CircleDisplay || kind == ControlKind.ListControl || kind == ControlKind.UdlClientControl)
         {
             return;
         }
@@ -819,28 +812,21 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var draft = CreateItem(kind, 0, 0, table.ChildContentWidth, draftHeight);
         draft.Name = GetSuggestedControlName(kind, SelectedFolder, table, null);
         draft.Id = Guid.NewGuid().ToString("N");
+        draft.SetLayoutFilePath(SelectedFolder.UiFilePath);
         draft.TableCellRow = minRow;
         draft.TableCellColumn = minColumn;
         draft.TableCellRowSpan = rowSpan;
         draft.TableCellColumnSpan = columnSpan;
         draft.SetHierarchy(SelectedFolder.Name, table);
-
-        table.Items.Add(draft);
-        table.UpdateTableCellContentFromChildren();
-
-        // Neues Control im Editor sichtbar machen: selektieren und Status aktualisieren.
-        SelectItem(draft);
-        StatusText = $"Control '{draft.Name}' ({kind}) in {(table.IsCircleDisplay ? "CircleDisplay" : "Table")} '{table.Name}' hinzugefuegt ({minRow},{minColumn}..{maxRow},{maxColumn})";
-
-        // Theme-Regeln auch fuer neu hinzugefuegte Table-Widgets sofort anwenden.
         draft.ApplyTheme(IsDarkTheme);
 
-        // Nach dem Hinzufuegen die bisherige Zellselektion vollstaendig zuruecksetzen.
-        foreach (var cell in table.TableCellSlots)
-        {
-            cell.IsSelected = false;
-            cell.IsLastSelected = false;
-        }
+        OpenEditorDialog(
+            EditorDialogMode.AddTableLayout,
+            draft,
+            table,
+            EditorDialogX + 16,
+            EditorDialogY + 16,
+            $"Create {kind}");
     }
 
     public void SelectTableRectangle(FolderItemModel table, int startRow, int startColumn, int endRow, int endColumn)
@@ -855,17 +841,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var minColumn = Math.Min(startColumn, endColumn);
         var maxColumn = Math.Max(startColumn, endColumn);
 
-        // Keine Auswahl-Rechtecke zulassen, die belegte Zellen enthalten.
-        for (var row = minRow; row <= maxRow; row++)
+        if (!CanOccupyTableRectangle(table, minRow, minColumn, maxRow - minRow + 1, maxColumn - minColumn + 1, null))
         {
-            for (var col = minColumn; col <= maxColumn; col++)
-            {
-                var slot = table.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == col);
-                if (slot is null || !slot.IsVisibleInLayout || slot.ChildItem is not null)
-                {
-                    return;
-                }
-            }
+            return;
         }
 
         foreach (var cell in table.TableCellSlots)
@@ -876,6 +854,88 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         UpdateLastSelectedTableCell(table, endRow, endColumn);
+    }
+
+    public bool CanOccupyTableRectangle(FolderItemModel table, int startRow, int startColumn, int rowSpan, int columnSpan, FolderItemModel? excludeItem)
+    {
+        if (table is null || !table.UsesTableLayout)
+        {
+            return false;
+        }
+
+        if (rowSpan < 1 || columnSpan < 1)
+        {
+            return false;
+        }
+
+        var maxRow = startRow + rowSpan - 1;
+        var maxColumn = startColumn + columnSpan - 1;
+        if (startRow < 1 || startColumn < 1 || maxRow > table.TableRows || maxColumn > table.TableColumns)
+        {
+            return false;
+        }
+
+        for (var row = startRow; row <= maxRow; row++)
+        {
+            for (var column = startColumn; column <= maxColumn; column++)
+            {
+                var slot = table.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == column);
+                if (slot is null || !slot.IsVisibleInLayout)
+                {
+                    return false;
+                }
+
+                if (table.IsCircleDisplay && !table.IsCircleCellVisible(row, column))
+                {
+                    return false;
+                }
+
+                if (slot.ChildItem is not null && !ReferenceEquals(slot.ChildItem, excludeItem))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    public bool TryMoveTableChild(FolderItemModel table, FolderItemModel child, int targetRow, int targetColumn)
+    {
+        if (table is null || child is null || !table.UsesTableLayout || !table.Items.Contains(child))
+        {
+            return false;
+        }
+
+        if (!CanOccupyTableRectangle(table, targetRow, targetColumn, child.TableCellRowSpan, child.TableCellColumnSpan, child))
+        {
+            return false;
+        }
+
+        child.TableCellRow = targetRow;
+        child.TableCellColumn = targetColumn;
+        table.UpdateTableCellContentFromChildren();
+        SelectItem(child);
+        return true;
+    }
+
+    public bool TryResizeTableChild(FolderItemModel table, FolderItemModel child, int rowSpan, int columnSpan)
+    {
+        if (table is null || child is null || !table.UsesTableLayout || !table.Items.Contains(child))
+        {
+            return false;
+        }
+
+        if (!CanOccupyTableRectangle(table, child.TableCellRow, child.TableCellColumn, rowSpan, columnSpan, child))
+        {
+            return false;
+        }
+
+        child.TableCellRowSpan = rowSpan;
+        child.TableCellColumnSpan = columnSpan;
+        table.UpdateTableCellContentFromChildren();
+        SelectItem(child);
+        return true;
     }
 
     private static bool IsContiguousRectangle(FolderItemModel table)
@@ -1128,6 +1188,22 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     StatusText = $"{_editorDialogItem.Kind} '{_editorDialogItem.Name}' added to {_editorDialogParentItem.Name}";
                 }
                 break;
+            case EditorDialogMode.AddTableLayout:
+                if (_editorDialogParentItem is not null)
+                {
+                    _editorDialogItem.SetHierarchy(SelectedFolder.Name, _editorDialogParentItem);
+                    _editorDialogParentItem.Items.Add(_editorDialogItem);
+                    _editorDialogParentItem.UpdateTableCellContentFromChildren();
+                    SelectItem(_editorDialogItem);
+                    StatusText = $"Control '{_editorDialogItem.Name}' ({_editorDialogItem.Kind}) in {(_editorDialogParentItem.IsCircleDisplay ? "CircleDisplay" : "Table")} '{_editorDialogParentItem.Name}' hinzugefuegt ({_editorDialogItem.TableCellRow},{_editorDialogItem.TableCellColumn}..{_editorDialogItem.TableCellRow + _editorDialogItem.TableCellRowSpan - 1},{_editorDialogItem.TableCellColumn + _editorDialogItem.TableCellColumnSpan - 1})";
+
+                    foreach (var cell in _editorDialogParentItem.TableCellSlots)
+                    {
+                        cell.IsSelected = false;
+                        cell.IsLastSelected = false;
+                    }
+                }
+                break;
             case EditorDialogMode.Edit:
                 StatusText = $"Control saved: {_editorDialogItem.Path}";
                 break;
@@ -1135,7 +1211,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         if (!closeAfterSave)
         {
-            if (_editorDialogMode is EditorDialogMode.AddCanvas or EditorDialogMode.AddList)
+            if (_editorDialogMode is EditorDialogMode.AddCanvas or EditorDialogMode.AddList or EditorDialogMode.AddTableLayout)
             {
                 _editorDialogMode = EditorDialogMode.Edit;
                 EditorDialogTitle = $"Edit {_editorDialogItem.Name}";
@@ -1227,13 +1303,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     public void CancelListPopup()
     {
         _listPopupTarget = null;
-        SelectionState.ShowListPicker = false;
     }
 
     public void CancelSelection()
     {
         SelectionState.IsSelecting = false;
-        SelectionState.ShowPicker = false;
         SelectionState.Width = 0;
         SelectionState.Height = 0;
         CancelListPopup();
@@ -1593,6 +1667,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["UdlClientDemoEnabled"] = item.UdlClientDemoEnabled;
         nodeObject["UdlAttachedItemPaths"] = item.UdlAttachedItemPaths;
         nodeObject["UdlDemoModuleDefinitions"] = item.UdlDemoModuleDefinitions;
+        nodeObject["CsvSplitDaily"] = item.CsvSplitDaily;
+        nodeObject["CsvSplitDailyTime"] = item.CsvSplitDailyTime;
+        nodeObject["CsvSplitMaxFileSizeMb"] = item.CsvSplitMaxFileSizeMb;
+        nodeObject["CsvPersistenceMode"] = item.CsvPersistenceMode;
+        nodeObject["CsvFlushIntervalMs"] = item.CsvFlushIntervalMs;
+        nodeObject["CsvFlushBatchSize"] = item.CsvFlushBatchSize;
         nodeObject["IsReadOnly"] = item.IsReadOnly;
         nodeObject["IsAutoHeight"] = item.IsAutoHeight;
         nodeObject["ListItemHeight"] = item.ListItemHeight;
@@ -1782,6 +1862,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 control["CsvAddTimestamp"] = item.CsvAddTimestamp;
                 control["CsvIntervalMs"] = item.CsvIntervalMs;
                 control["CsvSignalPaths"] = item.CsvSignalPaths;
+                control["CsvSplitDaily"] = item.CsvSplitDaily;
+                control["CsvSplitDailyTime"] = item.CsvSplitDailyTime;
+                control["CsvSplitMaxFileSizeMb"] = item.CsvSplitMaxFileSizeMb;
+                control["CsvPersistenceMode"] = item.CsvPersistenceMode;
+                control["CsvFlushIntervalMs"] = item.CsvFlushIntervalMs;
+                control["CsvFlushBatchSize"] = item.CsvFlushBatchSize;
                 break;
             case ControlKind.CameraControl:
                 control["CsvDirectory"] = item.CsvDirectory;
@@ -1981,6 +2067,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.CsvAddTimestamp = GetBoolProperty(properties, "CsvAddTimestamp") ?? item.CsvAddTimestamp;
         item.CsvIntervalMs = GetIntProperty(properties, "CsvIntervalMs") ?? item.CsvIntervalMs;
         item.CsvSignalPaths = GetStringProperty(properties, "CsvSignalPaths") ?? item.CsvSignalPaths;
+        item.CsvSplitDaily = GetBoolProperty(properties, "CsvSplitDaily") ?? item.CsvSplitDaily;
+        item.CsvSplitDailyTime = GetStringProperty(properties, "CsvSplitDailyTime") ?? item.CsvSplitDailyTime;
+        item.CsvSplitMaxFileSizeMb = GetIntProperty(properties, "CsvSplitMaxFileSizeMb") ?? item.CsvSplitMaxFileSizeMb;
+        item.CsvPersistenceMode = GetStringProperty(properties, "CsvPersistenceMode") ?? item.CsvPersistenceMode;
+        item.CsvFlushIntervalMs = GetIntProperty(properties, "CsvFlushIntervalMs") ?? item.CsvFlushIntervalMs;
+        item.CsvFlushBatchSize = GetIntProperty(properties, "CsvFlushBatchSize") ?? item.CsvFlushBatchSize;
         item.CameraName = GetStringProperty(properties, "CameraName") ?? item.CameraName;
         item.CameraResolution = GetStringProperty(properties, "CameraResolution") ?? item.CameraResolution;
         item.CameraOverlayText = GetStringProperty(properties, "CameraOverlayText") ?? item.CameraOverlayText;
@@ -2127,6 +2219,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return value switch
         {
             JsonValue jsonValue when jsonValue.TryGetValue<double>(out var result) => result,
+            JsonValue jsonValue when jsonValue.TryGetValue<int>(out var intResult) => intResult,
+            JsonValue jsonValue when jsonValue.TryGetValue<long>(out var longResult) => longResult,
+            JsonValue jsonValue when jsonValue.TryGetValue<float>(out var floatResult) => floatResult,
             JsonValue jsonValue when jsonValue.TryGetValue<string>(out var text) && double.TryParse(text, out var parsed) => parsed,
             _ => null
         };
@@ -4339,6 +4434,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindText("CsvFilename", "Filename", current => current.CsvFilename, (current, value) => { current.CsvFilename = value; current.BodyCaption = string.IsNullOrWhiteSpace(value) ? current.BodyCaption : value; return null; }),
                     BindChoice("CsvAddTimestamp", "AddTimeStamp", current => current.CsvAddTimestamp ? "True" : "False", (current, value) => { current.CsvAddTimestamp = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindInt("CsvIntervalMs", "IntervalMs", current => current.CsvIntervalMs, (current, value) => current.CsvIntervalMs = value),
+                    BindChoice("CsvSplitDaily", "SplitDaily", current => current.CsvSplitDaily ? "True" : "False", (current, value) => { current.CsvSplitDaily = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindText("CsvSplitDailyTime", "SplitTime", current => current.CsvSplitDailyTime, (current, value) => { current.CsvSplitDailyTime = string.IsNullOrWhiteSpace(value) ? "00:00:00" : value.Trim(); return null; }),
+                    BindInt("CsvSplitMaxFileSizeMb", "SplitSizeMb", current => current.CsvSplitMaxFileSizeMb, (current, value) => current.CsvSplitMaxFileSizeMb = Math.Max(0, value)),
+                    BindChoice("CsvPersistenceMode", "PersistMode", current => current.CsvPersistenceMode, (current, value) => { current.CsvPersistenceMode = string.IsNullOrWhiteSpace(value) ? "Balanced" : value.Trim(); return null; }, _ => new[] { "Balanced", "Safe" }),
                     BindAttachItemList("CsvSignalPaths", "SelectSignals", current => current.CsvSignalPaths, (current, value) => { current.CsvSignalPaths = value; return null; }, GetCsvSignalOptions)
                 }));
                 break;
@@ -4363,6 +4462,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                         return null;
                     }),
                     BindChoice("CsvAddTimestamp", "AddTimeStamp", current => current.CsvAddTimestamp ? "True" : "False", (current, value) => { current.CsvAddTimestamp = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindChoice("CsvSplitDaily", "SplitDaily", current => current.CsvSplitDaily ? "True" : "False", (current, value) => { current.CsvSplitDaily = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindText("CsvSplitDailyTime", "SplitTime", current => current.CsvSplitDailyTime, (current, value) => { current.CsvSplitDailyTime = string.IsNullOrWhiteSpace(value) ? "00:00:00" : value.Trim(); return null; }),
+                    BindInt("CsvSplitMaxFileSizeMb", "SplitSizeMb", current => current.CsvSplitMaxFileSizeMb, (current, value) => current.CsvSplitMaxFileSizeMb = Math.Max(0, value)),
+                    BindChoice("CsvPersistenceMode", "PersistMode", current => current.CsvPersistenceMode, (current, value) => { current.CsvPersistenceMode = string.IsNullOrWhiteSpace(value) ? "Balanced" : value.Trim(); return null; }, _ => new[] { "Balanced", "Safe" }),
                     BindAttachItemList("CsvSignalPaths", "SelectSignals", current => current.CsvSignalPaths, (current, value) => { current.CsvSignalPaths = value; return null; }, GetCsvSignalOptions)
                 }));
                 break;
@@ -4523,7 +4626,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var logger = new CsvLogger(loggerName)
         {
             Directory = directory,
-            Interval = interval
+            Interval = interval,
+            SplitDaily = item.CsvSplitDaily,
+            SplitDailyTime = item.CsvSplitDailyTime,
+            SplitMaxFileSizeMb = item.CsvSplitMaxFileSizeMb,
+            PersistenceMode = item.CsvPersistenceMode,
+            FlushIntervalMs = item.CsvFlushIntervalMs,
+            FlushBatchSize = item.CsvFlushBatchSize
         };
 
         foreach (var (displayName, targetPath, unit, _) in ParseCsvSignalSelection(item))
@@ -4706,6 +4815,24 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             {
                 fileField.SetValue(logger, fullPath);
             }
+
+            var splitDailyField = loggerType.GetField("SplitDaily");
+            splitDailyField?.SetValue(logger, item.CsvSplitDaily);
+
+            var splitDailyTimeField = loggerType.GetField("SplitDailyTime");
+            splitDailyTimeField?.SetValue(logger, item.CsvSplitDailyTime);
+
+            var splitMaxFileSizeField = loggerType.GetField("SplitMaxFileSizeMb");
+            splitMaxFileSizeField?.SetValue(logger, item.CsvSplitMaxFileSizeMb);
+
+            var persistenceModeField = loggerType.GetField("PersistenceMode");
+            persistenceModeField?.SetValue(logger, item.CsvPersistenceMode);
+
+            var flushIntervalField = loggerType.GetField("FlushIntervalMs");
+            flushIntervalField?.SetValue(logger, item.CsvFlushIntervalMs);
+
+            var flushBatchSizeField = loggerType.GetField("FlushBatchSize");
+            flushBatchSizeField?.SetValue(logger, item.CsvFlushBatchSize);
         }
         catch (Exception ex)
         {
@@ -5437,6 +5564,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             CsvAddTimestamp = item.CsvAddTimestamp,
             CsvIntervalMs = item.CsvIntervalMs,
             CsvSignalPaths = item.CsvSignalPaths,
+            CsvSplitDaily = item.CsvSplitDaily,
+            CsvSplitDailyTime = item.CsvSplitDailyTime,
+            CsvSplitMaxFileSizeMb = item.CsvSplitMaxFileSizeMb,
+            CsvPersistenceMode = item.CsvPersistenceMode,
+            CsvFlushIntervalMs = item.CsvFlushIntervalMs,
+            CsvFlushBatchSize = item.CsvFlushBatchSize,
             CameraName = item.CameraName,
             CameraResolution = item.CameraResolution,
             CameraOverlayText = item.CameraOverlayText,
@@ -5556,6 +5689,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             CsvAddTimestamp = item.CsvAddTimestamp,
             CsvIntervalMs = item.CsvIntervalMs,
             CsvSignalPaths = item.CsvSignalPaths,
+            CsvSplitDaily = item.CsvSplitDaily,
+            CsvSplitDailyTime = item.CsvSplitDailyTime,
+            CsvSplitMaxFileSizeMb = item.CsvSplitMaxFileSizeMb,
+            CsvPersistenceMode = item.CsvPersistenceMode,
+            CsvFlushIntervalMs = item.CsvFlushIntervalMs,
+            CsvFlushBatchSize = item.CsvFlushBatchSize,
             CameraName = item.CameraName,
             CameraResolution = item.CameraResolution,
             CameraOverlayText = item.CameraOverlayText,
@@ -6275,10 +6414,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private IEnumerable<string> GetSelectableTargetOptions(FolderItemModel? item = null)
     {
         var excludedPrefixes = GetNonSelectableTargetPrefixes();
+        var allowedLoggerRuntimePrefixes = GetAllowedLoggerRuntimePrefixes(item);
         var allOptions = HostRegistries.Data.GetAllKeys()
             .SelectMany(static key => EnumerateSelectablePaths(key))
             .Where(static key => !key.StartsWith("Runtime.UdlClient.", StringComparison.OrdinalIgnoreCase))
             .Where(path => !HasExcludedTargetPrefix(path, excludedPrefixes))
+            .Where(path => IsAllowedLoggerRuntimePath(path, allowedLoggerRuntimePrefixes))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -6350,6 +6491,51 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .ToArray();
 
         return filteredOptions.Length == 0 ? [] : filteredOptions;
+    }
+
+    private IReadOnlyList<string> GetAllowedLoggerRuntimePrefixes(FolderItemModel? item)
+    {
+        var owningPage = item is null ? SelectedFolder : (FindOwningPage(item) ?? SelectedFolder);
+        if (owningPage is null)
+        {
+            return [];
+        }
+
+        var pageName = NormalizeTargetPathSegment(owningPage.Name);
+        if (string.IsNullOrWhiteSpace(pageName))
+        {
+            return [];
+        }
+
+        return EnumeratePageItems(owningPage.Items)
+            .Where(pageItem => pageItem.Kind is ControlKind.CsvLoggerControl or ControlKind.SqlLoggerControl)
+            .Select(pageItem => NormalizeTargetPathSegment(pageItem.Name))
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => $"Project.{pageName}.LoggerRuntime.{name}")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static bool IsAllowedLoggerRuntimePath(string path, IReadOnlyList<string> allowedPrefixes)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        const string loggerRuntimeMarker = ".LoggerRuntime.";
+        if (path.IndexOf(loggerRuntimeMarker, StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            return true;
+        }
+
+        if (allowedPrefixes.Count == 0)
+        {
+            return false;
+        }
+
+        return allowedPrefixes.Any(prefix => string.Equals(path, prefix, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string BuildAttachedUdlPrefix(string pageName, FolderItemModel clientItem)

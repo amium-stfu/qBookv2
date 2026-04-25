@@ -959,7 +959,7 @@ public sealed class EditorDialogField : ObservableObject
                 {
                     RelativePath = option,
                     IsAttached = selectedPaths.Contains(option),
-                    IntervalMs = 0
+                    IntervalMs = 1000
                 };
 
                 row.PropertyChanged += OnAttachItemRowPropertyChanged;
@@ -1091,7 +1091,7 @@ public sealed class EditorDialogField : ObservableObject
             {
                 RelativePath = option,
                 IsAttached = selectedByPath.Contains(optionPath),
-                IntervalMs = intervalsByPath.TryGetValue(optionPath, out var interval) ? interval : 0
+                IntervalMs = intervalsByPath.TryGetValue(optionPath, out var interval) ? interval : 1000
             };
 
             row.PropertyChanged += OnAttachItemRowPropertyChanged;

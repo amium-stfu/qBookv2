@@ -1,0 +1,35 @@
+# ListControl Widget
+
+## Type
+
+`ListControl`
+
+## Purpose
+
+Hosts a vertical list of child widgets and can manage shared sizing rules for its items.
+
+## Typical Use Cases
+
+- Repeating panels of child widgets
+- Compact vertical dashboards
+- Grouped signal or button lists
+
+## Key Configuration
+
+- Auto height behavior
+- Shared list item height
+- Child widget collection
+- Container border and theme properties
+
+## Runtime Notes
+
+The list propagates width and optional auto-height rules to child controls.
+
+## Source
+
+- `UiEditor/Models/PageItemModel.cs`
+- `UiEditor/Widgets/FolderEditor/`
+
+## Help
+
+- Detailed help: `AutomationExplorer/docs/widgets/help/ListControl.help.md`

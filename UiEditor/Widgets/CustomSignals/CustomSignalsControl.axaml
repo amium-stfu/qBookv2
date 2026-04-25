@@ -67,20 +67,11 @@
 
                     <TextBlock Grid.Row="1"
                                Grid.Column="0"
+                               Grid.ColumnSpan="4"
                                Margin="0,4,0,0"
                                FontSize="11"
                                Foreground="{Binding SecondaryForeground}"
                                Text="{Binding SummaryText}"
-                               TextWrapping="Wrap" />
-
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="1"
-                               Grid.ColumnSpan="3"
-                               Margin="8,4,0,0"
-                               FontSize="11"
-                               HorizontalAlignment="Right"
-                               Foreground="{Binding PrimaryForeground}"
-                               Text="{Binding ValueDisplay}"
                                TextWrapping="Wrap" />
                   </Grid>
                 </Border>
@@ -92,7 +83,7 @@
         <TextBlock Grid.Row="1"
                    FontSize="11"
                    Foreground="{Binding EffectiveMutedForegroundBrush}"
-                   Text="No custom signals configured. Add input, constant, or computed signals here."
+                   Text="No custom signals configured. Add input or computed signals here."
                    IsVisible="{Binding HasNoSignals, RelativeSource={RelativeSource AncestorType=controls:CustomSignalsControl}}" />
       </Grid>
     </Border>

@@ -163,6 +163,12 @@ public sealed class FolderItemModel : ObservableObject
     private bool _csvAddTimestamp = true;
     private int _csvIntervalMs = 1000;
     private string _csvSignalPaths = string.Empty;
+    private bool _csvSplitDaily;
+    private string _csvSplitDailyTime = "00:00:00";
+    private int _csvSplitMaxFileSizeMb;
+    private string _csvPersistenceMode = "Balanced";
+    private int _csvFlushIntervalMs;
+    private int _csvFlushBatchSize;
     private string _cameraName = string.Empty;
     private string _cameraResolution = string.Empty;
     private string _cameraOverlayText = string.Empty;
@@ -232,6 +238,177 @@ public sealed class FolderItemModel : ObservableObject
                 RefreshPathRecursive();
             }
         }
+    }
+
+    public string GetLoggerRuntimeBasePath()
+    {
+        if (!IsCsvLoggerControl && !IsSqlLoggerControl)
+        {
+            return string.Empty;
+        }
+
+        var folderName = TargetPathHelper.NormalizeConfiguredTargetPath(FolderName);
+        var itemName = TargetPathHelper.NormalizeConfiguredTargetPath(Name);
+        if (string.IsNullOrWhiteSpace(folderName) || string.IsNullOrWhiteSpace(itemName))
+        {
+            return string.Empty;
+        }
+
+        return $"Project.{folderName}.LoggerRuntime.{itemName}";
+    }
+
+    public string GetLoggerRuntimePath(string runtimeItemName)
+    {
+        var basePath = GetLoggerRuntimeBasePath();
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            return string.Empty;
+        }
+
+        var normalizedRuntimeItemName = TargetPathHelper.NormalizeConfiguredTargetPath(runtimeItemName);
+        return string.IsNullOrWhiteSpace(normalizedRuntimeItemName)
+            ? basePath
+            : $"{basePath}.{normalizedRuntimeItemName}";
+    }
+
+    public string GetDisplayRuntimeBasePath()
+    {
+        if (!IsCircleDisplay)
+        {
+            return string.Empty;
+        }
+
+        var folderName = TargetPathHelper.NormalizeConfiguredTargetPath(FolderName);
+        var itemName = TargetPathHelper.NormalizeConfiguredTargetPath(Name);
+        if (string.IsNullOrWhiteSpace(folderName) || string.IsNullOrWhiteSpace(itemName))
+        {
+            return string.Empty;
+        }
+
+        return $"Project.{folderName}.DisplayRuntime.{itemName}";
+    }
+
+    public string GetDisplayRuntimePath(string runtimeItemName)
+    {
+        var basePath = GetDisplayRuntimeBasePath();
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            return string.Empty;
+        }
+
+        var normalizedRuntimeItemName = TargetPathHelper.NormalizeConfiguredTargetPath(runtimeItemName);
+        return string.IsNullOrWhiteSpace(normalizedRuntimeItemName)
+            ? basePath
+            : $"{basePath}.{normalizedRuntimeItemName}";
+    }
+
+    public string GetLoggerConfiguredOutputPath()
+    {
+        var directory = string.IsNullOrWhiteSpace(CsvDirectory)
+            ? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "AmiumLogs")
+            : CsvDirectory.Trim();
+
+        var filename = string.IsNullOrWhiteSpace(CsvFilename)
+            ? (!string.IsNullOrWhiteSpace(Name)
+                ? Name.Trim()
+                : (IsSqlLoggerControl ? "SqlLogger" : "CsvLogger"))
+            : CsvFilename.Trim();
+
+        if (IsSqlLoggerControl)
+        {
+            if (!filename.EndsWith(".db", StringComparison.OrdinalIgnoreCase))
+            {
+                filename += ".db";
+            }
+        }
+        else if (!filename.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        {
+            filename += ".csv";
+        }
+
+        return System.IO.Path.Combine(directory, filename);
+    }
+
+    public bool TryApplyLoggerOutputPath(string? outputPath)
+    {
+        var normalizedPath = outputPath?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            return false;
+        }
+
+        var directory = System.IO.Path.GetDirectoryName(normalizedPath);
+        var fileName = System.IO.Path.GetFileName(normalizedPath);
+        if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        CsvDirectory = directory;
+        CsvFilename = fileName;
+        return true;
+    }
+
+    public bool LoggerRuntimeBindingMatchesRegistryChange(string? runtimePath, DataChangedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(runtimePath))
+        {
+            return false;
+        }
+
+        return TargetPathHelper.PathsEqual(e.Key, runtimePath)
+               || TargetPathHelper.IsDescendantPath(e.Key, runtimePath)
+               || TargetPathHelper.IsDescendantPath(runtimePath, e.Key);
+    }
+
+    private static bool TryResolveCircleDisplayTargetCore(string candidatePath, out Item? targetItem, out Parameter? parameter)
+    {
+        if (TryGetMatchingRegistryItem(candidatePath, out targetItem) && targetItem is not null)
+        {
+            parameter = targetItem.Params.Has("Value") ? targetItem.Params["Value"] : null;
+            return true;
+        }
+
+        var rootKey = HostRegistries.Data.GetAllKeys()
+            .Where(key => TargetPathHelper.IsDescendantPath(candidatePath, key))
+            .OrderByDescending(key => key.Length)
+            .FirstOrDefault();
+
+        if (rootKey is not null
+            && TryGetMatchingRegistryItem(rootKey, out var rootItem)
+            && rootItem is not null
+            && TargetPathHelper.TryGetRelativePath(candidatePath, rootKey, out var relativePath))
+        {
+            var current = rootItem;
+            var segments = TargetPathHelper.SplitPathSegments(relativePath).ToArray();
+            for (var index = 0; index < segments.Length; index++)
+            {
+                var segment = segments[index];
+                if (!current.Has(segment))
+                {
+                    if (index == segments.Length - 1 && current.Params.Has(segment))
+                    {
+                        targetItem = current;
+                        parameter = current.Params[segment];
+                        return true;
+                    }
+
+                    targetItem = null;
+                    parameter = null;
+                    return false;
+                }
+
+                current = current[segment];
+            }
+
+            targetItem = current;
+            parameter = current.Params.Has("Value") ? current.Params["Value"] : null;
+            return true;
+        }
+
+        targetItem = null;
+        parameter = null;
+        return false;
     }
 
     public string Id
@@ -1666,6 +1843,42 @@ public sealed class FolderItemModel : ObservableObject
     {
         get => _udlDemoModuleDefinitions;
         set => SetProperty(ref _udlDemoModuleDefinitions, value ?? string.Empty);
+    }
+
+    public bool CsvSplitDaily
+    {
+        get => _csvSplitDaily;
+        set => SetProperty(ref _csvSplitDaily, value);
+    }
+
+    public string CsvSplitDailyTime
+    {
+        get => _csvSplitDailyTime;
+        set => SetProperty(ref _csvSplitDailyTime, string.IsNullOrWhiteSpace(value) ? "00:00:00" : value.Trim());
+    }
+
+    public int CsvSplitMaxFileSizeMb
+    {
+        get => _csvSplitMaxFileSizeMb;
+        set => SetProperty(ref _csvSplitMaxFileSizeMb, value < 0 ? 0 : value);
+    }
+
+    public string CsvPersistenceMode
+    {
+        get => _csvPersistenceMode;
+        set => SetProperty(ref _csvPersistenceMode, string.IsNullOrWhiteSpace(value) ? "Balanced" : value.Trim());
+    }
+
+    public int CsvFlushIntervalMs
+    {
+        get => _csvFlushIntervalMs;
+        set => SetProperty(ref _csvFlushIntervalMs, value < 0 ? 0 : value);
+    }
+
+    public int CsvFlushBatchSize
+    {
+        get => _csvFlushBatchSize;
+        set => SetProperty(ref _csvFlushBatchSize, value < 0 ? 0 : value);
     }
 
     public bool IsReadOnly

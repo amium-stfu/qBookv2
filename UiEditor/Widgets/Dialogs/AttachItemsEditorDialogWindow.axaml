@@ -61,48 +61,93 @@
               BorderThickness="1"
               CornerRadius="8"
               Padding="10">
-        <ScrollViewer MaxHeight="420" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-          <ItemsControl ItemsSource="{Binding Rows}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="viewModels:AttachItemEditorRow">
-                <Grid Margin="0,0,0,6" ColumnDefinitions="Auto,*,Auto">
-                  <CheckBox Grid.Column="0"
-                            VerticalAlignment="Center"
-                            IsChecked="{Binding IsAttached, Mode=TwoWay}" />
+        <Grid RowDefinitions="Auto,*">
+          <Grid ColumnDefinitions="Auto,150,*,Auto"
+                Margin="0,0,0,8">
+            <TextBlock Grid.Column="1"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{Binding SecondaryTextBrush, ElementName=Root}"
+                       Text="Name" />
+            <TextBlock Grid.Column="2"
+                       Margin="8,0,0,0"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{Binding SecondaryTextBrush, ElementName=Root}"
+                       Text="Source" />
+            <TextBlock Grid.Column="3"
+                       HorizontalAlignment="Right"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{Binding SecondaryTextBrush, ElementName=Root}"
+                       Text="Interval"
+                       IsVisible="{Binding ShowIntervalColumn}" />
+          </Grid>
 
-                  <TextBlock Grid.Column="1"
-                             Margin="6,0,0,0"
-                             VerticalAlignment="Center"
-                             FontSize="12"
-                             Text="{Binding DisplayLabel}" />
-
-                  <StackPanel Grid.Column="2"
-                              Orientation="Horizontal"
-                              Spacing="4"
+          <ScrollViewer Grid.Row="1" MaxHeight="420" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Rows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="viewModels:AttachItemEditorRow">
+                  <Grid Margin="0,0,0,6" ColumnDefinitions="Auto,150,*,Auto">
+                    <CheckBox Grid.Column="0"
                               VerticalAlignment="Center"
-                              IsVisible="{Binding DataContext.ShowIntervalColumn, RelativeSource={RelativeSource AncestorType=Window}}">
-                    <TextBlock Text="ms"
+                              IsChecked="{Binding IsAttached, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Column="1"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               FontSize="12"
+                               Text="{Binding Name}"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <TextBlock Grid.Column="2"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               FontSize="12"
+                               Text="{Binding Source}"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <StackPanel Grid.Column="3"
+                                Orientation="Horizontal"
+                                Spacing="4"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding DataContext.ShowIntervalColumn, RelativeSource={RelativeSource AncestorType=Window}}">
+                      <TextBlock Text="ms"
+                                 VerticalAlignment="Center"
+                                 FontSize="11" />
+                      <TextBox Width="60"
+                               Text="{Binding IntervalMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                               HorizontalContentAlignment="Right"
                                VerticalAlignment="Center"
                                FontSize="11" />
-                    <TextBox Width="60"
-                             Text="{Binding IntervalMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             HorizontalContentAlignment="Right"
-                             VerticalAlignment="Center"
-                             FontSize="11" />
-                  </StackPanel>
-                </Grid>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ScrollViewer>
+                    </StackPanel>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
       </Border>
     </controls:EditorShellControl.BodyContent>
 
     <controls:EditorShellControl.FooterContent>
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-        <Button Classes="dialog-button" Content="Save" Click="OnSaveClicked" />
-        <Button Classes="dialog-button" Content="Cancel" Click="OnCancelClicked" />
-      </StackPanel>
+      <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
+          <Button Classes="dialog-button"
+                  Content="{Binding ToggleSelectionButtonText}"
+                  Click="OnToggleSelectionClicked" />
+          <Button Classes="dialog-button"
+                  Content="Add Demo Module"
+                  Click="OnAddDemoModuleClicked"
+                  IsVisible="{Binding ShowAddDemoModuleButton}"
+                  IsEnabled="{Binding CanOpenDemoModules}" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+          <Button Classes="dialog-button" Content="Save" Click="OnSaveClicked" />
+          <Button Classes="dialog-button" Content="Cancel" Click="OnCancelClicked" />
+        </StackPanel>
+      </Grid>
     </controls:EditorShellControl.FooterContent>
   </controls:EditorShellControl>
 </Window>

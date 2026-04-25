@@ -202,7 +202,7 @@ public static class ProjectUiLayoutLoader
         if (GetMapping(node, "Design") is { } design)
         {
             SetPropertyIfPresent(properties, "CornerRadius", GetScalarJsonNode(design, "CornerRadius"));
-            SetPropertyIfPresent(properties, "BorderWidth", GetScalarJsonNode(design, "BorderWidth"));
+            SetPropertyIfPresent(properties, "BorderWidth", GetScalarJsonNode(design, "BorderWidth") ?? GetScalarJsonNode(design, "BoarderWidth"));
             SetPropertyIfPresent(properties, "BorderColor", GetScalarJsonNode(design, "BorderColor"));
             SetPropertyIfPresent(properties, "BackgroundColor", GetScalarJsonNode(design, "BackColor"));
             SetPropertyIfPresent(properties, "ToolTipText", GetScalarJsonNode(design, "ToolTip"));

@@ -366,24 +366,6 @@ public partial class UdlClientControl : EditorTemplateControl
         e.Handled = true;
     }
 
-    private async void OnEditDemoModulesClicked(object? sender, RoutedEventArgs e)
-    {
-        if (Item is not { UdlClientDemoEnabled: true } ownerItem || TopLevel.GetTopLevel(this) is not Window owner)
-        {
-            e.Handled = true;
-            return;
-        }
-
-        var viewModel = owner.DataContext as MainWindowViewModel;
-        var updatedDefinitions = await UdlDemoModulesDialogWindow.ShowAsync(owner, viewModel, ownerItem, ownerItem.UdlDemoModuleDefinitions);
-        if (updatedDefinitions is not null)
-        {
-            ownerItem.UdlDemoModuleDefinitions = updatedDefinitions;
-        }
-
-        e.Handled = true;
-    }
-
     private void ConnectInternal()
     {
         if (!Dispatcher.UIThread.CheckAccess())

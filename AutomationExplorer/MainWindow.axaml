@@ -53,6 +53,7 @@
                     <MenuItem Header="Top" Click="OnTabPlacementTopClicked" />
                     <MenuItem Header="Right" Click="OnTabPlacementRightClicked" />
                   </MenuItem>
+                  <MenuItem Header="Open ItemTree" Click="OpenItemTreeWindow_Click" />
                   <MenuItem Header="Open log" Click="OpenLogWindow_Click" />
                   <Separator />
 
@@ -112,6 +113,7 @@
                                 Margin="0">
                           <Button.ContextMenu>
                             <ContextMenu>
+                              <MenuItem Header="Open ItemTree" Click="OnOpenItemTreeClicked" CommandParameter="{Binding}" />
                               <MenuItem Header="Open Folder" Click="OnOpenFolderClicked" CommandParameter="{Binding}" />
                             </ContextMenu>
                           </Button.ContextMenu>
@@ -160,7 +162,7 @@
                                     ToolTip.Tip="Screen auswaehlen">
                               <Grid>
                                 <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg" TintColor="{Binding DataContext.TabForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsNotSelected}" />
-                                <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg" TintColor="Black" IsVisible="{Binding IsSelected}" />
+                                <editorUi:ThemeSvgIcon Width="24" Height="24" IconPath="avares://AutomationExplorer.Editor/EditorIcons/list.svg" TintColor="{Binding DataContext.TabSelectForeColor, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsSelected}" />
                               </Grid>
                             </Button>
 
@@ -357,6 +359,7 @@
                                   Margin="0">
                             <Button.ContextMenu>
                               <ContextMenu>
+                                <MenuItem Header="Open ItemTree" Click="OnOpenItemTreeClicked" CommandParameter="{Binding}" />
                                 <MenuItem Header="Open Folder" Click="OnOpenFolderClicked" CommandParameter="{Binding}" />
                               </ContextMenu>
                             </Button.ContextMenu>

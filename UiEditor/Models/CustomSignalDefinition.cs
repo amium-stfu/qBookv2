@@ -10,9 +10,15 @@ namespace Amium.UiEditor.Models;
 
 public enum CustomSignalMode
 {
-    Input,
-    Constant,
-    Computed
+    Input = 0,
+    Computed = 2
+}
+
+public enum CustomSignalComputationTrigger
+{
+    OnSourceChange = 0,
+    Timer = 1,
+    Manual = 2
 }
 
 public enum CustomSignalDataType
@@ -40,6 +46,22 @@ public enum CustomSignalOperation
     If
 }
 
+public sealed class CustomSignalVariableDefinition
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string SourcePath { get; set; } = string.Empty;
+
+    public CustomSignalVariableDefinition Clone()
+    {
+        return new CustomSignalVariableDefinition
+        {
+            Name = Name,
+            SourcePath = SourcePath
+        };
+    }
+}
+
 public sealed class CustomSignalDefinition
 {
     public string Name { get; set; } = string.Empty;
@@ -55,6 +77,14 @@ public sealed class CustomSignalDefinition
     public string Format { get; set; } = string.Empty;
 
     public string ValueText { get; set; } = string.Empty;
+
+    public string Formula { get; set; } = string.Empty;
+
+    public CustomSignalComputationTrigger Trigger { get; set; } = CustomSignalComputationTrigger.OnSourceChange;
+
+    public int TriggerIntervalSeconds { get; set; } = 1;
+
+    public List<CustomSignalVariableDefinition> Variables { get; set; } = [];
 
     public CustomSignalOperation Operation { get; set; } = CustomSignalOperation.Copy;
 
@@ -75,6 +105,10 @@ public sealed class CustomSignalDefinition
             Unit = Unit,
             Format = Format,
             ValueText = ValueText,
+            Formula = Formula,
+            Trigger = Trigger,
+            TriggerIntervalSeconds = TriggerIntervalSeconds,
+            Variables = Variables.Select(static variable => variable.Clone()).ToList(),
             Operation = Operation,
             SourcePath = SourcePath,
             SourcePath2 = SourcePath2,
@@ -99,6 +133,14 @@ public sealed class CustomSignalDefinitionDocument
 
     public string ValueText { get; init; } = string.Empty;
 
+    public string Formula { get; init; } = string.Empty;
+
+    public CustomSignalComputationTrigger Trigger { get; init; } = CustomSignalComputationTrigger.OnSourceChange;
+
+    public int TriggerIntervalSeconds { get; init; } = 1;
+
+    public List<CustomSignalVariableDefinitionDocument> Variables { get; init; } = [];
+
     public CustomSignalOperation Operation { get; init; } = CustomSignalOperation.Copy;
 
     public string SourcePath { get; init; } = string.Empty;
@@ -106,6 +148,13 @@ public sealed class CustomSignalDefinitionDocument
     public string SourcePath2 { get; init; } = string.Empty;
 
     public string SourcePath3 { get; init; } = string.Empty;
+}
+
+public sealed class CustomSignalVariableDefinitionDocument
+{
+    public string Name { get; init; } = string.Empty;
+
+    public string SourcePath { get; init; } = string.Empty;
 }
 
 public static class CustomSignalDefinitionCodec
@@ -126,10 +175,21 @@ public static class CustomSignalDefinitionCodec
 
         try
         {
+            if (JsonNode.Parse(raw) is JsonArray array)
+            {
+                return array
+                    .OfType<JsonObject>()
+                    .Select(NormalizeLegacyNode)
+                    .Select(node => node.Deserialize<CustomSignalDefinition>(JsonOptions))
+                    .Where(static definition => definition is not null)
+                    .Select(static definition => NormalizeLegacyDefinition(definition!))
+                    .ToArray();
+            }
+
             var parsed = JsonSerializer.Deserialize<List<CustomSignalDefinition>>(raw, JsonOptions);
             return parsed?
                 .Where(static definition => definition is not null)
-                .Select(static definition => definition!)
+                .Select(static definition => NormalizeLegacyDefinition(definition!))
                 .ToArray()
                 ?? Array.Empty<CustomSignalDefinition>();
         }
@@ -212,6 +272,17 @@ public static class CustomSignalDefinitionCodec
             Unit = definition.Unit,
             Format = definition.Format,
             ValueText = definition.ValueText,
+            Formula = definition.Formula,
+            Trigger = definition.Trigger,
+            TriggerIntervalSeconds = definition.TriggerIntervalSeconds,
+            Variables = definition.Variables
+                .Where(static variable => variable is not null)
+                .Select(variable => new CustomSignalVariableDefinitionDocument
+                {
+                    Name = variable.Name,
+                    SourcePath = ToPersistedTargetPath(variable.SourcePath, folderName)
+                })
+                .ToList(),
             Operation = definition.Operation,
             SourcePath = ToPersistedTargetPath(definition.SourcePath, folderName),
             SourcePath2 = ToPersistedTargetPath(definition.SourcePath2, folderName),
@@ -230,11 +301,120 @@ public static class CustomSignalDefinitionCodec
             Unit = document.Unit,
             Format = document.Format,
             ValueText = document.ValueText,
+            Formula = document.Formula,
+            Trigger = document.Trigger,
+            TriggerIntervalSeconds = document.TriggerIntervalSeconds,
+            Variables = document.Variables
+                .Where(static variable => variable is not null)
+                .Select(variable => new CustomSignalVariableDefinition
+                {
+                    Name = variable.Name,
+                    SourcePath = NormalizeTargetPath(variable.SourcePath, folderName)
+                })
+                .ToList(),
             Operation = document.Operation,
             SourcePath = NormalizeTargetPath(document.SourcePath, folderName),
             SourcePath2 = NormalizeTargetPath(document.SourcePath2, folderName),
             SourcePath3 = NormalizeTargetPath(document.SourcePath3, folderName)
         };
+    }
+
+    private static JsonObject NormalizeLegacyNode(JsonObject node)
+    {
+        if (node["mode"] is JsonValue modeValue)
+        {
+            var normalizedMode = modeValue.TryGetValue<string>(out var modeText)
+                ? modeText
+                : modeValue.TryGetValue<int>(out var modeNumber)
+                    ? modeNumber.ToString()
+                    : string.Empty;
+
+            if (string.Equals(normalizedMode, "Constant", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalizedMode, "1", StringComparison.OrdinalIgnoreCase))
+            {
+                node["mode"] = nameof(CustomSignalMode.Input);
+                node["isWritable"] = false;
+            }
+
+            if (string.Equals(normalizedMode, "2", StringComparison.OrdinalIgnoreCase))
+            {
+                node["mode"] = nameof(CustomSignalMode.Computed);
+            }
+        }
+
+        return node;
+    }
+
+    private static CustomSignalDefinition NormalizeLegacyDefinition(CustomSignalDefinition definition)
+    {
+        if (definition.Mode == (CustomSignalMode)1)
+        {
+            definition.Mode = CustomSignalMode.Input;
+            definition.IsWritable = false;
+        }
+
+        if (!Enum.IsDefined(definition.Trigger))
+        {
+            definition.Trigger = CustomSignalComputationTrigger.OnSourceChange;
+        }
+
+        definition.TriggerIntervalSeconds = Math.Max(1, definition.TriggerIntervalSeconds);
+        definition.Variables ??= [];
+
+        if (definition.Mode == CustomSignalMode.Computed && string.IsNullOrWhiteSpace(definition.Formula))
+        {
+            MigrateLegacyComputedDefinition(definition);
+        }
+
+        return definition;
+    }
+
+    private static void MigrateLegacyComputedDefinition(CustomSignalDefinition definition)
+    {
+        var variables = new List<CustomSignalVariableDefinition>();
+        var tokenA = AddVariable(variables, "A", definition.SourcePath);
+        var tokenB = AddVariable(variables, "B", definition.SourcePath2);
+        var tokenC = AddVariable(variables, "C", definition.SourcePath3);
+
+        definition.Variables = variables;
+        definition.Trigger = CustomSignalComputationTrigger.OnSourceChange;
+        definition.Formula = definition.Operation switch
+        {
+            CustomSignalOperation.Copy => tokenA,
+            CustomSignalOperation.Add => $"{tokenA} + {tokenB}",
+            CustomSignalOperation.Subtract => $"{tokenA} - {tokenB}",
+            CustomSignalOperation.Multiply => $"{tokenA} * {tokenB}",
+            CustomSignalOperation.Divide => $"{tokenA} / {tokenB}",
+            CustomSignalOperation.Min => $"min({tokenA}, {tokenB})",
+            CustomSignalOperation.Max => $"max({tokenA}, {tokenB})",
+            CustomSignalOperation.GreaterThan => $"{tokenA} > {tokenB}",
+            CustomSignalOperation.LessThan => $"{tokenA} < {tokenB}",
+            CustomSignalOperation.Equals => $"{tokenA} == {tokenB}",
+            CustomSignalOperation.And => $"{tokenA} && {tokenB}",
+            CustomSignalOperation.Or => $"{tokenA} || {tokenB}",
+            CustomSignalOperation.Concat => $"concat({tokenA}, {tokenB})",
+            CustomSignalOperation.If => $"if({tokenA}, {tokenB}, {tokenC})",
+            _ => tokenA
+        };
+    }
+
+    private static string AddVariable(List<CustomSignalVariableDefinition> variables, string name, string sourcePath)
+    {
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            if (variables.Any(variable => string.Equals(variable.Name, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                return $"{{{name}}}";
+            }
+
+            variables.Add(new CustomSignalVariableDefinition
+            {
+                Name = name,
+                SourcePath = sourcePath
+            });
+        }
+
+        return $"{{{name}}}";
     }
 
     private static string ToPersistedTargetPath(string? value, string? folderName)

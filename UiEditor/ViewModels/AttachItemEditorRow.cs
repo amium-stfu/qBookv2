@@ -5,6 +5,8 @@ public sealed class AttachItemEditorRow : ObservableObject
     private bool _isAttached;
     private int _intervalMs;
 
+    private string[] ParsedParts => RelativePath.Split('|', System.StringSplitOptions.TrimEntries);
+
     /// <summary>
     /// The raw option/relative path string as provided by the caller.
     /// For Csv/Sql signal selection this is typically "Name|Path" or "Name|Path|Unit".
@@ -12,11 +14,46 @@ public sealed class AttachItemEditorRow : ObservableObject
     /// </summary>
     public string RelativePath { get; init; } = string.Empty;
 
-    /// <summary>
-    /// Human-readable label shown in the attach dialog. For now this mirrors RelativePath
-    /// so existing behavior remains unchanged.
-    /// </summary>
-    public string DisplayLabel => RelativePath;
+    public string DisplayLabel => string.IsNullOrWhiteSpace(Source)
+        ? Name
+        : $"{Name}|{Source}";
+
+    public string Name
+    {
+        get
+        {
+            var parts = ParsedParts;
+            if (parts.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            if (parts.Length == 1)
+            {
+                return parts[0];
+            }
+
+            return parts[0];
+        }
+    }
+
+    public string Source
+    {
+        get
+        {
+            var parts = ParsedParts;
+            return parts.Length > 1 ? parts[1] : RelativePath;
+        }
+    }
+
+    public string Unit
+    {
+        get
+        {
+            var parts = ParsedParts;
+            return parts.Length > 2 ? parts[2] : string.Empty;
+        }
+    }
 
     public bool IsAttached
     {

@@ -9,6 +9,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Amium.Host;
 using Amium.UiEditor.Controls;
@@ -22,6 +23,7 @@ public partial class MainWindow : Window
 {
     private const string LegendFolderDragDataFormat = "application/x-automationexplorer-folder";
     private LogWindow? _logWindow;
+    private ItemTreeWindow? _itemTreeWindow;
     private Window? _keyboardWindow;
     private TextBox? _keyboardTarget;
     private Action? _keyboardApplyAction;
@@ -395,7 +397,7 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void OnLegendItemDragLeave(object? sender, RoutedEventArgs e)
+    private void OnLegendItemDragLeave(object? sender, DragEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)
         {
@@ -451,7 +453,7 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void OnLegendDeleteDragLeave(object? sender, RoutedEventArgs e)
+    private void OnLegendDeleteDragLeave(object? sender, DragEventArgs e)
     {
         if (DataContext is MainWindowViewModel viewModel)
         {
@@ -866,7 +868,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        var path = Path.Combine(folders[0].Path.LocalPath, "Project.aaep");
+        var folderPath = TryGetStoragePath(folders[0]);
+        if (string.IsNullOrWhiteSpace(folderPath))
+        {
+            return;
+        }
+
+        var path = Path.Combine(folderPath, "Project.aaep");
         if (!viewModel.CreateNewBook(path, out var errorMessage) && !string.IsNullOrWhiteSpace(errorMessage))
         {
             await EditorInputDialogs.EditTextAsync(
@@ -907,7 +915,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        viewModel.ProjectPath = files[0].Path.LocalPath;
+        var projectPath = TryGetStoragePath(files[0]);
+        if (string.IsNullOrWhiteSpace(projectPath))
+        {
+            return;
+        }
+
+        viewModel.ProjectPath = projectPath;
         if (viewModel.LoadProjectCommand.CanExecute(null))
         {
             viewModel.LoadProjectCommand.Execute(null);
@@ -962,7 +976,12 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var targetPath = bookFile.Path.LocalPath;
+        var targetPath = TryGetStoragePath(bookFile);
+        if (string.IsNullOrWhiteSpace(targetPath))
+        {
+            return;
+        }
+
             viewModel.SaveCurrentLayoutAs(targetPath);
             return;
         }
@@ -986,8 +1005,34 @@ public partial class MainWindow : Window
             return;
         }
 
-        var path = layoutFile.Path.LocalPath;
+        var path = TryGetStoragePath(layoutFile);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
         viewModel.SaveCurrentLayoutAs(path);
+    }
+
+    private static string? TryGetStoragePath(IStorageItem? item)
+    {
+        if (item?.TryGetLocalPath() is { } localPath && !string.IsNullOrWhiteSpace(localPath))
+        {
+            return localPath;
+        }
+
+        var path = item?.Path;
+        if (path is null)
+        {
+            return null;
+        }
+
+        if (path.IsAbsoluteUri)
+        {
+            return path.LocalPath;
+        }
+
+        return Uri.UnescapeDataString(path.OriginalString);
     }
 
     private void OnTabPlacementTopClicked(object? sender, RoutedEventArgs e)
@@ -1049,6 +1094,67 @@ public partial class MainWindow : Window
         });
     }
 
+    private void OnOpenItemTreeClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || sender is not MenuItem menuItem)
+        {
+            return;
+        }
+
+        var page = menuItem.CommandParameter as FolderModel ?? menuItem.DataContext as FolderModel;
+        if (page is null)
+        {
+            return;
+        }
+
+        if (_itemTreeWindow is { } existingWindow)
+        {
+            existingWindow.Attach(viewModel, page);
+            if (existingWindow.WindowState == WindowState.Minimized)
+            {
+                existingWindow.WindowState = WindowState.Normal;
+            }
+
+            existingWindow.Activate();
+            existingWindow.Topmost = true;
+            existingWindow.Topmost = false;
+            return;
+        }
+
+        _itemTreeWindow = new ItemTreeWindow(viewModel, page);
+        _itemTreeWindow.Closed += OnItemTreeWindowClosed;
+        _itemTreeWindow.Show();
+        _itemTreeWindow.Activate();
+    }
+
+    private void OpenItemTreeWindow_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (_itemTreeWindow is { } existingWindow)
+        {
+            existingWindow.AttachToProject(viewModel);
+            if (existingWindow.WindowState == WindowState.Minimized)
+            {
+                existingWindow.WindowState = WindowState.Normal;
+            }
+
+            existingWindow.Activate();
+            existingWindow.Topmost = true;
+            existingWindow.Topmost = false;
+            return;
+        }
+
+        _itemTreeWindow = new ItemTreeWindow();
+        _itemTreeWindow.AttachToProject(viewModel);
+        _itemTreeWindow.Closed += OnItemTreeWindowClosed;
+        _itemTreeWindow.Show();
+        _itemTreeWindow.Activate();
+    }
+
     private void OpenLogWindow_Click(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)
@@ -1097,6 +1203,16 @@ public partial class MainWindow : Window
         }
 
         _logWindow = null;
+    }
+
+    private void OnItemTreeWindowClosed(object? sender, EventArgs e)
+    {
+        if (sender is ItemTreeWindow window)
+        {
+            window.Closed -= OnItemTreeWindowClosed;
+        }
+
+        _itemTreeWindow = null;
     }
 
     private void HandleHostUiStateChanged(string action, ProjectModel? project)

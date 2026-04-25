@@ -5,6 +5,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -28,6 +29,9 @@ public partial class CustomSignalsControl : EditorTemplateControl
     private bool _isPublishing;
     private bool _hasNoSignals = true;
     private HashSet<string> _publishedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTimeOffset> _lastComputedPublishTimes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _manualTriggerPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _pendingManualEvaluations = new(StringComparer.OrdinalIgnoreCase);
 
     public ObservableCollection<CustomSignalRow> Signals { get; } = [];
 
@@ -141,13 +145,19 @@ public partial class CustomSignalsControl : EditorTemplateControl
             return;
         }
 
+        if (_manualTriggerPaths.TryGetValue(e.Key, out var manualRegistryPath))
+        {
+            HandleManualTriggerChange(e.Key, manualRegistryPath);
+            return;
+        }
+
         if (_publishedPaths.Contains(e.Key))
         {
             UpdateRowsFromRegistry();
             return;
         }
 
-        if (Signals.Any(row => row.Definition.Mode == CustomSignalMode.Computed))
+        if (Signals.Any(row => row.Definition.Mode == CustomSignalMode.Computed && row.Definition.Trigger == CustomSignalComputationTrigger.OnSourceChange))
         {
             PublishSignals(preserveInputValues: true);
         }
@@ -196,16 +206,31 @@ public partial class CustomSignalsControl : EditorTemplateControl
         }
 
         var definitions = Signals.Select(row => row.Definition).ToArray();
-        var nextPaths = definitions
+        var nextSignalPaths = definitions
             .Select(definition => BuildRegistryPath(item, definition))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var nextManualTriggerPaths = definitions
+            .Where(static definition => definition.Mode == CustomSignalMode.Computed && definition.Trigger == CustomSignalComputationTrigger.Manual)
+            .Select(definition => BuildManualTriggerPath(item, definition))
+            .ToDictionary(path => path, path => path[..path.LastIndexOf('.')], StringComparer.OrdinalIgnoreCase);
+        var nextPaths = nextSignalPaths
+            .Concat(nextManualTriggerPaths.Keys)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var stalePath in _publishedPaths.Where(path => !nextPaths.Contains(path)).ToArray())
         {
             HostRegistries.Data.Remove(stalePath);
+            _lastComputedPublishTimes.Remove(stalePath);
+            _manualTriggerPaths.Remove(stalePath);
+            _pendingManualEvaluations.Remove(stalePath);
         }
 
         _publishedPaths = nextPaths;
+        _manualTriggerPaths.Clear();
+        foreach (var entry in nextManualTriggerPaths)
+        {
+            _manualTriggerPaths[entry.Key] = entry.Value;
+        }
 
         _isPublishing = true;
         try
@@ -214,6 +239,7 @@ public partial class CustomSignalsControl : EditorTemplateControl
             {
                 var value = EvaluateValue(item, row.Definition, row.RegistryPath, preserveInputValues);
                 PublishSignalSnapshot(item, row.Definition, row.RegistryPath, value);
+                PublishManualTriggerSnapshot(item, row.Definition, row.RegistryPath);
                 row.CurrentValue = value;
             }
         }
@@ -242,6 +268,25 @@ public partial class CustomSignalsControl : EditorTemplateControl
         HostRegistries.Data.UpsertSnapshot(registryPath, item);
     }
 
+    private void PublishManualTriggerSnapshot(FolderItemModel ownerItem, CustomSignalDefinition definition, string registryPath)
+    {
+        if (definition.Mode != CustomSignalMode.Computed || definition.Trigger != CustomSignalComputationTrigger.Manual)
+        {
+            return;
+        }
+
+        var triggerPath = BuildManualTriggerPath(registryPath);
+        var item = new Item("Trigger", false, registryPath);
+        item.Params["Kind"].Value = "CustomSignalManualTrigger";
+        item.Params["Title"].Value = $"{definition.Name} Trigger";
+        item.Params["Text"].Value = "Trigger";
+        item.Params["Mode"].Value = definition.Mode.ToString();
+        item.Params["Writable"].Value = true;
+        item.Params["Owner"].Value = ownerItem.Name ?? string.Empty;
+        item.Params["Value"].Value = false;
+        HostRegistries.Data.UpsertSnapshot(triggerPath, item);
+    }
+
     private object? EvaluateValue(FolderItemModel ownerItem, CustomSignalDefinition definition, string registryPath, bool preserveInputValues)
     {
         if (definition.Mode == CustomSignalMode.Input)
@@ -254,36 +299,70 @@ public partial class CustomSignalsControl : EditorTemplateControl
             return ParseLiteral(definition.ValueText, definition.DataType);
         }
 
-        if (definition.Mode == CustomSignalMode.Constant)
+        if (!ShouldEvaluateComputed(definition, registryPath))
         {
-            return ParseLiteral(definition.ValueText, definition.DataType);
+            if (HostRegistries.Data.TryGet(registryPath, out var existing) && existing is not null)
+            {
+                return ConvertToDataType(existing.Params.Has("Value") ? existing.Params["Value"].Value : existing.Value, definition.DataType);
+            }
+
+            return definition.DataType == CustomSignalDataType.Boolean ? false : 0d;
         }
 
-        return EvaluateComputedValue(ownerItem, definition);
+        var value = EvaluateComputedValue(ownerItem, definition);
+        _lastComputedPublishTimes[registryPath] = DateTimeOffset.UtcNow;
+        return value;
     }
 
     private object? EvaluateComputedValue(FolderItemModel ownerItem, CustomSignalDefinition definition)
     {
-        var sourceA = ResolveSourceValue(ownerItem, definition.SourcePath);
-        var sourceB = ResolveSourceValue(ownerItem, definition.SourcePath2);
-        var sourceC = ResolveSourceValue(ownerItem, definition.SourcePath3);
-
-        return definition.Operation switch
+        if (CustomSignalFormulaEngine.TryEvaluate(definition, variableName => ResolveVariableValue(ownerItem, definition, variableName), out var value, out _))
         {
-            CustomSignalOperation.Copy => ConvertToDataType(sourceA, definition.DataType),
-            CustomSignalOperation.Add => ToDouble(sourceA) + ToDouble(sourceB),
-            CustomSignalOperation.Subtract => ToDouble(sourceA) - ToDouble(sourceB),
-            CustomSignalOperation.Multiply => ToDouble(sourceA) * ToDouble(sourceB),
-            CustomSignalOperation.Divide => Math.Abs(ToDouble(sourceB)) < double.Epsilon ? 0d : ToDouble(sourceA) / ToDouble(sourceB),
-            CustomSignalOperation.Min => Math.Min(ToDouble(sourceA), ToDouble(sourceB)),
-            CustomSignalOperation.Max => Math.Max(ToDouble(sourceA), ToDouble(sourceB)),
-            CustomSignalOperation.GreaterThan => ToDouble(sourceA) > ToDouble(sourceB),
-            CustomSignalOperation.LessThan => ToDouble(sourceA) < ToDouble(sourceB),
-            CustomSignalOperation.Equals => AreEqual(sourceA, sourceB, definition.DataType),
-            CustomSignalOperation.And => ToBool(sourceA) && ToBool(sourceB),
-            CustomSignalOperation.Or => ToBool(sourceA) || ToBool(sourceB),
-            CustomSignalOperation.Concat => (sourceA?.ToString() ?? string.Empty) + (sourceB?.ToString() ?? string.Empty),
-            CustomSignalOperation.If => ToBool(sourceA) ? ConvertToDataType(sourceB, definition.DataType) : ConvertToDataType(sourceC, definition.DataType),
+            return value;
+        }
+
+        return definition.DataType switch
+        {
+            CustomSignalDataType.Boolean => false,
+            CustomSignalDataType.Text => string.Empty,
+            _ => 0d
+        };
+    }
+
+    private bool ShouldEvaluateComputed(CustomSignalDefinition definition, string registryPath)
+    {
+        if (definition.Trigger == CustomSignalComputationTrigger.Manual)
+        {
+            return _pendingManualEvaluations.Remove(registryPath);
+        }
+
+        if (definition.Trigger != CustomSignalComputationTrigger.Timer)
+        {
+            return true;
+        }
+
+        var interval = Math.Max(1, definition.TriggerIntervalSeconds);
+        if (!_lastComputedPublishTimes.TryGetValue(registryPath, out var lastPublish))
+        {
+            return true;
+        }
+
+        return DateTimeOffset.UtcNow - lastPublish >= TimeSpan.FromSeconds(interval);
+    }
+
+    private object? ResolveVariableValue(FolderItemModel ownerItem, CustomSignalDefinition definition, string variableName)
+    {
+        var variable = definition.Variables.FirstOrDefault(candidate => string.Equals(candidate.Name, variableName, StringComparison.OrdinalIgnoreCase));
+        if (variable is not null && !string.IsNullOrWhiteSpace(variable.SourcePath))
+        {
+            return ResolveSourceValue(ownerItem, variable.SourcePath);
+        }
+
+        return variableName.ToUpperInvariant() switch
+        {
+            "A" => ResolveSourceValue(ownerItem, definition.SourcePath),
+            "B" => ResolveSourceValue(ownerItem, definition.SourcePath2),
+            "C" => ResolveSourceValue(ownerItem, definition.SourcePath3),
             _ => null
         };
     }
@@ -306,6 +385,33 @@ public partial class CustomSignalsControl : EditorTemplateControl
         }
 
         return null;
+    }
+
+    private void HandleManualTriggerChange(string triggerPath, string registryPath)
+    {
+        if (!HostRegistries.Data.TryGet(triggerPath, out var triggerItem) || triggerItem is null)
+        {
+            return;
+        }
+
+        var shouldTrigger = ToBool(triggerItem.Params.Has("Value") ? triggerItem.Params["Value"].Value : triggerItem.Value);
+        if (!shouldTrigger)
+        {
+            return;
+        }
+
+        _pendingManualEvaluations.Add(registryPath);
+        PublishSignals(preserveInputValues: true);
+
+        _isPublishing = true;
+        try
+        {
+            HostRegistries.Data.UpdateValue(triggerPath, false);
+        }
+        finally
+        {
+            _isPublishing = false;
+        }
     }
 
     private void UpdateRowsFromRegistry()
@@ -486,6 +592,12 @@ public partial class CustomSignalsControl : EditorTemplateControl
         return $"Project.{folderName}.CustomSignals.{signalName}";
     }
 
+    internal static string BuildManualTriggerPath(FolderItemModel ownerItem, CustomSignalDefinition definition)
+        => BuildManualTriggerPath(BuildRegistryPath(ownerItem, definition));
+
+    internal static string BuildManualTriggerPath(string registryPath)
+        => $"{registryPath}.Trigger";
+
     private static string SanitizeSegment(string? value, string fallback)
     {
         var trimmed = (value ?? string.Empty).Trim().Trim('.', '/', '\\');
@@ -571,15 +683,6 @@ public partial class CustomSignalsControl : EditorTemplateControl
         }
     }
 
-    private static bool AreEqual(object? left, object? right, CustomSignalDataType dataType)
-    {
-        return dataType switch
-        {
-            CustomSignalDataType.Boolean => ToBool(left) == ToBool(right),
-            CustomSignalDataType.Number => Math.Abs(ToDouble(left) - ToDouble(right)) < 0.000001d,
-            _ => string.Equals(left?.ToString() ?? string.Empty, right?.ToString() ?? string.Empty, StringComparison.Ordinal)
-        };
-    }
 }
 
 public sealed class CustomSignalRow : ObservableObject
@@ -614,12 +717,7 @@ public sealed class CustomSignalRow : ObservableObject
         }
     }
 
-    public string SummaryText => Definition.Mode switch
-    {
-        CustomSignalMode.Input => $"Input Â· {Definition.DataType} Â· {RegistryPath}",
-        CustomSignalMode.Constant => $"Constant Â· {Definition.DataType} Â· {Definition.ValueText}",
-        _ => $"Computed Â· {Definition.Operation} Â· {BuildSourceSummary()}"
-    };
+    public string SummaryText => $"Mode: {Definition.Mode} · Type: {Definition.DataType}";
 
     public string ValueDisplay
     {

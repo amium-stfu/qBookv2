@@ -381,26 +381,11 @@ public sealed class EnhancedSignalRow : ObservableObject
 
     public string Name => Definition.Name;
 
-    public string FilterModeText => Definition.FilterMode.ToString();
-
-    public string SummaryText
-        => $"Source: {ValueOrPlaceholder(Definition.SourcePath)} | Mode: {Definition.FilterMode}";
+    public string SourceText => $"Source: {ValueOrPlaceholder(Definition.SourcePath)}";
 
     public bool HasAlert => !string.IsNullOrWhiteSpace(AlertText);
 
     public string AlertText => FormatAlert(Runtime.CurrentAlertValue);
-
-    public string ValueDisplay
-    {
-        get
-        {
-            var raw = FormatValue(Runtime.CurrentRawValue);
-            var read = FormatValue(Runtime.CurrentOutputValue);
-            var set = FormatValue(Runtime.CurrentSetValue);
-            var command = FormatValue(Runtime.CurrentCommandValue);
-            return $"Raw: {raw} | Read: {read} | Set: {set} | Command: {command}";
-        }
-    }
 
     public string RowBackground => _ownerItem.EffectiveBodyBackground;
 
@@ -412,7 +397,6 @@ public sealed class EnhancedSignalRow : ObservableObject
 
     public void RefreshFromRuntime()
     {
-        RaisePropertyChanged(nameof(ValueDisplay));
         RaisePropertyChanged(nameof(AlertText));
         RaisePropertyChanged(nameof(HasAlert));
     }
@@ -423,21 +407,6 @@ public sealed class EnhancedSignalRow : ObservableObject
         RaisePropertyChanged(nameof(RowBorderBrush));
         RaisePropertyChanged(nameof(PrimaryForeground));
         RaisePropertyChanged(nameof(SecondaryForeground));
-    }
-
-    private string FormatValue(object? value)
-    {
-        if (value is null)
-        {
-            return "n/a";
-        }
-
-        if (value is IFormattable formattable && !string.IsNullOrWhiteSpace(Definition.Format))
-        {
-            return formattable.ToString(Definition.Format, CultureInfo.InvariantCulture);
-        }
-
-        return value.ToString() ?? string.Empty;
     }
 
     private static string ValueOrPlaceholder(string? value)

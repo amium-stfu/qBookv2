@@ -87,6 +87,16 @@ public sealed class ParameterDisplayModel
                     : FallbackText;
             }
 
+            if (Definition.Kind == ParameterVisualKind.Hex
+                && !string.IsNullOrWhiteSpace(FallbackText))
+            {
+                var fallbackNumber = ToUInt64(FallbackText);
+                var fallbackHexValue = Definition.PatternOrOptionsText.Length > 0
+                    ? fallbackNumber.ToString($"X{Definition.PatternOrOptionsText}", CultureInfo.InvariantCulture)
+                    : fallbackNumber.ToString("X", CultureInfo.InvariantCulture);
+                return $"0x{fallbackHexValue}";
+            }
+
             return FallbackText;
         }
 
@@ -133,7 +143,8 @@ public sealed class ParameterDisplayModel
             return [];
         }
 
-        var boolValue = ToBool(Parameter?.Value);
+        var effectiveValue = Parameter?.Value ?? FallbackText;
+        var boolValue = ToBool(effectiveValue);
         var trueLabel = Definition.Options.Count > 0 ? Definition.Options[0] : "True";
         var falseLabel = Definition.Options.Count > 1 ? Definition.Options[1] : "False";
 
@@ -160,7 +171,8 @@ public sealed class ParameterDisplayModel
             return [];
         }
 
-        var raw = ToUInt64(Parameter?.Value);
+        var effectiveValue = Parameter?.Value ?? FallbackText;
+        var raw = ToUInt64(effectiveValue);
         var options = new List<ParameterChoiceState>();
         for (var index = Definition.BitCount - 1; index >= 0; index--)
         {

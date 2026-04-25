@@ -13,7 +13,9 @@
         <Path x:Name="ProgressArc" Stroke="#FFC107" Fill="Transparent" Stretch="None" StrokeLineCap="Round" IsHitTestVisible="False" />
         <Path x:Name="BeaconArc" Stroke="#FFC107" Fill="Transparent" Stretch="None" StrokeLineCap="Round" IsHitTestVisible="False" />
 
-        <Grid x:Name="ContentHost" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+        <Grid x:Name="ContentHost" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+              PointerMoved="OnSelectionPointerMoved"
+              PointerReleased="OnSelectionPointerReleased">
           <Grid x:Name="ItemContentGrid"
                 IsHitTestVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}, Converter={StaticResource BoolNegationConverter}}" />
 
@@ -32,16 +34,8 @@
                         BorderBrush="#334155"
                         Background="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#1E3A8A}"
                         IsVisible="{Binding IsVisibleInLayout}"
-                        PointerPressed="OnCellPointerPressed"
-                        PointerReleased="OnCellPointerReleased"
-                        PointerEntered="OnCellPointerEnter">
+                        PointerPressed="OnCellPointerPressed">
                   <Grid>
-                    <TextBlock HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               FontSize="10"
-                               Opacity="0.6"
-                               Text="{Binding Label}" />
-
                     <Button Content="+"
                             Width="32"
                             Height="32"
@@ -56,7 +50,6 @@
                           <MenuItem Header="Button" Click="OnAddButtonMenuClicked" />
                           <MenuItem Header="Realtime Chart" Click="OnAddChartMenuClicked" />
                           <MenuItem Header="Log" Click="OnAddLogMenuClicked" />
-                          <MenuItem Header="UDL Client" Click="OnAddUdlClientMenuClicked" />
                         </ContextMenu>
                       </Button.ContextMenu>
                     </Button>

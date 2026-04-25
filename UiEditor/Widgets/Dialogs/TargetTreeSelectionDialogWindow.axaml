@@ -85,8 +85,10 @@
                           MaxHeight="480"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto">
-              <TreeView Classes="dialog-tree"
+              <TreeView x:Name="TargetTreeView"
+                        Classes="dialog-tree"
                         ItemsSource="{Binding RootNodes}"
+                        SelectionChanged="OnTreeSelectionChanged"
                         SelectedItem="{Binding SelectedNode, Mode=TwoWay}">
                 <TreeView.ItemTemplate>
                   <TreeDataTemplate DataType="viewModels:TargetSelectionTreeNode" ItemsSource="{Binding Children}">

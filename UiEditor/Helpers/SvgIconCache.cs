@@ -98,7 +98,31 @@ internal static partial class SvgIconCache
         tintedSvg = StrokeAttributeRegex().Replace(tintedSvg, match => IsNone(match.Groups[1].Value) ? match.Value : $"stroke=\"{tintColor}\"");
         tintedSvg = StrokeStyleRegex().Replace(tintedSvg, match => IsNone(match.Groups[1].Value) ? match.Value : $"stroke:{tintColor}");
 
-        return tintedSvg;
+        return EnsureRootFill(tintedSvg, tintColor);
+    }
+
+    private static string EnsureRootFill(string svgContent, string tintColor)
+    {
+        var match = SvgTagRegex().Match(svgContent);
+        if (!match.Success)
+        {
+            return svgContent;
+        }
+
+        var svgTag = match.Value;
+        if (FillAttributeRegex().IsMatch(svgTag) || FillStyleRegex().IsMatch(svgTag))
+        {
+            return svgContent;
+        }
+
+        var insertIndex = svgTag.LastIndexOf('>');
+        if (insertIndex < 0)
+        {
+            return svgContent;
+        }
+
+        var updatedTag = svgTag.Insert(insertIndex, $" fill=\"{tintColor}\"");
+        return string.Concat(svgContent.AsSpan(0, match.Index), updatedTag, svgContent.AsSpan(match.Index + match.Length));
     }
 
     private static bool IsNone(string value)
@@ -132,4 +156,7 @@ internal static partial class SvgIconCache
 
     [GeneratedRegex("stroke\\s*:\\s*([^;\"']+)", RegexOptions.IgnoreCase)]
     private static partial Regex StrokeStyleRegex();
+
+    private static Regex SvgTagRegex()
+        => new("<svg\\b[^>]*>", RegexOptions.IgnoreCase);
 }

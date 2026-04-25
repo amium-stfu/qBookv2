@@ -6,7 +6,7 @@
     xmlns:editorUi="using:Amium.UiEditor.Controls"
     xmlns:viewModels="using:Amium.UiEditor.ViewModels">
   <controls:UdlClientControl.HeaderActionsContent>
-    <Grid ColumnDefinitions="Auto,Auto,Auto">
+    <Grid ColumnDefinitions="Auto,Auto">
           <Button Padding="0"
             Background="Transparent"
             BorderBrush="Transparent"
@@ -44,21 +44,6 @@
         </StackPanel>
       </Border>
 
-      <Button Grid.Column="2"
-              Margin="6,0,0,0"
-              Padding="10,2"
-              Background="#FFF1C4"
-              BorderBrush="{Binding CardBorderBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}"
-              BorderThickness="1"
-              Cursor="Hand"
-              Click="OnEditDemoModulesClicked"
-              IsVisible="{Binding DataContext.UdlClientDemoEnabled, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}"
-              PointerPressed="OnInteractivePointerPressed">
-        <TextBlock FontSize="11"
-                   FontWeight="SemiBold"
-                   Foreground="#111827"
-                   Text="Add Demo Modules" />
-      </Button>
     </Grid>
   </controls:UdlClientControl.HeaderActionsContent>
 

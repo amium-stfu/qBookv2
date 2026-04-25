@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls;
@@ -54,13 +56,31 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
     private int _rangeAnchorRow;
     private int _rangeAnchorColumn;
     private Cursor? _previousCursor;
+    private bool _isMovingChild;
+    private bool _isResizingChild;
+    private FolderItemModel? _activeChildItem;
+    private int _dragRowOffset;
+    private int _dragColumnOffset;
+    private int _previewRow;
+    private int _previewColumn;
+    private int _previewRowSpan = 1;
+    private int _previewColumnSpan = 1;
+    private bool _hasPreview;
     private double _beaconOffset;
     private bool _isBeaconRunning;
     private bool _isProgressBarActive;
     private double _currentProgressState;
     private string _registryPath = string.Empty;
+    private string _signalColorRuntimePath = string.Empty;
+    private string _signalRunRuntimePath = string.Empty;
+    private string _progressBarRuntimePath = string.Empty;
+    private string _progressStateRuntimePath = string.Empty;
+    private string _progressBarColorRuntimePath = string.Empty;
+    private FolderItemModel? _item;
+    private bool _isUpdatingRuntimeSignals;
+    private readonly Dictionary<string, string> _publishedRuntimeValues = new(StringComparer.OrdinalIgnoreCase);
 
-    private FolderItemModel? Item => DataContext as FolderItemModel;
+    private FolderItemModel? Item => _item;
 
     private MainWindowViewModel? ViewModel
         => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
@@ -80,6 +100,7 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
 
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
+        _item = DataContext as FolderItemModel;
         _tableRoot = this.FindControl<Grid>("TableRoot");
         _circleSurface = this.FindControl<Grid>("CircleSurface");
         _contentHost = this.FindControl<Grid>("ContentHost");
@@ -96,11 +117,22 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
             _tableRoot.SizeChanged += OnRootSizeChanged;
         }
 
+        if (_contentHost is not null)
+        {
+            _contentHost.SizeChanged += OnContentHostSizeChanged;
+        }
+
+        HookItemProperties();
         HookItemsCollection();
-        EnsureRuntimeSignals();
+        UpdateRuntimeSnapshot();
         RefreshSignalState();
         RefreshCircleGeometry();
         RefreshItemOverlay();
+        Dispatcher.UIThread.Post(() =>
+        {
+            RefreshCircleGeometry();
+            RefreshItemOverlay();
+        }, DispatcherPriority.Loaded);
         HostRegistries.Data.ItemChanged += OnRegistryItemChanged;
     }
 
@@ -112,8 +144,14 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
             _tableRoot.SizeChanged -= OnRootSizeChanged;
         }
 
+        if (_contentHost is not null)
+        {
+            _contentHost.SizeChanged -= OnContentHostSizeChanged;
+        }
+
         UnhookItemProperties();
         UnhookItemsCollection();
+        RemovePublishedRuntimeItems();
         StopBeacon();
         _tableRoot = null;
         _circleSurface = null;
@@ -125,19 +163,28 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
         _innerRing = null;
         _progressArc = null;
         _beaconArc = null;
+        _item = null;
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
+        _item = DataContext as FolderItemModel;
         HookItemProperties();
         HookItemsCollection();
-        EnsureRuntimeSignals();
+        UpdateRuntimeSnapshot();
         RefreshSignalState();
         RefreshCircleGeometry();
         RefreshItemOverlay();
+        Dispatcher.UIThread.Post(() =>
+        {
+            RefreshCircleGeometry();
+            RefreshItemOverlay();
+        }, DispatcherPriority.Loaded);
     }
 
     private void OnRootSizeChanged(object? sender, SizeChangedEventArgs e) => RefreshCircleGeometry();
+
+    private void OnContentHostSizeChanged(object? sender, SizeChangedEventArgs e) => RefreshCircleGeometry();
 
     private void HookItemsCollection()
     {
@@ -197,6 +244,7 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
 
         if (string.IsNullOrWhiteSpace(e.PropertyName)
             || string.Equals(e.PropertyName, nameof(FolderItemModel.Path), StringComparison.Ordinal)
+            || string.Equals(e.PropertyName, nameof(FolderItemModel.FolderName), StringComparison.Ordinal)
             || string.Equals(e.PropertyName, nameof(FolderItemModel.Name), StringComparison.Ordinal)
             || string.Equals(e.PropertyName, nameof(FolderItemModel.Title), StringComparison.Ordinal)
             || string.Equals(e.PropertyName, nameof(FolderItemModel.SignalColor), StringComparison.Ordinal)
@@ -205,9 +253,40 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
             || string.Equals(e.PropertyName, nameof(FolderItemModel.ProgressState), StringComparison.Ordinal)
             || string.Equals(e.PropertyName, nameof(FolderItemModel.ProgressBarColor), StringComparison.Ordinal))
         {
-            EnsureRuntimeSignals();
+            UpdateRuntimeSnapshot();
             RefreshSignalState();
         }
+    }
+
+    private void UpdateRuntimeSnapshot()
+    {
+        var previousRegistryPath = _registryPath;
+
+        if (Item?.IsCircleDisplay != true)
+        {
+            _registryPath = string.Empty;
+            _signalColorRuntimePath = string.Empty;
+            _signalRunRuntimePath = string.Empty;
+            _progressBarRuntimePath = string.Empty;
+            _progressStateRuntimePath = string.Empty;
+            _progressBarColorRuntimePath = string.Empty;
+            RemovePublishedRuntimeItems();
+            return;
+        }
+
+        _registryPath = Item.GetDisplayRuntimeBasePath();
+        _signalColorRuntimePath = Item.GetDisplayRuntimePath(SignalColorItemName);
+        _signalRunRuntimePath = Item.GetDisplayRuntimePath(SignalRunItemName);
+        _progressBarRuntimePath = Item.GetDisplayRuntimePath(ProgressBarItemName);
+        _progressStateRuntimePath = Item.GetDisplayRuntimePath(ProgressStateItemName);
+        _progressBarColorRuntimePath = Item.GetDisplayRuntimePath(ProgressBarColorItemName);
+
+        if (!string.Equals(previousRegistryPath, _registryPath, StringComparison.OrdinalIgnoreCase))
+        {
+            RemovePublishedRuntimeItems();
+        }
+
+        EnsureRuntimeSignals();
     }
 
     private void RefreshCircleGeometry()
@@ -339,6 +418,15 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
             };
             overlay.Bind(IsVisibleProperty, new Binding(nameof(FolderItemModel.IsSelected)));
 
+            var moveSurface = new Border
+            {
+                Background = Brushes.Transparent,
+                Cursor = new Cursor(StandardCursorType.Hand),
+                Tag = child
+            };
+            moveSurface.PointerPressed += OnChildMovePointerPressed;
+            overlay.Children.Add(moveSurface);
+
             var toolbar = new Border
             {
                 HorizontalAlignment = HorizontalAlignment.Right,
@@ -401,6 +489,22 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
             toolbar.Child = stack;
             overlay.Children.Add(toolbar);
 
+            var resizeGrip = new Border
+            {
+                Width = 14,
+                Height = 14,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, 4, 4),
+                Background = Brushes.Orange,
+                CornerRadius = new CornerRadius(3),
+                Cursor = new Cursor(StandardCursorType.Hand),
+                Tag = child,
+                Opacity = 0.95
+            };
+            resizeGrip.PointerPressed += OnChildResizePointerPressed;
+            overlay.Children.Add(resizeGrip);
+
             Grid.SetRow(overlay, row);
             Grid.SetColumn(overlay, column);
             Grid.SetRowSpan(overlay, rowSpan);
@@ -411,102 +515,172 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
 
     private void EnsureRuntimeSignals()
     {
-        if (Item is null || string.IsNullOrWhiteSpace(Item.Path))
-        {
-            _registryPath = string.Empty;
-            return;
-        }
-
-        _registryPath = Item.Path;
-        var segments = _registryPath.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length == 0)
+        if (_isUpdatingRuntimeSignals)
         {
             return;
         }
 
-        var nameSegment = segments[^1];
-        var parentPath = segments.Length > 1 ? string.Join('.', segments, 0, segments.Length - 1) : null;
-        var signalColor = string.IsNullOrWhiteSpace(Item.SignalColor) ? DefaultSignalColor : Item.SignalColor;
-        var signalRun = Item.SignalRun;
-        var progressBar = Item.ProgressBar;
-        var progressState = Math.Clamp(Item.ProgressState, 0d, 100d);
-        var progressBarColor = string.IsNullOrWhiteSpace(Item.ProgressBarColor) ? DefaultProgressBarColor : Item.ProgressBarColor;
-
-        Item snapshot;
-        if (HostRegistries.Data.TryGet(_registryPath, out var existing) && existing is not null)
+        if (Item?.IsCircleDisplay != true || string.IsNullOrWhiteSpace(_registryPath))
         {
-            snapshot = existing.Clone();
-        }
-        else
-        {
-            snapshot = string.IsNullOrWhiteSpace(parentPath)
-                ? new Item(nameSegment)
-                : new Item(nameSegment, null, parentPath);
+            return;
         }
 
-        snapshot.Params["Path"].Value = _registryPath;
-        snapshot.Params["Kind"].Value = "CircleDisplay";
-        snapshot.Params["Text"].Value = string.IsNullOrWhiteSpace(Item.Name) ? Item.Title : Item.Name;
-        snapshot[SignalColorItemName].Value = signalColor;
-        snapshot[SignalColorItemName].Params["Text"].Value = SignalColorItemName;
-        snapshot[SignalRunItemName].Value = signalRun;
-        snapshot[SignalRunItemName].Params["Text"].Value = SignalRunItemName;
-        snapshot[ProgressBarItemName].Value = progressBar;
-        snapshot[ProgressBarItemName].Params["Text"].Value = ProgressBarItemName;
-        snapshot[ProgressStateItemName].Value = progressState;
-        snapshot[ProgressStateItemName].Params["Text"].Value = ProgressStateItemName;
-        snapshot[ProgressBarColorItemName].Value = progressBarColor;
-        snapshot[ProgressBarColorItemName].Params["Text"].Value = ProgressBarColorItemName;
-        HostRegistries.Data.UpsertSnapshot(_registryPath, snapshot, pruneMissingMembers: false);
+        var signalColor = ReadRuntimeString(_signalColorRuntimePath, string.IsNullOrWhiteSpace(Item.SignalColor) ? DefaultSignalColor : Item.SignalColor);
+        var signalRun = ReadRuntimeBoolean(_signalRunRuntimePath, Item.SignalRun);
+        var progressBar = ReadRuntimeBoolean(_progressBarRuntimePath, Item.ProgressBar);
+        var progressState = ReadRuntimeDouble(_progressStateRuntimePath, Math.Clamp(Item.ProgressState, 0d, 100d), 0d, 100d);
+        var progressBarColor = ReadRuntimeString(_progressBarColorRuntimePath, string.IsNullOrWhiteSpace(Item.ProgressBarColor) ? DefaultProgressBarColor : Item.ProgressBarColor);
+
+        _isUpdatingRuntimeSignals = true;
+        try
+        {
+            PublishRuntimeValue(SignalColorItemName, signalColor, "Circle display signal color");
+            PublishRuntimeValue(SignalRunItemName, signalRun, "Circle display signal state");
+            PublishRuntimeValue(ProgressBarItemName, progressBar, "Circle display progress visibility");
+            PublishRuntimeValue(ProgressStateItemName, progressState, "Circle display progress state");
+            PublishRuntimeValue(ProgressBarColorItemName, progressBarColor, "Circle display progress color");
+        }
+        finally
+        {
+            _isUpdatingRuntimeSignals = false;
+        }
+    }
+
+    private void PublishRuntimeValue(string itemName, object? value, string title)
+    {
+        if (Item is null)
+        {
+            return;
+        }
+
+        var path = Item.GetDisplayRuntimePath(itemName);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        var serializedValue = value?.ToString() ?? string.Empty;
+        if (_publishedRuntimeValues.TryGetValue(path, out var previousValue)
+            && string.Equals(previousValue, serializedValue, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _publishedRuntimeValues[path] = serializedValue;
+
+        var snapshot = new Item(itemName, value, _registryPath);
+        snapshot.Params["Kind"].Value = "DisplayRuntime";
+        snapshot.Params["Text"].Value = title;
+        snapshot.Params["Title"].Value = title;
+        HostRegistries.Data.UpsertSnapshot(snapshot.Path!, snapshot, pruneMissingMembers: true);
+    }
+
+    private void RemovePublishedRuntimeItems()
+    {
+        foreach (var path in _publishedRuntimeValues.Keys)
+        {
+            HostRegistries.Data.Remove(path);
+        }
+
+        _publishedRuntimeValues.Clear();
     }
 
     private void RefreshSignalState()
     {
-        ApplyBeaconColor(DefaultSignalColor);
-        ApplyProgressColor(DefaultProgressBarColor);
-        ApplyState(false, false, 0d);
-
-        if (string.IsNullOrWhiteSpace(_registryPath))
+        if (Item is null)
         {
+            ApplyBeaconColor(DefaultSignalColor);
+            ApplyProgressColor(DefaultProgressBarColor);
+            ApplyState(false, false, 0d);
             return;
         }
 
-        if (!HostRegistries.Data.TryGet(_registryPath, out var item) || item is null)
-        {
-            return;
-        }
+        var signalColor = ReadRuntimeString(_signalColorRuntimePath, string.IsNullOrWhiteSpace(Item.SignalColor) ? DefaultSignalColor : Item.SignalColor);
+        var progressBarColor = ReadRuntimeString(_progressBarColorRuntimePath, string.IsNullOrWhiteSpace(Item.ProgressBarColor) ? DefaultProgressBarColor : Item.ProgressBarColor);
+        var progressBar = ReadRuntimeBoolean(_progressBarRuntimePath, Item.ProgressBar);
+        var progressState = ReadRuntimeDouble(_progressStateRuntimePath, Math.Clamp(Item.ProgressState, 0d, 100d), 0d, 100d);
+        var signalRun = ReadRuntimeBoolean(_signalRunRuntimePath, Item.SignalRun);
 
-        if (item.Has(SignalColorItemName))
-        {
-            ApplyBeaconColor(item[SignalColorItemName].Value?.ToString());
-        }
-
-        if (item.Has(ProgressBarColorItemName))
-        {
-            ApplyProgressColor(item[ProgressBarColorItemName].Value?.ToString());
-        }
-
-        var progressBar = item.Has(ProgressBarItemName) && ToBoolean(item[ProgressBarItemName].Value);
-        var progressState = item.Has(ProgressStateItemName) ? ToDouble(item[ProgressStateItemName].Value) : 0d;
-        var signalRun = item.Has(SignalRunItemName) && ToBoolean(item[SignalRunItemName].Value);
-
+        ApplyBeaconColor(signalColor);
+        ApplyProgressColor(progressBarColor);
         ApplyState(progressBar, signalRun, progressState);
     }
 
     private void OnRegistryItemChanged(object? sender, DataChangedEventArgs e)
     {
+        if (_isUpdatingRuntimeSignals)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(_registryPath))
         {
             return;
         }
 
-        if (!string.Equals(e.Key, _registryPath, StringComparison.Ordinal)
-            && !e.Key.StartsWith(_registryPath + ".", StringComparison.Ordinal))
+        if (!MatchesRuntimeChange(e.Key))
         {
             return;
         }
 
-        Dispatcher.UIThread.Post(RefreshSignalState);
+        Dispatcher.UIThread.Post(() =>
+        {
+            EnsureRuntimeSignals();
+            RefreshSignalState();
+        });
+    }
+
+    private bool MatchesRuntimeChange(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        return string.Equals(path, _registryPath, StringComparison.Ordinal)
+            || string.Equals(path, _signalColorRuntimePath, StringComparison.Ordinal)
+            || string.Equals(path, _signalRunRuntimePath, StringComparison.Ordinal)
+            || string.Equals(path, _progressBarRuntimePath, StringComparison.Ordinal)
+            || string.Equals(path, _progressStateRuntimePath, StringComparison.Ordinal)
+            || string.Equals(path, _progressBarColorRuntimePath, StringComparison.Ordinal)
+            || path.StartsWith(_registryPath + ".", StringComparison.Ordinal);
+    }
+
+    private string ReadRuntimeString(string? path, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(path)
+            || !HostRegistries.Data.TryGet(path, out var item)
+            || item is null)
+        {
+            return fallback;
+        }
+
+        var value = item.Value?.ToString();
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private bool ReadRuntimeBoolean(string? path, bool fallback)
+    {
+        if (string.IsNullOrWhiteSpace(path)
+            || !HostRegistries.Data.TryGet(path, out var item)
+            || item is null)
+        {
+            return fallback;
+        }
+
+        return item.Value is null ? fallback : ToBoolean(item.Value);
+    }
+
+    private double ReadRuntimeDouble(string? path, double fallback, double min, double max)
+    {
+        if (string.IsNullOrWhiteSpace(path)
+            || !HostRegistries.Data.TryGet(path, out var item)
+            || item is null)
+        {
+            return Math.Clamp(fallback, min, max);
+        }
+
+        return Math.Clamp(ToDouble(item.Value), min, max);
     }
 
     private void ApplyBeaconColor(string? value)
@@ -795,8 +969,23 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
         }
 
         var modifiers = e.KeyModifiers;
+        if (point.Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed
+            && modifiers.HasFlag(KeyModifiers.Control))
+        {
+            _isSelecting = false;
+            if (_selectionOverlay is not null)
+            {
+                _selectionOverlay.IsVisible = false;
+            }
+
+            HandleCtrlRangeClick(slot);
+            e.Handled = true;
+            return;
+        }
+
         if (point.Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
         {
+            _hasRangeAnchor = false;
             _isSelecting = true;
             _selectionAnchorRow = slot.Row;
             _selectionAnchorColumn = slot.Column;
@@ -804,32 +993,28 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
             _selectionCurrentColumn = slot.Column;
             _previousCursor = control.Cursor;
             control.Cursor = new Cursor(StandardCursorType.Cross);
-            e.Pointer.Capture(control);
+            e.Pointer.Capture(_contentHost);
+            ViewModel.SelectTableRectangle(Item, _selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
             UpdateSelectionOverlay(_selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
-        }
-
-        if (point.Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed
-            && modifiers.HasFlag(KeyModifiers.Control))
-        {
-            HandleCtrlRangeClick(slot);
             e.Handled = true;
             return;
         }
-
-        _hasRangeAnchor = false;
-        var isToggle = modifiers.HasFlag(KeyModifiers.Shift);
-        ViewModel.ToggleTableCellSelection(Item, slot.Row, slot.Column, isToggle);
-        e.Handled = true;
     }
 
-    private void OnCellPointerEnter(object? sender, PointerEventArgs e)
+    private void OnSelectionPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_isMovingChild || _isResizingChild)
+        {
+            HandleChildPointerMoved(sender, e);
+            return;
+        }
+
         if (!_isSelecting || ViewModel is null || Item is null || !ViewModel.IsEditMode)
         {
             return;
         }
 
-        if (sender is not Control { DataContext: TableCellSlot slot } control || !slot.IsVisibleInLayout)
+        if (sender is not Control control)
         {
             return;
         }
@@ -842,18 +1027,30 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
             {
                 _selectionOverlay.IsVisible = false;
             }
-            control.Cursor = _previousCursor;
+            ReleaseSelectionPointer(e.Pointer);
+            return;
+        }
+
+        if (!TryGetCircleSlotFromPoint(e.GetPosition(control), requireFree: true, out var slot))
+        {
             return;
         }
 
         _selectionCurrentRow = slot.Row;
         _selectionCurrentColumn = slot.Column;
+        ViewModel.SelectTableRectangle(Item, _selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
         UpdateSelectionOverlay(_selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
         e.Handled = true;
     }
 
-    private void OnCellPointerReleased(object? sender, PointerReleasedEventArgs e)
+    private void OnSelectionPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_isMovingChild || _isResizingChild)
+        {
+            CommitChildInteraction(e);
+            return;
+        }
+
         if (e.InitialPressMouseButton == MouseButton.Left)
         {
             if (_isSelecting && ViewModel is not null && Item is not null && ViewModel.IsEditMode)
@@ -861,19 +1058,224 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
                 ViewModel.SelectTableRectangle(Item, _selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
             }
 
-            _isSelecting = false;
-            e.Pointer.Capture(null);
+            ReleaseSelectionPointer(e.Pointer);
+        }
+    }
 
-            if (sender is Control control)
-            {
-                control.Cursor = _previousCursor;
-            }
+    private void OnChildMovePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (ViewModel is null || Item is null || !ViewModel.IsEditMode || _contentHost is null)
+        {
+            return;
+        }
 
-            if (_selectionOverlay is not null)
+        if (sender is not Control { Tag: FolderItemModel child } control)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(control);
+        if (point.Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed)
+        {
+            return;
+        }
+
+        if (!TryGetCircleSlotFromPoint(e.GetPosition(_contentHost), requireFree: false, out var slot))
+        {
+            return;
+        }
+
+        _activeChildItem = child;
+        _isMovingChild = true;
+        _isResizingChild = false;
+        _dragRowOffset = slot.Row - child.TableCellRow;
+        _dragColumnOffset = slot.Column - child.TableCellColumn;
+        _previewRow = child.TableCellRow;
+        _previewColumn = child.TableCellColumn;
+        _previewRowSpan = child.TableCellRowSpan;
+        _previewColumnSpan = child.TableCellColumnSpan;
+        _hasPreview = true;
+        _previousCursor = _contentHost.Cursor;
+        _contentHost.Cursor = new Cursor(StandardCursorType.Hand);
+        e.Pointer.Capture(_contentHost);
+        UpdateSelectionOverlay(child.TableCellRow, child.TableCellColumn, child.TableCellRow + child.TableCellRowSpan - 1, child.TableCellColumn + child.TableCellColumnSpan - 1);
+        e.Handled = true;
+    }
+
+    private void OnChildResizePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (ViewModel is null || Item is null || !ViewModel.IsEditMode || _contentHost is null)
+        {
+            return;
+        }
+
+        if (sender is not Control { Tag: FolderItemModel child } control)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(control);
+        if (point.Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed)
+        {
+            return;
+        }
+
+        _activeChildItem = child;
+        _isMovingChild = false;
+        _isResizingChild = true;
+        _previewRow = child.TableCellRow;
+        _previewColumn = child.TableCellColumn;
+        _previewRowSpan = child.TableCellRowSpan;
+        _previewColumnSpan = child.TableCellColumnSpan;
+        _hasPreview = true;
+        _previousCursor = _contentHost.Cursor;
+        _contentHost.Cursor = new Cursor(StandardCursorType.Hand);
+        e.Pointer.Capture(_contentHost);
+        UpdateSelectionOverlay(child.TableCellRow, child.TableCellColumn, child.TableCellRow + child.TableCellRowSpan - 1, child.TableCellColumn + child.TableCellColumnSpan - 1);
+        e.Handled = true;
+    }
+
+    private void HandleChildPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_activeChildItem is null || ViewModel is null || Item is null || _contentHost is null)
+        {
+            return;
+        }
+
+        if (sender is not Control control)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(control);
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            ReleaseChildInteraction(e.Pointer);
+            return;
+        }
+
+        if (!TryGetCircleSlotFromPoint(e.GetPosition(control), requireFree: false, out var slot))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (_isMovingChild)
+        {
+            var targetRow = slot.Row - _dragRowOffset;
+            var targetColumn = slot.Column - _dragColumnOffset;
+            if (ViewModel.CanOccupyTableRectangle(Item, targetRow, targetColumn, _activeChildItem.TableCellRowSpan, _activeChildItem.TableCellColumnSpan, _activeChildItem))
             {
-                _selectionOverlay.IsVisible = false;
+                _previewRow = targetRow;
+                _previewColumn = targetColumn;
+                _previewRowSpan = _activeChildItem.TableCellRowSpan;
+                _previewColumnSpan = _activeChildItem.TableCellColumnSpan;
+                _hasPreview = true;
+                UpdateSelectionOverlay(targetRow, targetColumn, targetRow + _previewRowSpan - 1, targetColumn + _previewColumnSpan - 1);
             }
         }
+        else if (_isResizingChild)
+        {
+            var rowSpan = Math.Max(1, slot.Row - _activeChildItem.TableCellRow + 1);
+            var columnSpan = Math.Max(1, slot.Column - _activeChildItem.TableCellColumn + 1);
+            if (ViewModel.CanOccupyTableRectangle(Item, _activeChildItem.TableCellRow, _activeChildItem.TableCellColumn, rowSpan, columnSpan, _activeChildItem))
+            {
+                _previewRow = _activeChildItem.TableCellRow;
+                _previewColumn = _activeChildItem.TableCellColumn;
+                _previewRowSpan = rowSpan;
+                _previewColumnSpan = columnSpan;
+                _hasPreview = true;
+                UpdateSelectionOverlay(_previewRow, _previewColumn, _previewRow + rowSpan - 1, _previewColumn + columnSpan - 1);
+            }
+        }
+
+        e.Handled = true;
+    }
+
+    private void CommitChildInteraction(PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton == MouseButton.Left && ViewModel is not null && Item is not null && _activeChildItem is not null && _hasPreview)
+        {
+            var changed = _isMovingChild
+                ? ViewModel.TryMoveTableChild(Item, _activeChildItem, _previewRow, _previewColumn)
+                : ViewModel.TryResizeTableChild(Item, _activeChildItem, _previewRowSpan, _previewColumnSpan);
+
+            if (changed)
+            {
+                RefreshItemOverlay();
+            }
+        }
+
+        ReleaseChildInteraction(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void ReleaseChildInteraction(IPointer pointer)
+    {
+        _isMovingChild = false;
+        _isResizingChild = false;
+        _activeChildItem = null;
+        _hasPreview = false;
+        pointer.Capture(null);
+
+        if (_contentHost is not null)
+        {
+            _contentHost.Cursor = _previousCursor;
+        }
+
+        if (_selectionOverlay is not null)
+        {
+            _selectionOverlay.IsVisible = false;
+        }
+    }
+
+    private void ReleaseSelectionPointer(IPointer pointer)
+    {
+        _isSelecting = false;
+        pointer.Capture(null);
+
+        if (_contentHost is not null)
+        {
+            _contentHost.Cursor = _previousCursor;
+        }
+
+        if (_selectionOverlay is not null)
+        {
+            _selectionOverlay.IsVisible = false;
+        }
+    }
+
+    private bool TryGetCircleSlotFromPoint(Point point, bool requireFree, out TableCellSlot slot)
+    {
+        slot = null!;
+        if (_contentHost is null || Item is null)
+        {
+            return false;
+        }
+
+        var bounds = _contentHost.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return false;
+        }
+
+        var normalizedX = Math.Clamp(point.X, 0, Math.Max(0, bounds.Width - 1));
+        var normalizedY = Math.Clamp(point.Y, 0, Math.Max(0, bounds.Height - 1));
+        var column = Math.Min(Item.TableColumns, Math.Max(1, (int)(normalizedX / (bounds.Width / Math.Max(1, Item.TableColumns))) + 1));
+        var row = Math.Min(Item.TableRows, Math.Max(1, (int)(normalizedY / (bounds.Height / Math.Max(1, Item.TableRows))) + 1));
+        var resolved = Item.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == column);
+        if (resolved is null || !resolved.IsVisibleInLayout)
+        {
+            return false;
+        }
+
+        if (requireFree && resolved.ChildItem is not null)
+        {
+            return false;
+        }
+
+        slot = resolved;
+        return true;
     }
 
     private void HandleCtrlRangeClick(TableCellSlot slot)

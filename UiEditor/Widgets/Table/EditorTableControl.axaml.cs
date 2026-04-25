@@ -29,6 +29,16 @@ public partial class EditorTableControl : EditorTemplateWidget
     private int _rangeAnchorColumn;
     private Border? _selectionOverlay;
     private Cursor? _previousCursor;
+    private bool _isMovingChild;
+    private bool _isResizingChild;
+    private FolderItemModel? _activeChildItem;
+    private int _dragRowOffset;
+    private int _dragColumnOffset;
+    private int _previewRow;
+    private int _previewColumn;
+    private int _previewRowSpan = 1;
+    private int _previewColumnSpan = 1;
+    private bool _hasPreview;
 
     private FolderItemModel? Item => DataContext as FolderItemModel;
 
@@ -193,6 +203,15 @@ public partial class EditorTableControl : EditorTemplateWidget
             };
             overlay.Bind(IsVisibleProperty, new Binding(nameof(FolderItemModel.IsVisibleInActiveView)));
 
+            var moveSurface = new Border
+            {
+                Background = Avalonia.Media.Brushes.Transparent,
+                Cursor = new Cursor(StandardCursorType.Hand),
+                Tag = child
+            };
+            moveSurface.PointerPressed += OnChildMovePointerPressed;
+            overlay.Children.Add(moveSurface);
+
             var toolbar = new Border
             {
                 HorizontalAlignment = HorizontalAlignment.Right,
@@ -260,6 +279,22 @@ public partial class EditorTableControl : EditorTemplateWidget
 
             overlay.Children.Add(toolbar);
 
+            var resizeGrip = new Border
+            {
+                Width = 14,
+                Height = 14,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, 4, 4),
+                Background = Avalonia.Media.Brushes.Orange,
+                CornerRadius = new CornerRadius(3),
+                Cursor = new Cursor(StandardCursorType.Hand),
+                Tag = child,
+                Opacity = 0.95
+            };
+            resizeGrip.PointerPressed += OnChildResizePointerPressed;
+            overlay.Children.Add(resizeGrip);
+
             // Overlay nur anzeigen, wenn das Item selektiert ist.
             overlay.Bind(IsVisibleProperty, new Avalonia.Data.Binding("IsSelected"));
 
@@ -316,8 +351,24 @@ public partial class EditorTableControl : EditorTemplateWidget
         }
         var modifiers = e.KeyModifiers;
 
+        // STRG + Linksklick: rechteckige Bereichsauswahl (Startpunkt -> Endpunkt).
+        if (point.Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed
+            && modifiers.HasFlag(KeyModifiers.Control))
+        {
+            _isSelecting = false;
+            if (_selectionOverlay is not null)
+            {
+                _selectionOverlay.IsVisible = false;
+            }
+
+            HandleCtrlRangeClick(slot);
+            e.Handled = true;
+            return;
+        }
+
         if (point.Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
         {
+            _hasRangeAnchor = false;
             _isSelecting = true;
             _selectionAnchorRow = slot.Row;
             _selectionAnchorColumn = slot.Column;
@@ -325,36 +376,28 @@ public partial class EditorTableControl : EditorTemplateWidget
             _selectionCurrentColumn = slot.Column;
             _previousCursor = control.Cursor;
             control.Cursor = new Cursor(StandardCursorType.Cross);
-            e.Pointer.Capture(control);
+            e.Pointer.Capture(_tableRoot);
+            ViewModel.SelectTableRectangle(Item, _selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
             UpdateSelectionOverlay(_selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
-        }
-
-        // STRG + Linksklick: rechteckige Bereichsauswahl (Startpunkt -> Endpunkt).
-        if (point.Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed
-            && modifiers.HasFlag(KeyModifiers.Control))
-        {
-            HandleCtrlRangeClick(slot);
             e.Handled = true;
             return;
         }
-
-        // Jede andere Aktion beendet ggf. einen laufenden Range-Anchor.
-        _hasRangeAnchor = false;
-
-        // Ohne STRG: Single-/Shift-Toggle wie bisher.
-        var isToggle = modifiers.HasFlag(KeyModifiers.Shift);
-        ViewModel.ToggleTableCellSelection(Item, slot.Row, slot.Column, isToggle);
-        e.Handled = true;
     }
 
-    private void OnCellPointerEnter(object? sender, PointerEventArgs e)
+    private void OnSelectionPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_isMovingChild || _isResizingChild)
+        {
+            HandleChildPointerMoved(sender, e);
+            return;
+        }
+
         if (!_isSelecting || ViewModel is null || Item is null || !ViewModel.IsEditMode)
         {
             return;
         }
 
-        if (sender is not Control { DataContext: TableCellSlot slot } control)
+        if (sender is not Control control)
         {
             return;
         }
@@ -367,18 +410,30 @@ public partial class EditorTableControl : EditorTemplateWidget
             {
                 _selectionOverlay.IsVisible = false;
             }
-            control.Cursor = _previousCursor;
+            ReleaseSelectionPointer(e.Pointer);
+            return;
+        }
+
+        if (!TryGetTableSlotFromPoint(e.GetPosition(control), requireFree: true, out var slot))
+        {
             return;
         }
 
         _selectionCurrentRow = slot.Row;
         _selectionCurrentColumn = slot.Column;
+        ViewModel.SelectTableRectangle(Item, _selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
         UpdateSelectionOverlay(_selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
         e.Handled = true;
     }
 
-    private void OnCellPointerReleased(object? sender, PointerReleasedEventArgs e)
+    private void OnSelectionPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_isMovingChild || _isResizingChild)
+        {
+            CommitChildInteraction(e);
+            return;
+        }
+
         if (e.InitialPressMouseButton == MouseButton.Left)
         {
             if (_isSelecting && ViewModel is not null && Item is not null && ViewModel.IsEditMode)
@@ -386,19 +441,224 @@ public partial class EditorTableControl : EditorTemplateWidget
                 ViewModel.SelectTableRectangle(Item, _selectionAnchorRow, _selectionAnchorColumn, _selectionCurrentRow, _selectionCurrentColumn);
             }
 
-            _isSelecting = false;
-            e.Pointer.Capture(null);
+            ReleaseSelectionPointer(e.Pointer);
+        }
+    }
 
-            if (sender is Control control)
-            {
-                control.Cursor = _previousCursor;
-            }
+    private void OnChildMovePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (ViewModel is null || Item is null || !ViewModel.IsEditMode || _tableRoot is null)
+        {
+            return;
+        }
 
-            if (_selectionOverlay is not null)
+        if (sender is not Control { Tag: FolderItemModel child } control)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(control);
+        if (point.Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed)
+        {
+            return;
+        }
+
+        if (!TryGetTableSlotFromPoint(e.GetPosition(_tableRoot), requireFree: false, out var slot))
+        {
+            return;
+        }
+
+        _activeChildItem = child;
+        _isMovingChild = true;
+        _isResizingChild = false;
+        _dragRowOffset = slot.Row - child.TableCellRow;
+        _dragColumnOffset = slot.Column - child.TableCellColumn;
+        _previewRow = child.TableCellRow;
+        _previewColumn = child.TableCellColumn;
+        _previewRowSpan = child.TableCellRowSpan;
+        _previewColumnSpan = child.TableCellColumnSpan;
+        _hasPreview = true;
+        _previousCursor = _tableRoot.Cursor;
+        _tableRoot.Cursor = new Cursor(StandardCursorType.Hand);
+        e.Pointer.Capture(_tableRoot);
+        UpdateSelectionOverlay(child.TableCellRow, child.TableCellColumn, child.TableCellRow + child.TableCellRowSpan - 1, child.TableCellColumn + child.TableCellColumnSpan - 1);
+        e.Handled = true;
+    }
+
+    private void OnChildResizePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (ViewModel is null || Item is null || !ViewModel.IsEditMode || _tableRoot is null)
+        {
+            return;
+        }
+
+        if (sender is not Control { Tag: FolderItemModel child } control)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(control);
+        if (point.Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed)
+        {
+            return;
+        }
+
+        _activeChildItem = child;
+        _isMovingChild = false;
+        _isResizingChild = true;
+        _previewRow = child.TableCellRow;
+        _previewColumn = child.TableCellColumn;
+        _previewRowSpan = child.TableCellRowSpan;
+        _previewColumnSpan = child.TableCellColumnSpan;
+        _hasPreview = true;
+        _previousCursor = _tableRoot.Cursor;
+        _tableRoot.Cursor = new Cursor(StandardCursorType.Hand);
+        e.Pointer.Capture(_tableRoot);
+        UpdateSelectionOverlay(child.TableCellRow, child.TableCellColumn, child.TableCellRow + child.TableCellRowSpan - 1, child.TableCellColumn + child.TableCellColumnSpan - 1);
+        e.Handled = true;
+    }
+
+    private void HandleChildPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_activeChildItem is null || ViewModel is null || Item is null || _tableRoot is null)
+        {
+            return;
+        }
+
+        if (sender is not Control control)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(control);
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            ReleaseChildInteraction(e.Pointer);
+            return;
+        }
+
+        if (!TryGetTableSlotFromPoint(e.GetPosition(control), requireFree: false, out var slot))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (_isMovingChild)
+        {
+            var targetRow = slot.Row - _dragRowOffset;
+            var targetColumn = slot.Column - _dragColumnOffset;
+            if (ViewModel.CanOccupyTableRectangle(Item, targetRow, targetColumn, _activeChildItem.TableCellRowSpan, _activeChildItem.TableCellColumnSpan, _activeChildItem))
             {
-                _selectionOverlay.IsVisible = false;
+                _previewRow = targetRow;
+                _previewColumn = targetColumn;
+                _previewRowSpan = _activeChildItem.TableCellRowSpan;
+                _previewColumnSpan = _activeChildItem.TableCellColumnSpan;
+                _hasPreview = true;
+                UpdateSelectionOverlay(targetRow, targetColumn, targetRow + _previewRowSpan - 1, targetColumn + _previewColumnSpan - 1);
             }
         }
+        else if (_isResizingChild)
+        {
+            var rowSpan = Math.Max(1, slot.Row - _activeChildItem.TableCellRow + 1);
+            var columnSpan = Math.Max(1, slot.Column - _activeChildItem.TableCellColumn + 1);
+            if (ViewModel.CanOccupyTableRectangle(Item, _activeChildItem.TableCellRow, _activeChildItem.TableCellColumn, rowSpan, columnSpan, _activeChildItem))
+            {
+                _previewRow = _activeChildItem.TableCellRow;
+                _previewColumn = _activeChildItem.TableCellColumn;
+                _previewRowSpan = rowSpan;
+                _previewColumnSpan = columnSpan;
+                _hasPreview = true;
+                UpdateSelectionOverlay(_previewRow, _previewColumn, _previewRow + rowSpan - 1, _previewColumn + columnSpan - 1);
+            }
+        }
+
+        e.Handled = true;
+    }
+
+    private void CommitChildInteraction(PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton == MouseButton.Left && ViewModel is not null && Item is not null && _activeChildItem is not null && _hasPreview)
+        {
+            var changed = _isMovingChild
+                ? ViewModel.TryMoveTableChild(Item, _activeChildItem, _previewRow, _previewColumn)
+                : ViewModel.TryResizeTableChild(Item, _activeChildItem, _previewRowSpan, _previewColumnSpan);
+
+            if (changed)
+            {
+                RefreshItemOverlay();
+            }
+        }
+
+        ReleaseChildInteraction(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void ReleaseChildInteraction(IPointer pointer)
+    {
+        _isMovingChild = false;
+        _isResizingChild = false;
+        _activeChildItem = null;
+        _hasPreview = false;
+        pointer.Capture(null);
+
+        if (_tableRoot is not null)
+        {
+            _tableRoot.Cursor = _previousCursor;
+        }
+
+        if (_selectionOverlay is not null)
+        {
+            _selectionOverlay.IsVisible = false;
+        }
+    }
+
+    private void ReleaseSelectionPointer(IPointer pointer)
+    {
+        _isSelecting = false;
+        pointer.Capture(null);
+
+        if (_tableRoot is not null)
+        {
+            _tableRoot.Cursor = _previousCursor;
+        }
+
+        if (_selectionOverlay is not null)
+        {
+            _selectionOverlay.IsVisible = false;
+        }
+    }
+
+    private bool TryGetTableSlotFromPoint(Point point, bool requireFree, out TableCellSlot slot)
+    {
+        slot = null!;
+        if (_tableRoot is null || Item is null)
+        {
+            return false;
+        }
+
+        var bounds = _tableRoot.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return false;
+        }
+
+        var normalizedX = Math.Clamp(point.X, 0, Math.Max(0, bounds.Width - 1));
+        var normalizedY = Math.Clamp(point.Y, 0, Math.Max(0, bounds.Height - 1));
+        var column = Math.Min(Item.TableColumns, Math.Max(1, (int)(normalizedX / (bounds.Width / Math.Max(1, Item.TableColumns))) + 1));
+        var row = Math.Min(Item.TableRows, Math.Max(1, (int)(normalizedY / (bounds.Height / Math.Max(1, Item.TableRows))) + 1));
+        var resolved = Item.TableCellSlots.FirstOrDefault(c => c.Row == row && c.Column == column);
+        if (resolved is null)
+        {
+            return false;
+        }
+
+        if (requireFree && resolved.ChildItem is not null)
+        {
+            return false;
+        }
+
+        slot = resolved;
+        return true;
     }
 
     // STRG-Range-Selektion: erster Klick setzt Anker, zweiter Klick selektiert das Rechteck.

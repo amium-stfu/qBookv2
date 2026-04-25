@@ -82,6 +82,12 @@ public sealed class EnhancedSignalRuntime : IDisposable
     private string _lastDynamicNormalizationMode = KalmanDynamicNormalizationMode.HybridReferenceFloor.ToString();
     private double _lastDynamicResidualWeight;
     private DateTimeOffset? _statisticsResetAt;
+    private double? _statisticsMinValue;
+    private DateTimeOffset? _statisticsMinTimestamp;
+    private double? _statisticsMaxValue;
+    private DateTimeOffset? _statisticsMaxTimestamp;
+    private long _statisticsAverageSampleCount;
+    private double _statisticsAverageMean;
     private SignalSample? _lastStatisticsIntegralSample;
     private double? _statisticsIntegralAccumulatedRaw;
     private DateTimeOffset? _lastDiagnosticsPublishedAt;
@@ -789,7 +795,7 @@ public sealed class EnhancedSignalRuntime : IDisposable
                 _samples.Enqueue(new SignalSample(now, acceptedRawValue));
             }
 
-            AccumulateStatisticsIntegral(new SignalSample(now, acceptedRawValue));
+            AccumulateRunningStatistics(new SignalSample(now, acceptedRawValue));
             _lastAcceptedRawValue = acceptedRawValue;
         }
 
@@ -1289,27 +1295,9 @@ public sealed class EnhancedSignalRuntime : IDisposable
             return StatisticsSnapshot.Disabled;
         }
 
-        var retentionWindowMs = GetRetentionWindowMs();
-        var retainedSamples = GetStatisticsSamples(now, retentionWindowMs);
+        const int retentionWindowMs = 0;
         var stdDevWindowMs = Math.Max(1, _definition.Statistics.StdDevWindowMs);
         var stdDevSamples = GetStatisticsSamples(now, stdDevWindowMs);
-
-        double? minValue = null;
-        long? minTimestampUnixMs = null;
-        double? maxValue = null;
-        long? maxTimestampUnixMs = null;
-        double? averageValue = null;
-
-        if (retainedSamples.Count > 0)
-        {
-            var minSample = retainedSamples.Aggregate((best, current) => current.Value < best.Value ? current : best);
-            var maxSample = retainedSamples.Aggregate((best, current) => current.Value > best.Value ? current : best);
-            minValue = minSample.Value;
-            minTimestampUnixMs = minSample.Timestamp.ToUnixTimeMilliseconds();
-            maxValue = maxSample.Value;
-            maxTimestampUnixMs = maxSample.Timestamp.ToUnixTimeMilliseconds();
-            averageValue = retainedSamples.Average(sample => sample.Value);
-        }
 
         return new StatisticsSnapshot(
             Enabled: true,
@@ -1321,13 +1309,13 @@ public sealed class EnhancedSignalRuntime : IDisposable
             RetentionWindowMs: retentionWindowMs,
             StdDevWindowMs: stdDevWindowMs,
             IntegralDivisorMs: _definition.Statistics.IntegralDivisorMs,
-            MinValue: minValue,
-            MinTimestampUnixMs: minTimestampUnixMs,
-            MaxValue: maxValue,
-            MaxTimestampUnixMs: maxTimestampUnixMs,
-            AverageValue: averageValue,
+            MinValue: _statisticsMinValue,
+            MinTimestampUnixMs: _statisticsMinTimestamp?.ToUnixTimeMilliseconds(),
+            MaxValue: _statisticsMaxValue,
+            MaxTimestampUnixMs: _statisticsMaxTimestamp?.ToUnixTimeMilliseconds(),
+            AverageValue: _statisticsAverageSampleCount > 0 ? _statisticsAverageMean : null,
             StdDevValue: ComputeStandardDeviation(stdDevSamples),
-                IntegralValue: GetRunningStatisticsIntegral(_definition.Statistics.IntegralDivisorMs));
+            IntegralValue: GetRunningStatisticsIntegral(_definition.Statistics.IntegralDivisorMs));
     }
 
     private bool TryApplyInverseAdjustment(object? value, out object? result, out string error)
@@ -1859,8 +1847,39 @@ public sealed class EnhancedSignalRuntime : IDisposable
     private void ResetStatisticsState(DateTimeOffset? resetAt = null)
     {
         _statisticsResetAt = resetAt;
+        _statisticsMinValue = null;
+        _statisticsMinTimestamp = null;
+        _statisticsMaxValue = null;
+        _statisticsMaxTimestamp = null;
+        _statisticsAverageSampleCount = 0;
+        _statisticsAverageMean = 0d;
         _lastStatisticsIntegralSample = null;
         _statisticsIntegralAccumulatedRaw = null;
+    }
+
+    private void AccumulateRunningStatistics(SignalSample currentSample)
+    {
+        if (!_definition.Statistics.Enabled)
+        {
+            return;
+        }
+
+        if (_statisticsMinValue is null || currentSample.Value < _statisticsMinValue.Value)
+        {
+            _statisticsMinValue = currentSample.Value;
+            _statisticsMinTimestamp = currentSample.Timestamp;
+        }
+
+        if (_statisticsMaxValue is null || currentSample.Value > _statisticsMaxValue.Value)
+        {
+            _statisticsMaxValue = currentSample.Value;
+            _statisticsMaxTimestamp = currentSample.Timestamp;
+        }
+
+        _statisticsAverageSampleCount++;
+        _statisticsAverageMean += (currentSample.Value - _statisticsAverageMean) / _statisticsAverageSampleCount;
+
+        AccumulateStatisticsIntegral(currentSample);
     }
 
     private void AccumulateStatisticsIntegral(SignalSample currentSample)

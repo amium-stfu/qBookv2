@@ -176,6 +176,11 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
 
     private void OnSaveClicked(object? sender, RoutedEventArgs e)
     {
+        if (this.FindControl<TreeView>("TargetTreeView")?.SelectedItem is TargetSelectionTreeNode selectedNode)
+        {
+            SelectedNode = selectedNode;
+        }
+
         if (SelectedNode?.IsSelectable == true)
         {
             CommittedSelection = TargetPathHelper.ToPersistedLayoutTargetPath(SelectedNode.ActualPath, _folderName);
@@ -189,6 +194,14 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
 
         Close();
         e.Handled = true;
+    }
+
+    private void OnTreeSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is TreeView { SelectedItem: TargetSelectionTreeNode selectedNode })
+        {
+            SelectedNode = selectedNode;
+        }
     }
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e)

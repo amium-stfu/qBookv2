@@ -31,7 +31,13 @@
     FooterBorderThickness="{Binding EffectiveFooterBorderThickness}"
     FooterCornerRadius="{Binding EffectiveFooterCornerRadius}">
   <controls:EditorShellControl.HeaderContent>
-    <TextBlock VerticalAlignment="Center" FontSize="{Binding ItemControlCaptionFontSize}" FontWeight="Medium" Foreground="{Binding EffectiveHeaderForegroundBrush}" Text="{Binding ControlCaption}" />
+    <TextBlock VerticalAlignment="Center"
+               TextTrimming="CharacterEllipsis"
+               TextWrapping="NoWrap"
+               FontSize="{Binding ItemControlCaptionFontSize}"
+               FontWeight="Medium"
+               Foreground="{Binding EffectiveHeaderForegroundBrush}"
+               Text="{Binding ControlCaption}" />
   </controls:EditorShellControl.HeaderContent>
 
   <controls:EditorShellControl.HeaderRightContent>

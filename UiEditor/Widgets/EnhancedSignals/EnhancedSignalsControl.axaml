@@ -30,7 +30,7 @@
                         Background="{Binding RowBackground}"
                         BorderBrush="{Binding RowBorderBrush}"
                         BorderThickness="1">
-                  <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+                  <Grid RowDefinitions="Auto,Auto">
                     <Grid ColumnDefinitions="*,Auto,Auto">
                       <TextBlock Grid.Column="0"
                                  FontSize="13"
@@ -61,24 +61,10 @@
                                Margin="0,4,0,0"
                                FontSize="11"
                                Foreground="{Binding SecondaryForeground}"
-                               Text="{Binding FilterModeText}"
+                               Text="{Binding SourceText}"
                                TextWrapping="Wrap" />
 
-                    <TextBlock Grid.Row="2"
-                               Margin="0,4,0,0"
-                               FontSize="11"
-                               Foreground="{Binding SecondaryForeground}"
-                               Text="{Binding SummaryText}"
-                               TextWrapping="Wrap" />
-
-                    <TextBlock Grid.Row="3"
-                               Margin="0,4,0,0"
-                               FontSize="11"
-                               Foreground="{Binding PrimaryForeground}"
-                               Text="{Binding ValueDisplay}"
-                               TextWrapping="Wrap" />
-
-                    <TextBlock Grid.Row="3"
+                    <TextBlock Grid.Row="1"
                                Margin="0,24,0,0"
                                FontSize="11"
                                Foreground="{Binding SecondaryForeground}"

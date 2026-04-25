@@ -1,0 +1,47 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>AutomationExplorer</AssemblyName>
+    <RootNamespace>AutomationExplorer</RootNamespace>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.6" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Editor\AutomationExplorer.Editor.csproj" />
+    <ProjectReference Include="..\Shared\AmiumItem\AmiumItem.csproj" />
+    <ProjectReference Include="..\Extension\UdlClient\UdlClient.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="App.axaml.cs" />
+    <Compile Include="ItemTreeWindow.axaml.cs" />
+    <Compile Include="LogWindow.axaml.cs" />
+    <Compile Include="MainWindow.axaml.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="AutomationExplorerAppConfig.cs" />
+    <Compile Include="ViewModels\ItemTreeWindowViewModel.cs" />
+    <Compile Include="ViewModels\MainWindowViewModel.cs" />
+    <Compile Include="ViewModels\ObservableObject.cs" />
+    <Compile Include="ViewModels\RelayCommand.cs" />
+    <Compile Include="ViewModels\ThemePalette.cs" />
+    <Compile Include="ViewModels\AutomationExplorerPageViewModel.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Folder.yaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

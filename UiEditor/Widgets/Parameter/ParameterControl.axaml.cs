@@ -213,6 +213,14 @@ public partial class ParameterControl : UserControl
         var isToggle = Presentation?.IsBoolToggle == true;
         BoolChoiceHorizontalAlignment = isToggle ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
         BoolChoiceWidth = isToggle && Bounds.Width > 0 ? Bounds.Width : double.NaN;
+
+        if (Presentation?.IsBits == true)
+        {
+            BitColumns = ResolveBitColumnsForBounds(Presentation.Definition.BitCount, Bounds.Width, ChoiceHeight);
+            return;
+        }
+
+        BitColumns = ResolveBitColumns(Presentation?.Definition.BitCount ?? 0);
     }
 
     private void RecalculateTextMetrics()
@@ -329,6 +337,23 @@ public partial class ParameterControl : UserControl
     private static int ResolveBitColumns(int count)
     {
         return count <= 0 ? 1 : count;
+    }
+
+    private static int ResolveBitColumnsForBounds(int count, double availableWidth, double choiceHeight)
+    {
+        if (count <= 0)
+        {
+            return 1;
+        }
+
+        if (availableWidth <= 0)
+        {
+            return ResolveBitColumns(count);
+        }
+
+        var minCellWidth = Math.Max(28, choiceHeight + 8);
+        var columns = Math.Max(1, (int)Math.Floor((availableWidth + 6) / (minCellWidth + 6)));
+        return Math.Min(count, columns);
     }
 }
 
