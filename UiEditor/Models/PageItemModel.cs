@@ -4132,19 +4132,20 @@ public sealed class FolderItemModel : ObservableObject
 
     private void EnsureCircleDisplayRuntimeSignals()
     {
-        if (!IsCircleDisplay || string.IsNullOrWhiteSpace(Path))
+        var runtimeBasePath = GetDisplayRuntimeBasePath();
+        if (!IsCircleDisplay || string.IsNullOrWhiteSpace(runtimeBasePath))
         {
             return;
         }
 
-        var segments = TargetPathHelper.SplitPathSegments(Path);
+        var segments = TargetPathHelper.SplitPathSegments(runtimeBasePath);
         if (segments.Count == 0)
         {
             return;
         }
 
         Item snapshot;
-        if (HostRegistries.Data.TryGet(Path, out var existing) && existing is not null)
+        if (HostRegistries.Data.TryGet(runtimeBasePath, out var existing) && existing is not null)
         {
             snapshot = existing.Clone();
         }
@@ -4160,8 +4161,8 @@ public sealed class FolderItemModel : ObservableObject
                 : new Item(nameSegment, null, parentPath);
         }
 
-        snapshot.Params["Path"].Value = Path;
-        snapshot.Params["Kind"].Value = "CircleDisplay";
+        snapshot.Params["Path"].Value = runtimeBasePath;
+        snapshot.Params["Kind"].Value = "DisplayRuntime";
         snapshot.Params["Text"].Value = string.IsNullOrWhiteSpace(Name) ? Title : Name;
         snapshot[CircleDisplaySignalColorItemName].Value = string.IsNullOrWhiteSpace(SignalColor)
             ? CircleDisplayDefaultSignalColor
@@ -4178,7 +4179,42 @@ public sealed class FolderItemModel : ObservableObject
             : ProgressBarColor;
         snapshot[CircleDisplayProgressBarColorItemName].Params["Text"].Value = CircleDisplayProgressBarColorItemName;
 
-        HostRegistries.Data.UpsertSnapshot(Path, snapshot, pruneMissingMembers: false);
+        HostRegistries.Data.UpsertSnapshot(runtimeBasePath, snapshot, pruneMissingMembers: false);
+        UpsertCircleDisplayRuntimeValue(
+            runtimeItemName: CircleDisplaySignalColorItemName,
+            value: string.IsNullOrWhiteSpace(SignalColor) ? CircleDisplayDefaultSignalColor : SignalColor,
+            title: "Circle display signal color");
+        UpsertCircleDisplayRuntimeValue(
+            runtimeItemName: CircleDisplaySignalRunItemName,
+            value: SignalRun,
+            title: "Circle display signal state");
+        UpsertCircleDisplayRuntimeValue(
+            runtimeItemName: CircleDisplayProgressBarItemName,
+            value: ProgressBar,
+            title: "Circle display progress visibility");
+        UpsertCircleDisplayRuntimeValue(
+            runtimeItemName: CircleDisplayProgressStateItemName,
+            value: System.Math.Clamp(ProgressState, 0d, 100d),
+            title: "Circle display progress state");
+        UpsertCircleDisplayRuntimeValue(
+            runtimeItemName: CircleDisplayProgressBarColorItemName,
+            value: string.IsNullOrWhiteSpace(ProgressBarColor) ? CircleDisplayDefaultProgressBarColor : ProgressBarColor,
+            title: "Circle display progress color");
+    }
+
+    private void UpsertCircleDisplayRuntimeValue(string runtimeItemName, object? value, string title)
+    {
+        var runtimePath = GetDisplayRuntimePath(runtimeItemName);
+        if (string.IsNullOrWhiteSpace(runtimePath))
+        {
+            return;
+        }
+
+        var item = new Item(runtimeItemName, value, GetDisplayRuntimeBasePath());
+        item.Params["Kind"].Value = "DisplayRuntime";
+        item.Params["Text"].Value = title;
+        item.Params["Title"].Value = title;
+        HostRegistries.Data.UpsertSnapshot(runtimePath, item, pruneMissingMembers: true);
     }
 
     private static bool IsInsideCircle(double normalizedRow, double normalizedColumn)

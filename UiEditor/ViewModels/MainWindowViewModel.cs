@@ -543,8 +543,16 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     public string EditorDialogError
     {
         get => _editorDialogError;
-        private set => SetProperty(ref _editorDialogError, value);
+        private set
+        {
+            if (SetProperty(ref _editorDialogError, value))
+            {
+                OnPropertyChanged(nameof(HasEditorDialogError));
+            }
+        }
     }
+
+    public bool HasEditorDialogError => !string.IsNullOrWhiteSpace(EditorDialogError);
 
     public void SelectFolder(FolderModel? page)
     {
@@ -683,7 +691,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         var draft = CreateItem(kind, SelectionState.X, SelectionState.Y, SelectionState.Width, SelectionState.Height);
-        draft.Name = GetSuggestedControlName(kind, SelectedFolder, null, null);
+        ApplySuggestedControlIdentity(draft, kind, SelectedFolder, null, null);
         draft.Id = Guid.NewGuid().ToString("N");
         draft.SetLayoutFilePath(SelectedFolder.UiFilePath);
         draft.SetHierarchy(SelectedFolder.Name, null);
@@ -704,7 +712,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         var draft = CreateItem(kind, 0, 0, _listPopupTarget.ChildContentWidth, _listPopupTarget.ListItemHeight);
-        draft.Name = GetSuggestedControlName(kind, SelectedFolder, _listPopupTarget, null);
+        ApplySuggestedControlIdentity(draft, kind, SelectedFolder, _listPopupTarget, null);
         draft.Id = Guid.NewGuid().ToString("N");
         draft.SetHierarchy(SelectedFolder.Name, _listPopupTarget);
 
@@ -810,7 +818,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var baseCellHeight = table.Height / Math.Max(1, table.TableRows);
         var draftHeight = Math.Max(baseCellHeight * rowSpan, table.ListItemHeight);
         var draft = CreateItem(kind, 0, 0, table.ChildContentWidth, draftHeight);
-        draft.Name = GetSuggestedControlName(kind, SelectedFolder, table, null);
+        ApplySuggestedControlIdentity(draft, kind, SelectedFolder, table, null);
         draft.Id = Guid.NewGuid().ToString("N");
         draft.SetLayoutFilePath(SelectedFolder.UiFilePath);
         draft.TableCellRow = minRow;
@@ -3526,8 +3534,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         if (string.Equals(field.Key, "TargetPath", StringComparison.Ordinal))
         {
+            var textField = FindDialogField("Text");
+            var previousName = FindDialogField("Name")?.Value ?? _editorDialogItem.Name;
+            var shouldSyncDefaultText = textField is null || IsDefaultTextValue(textField.Value, previousName);
+
             field.Definition.Apply(_editorDialogItem, field.Value);
             _editorDialogItem.TargetParameterFormat = GetTargetFormatAutofill(_editorDialogItem);
+
+            if (shouldSyncDefaultText)
+            {
+                _editorDialogItem.Title = _editorDialogItem.Name;
+            }
 
             var parameterField = FindDialogField("TargetParameterPath");
             if (parameterField is not null)
@@ -3544,7 +3561,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }
             }
 
-            RefreshEditorDialogFieldValues(_editorDialogItem, "Name", "Path", "Unit", "ControlCaption", "TargetPath", "TargetParameterPath", "TargetParameterFormatKind", "TargetParameterFormatParameter");
+            RefreshEditorDialogFieldValues(_editorDialogItem, "Name", "Text", "Path", "Unit", "ControlCaption", "TargetPath", "TargetParameterPath", "TargetParameterFormatKind", "TargetParameterFormatParameter");
             RefreshEditorDialogFieldValues(_editorDialogItem, "ResolvedTargetWritable", "ResolvedTargetWriteMode", "ResolvedTargetWritePath");
             RefreshEditorDialogChoiceOptions(_editorDialogItem);
 
@@ -3587,6 +3604,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         EditorDialogError = string.Empty;
+    }
+
+    private static bool IsDefaultTextValue(string? text, string? previousName)
+    {
+        var normalizedText = NormalizeControlName(text);
+        if (string.IsNullOrWhiteSpace(normalizedText))
+        {
+            return true;
+        }
+
+        return string.Equals(normalizedText, NormalizeControlName(previousName), StringComparison.Ordinal);
     }
 
     public string CreatePythonScriptForItem(FolderItemModel item)
@@ -5211,7 +5239,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var nameField = FindDialogField("Name");
         if (nameField is null)
         {
-            error = "Name-Feld fehlt.";
+            error = "Name field is missing.";
             return false;
         }
 
@@ -6131,7 +6159,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return true;
         }
 
-        error = $"Ungueltiger Zahlenwert: {text}";
+        error = $"Invalid numeric value: {text}";
         return false;
     }
 
@@ -6143,7 +6171,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return true;
         }
 
-        error = $"Ungueltiger Integer-Wert: {text}";
+        error = $"Invalid integer value: {text}";
         return false;
     }
 
@@ -6178,8 +6206,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.Item or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
-        var candidate = baseName;
         var index = 1;
+        var candidate = $"{baseName}{index}";
         while (!IsControlNameUnique(page, candidate, excludeItem))
         {
             index++;
@@ -6187,6 +6215,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         return candidate;
+    }
+
+    private void ApplySuggestedControlIdentity(FolderItemModel item, ControlKind kind, FolderModel page, FolderItemModel? parentItem, FolderItemModel? excludeItem)
+    {
+        var suggestedName = GetSuggestedControlName(kind, page, parentItem, excludeItem);
+        item.Name = suggestedName;
+        item.Title = suggestedName;
     }
 
     private static string NormalizeControlName(string? name)
@@ -6197,18 +6232,37 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         normalizedName = NormalizeControlName(proposedName);
         if (string.IsNullOrWhiteSpace(normalizedName))
         {
-            error = "Name darf nicht leer sein.";
+            error = "Name must not be empty.";
+            return false;
+        }
+
+        var isUnchangedExistingName = excludeItem is not null
+            && string.Equals(excludeItem.Name, normalizedName, StringComparison.Ordinal);
+
+        if (!isUnchangedExistingName && !IsValidControlNameFormat(normalizedName))
+        {
+            error = "Name must start with a letter, may only contain letters, numbers and '_', and must end with a number.";
             return false;
         }
 
         if (!IsControlNameUnique(page, normalizedName, excludeItem))
         {
-            error = $"Name '{normalizedName}' ist auf {page.Name} bereits vergeben.";
+            error = $"Name '{normalizedName}' is already used on {page.Name}.";
             return false;
         }
 
         error = string.Empty;
         return true;
+    }
+
+    private static bool IsValidControlNameFormat(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || !char.IsLetter(name[0]) || !char.IsDigit(name[^1]))
+        {
+            return false;
+        }
+
+        return name.All(static character => char.IsLetterOrDigit(character) || character == '_');
     }
 
     private bool IsControlNameUnique(FolderModel page, string name, FolderItemModel? excludeItem)

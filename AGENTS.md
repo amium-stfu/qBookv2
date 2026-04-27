@@ -41,6 +41,51 @@ Rules:
 - Create a clear, actionable step-by-step plan.
 - Do not provide code.
 
+#### Planning Handoff (Post-PLAN Requirement)
+
+- After completing a PLAN, always generate a dedicated Markdown handoff for implementation in a new chat.
+- Store every implementation handoff as a separate Markdown file in `docs/handoffs/`.
+- Create `docs/handoffs/` if it does not exist.
+- Use the file name format `yyyy.MM.dd.HHmm-implementation-handoff.md`.
+- Never overwrite an existing handoff file; create a new timestamped file instead.
+- This handoff must be clearly separated and self-contained.
+- The handoff must NOT include discussion, reasoning history, or alternatives.
+- The handoff must be optimized for minimal context usage in a new chat.
+
+##### Handoff Requirements
+
+- The handoff must be concise but complete enough for direct implementation.
+- Only include information that is required for execution.
+- Avoid redundant explanations.
+
+##### Required Structure
+
+```md
+# IMPLEMENTATION HANDOFF
+
+## Goal
+Clear description of the objective.
+
+## Scope
+What is included and what is explicitly NOT included.
+
+## Tasks
+1. Task description
+2. Task description
+3. Task description
+
+## Technical Constraints
+- Frameworks, libraries, patterns that must be used
+- Relevant project rules
+
+## Relevant Files (if known)
+- Path/FileName
+- Path/FileName
+
+## Notes
+- Important edge cases or constraints
+```
+
 ### IMPLEMENT
 
 - Implement only the requested functionality.
@@ -54,10 +99,51 @@ Rules:
 - Then propose a solution.
 - Provide code only when useful or explicitly requested.
 
+#### Debug Documentation (DEBUG Mode Requirement)
+
+- During debugging, always create or update a `Debug.md`.
+- The goal is to prevent repeated failed solutions and reduce context size.
+
+##### Debug.md Requirements
+
+- Must be concise, structured, and continuously updated.
+- Remove outdated or irrelevant attempts.
+- Focus on the current state of the problem.
+
+##### Required Structure
+
+```md
+# DEBUG REPORT
+
+## Problem
+Short and precise description.
+
+## Expected Behavior
+What should happen.
+
+## Actual Behavior
+What actually happens.
+
+## Error Messages / Logs
+Relevant logs or errors.
+
+## Relevant Code
+Only the necessary parts.
+
+## Attempted Fixes
+- Fix 1 -> Result
+- Fix 2 -> Result
+- Fix 3 -> Result
+
+## Current Hypothesis (optional)
+- Possible root causes
+```
+
 ## General
 
 - Always answer in German in chat.
 - Always write code, comments, XML documentation, UI text, file names, and technical identifiers in English.
+- Always write user-visible error and validation messages in English.
 - Prefer libraries, frameworks, and patterns already present in the project.
 - Do not introduce new dependencies without justification.
 - Avoid overengineering and unnecessary abstractions.
