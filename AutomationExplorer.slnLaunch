@@ -3,7 +3,7 @@
     "Name": "AutomationExplorer",
     "Projects": [
       {
-        "Path": "AutomationExplorer\\AutomationExplorer.csproj",
+        "Path": "src\\AutomationExplorer\\AutomationExplorer.csproj",
         "Action": "Start"
       }
     ]

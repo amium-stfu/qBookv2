@@ -26,6 +26,8 @@ Diese Regeln sind nicht im Repository abgelegt, sondern in der persistenten User
 - `src/AutomationExplorer.Host/Python/Integration/ui-python-client-commands.md` gilt als Source of Truth fuer vordefinierte Python-Client-Kommandos.
 - Wenn Python-Bridge-Verhalten, generierte Python-Ordnerinhalte, Template-Workflow oder Python-Interaktionsargumente geaendert werden, muessen `src/AutomationExplorer.Host/Python/Integration/python-system-overview.md` und `src/AutomationExplorer.Editor/Templates/PYTHON_SYSTEM.md` im selben Change mit aktualisiert werden.
 - Bei Arbeiten an Python-Templates, Python-Umgebungen oder generierten Python-Skripten sollen `src/AutomationExplorer.Host/Python/Integration/python-system-overview.md` und `src/AutomationExplorer.Host/Python/Integration/ui-python-client-commands.md` zuerst konsultiert werden.
+- Wenn Widget-Code unter `src/AutomationExplorer.Editor/Widgets/**` geaendert wird, muss die passende Widget-Dokumentation unter `src/AutomationExplorer/docs/widgets/` im selben Change mit aktualisiert werden. Es gilt eine Markdown-Datei pro Widget-Typ, und der Dateiname soll dem persistierten Widget-`Type` entsprechen, damit die Dokumentation spaeter in der Anwendung geladen werden kann.
+- Wenn Widget-Code unter `src/AutomationExplorer.Editor/Widgets/**` geaendert wird, muss die passende Help-Datei unter `src/AutomationExplorer/docs/widgets/help/` im selben Change mit aktualisiert werden. Es gilt eine Markdown-Datei pro Widget-Typ mit dem Namensmuster `<Type>.help.md`, damit die Hilfe spaeter in einem Help-Fenster geladen werden kann.
 
 ## Wartungsregel
 
@@ -36,7 +38,7 @@ Diese Regeln sind nicht im Repository abgelegt, sondern in der persistenten User
 
 - Neue UI-Elemente muessen immer dem Theme-Regelwerk entsprechen.
 - Neue Controls, Buttons und Standardzustande sollen theme-abgeleitete Brushes oder Palettenwerte verwenden, damit sie automatisch auf Theme-Wechsel reagieren.
-- Statt hart codierter Farben sollen bevorzugt `ThemePalette` oder vorhandene effektive Theme-Farben wie `EffectiveBody*`, `EffectiveHeader*` oder `EffectiveAccent*` verwendet werden.
+- Statt hart codierter Farben sollen bevorzugt `ThemePalette` oder vorhandene effektive Theme- farben wie `EffectiveBody*`, `EffectiveHeader*` oder `EffectiveAccent*` verwendet werden.
 - Icon-Farben sollen an die Theme-Farben angebunden werden, statt feste Farbwerte direkt im Asset oder Control zu hinterlegen.
 - Explizite Farben sollen nur fuer besondere Zustaende wie Error, Running oder Warning eingesetzt werden und sowohl in hellem als auch in dunklem Theme lesbar bleiben.
 

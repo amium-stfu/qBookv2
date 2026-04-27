@@ -33,3 +33,5 @@ dev/Testbook.backup/
 # Generated runtime plugin copies
 Host/plugins/*
 !Host/plugins/README.md
+src/AutomationExplorer.Host/plugins/*
+!src/AutomationExplorer.Host/plugins/README.md

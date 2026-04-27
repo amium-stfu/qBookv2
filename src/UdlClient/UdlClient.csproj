@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>UdlClient</AssemblyName>
+    <RootNamespace>UdlClient</RootNamespace>
+    <OutputPath>..\AutomationExplorer.Host\plugins\UdlClient\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutomationExplorer.Contracts\AutomationExplorer.Contracts.csproj" />
+    <ProjectReference Include="..\Amium.Items\AmiumItem.csproj" />
+  </ItemGroup>
+</Project>

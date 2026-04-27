@@ -6,9 +6,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-automationexplorer-debug",
-      "program": "${workspaceFolder}/AutomationExplorer/bin/Debug/net9.0-windows/AutomationExplorer.dll",
+      "program": "${workspaceFolder}/src/AutomationExplorer/bin/Debug/net9.0-windows/AutomationExplorer.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/AutomationExplorer/bin/Debug/net9.0-windows",
+      "cwd": "${workspaceFolder}/src/AutomationExplorer/bin/Debug/net9.0-windows",
       "stopAtEntry": false,
       "console": "integratedTerminal",
       "justMyCode": false
