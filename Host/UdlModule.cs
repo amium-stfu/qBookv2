@@ -1,5 +1,6 @@
 using System;
 using Amium.Items;
+using Amium.UiEditor.Models;
 
 namespace Amium.Host
 {
@@ -39,6 +40,14 @@ namespace Amium.Host
         public Item Command => this[CommandItemName];
         public Item CommandRequest => Command[RequestItemName];
 
+        public void EnsureWriteMetadata()
+        {
+            ApplyWriteMetadata(Read);
+            ApplyWriteMetadata(Set);
+            ApplyWriteMetadata(Out);
+            ApplyWriteMetadata(Command);
+        }
+
         private void AddRequestChannel(string name)
         {
             AddItem(name);
@@ -46,6 +55,14 @@ namespace Amium.Host
             channel.AddItem(RequestItemName);
             channel[RequestItemName].Params["Text"].Value = $"{name} Request";
             channel[RequestItemName].Value = channel.Value;
+            ApplyWriteMetadata(channel);
+        }
+
+        private static void ApplyWriteMetadata(Item channel)
+        {
+            channel.Params["Writable"].Value = true;
+            channel.Params["WritePath"].Value = channel.Path ?? string.Empty;
+            channel.Params["WriteMode"].Value = SignalWriteMode.Request.ToString();
         }
     }
 }

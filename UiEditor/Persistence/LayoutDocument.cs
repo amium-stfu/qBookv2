@@ -189,6 +189,8 @@ public sealed class FolderItemDocument
 
     public string UdlDemoModuleDefinitions { get; init; } = string.Empty;
 
+    public string UdlModuleExposureDefinitions { get; init; } = string.Empty;
+
     public string CsvDirectory { get; init; } = string.Empty;
 
     public string CsvFilename { get; init; } = string.Empty;

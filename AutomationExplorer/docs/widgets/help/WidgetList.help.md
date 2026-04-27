@@ -1,12 +1,12 @@
-# ListControl Help
+# WidgetList Help
 
 ## Widget Type
 
-`ListControl`
+`WidgetList`
 
 ## Overview
 
-The ListControl widget hosts child widgets in a vertical list and can enforce shared width and height rules.
+The WidgetList widget hosts child widgets in a vertical list and can enforce shared width and height rules.
 
 ## Properties
 
@@ -50,12 +50,12 @@ A child size change can propagate back into the list when auto-height is enabled
 
 ## Runtime Notes
 
-ListControl is a container widget and is primarily responsible for child layout consistency.
+WidgetList is a container widget and is primarily responsible for child layout consistency.
 
 ## Suggested Help Window Metadata
 
-- Summary file: `AutomationExplorer/docs/widgets/ListControl.md`
-- Help file: `AutomationExplorer/docs/widgets/help/ListControl.help.md`
+- Summary file: `AutomationExplorer/docs/widgets/WidgetList.md`
+- Help file: `AutomationExplorer/docs/widgets/help/WidgetList.help.md`
 
 ## Source
 

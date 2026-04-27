@@ -1,8 +1,8 @@
-# ListControl Widget
+# WidgetList Widget
 
 ## Type
 
-`ListControl`
+`WidgetList`
 
 ## Purpose
 
@@ -32,4 +32,4 @@ The list propagates width and optional auto-height rules to child controls.
 
 ## Help
 
-- Detailed help: `AutomationExplorer/docs/widgets/help/ListControl.help.md`
+- Detailed help: `AutomationExplorer/docs/widgets/help/WidgetList.help.md`

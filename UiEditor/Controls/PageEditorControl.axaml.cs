@@ -306,7 +306,7 @@ public partial class FolderEditorControl : UserControl
         ViewModel.CancelSelection();
 
         var point = e.GetCurrentPoint(EditorCanvas);
-        if (point.Properties.IsRightButtonPressed && item.IsListControl)
+        if (point.Properties.IsRightButtonPressed && item.IsWidgetList)
         {
             var position = e.GetPosition(EditorCanvas);
             ViewModel.OpenListPopup(item, position.X + 8, position.Y + 8);
@@ -375,7 +375,7 @@ public partial class FolderEditorControl : UserControl
 
     private void OnBeginAddButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.Button);
     private void OnBeginAddSignalClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.Signal);
-    private void OnBeginAddListControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.ListControl);
+    private void OnBeginAddWidgetListClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.WidgetList);
     private void OnBeginAddCircleDisplayClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.CircleDisplay);
     private void OnBeginAddLogControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.LogControl);
     private void OnBeginAddCsvLoggerControlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel?.BeginSelectionAdd(ControlKind.CsvLoggerControl);
@@ -420,7 +420,7 @@ public partial class FolderEditorControl : UserControl
         var centerY = draggedItem.Y + draggedItem.Height / 2;
 
         return CurrentPage?.Items
-            .Where(item => item.IsListControl && !ReferenceEquals(item, draggedItem))
+            .Where(item => item.IsWidgetList && !ReferenceEquals(item, draggedItem))
             .FirstOrDefault(item => centerX >= item.X && centerX <= item.X + item.Width && centerY >= item.Y && centerY <= item.Y + item.Height);
     }
 

@@ -187,7 +187,13 @@ public sealed class ExtendedSignalDefinition
 
     public bool Enabled { get; set; } = true;
 
+    public bool IsWritable { get; set; }
+
     public string SourcePath { get; set; } = string.Empty;
+
+    public string WritePath { get; set; } = string.Empty;
+
+    public SignalWriteMode WriteMode { get; set; } = SignalWriteMode.Request;
 
     public bool ForwardChildWritesToSource { get; set; }
 
@@ -273,7 +279,10 @@ public sealed class ExtendedSignalDefinition
         {
             Name = Name,
             Enabled = Enabled,
+            IsWritable = IsWritable,
             SourcePath = SourcePath,
+            WritePath = WritePath,
+            WriteMode = WriteMode,
             ForwardChildWritesToSource = ForwardChildWritesToSource,
             Unit = Unit,
             Format = Format,
@@ -316,6 +325,24 @@ public sealed class ExtendedSignalDefinition
                 ?? LegacySourceSetPath
                 ?? LegacySourceCommandPath
                 ?? string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(WritePath))
+        {
+            WritePath = LegacySourceSetPath
+                ?? LegacySourceCommandPath
+                ?? string.Empty;
+        }
+
+        if (!IsWritable && !string.IsNullOrWhiteSpace(WritePath))
+        {
+            IsWritable = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(WritePath)
+            && WritePath.EndsWith(".Request", StringComparison.OrdinalIgnoreCase))
+        {
+            WriteMode = SignalWriteMode.Request;
         }
 
         Adjustment ??= new ExtendedSignalAdjustmentDefinition();

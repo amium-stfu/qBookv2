@@ -350,6 +350,20 @@ public static class ProjectUiLayoutLoader
             properties["UdlDemoModuleDefinitions"] = array;
         }
 
+        if (GetSequence(control, "UdlModuleExposures") is { } udlModuleExposures)
+        {
+            var array = new System.Text.Json.Nodes.JsonArray();
+            foreach (var child in udlModuleExposures.Children)
+            {
+                if (TryConvertYamlNode(child, out var converted))
+                {
+                    array.Add(converted);
+                }
+            }
+
+            properties["UdlModuleExposureDefinitions"] = array;
+        }
+
         SetPropertyIfPresent(properties, "CsvDirectory", GetScalarJsonNode(control, "CsvDirectory"));
         SetPropertyIfPresent(properties, "CsvFilename", GetScalarJsonNode(control, "CsvFilename"));
         SetPropertyIfPresent(properties, "CsvAddTimestamp", GetScalarJsonNode(control, "CsvAddTimestamp"));

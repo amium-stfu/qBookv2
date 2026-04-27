@@ -43,6 +43,7 @@ public partial class EditorLogControl : UserControl
     private Button? _pauseButton;
     private Button? _openFolderButton;
     private ThemeSvgIcon? _pauseIcon;
+    private ThemeSvgIcon? _openFolderIcon;
 
     public EditorLogControl()
     {
@@ -103,6 +104,7 @@ public partial class EditorLogControl : UserControl
         _pauseButton = this.FindControl<Button>("PauseButton");
         _openFolderButton = this.FindControl<Button>("OpenFolderButton");
         _pauseIcon = this.FindControl<ThemeSvgIcon>("PauseIcon");
+        _openFolderIcon = this.FindControl<ThemeSvgIcon>("OpenFolderIcon");
         HookObservedViewModel();
         HookObservedLogItem();
         ResolveProcessLog();
@@ -125,6 +127,7 @@ public partial class EditorLogControl : UserControl
         _pauseButton = null;
         _openFolderButton = null;
         _pauseIcon = null;
+        _openFolderIcon = null;
         _scrollViewer = null;
         _logListBox = null;
     }
@@ -252,7 +255,8 @@ public partial class EditorLogControl : UserControl
         if (e.PropertyName is nameof(MainWindowViewModel.IsDarkTheme)
             or nameof(MainWindowViewModel.IsEditMode)
             or nameof(MainWindowViewModel.EditPanelButtonBackground)
-            or nameof(MainWindowViewModel.EditPanelButtonBorderBrush))
+            or nameof(MainWindowViewModel.EditPanelButtonBorderBrush)
+            or nameof(MainWindowViewModel.EditPanelInputForeground))
         {
             Dispatcher.UIThread.Post(() =>
             {
@@ -402,6 +406,7 @@ public partial class EditorLogControl : UserControl
         var isPaused = _processLog?.Pause ?? false;
         ApplyThemeButtonState(_pauseButton);
         _pauseButton.Opacity = 1;
+        _pauseIcon.TintColor = GetThemeIconTint();
         _pauseIcon.IconPath = isPaused
             ? "avares://AutomationExplorer.Editor/EditorIcons/play.svg"
             : "avares://AutomationExplorer.Editor/EditorIcons/pause.svg";
@@ -410,6 +415,10 @@ public partial class EditorLogControl : UserControl
     private void UpdateChromeButtons()
     {
         ApplyThemeButtonState(_openFolderButton);
+        if (_openFolderIcon is not null)
+        {
+            _openFolderIcon.TintColor = GetThemeIconTint();
+        }
     }
 
     private void ApplyThemeButtonState(Button? button)
@@ -432,6 +441,13 @@ public partial class EditorLogControl : UserControl
     private IBrush GetThemeButtonBorderBrush()
     {
         return TryParseThemeBrush(ViewModel?.EditPanelButtonBorderBrush) ?? InactiveButtonBorderBrush;
+    }
+
+    private string GetThemeIconTint()
+    {
+        return string.IsNullOrWhiteSpace(ViewModel?.EditPanelInputForeground)
+            ? "#111827"
+            : ViewModel!.EditPanelInputForeground;
     }
 
     private static IBrush? TryParseThemeBrush(string? value)

@@ -32,6 +32,10 @@ The widget parses stored definitions and creates runtime rows for them.
 
 The widget publishes input, constant, and computed values into the registry.
 
+### Write routing
+
+Input signals can define `IsWritable`, `WriteMode`, and `WritePath` so value editors and interaction rules can write through a friendly signal while the actual target path stays configurable.
+
 ### Preserve input values
 
 When rebuilding or refreshing, existing input values can be preserved.
@@ -53,6 +57,7 @@ Computed signals can recompute automatically when dependent registry values chan
 ## Help Notes for Users
 
 Use this widget when you need lightweight project-local logic. Prefer Python only when external communication or larger workflow logic is required.
+Use write routing when the displayed signal should stay user-friendly but the actual write must reach another registry target or a request endpoint.
 
 ## Suggested Help Window Metadata
 

@@ -500,7 +500,7 @@ public sealed partial class WidgetSelectionDialogWindow : Window, INotifyPropert
             {
                 ControlKind.Button => new EditorButtonControl(),
                 ControlKind.Signal or ControlKind.Item => new EditorSignalControl(),
-                ControlKind.ListControl => new EditorListControl(),
+                ControlKind.WidgetList => new EditorListControl(),
                 ControlKind.TableControl => new EditorTableControl(),
                 ControlKind.CircleDisplay => new EditorCircleDisplayControl(),
                 ControlKind.LogControl => new EditorLogControl

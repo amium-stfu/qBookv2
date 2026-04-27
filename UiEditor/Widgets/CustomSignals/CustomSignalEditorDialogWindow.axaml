@@ -59,28 +59,35 @@
                   BorderBrush="{Binding BorderColor}"
                   BorderThickness="1"
                   CornerRadius="8">
-            <Grid ColumnDefinitions="160,*"
-                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="160,*,Auto"
+                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
               <TextBlock VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Name" />
-              <TextBox Grid.Column="1" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding Name, Mode=TwoWay}" />
+              <TextBox Grid.Column="1" Grid.ColumnSpan="2" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding Name, Mode=TwoWay}" />
 
                <TextBlock Grid.Row="1" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Mode" />
-              <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,5,0,0" Foreground="{Binding PrimaryTextBrush}" ItemsSource="{Binding ModeOptions}" SelectedItem="{Binding SelectedMode, Mode=TwoWay}" />
+              <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Foreground="{Binding PrimaryTextBrush}" ItemsSource="{Binding ModeOptions}" SelectedItem="{Binding SelectedMode, Mode=TwoWay}" />
 
                <TextBlock Grid.Row="2" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Type" />
-               <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,5,0,0" Foreground="{Binding PrimaryTextBrush}" ItemsSource="{Binding AvailableDataTypeOptions}" SelectedItem="{Binding SelectedDataType, Mode=TwoWay}" />
+               <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Foreground="{Binding PrimaryTextBrush}" ItemsSource="{Binding AvailableDataTypeOptions}" SelectedItem="{Binding SelectedDataType, Mode=TwoWay}" />
 
                <TextBlock Grid.Row="3" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Readonly" IsVisible="{Binding IsWritableVisible}" />
-               <ComboBox Grid.Row="3" Grid.Column="1" Margin="0,5,0,0" Foreground="{Binding PrimaryTextBrush}" ItemsSource="{Binding ReadOnlyValueOptions}" SelectedItem="{Binding SelectedReadOnlyValue, Mode=TwoWay}" IsVisible="{Binding IsWritableVisible}" />
+               <ComboBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Foreground="{Binding PrimaryTextBrush}" ItemsSource="{Binding ReadOnlyValueOptions}" SelectedItem="{Binding SelectedReadOnlyValue, Mode=TwoWay}" IsVisible="{Binding IsWritableVisible}" />
 
-               <TextBlock Grid.Row="4" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Unit" />
-               <TextBox Grid.Row="4" Grid.Column="1" Margin="0,5,0,0" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding Unit, Mode=TwoWay}" />
+               <TextBlock Grid.Row="4" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Write Mode" IsVisible="{Binding IsWriteConfigurationVisible}" />
+               <ComboBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Foreground="{Binding PrimaryTextBrush}" ItemsSource="{Binding WriteModeOptions}" SelectedItem="{Binding SelectedWriteMode, Mode=TwoWay}" IsVisible="{Binding IsWriteConfigurationVisible}" />
 
-               <TextBlock Grid.Row="5" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Format" />
-               <TextBox Grid.Row="5" Grid.Column="1" Margin="0,5,0,0" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding Format, Mode=TwoWay}" />
+               <TextBlock Grid.Row="5" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Write Target" IsVisible="{Binding IsWriteConfigurationVisible}" />
+               <TextBox Grid.Row="5" Grid.Column="1" Margin="0,5,0,0" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding WritePath, Mode=TwoWay}" IsVisible="{Binding IsWriteConfigurationVisible}" />
+               <Button Grid.Row="5" Grid.Column="2" Margin="8,5,0,0" Classes="dialog-button" Content="Pick" Click="OnPickWriteTargetClicked" IsVisible="{Binding IsWriteConfigurationVisible}" />
 
-               <TextBlock Grid.Row="6" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Value" IsVisible="{Binding IsValueVisible}" />
-               <TextBox Grid.Row="6" Grid.Column="1" Margin="0,5,0,0" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding ValueText, Mode=TwoWay}" IsVisible="{Binding IsValueVisible}" />
+               <TextBlock Grid.Row="6" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Unit" />
+               <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding Unit, Mode=TwoWay}" />
+
+               <TextBlock Grid.Row="7" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Format" />
+               <TextBox Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding Format, Mode=TwoWay}" />
+
+               <TextBlock Grid.Row="8" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Value" IsVisible="{Binding IsValueVisible}" />
+               <TextBox Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding ValueText, Mode=TwoWay}" IsVisible="{Binding IsValueVisible}" />
             </Grid>
           </Border>
 

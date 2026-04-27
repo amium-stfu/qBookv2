@@ -50,6 +50,12 @@ public partial class EnhancedSignalEditorDialogWindow : Window
         e.Handled = true;
     }
 
+    private async void OnPickWriteTargetClicked(object? sender, RoutedEventArgs e)
+    {
+        ViewModel.WritePath = await PickTargetAsync(ViewModel.WritePath) ?? ViewModel.WritePath;
+        e.Handled = true;
+    }
+
     private async Task<string?> PickTargetAsync(string currentSelection)
     {
         var dialog = new TargetTreeSelectionDialogWindow(_viewModel, _sourceOptions, currentSelection, _ownerItem?.FolderName ?? string.Empty);
@@ -174,7 +180,10 @@ public sealed class EnhancedSignalEditorDialogViewModel : ObservableObject
     private readonly FolderItemModel _ownerItem;
     private string _name = string.Empty;
     private bool _enabled = true;
+    private bool _isWritable;
     private string _sourcePath = string.Empty;
+    private string _writePath = string.Empty;
+    private string _selectedWriteMode = SignalWriteMode.Request.ToString();
     private string _unit = string.Empty;
     private string _format = string.Empty;
     private string _selectedFilterMode = ExtendedSignalFilterMode.Raw.ToString();
@@ -245,6 +254,7 @@ public sealed class EnhancedSignalEditorDialogViewModel : ObservableObject
             ExtendedSignalAdjustmentMode.None.ToString(),
             ExtendedSignalAdjustmentMode.Spline.ToString()
         ];
+        WriteModeOptions = Enum.GetNames<SignalWriteMode>();
         KalmanDynamicNormalizationModeOptions = [KalmanDynamicNormalizationMode.HybridReferenceFloor.ToString()];
 
         DialogBackground = mainWindowViewModel?.DialogBackground ?? "#E3E5EE";
@@ -275,7 +285,10 @@ public sealed class EnhancedSignalEditorDialogViewModel : ObservableObject
 
         Name = definition.Name;
         Enabled = definition.Enabled;
+        IsWritable = definition.IsWritable;
         SourcePath = definition.SourcePath;
+        WritePath = definition.WritePath;
+        SelectedWriteMode = definition.WriteMode.ToString();
         Unit = definition.Unit;
         Format = definition.Format;
         SelectedFilterMode = definition.FilterMode.ToString();
@@ -339,6 +352,8 @@ public sealed class EnhancedSignalEditorDialogViewModel : ObservableObject
     public IReadOnlyList<string> FilterModeOptions { get; }
 
     public IReadOnlyList<string> AdjustmentModeOptions { get; }
+
+    public IReadOnlyList<string> WriteModeOptions { get; }
 
     public IReadOnlyList<string> KalmanDynamicNormalizationModeOptions { get; }
 
@@ -502,6 +517,12 @@ public sealed class EnhancedSignalEditorDialogViewModel : ObservableObject
 
     public string SourceToolTip => "Registry path that provides the raw input value. When child forwarding is enabled, write operations on forwarded child paths are mapped relative to this source path.";
 
+    public string IsWritableToolTip => "Enables user-facing write access for the published enhanced signal. Disable it when the signal should remain read-only in generic editors and interactions.";
+
+    public string WritePathToolTip => "Optional target path for writes. Leave it empty to use the default path for the selected write mode. In Request mode the enhanced signal uses its internal Set channel by default.";
+
+    public string WriteModeToolTip => "Direct writes target the configured path as-is. Request writes route to the configured path and use its Request child automatically when available.";
+
     public string ForwardChildWritesToSourceToolTip => "Forwards non-signal-owned child writes under the enhanced signal to matching child paths below the source path. Internal enhanced-signal runtime nodes such as Raw, Read, State, Alert, Config, Adjustment, and Kalman stay local.";
 
     public string UnitToolTip => "Engineering unit shown with the published signal. Change it when the enhanced value uses another physical unit or display label.";
@@ -645,10 +666,28 @@ public sealed class EnhancedSignalEditorDialogViewModel : ObservableObject
         set => SetProperty(ref _enabled, value);
     }
 
+    public bool IsWritable
+    {
+        get => _isWritable;
+        set => SetProperty(ref _isWritable, value);
+    }
+
     public string SourcePath
     {
         get => _sourcePath;
         set => SetProperty(ref _sourcePath, value ?? string.Empty);
+    }
+
+    public string WritePath
+    {
+        get => _writePath;
+        set => SetProperty(ref _writePath, value ?? string.Empty);
+    }
+
+    public string SelectedWriteMode
+    {
+        get => _selectedWriteMode;
+        set => SetProperty(ref _selectedWriteMode, value ?? SignalWriteMode.Request.ToString());
     }
 
     public string Unit
@@ -1090,6 +1129,12 @@ public sealed class EnhancedSignalEditorDialogViewModel : ObservableObject
             return false;
         }
 
+        if (!Enum.TryParse<SignalWriteMode>(SelectedWriteMode, true, out var writeMode))
+        {
+            errorMessage = "Write mode is invalid.";
+            return false;
+        }
+
         if (!Enum.TryParse<ExtendedSignalFilterMode>(SelectedFilterMode, true, out var filterMode))
         {
             errorMessage = "Filter mode is invalid.";
@@ -1285,7 +1330,10 @@ public sealed class EnhancedSignalEditorDialogViewModel : ObservableObject
         {
             Name = Name.Trim(),
             Enabled = Enabled,
+            IsWritable = IsWritable,
             SourcePath = SourcePath.Trim(),
+            WritePath = WritePath.Trim(),
+            WriteMode = writeMode,
             ForwardChildWritesToSource = ForwardChildWritesToSource,
             Unit = Unit.Trim(),
             Format = Format.Trim(),

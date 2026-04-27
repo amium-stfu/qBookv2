@@ -263,6 +263,8 @@ public partial class CustomSignalsControl : EditorTemplateControl
         item.Params["Format"].Value = definition.Format;
         item.Params["Mode"].Value = definition.Mode.ToString();
         item.Params["Writable"].Value = definition.Mode == CustomSignalMode.Input && definition.IsWritable;
+        item.Params["WritePath"].Value = definition.Mode == CustomSignalMode.Input ? definition.WritePath : string.Empty;
+        item.Params["WriteMode"].Value = definition.WriteMode.ToString();
         item.Params["Owner"].Value = ownerItem.Name ?? string.Empty;
         item.Params["Value"].Value = value ?? string.Empty;
         HostRegistries.Data.UpsertSnapshot(registryPath, item);
@@ -552,8 +554,25 @@ public partial class CustomSignalsControl : EditorTemplateControl
         _isPublishing = true;
         try
         {
-            HostRegistries.Data.UpdateValue(row.RegistryPath, ConvertToDataType(nextValue, row.Definition.DataType));
-            row.CurrentValue = ConvertToDataType(nextValue, row.Definition.DataType);
+            var convertedValue = ConvertToDataType(nextValue, row.Definition.DataType);
+            var configuredWritePath = string.IsNullOrWhiteSpace(row.Definition.WritePath)
+                ? row.RegistryPath
+                : row.Definition.WritePath.Trim();
+
+            if (TryResolveWriteTarget(configuredWritePath, _observedItem?.FolderName, out var writeTarget))
+            {
+                var valueTarget = row.Definition.WriteMode == SignalWriteMode.Request && writeTarget.Has("Request")
+                    ? writeTarget["Request"]
+                    : writeTarget;
+                HostRegistries.Data.UpdateValue(valueTarget.Path ?? configuredWritePath, convertedValue);
+            }
+            else if (!string.IsNullOrWhiteSpace(configuredWritePath))
+            {
+                HostRegistries.Data.UpdateValue(configuredWritePath, convertedValue);
+            }
+
+            HostRegistries.Data.UpdateValue(row.RegistryPath, convertedValue);
+            row.CurrentValue = convertedValue;
         }
         finally
         {
@@ -683,6 +702,22 @@ public partial class CustomSignalsControl : EditorTemplateControl
         }
     }
 
+    private static bool TryResolveWriteTarget(string configuredPath, string? folderName, out Item item)
+    {
+        foreach (var candidate in TargetPathHelper.EnumerateResolutionCandidates(configuredPath, folderName))
+        {
+            Item? resolvedItem;
+            if (HostRegistries.Data.TryGet(candidate, out resolvedItem) && resolvedItem is not null)
+            {
+                item = resolvedItem;
+                return true;
+            }
+        }
+
+        item = null!;
+        return false;
+    }
+
 }
 
 public sealed class CustomSignalRow : ObservableObject
@@ -717,7 +752,7 @@ public sealed class CustomSignalRow : ObservableObject
         }
     }
 
-    public string SummaryText => $"Mode: {Definition.Mode} · Type: {Definition.DataType}";
+    public string SummaryText => $"Mode: {Definition.Mode} · Type: {Definition.DataType} · Write: {Definition.WriteMode}";
 
     public string ValueDisplay
     {

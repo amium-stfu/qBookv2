@@ -19,10 +19,12 @@ Provides structured enhanced signal definitions and publishes them as runtime-ac
 - Enhanced signal definitions stored on the widget
 - Signal naming and path configuration
 - Theme-aware signal row presentation
+- Optional write routing using `IsWritable`, `WriteMode`, and `WritePath`
 
 ## Runtime Notes
 
 The widget rebuilds and refreshes published runtimes when the stored definitions or naming context change.
+Published enhanced signals can expose a default request-based write endpoint through their internal `Set` channel or a custom configured target path.
 
 ## Source
 

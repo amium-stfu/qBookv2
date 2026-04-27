@@ -15,6 +15,7 @@ namespace Amium.UiEditor.ViewModels;
 public sealed class EditorDialogField : ObservableObject
 {
     private bool _isReadOnly;
+    private bool _isVisible = true;
 
     public EditorDialogField(EditorDialogBindingDefinition definition, Parameter parameter)
     {
@@ -75,6 +76,12 @@ public sealed class EditorDialogField : ObservableObject
             RaisePropertyChanged(nameof(IsTextInput));
             RaisePropertyChanged(nameof(ShowPickerButton));
         }
+    }
+
+    public bool IsVisible
+    {
+        get => _isVisible;
+        internal set => SetProperty(ref _isVisible, value);
     }
 
     public ObservableCollection<string> Options { get; } = [];
@@ -241,6 +248,8 @@ public sealed class EditorDialogField : ObservableObject
 
     public bool IsInteractionRuleList => PropertyType == EditorPropertyType.InteractionRuleList;
 
+    public bool IsUdlModuleExposureList => PropertyType == EditorPropertyType.UdlModuleExposureList;
+
     public bool IsPythonScriptCreator => string.Equals(Key, "PythonScriptPath", StringComparison.Ordinal);
 
     public bool IsPythonTemplateSelector => string.Equals(Key, "PythonScriptPath", StringComparison.Ordinal);
@@ -255,6 +264,7 @@ public sealed class EditorDialogField : ObservableObject
                                && !IsChartSeriesList
                                && !IsAttachItemList
                                && !IsInteractionRuleList
+                               && !IsUdlModuleExposureList
                                && !IsApplicationExplorerPicker;
 
     public bool ShowPickerButton => IsColor && !IsReadOnly;
@@ -283,6 +293,12 @@ public sealed class EditorDialogField : ObservableObject
         EditorPropertyType.InteractionRuleList => InteractionRuleEntries.Count == 0
             ? "Default left click opens value editor"
             : $"{InteractionRuleEntries.Count} rules configured",
+        EditorPropertyType.UdlModuleExposureList => UdlModuleExposureDefinitionCodec.ParseDefinitions(Value).Count switch
+        {
+            0 => "No module exposures configured",
+            1 => "1 module exposure configured",
+            var count => $"{count} module exposures configured"
+        },
         _ => string.Empty
     };
 

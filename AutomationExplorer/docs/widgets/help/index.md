@@ -29,7 +29,7 @@ A later help window can resolve content using:
 - `EnhancedSignals.help.md`
 - `FolderEditor.help.md`
 - `Item.help.md`
-- `ListControl.help.md`
+- `WidgetList.help.md`
 - `LogControl.help.md`
 - `Parameter.help.md`
 - `PythonClient.help.md`

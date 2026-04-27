@@ -124,27 +124,36 @@
                     <TextBlock Grid.Column="1" Margin="6,0,0,0" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{Binding SectionHeaderForeground}" Text="{Binding SignalSectionTitle}" />
                   </Grid>
                   <Border IsVisible="{Binding IsSignalSectionExpanded}" Margin="0,6,0,6" Padding="10,10,10,8" Background="{Binding SectionContentBackground}" BorderBrush="{Binding BorderColor}" BorderThickness="1" CornerRadius="8">
-                    <Grid ColumnDefinitions="170,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                    <Grid ColumnDefinitions="170,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                       <TextBlock Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Name" ToolTip.Tip="{Binding NameToolTip}" />
-                      <TextBox Grid.Column="1" Margin="0,0,0,6" Classes="dialog-field" Text="{Binding Name, Mode=TwoWay}" ToolTip.Tip="{Binding NameToolTip}" />
+                      <TextBox Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,6" Classes="dialog-field" Text="{Binding Name, Mode=TwoWay}" ToolTip.Tip="{Binding NameToolTip}" />
                       <TextBlock Grid.Row="1" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Enabled" ToolTip.Tip="{Binding EnabledToolTip}" />
-                      <CheckBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,6" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" ToolTip.Tip="{Binding EnabledToolTip}" />
-                      <TextBlock Grid.Row="2" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Source" ToolTip.Tip="{Binding SourceToolTip}" />
-                      <Grid Grid.Row="2" Grid.Column="1" Margin="0,0,0,6" ColumnDefinitions="*,Auto">
+                      <CheckBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,6" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" ToolTip.Tip="{Binding EnabledToolTip}" />
+                      <TextBlock Grid.Row="2" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Writable" ToolTip.Tip="{Binding IsWritableToolTip}" />
+                      <CheckBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,6" IsChecked="{Binding IsWritable, Mode=TwoWay}" VerticalAlignment="Center" ToolTip.Tip="{Binding IsWritableToolTip}" />
+                      <TextBlock Grid.Row="3" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Source" ToolTip.Tip="{Binding SourceToolTip}" />
+                      <Grid Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,6" ColumnDefinitions="*,Auto">
                         <TextBox Classes="dialog-field" Text="{Binding SourcePath, Mode=TwoWay}" ToolTip.Tip="{Binding SourceToolTip}" />
                         <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" Content="Pick" Click="OnPickSourceClicked" ToolTip.Tip="{Binding SourceToolTip}" />
                       </Grid>
-                      <TextBlock Grid.Row="3" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Unit" ToolTip.Tip="{Binding UnitToolTip}" />
-                      <TextBox Grid.Row="3" Grid.Column="1" Margin="0,0,0,6" Classes="dialog-field" Text="{Binding Unit, Mode=TwoWay}" ToolTip.Tip="{Binding UnitToolTip}" />
-                      <TextBlock Grid.Row="4" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Format" ToolTip.Tip="{Binding FormatToolTip}" />
-                      <TextBox Grid.Row="4" Grid.Column="1" Margin="0,0,0,6" Classes="dialog-field" Text="{Binding Format, Mode=TwoWay}" ToolTip.Tip="{Binding FormatToolTip}" />
-                      <TextBlock Grid.Row="5" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Scan Interval (ms)" ToolTip.Tip="{Binding ScanIntervalToolTip}" />
-                      <TextBox Grid.Row="5" Grid.Column="1" Margin="0,0,0,6" Classes="dialog-field" Text="{Binding ScanIntervalMsText, Mode=TwoWay}" ToolTip.Tip="{Binding ScanIntervalToolTip}" />
-                      <TextBlock Grid.Row="6" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Published Path" ToolTip.Tip="{Binding PublishedPathToolTip}" />
-                      <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,0,0,6" Foreground="{Binding PrimaryTextBrush}" Text="{Binding PreviewPath}" TextWrapping="Wrap" ToolTip.Tip="{Binding PublishedPathToolTip}" />
-                      <TextBlock Grid.Row="7" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Forward Child Writes" ToolTip.Tip="{Binding ForwardChildWritesToSourceToolTip}" />
-                      <CheckBox Grid.Row="7" Grid.Column="1" Margin="0,0,0,6" IsChecked="{Binding ForwardChildWritesToSource, Mode=TwoWay}" VerticalAlignment="Center" ToolTip.Tip="{Binding ForwardChildWritesToSourceToolTip}" />
-                      <TextBlock Grid.Row="8" Grid.Column="1" FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="When enabled, non-signal-owned child writes are mapped relative to the source path. Internal enhanced-signal nodes stay local." TextWrapping="Wrap" />
+                      <TextBlock Grid.Row="4" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Write Mode" ToolTip.Tip="{Binding WriteModeToolTip}" />
+                      <ComboBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,6" Classes="dialog-field" ItemsSource="{Binding WriteModeOptions}" SelectedItem="{Binding SelectedWriteMode, Mode=TwoWay}" ToolTip.Tip="{Binding WriteModeToolTip}" />
+                      <TextBlock Grid.Row="5" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Write Target" ToolTip.Tip="{Binding WritePathToolTip}" />
+                      <Grid Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,6" ColumnDefinitions="*,Auto">
+                        <TextBox Classes="dialog-field" Text="{Binding WritePath, Mode=TwoWay}" ToolTip.Tip="{Binding WritePathToolTip}" />
+                        <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" Content="Pick" Click="OnPickWriteTargetClicked" ToolTip.Tip="{Binding WritePathToolTip}" />
+                      </Grid>
+                      <TextBlock Grid.Row="6" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Unit" ToolTip.Tip="{Binding UnitToolTip}" />
+                      <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,6" Classes="dialog-field" Text="{Binding Unit, Mode=TwoWay}" ToolTip.Tip="{Binding UnitToolTip}" />
+                      <TextBlock Grid.Row="7" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Format" ToolTip.Tip="{Binding FormatToolTip}" />
+                      <TextBox Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,6" Classes="dialog-field" Text="{Binding Format, Mode=TwoWay}" ToolTip.Tip="{Binding FormatToolTip}" />
+                      <TextBlock Grid.Row="8" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Scan Interval (ms)" ToolTip.Tip="{Binding ScanIntervalToolTip}" />
+                      <TextBox Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,6" Classes="dialog-field" Text="{Binding ScanIntervalMsText, Mode=TwoWay}" ToolTip.Tip="{Binding ScanIntervalToolTip}" />
+                      <TextBlock Grid.Row="9" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Published Path" ToolTip.Tip="{Binding PublishedPathToolTip}" />
+                      <TextBlock Grid.Row="9" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,6" Foreground="{Binding PrimaryTextBrush}" Text="{Binding PreviewPath}" TextWrapping="Wrap" ToolTip.Tip="{Binding PublishedPathToolTip}" />
+                      <TextBlock Grid.Row="10" Margin="0,0,0,6" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Forward Child Writes" ToolTip.Tip="{Binding ForwardChildWritesToSourceToolTip}" />
+                      <CheckBox Grid.Row="10" Grid.Column="1" Margin="0,0,0,6" IsChecked="{Binding ForwardChildWritesToSource, Mode=TwoWay}" VerticalAlignment="Center" ToolTip.Tip="{Binding ForwardChildWritesToSourceToolTip}" />
+                      <TextBlock Grid.Row="10" Grid.Column="2" FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="When enabled, non-signal-owned child writes are mapped relative to the source path. Internal enhanced-signal nodes stay local." TextWrapping="Wrap" />
                     </Grid>
                   </Border>
                 </StackPanel>

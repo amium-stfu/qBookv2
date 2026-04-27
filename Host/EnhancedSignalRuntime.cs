@@ -1513,6 +1513,10 @@ public sealed class EnhancedSignalRuntime : IDisposable
         _module.Alert.Params["Text"].Value = $"{_definition.Name} Alert";
         _module.Command.Params["Text"].Value = $"{_definition.Name} Command";
         _module.Config.Params["Text"].Value = $"{_definition.Name} Config";
+        _module.Params["Kind"].Value = "EnhancedSignal";
+        _module.Params["Writable"].Value = _definition.IsWritable;
+        _module.Params["WritePath"].Value = ResolveEffectiveWritePath();
+        _module.Params["WriteMode"].Value = _definition.WriteMode.ToString();
         _module.Config.Params["Enabled"].Value = _definition.Enabled;
         _module.Config.Params["SourcePath"].Value = _definition.SourcePath;
         _module.Config.Params["ForwardChildWritesToSource"].Value = _definition.ForwardChildWritesToSource;
@@ -1581,6 +1585,23 @@ public sealed class EnhancedSignalRuntime : IDisposable
     private void PublishSnapshot()
     {
         HostRegistries.Data.UpsertSnapshot(_registryPath, _module, pruneMissingMembers: true);
+    }
+
+    private string ResolveEffectiveWritePath()
+    {
+        if (!_definition.IsWritable)
+        {
+            return string.Empty;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_definition.WritePath))
+        {
+            return _definition.WritePath;
+        }
+
+        return _definition.WriteMode == SignalWriteMode.Request
+            ? _registryPath + ".Set"
+            : _definition.SourcePath;
     }
 
     private void SetAlert(string message)

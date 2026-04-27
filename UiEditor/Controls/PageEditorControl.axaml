@@ -50,7 +50,7 @@
                 <Grid Width="{Binding Width}" Height="{Binding Height}" IsVisible="{Binding IsVisibleInActiveView}" PointerPressed="OnItemPointerPressed" ToolTip.Tip="{Binding EffectiveToolTipText}">
                   <controls:EditorButtonControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsButton}" />
                   <controls:EditorSignalControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsItem}" />
-                  <controls:EditorListControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsListControl}" />
+                  <controls:EditorListControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsWidgetList}" />
                    <controls:EditorCircleDisplayControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsCircleDisplay}" />
                   <controls:EditorLogControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsLogControl}" PageIsActive="{Binding Page.IsSelected, ElementName=Root}" />
                   <controls:EditorCsvLoggerControl Width="{Binding Width}" Height="{Binding Height}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DataContext="{Binding}" IsVisible="{Binding IsCsvLoggerControl}" />
@@ -151,7 +151,7 @@
                 <TextBlock FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Control platzieren" />
                 <Button Classes="toolbar" Click="OnBeginAddButtonClicked" Content="Button" />
                 <Button Classes="toolbar" Click="OnBeginAddSignalClicked" Content="Signal" />
-                <Button Classes="toolbar" Click="OnBeginAddListControlClicked" Content="ListControl" />
+                <Button Classes="toolbar" Click="OnBeginAddWidgetListClicked" Content="WidgetList" />
                 <Button Classes="toolbar" Click="OnBeginAddCircleDisplayClicked" Content="CircleDisplay" />
                 <Button Classes="toolbar" Click="OnBeginAddLogControlClicked" Content="LogControl" />
                 <Button Classes="toolbar" Click="OnBeginAddCsvLoggerControlClicked" Content="CsvLogger" />

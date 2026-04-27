@@ -316,6 +316,7 @@ public sealed class UdlClient : IDisposable
         var key = FormatModuleName(moduleId);
         if (Items.Has(key) && Items[key] is Module existingModule)
         {
+            existingModule.EnsureWriteMetadata();
             return existingModule;
         }
 
@@ -341,6 +342,7 @@ public sealed class UdlClient : IDisposable
         module.SetRequest.Changed += (_, e) => OnRequestItemChanged(moduleId, module, e);
         module.OutRequest.Changed += (_, e) => OnRequestItemChanged(moduleId, module, e);
         module.CommandRequest.Changed += (_, e) => OnRequestItemChanged(moduleId, module, e);
+        module.EnsureWriteMetadata();
 
         Items[key] = module;
         return module;

@@ -158,7 +158,7 @@
                         <ItemsControl ItemsSource="{Binding Fields}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="viewModels:EditorDialogField">
-                              <Grid ColumnDefinitions="118,*,Auto,Auto,Auto" Margin="0,0,0,6">
+                              <Grid ColumnDefinitions="118,*,Auto,Auto,Auto" Margin="0,0,0,6" IsVisible="{Binding IsVisible}">
                                 <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding DisplayLabel}" />
 
                                 <TextBox

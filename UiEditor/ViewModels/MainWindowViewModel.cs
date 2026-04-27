@@ -698,7 +698,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public void BeginListAdd(ControlKind kind)
     {
-        if (_listPopupTarget is null || !_listPopupTarget.IsListControl || kind == ControlKind.ListControl)
+        if (_listPopupTarget is null || !_listPopupTarget.IsWidgetList || kind == ControlKind.WidgetList)
         {
             return;
         }
@@ -788,7 +788,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         // Keine verschachtelten Container-Controls im Table zulassen.
-        if (kind == ControlKind.TableControl || kind == ControlKind.CircleDisplay || kind == ControlKind.ListControl || kind == ControlKind.UdlClientControl)
+        if (kind == ControlKind.TableControl || kind == ControlKind.CircleDisplay || kind == ControlKind.WidgetList || kind == ControlKind.UdlClientControl)
         {
             return;
         }
@@ -1232,7 +1232,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     public bool MoveItemIntoList(FolderItemModel draggedItem, FolderItemModel listControl)
     {
-        if (!listControl.IsListControl || draggedItem.IsListControl)
+        if (!listControl.IsWidgetList || draggedItem.IsWidgetList)
         {
             return false;
         }
@@ -1259,8 +1259,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return false;
         }
 
-        var ownerList = item.ParentListControl;
-        var removed = ownerList?.IsListControl == true
+        var ownerList = item.ParentWidgetList;
+        var removed = ownerList?.IsWidgetList == true
             ? ownerList.Items.Remove(item)
             : SelectedFolder.Items.Remove(item);
 
@@ -1269,7 +1269,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return false;
         }
 
-        if (ownerList?.IsListControl == true)
+        if (ownerList?.IsWidgetList == true)
         {
             ownerList.ApplyListHeightRules();
             SelectItem(ownerList);
@@ -1667,6 +1667,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         nodeObject["UdlClientDemoEnabled"] = item.UdlClientDemoEnabled;
         nodeObject["UdlAttachedItemPaths"] = item.UdlAttachedItemPaths;
         nodeObject["UdlDemoModuleDefinitions"] = item.UdlDemoModuleDefinitions;
+        nodeObject["UdlModuleExposureDefinitions"] = item.UdlModuleExposureDefinitions;
         nodeObject["CsvSplitDaily"] = item.CsvSplitDaily;
         nodeObject["CsvSplitDailyTime"] = item.CsvSplitDailyTime;
         nodeObject["CsvSplitMaxFileSizeMb"] = item.CsvSplitMaxFileSizeMb;
@@ -1808,7 +1809,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 control["ButtonIconAlign"] = item.ButtonIconAlign;
                 control["ButtonTextAlign"] = item.ButtonTextAlign;
                 break;
-            case ControlKind.ListControl:
+            case ControlKind.WidgetList:
                 control["ControlHeight"] = item.ControlHeight;
                 var listChildren = new JsonArray(item.Items.Select(child => (JsonNode?)BuildYamlControlDefinition(child)).ToArray());
                 control["Children"] = listChildren;
@@ -1889,6 +1890,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     control["UdlDemoModules"] = UdlDemoModuleDefinitionCodec.ToJsonArray(item.UdlDemoModuleDefinitions);
                 }
 
+                if (!string.IsNullOrWhiteSpace(item.UdlModuleExposureDefinitions))
+                {
+                    control["UdlModuleExposures"] = UdlModuleExposureDefinitionCodec.ToJsonArray(item.UdlModuleExposureDefinitions);
+                }
+
                 break;
             case ControlKind.PythonClient:
                 control["PythonScript"] = item.PythonScriptPath;
@@ -1948,7 +1954,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return item.Kind switch
         {
             ControlKind.Button => "Button",
-            ControlKind.ListControl => "ListControl",
+            ControlKind.WidgetList => "WidgetList",
             ControlKind.TableControl => "TableControl",
             ControlKind.CircleDisplay => "CircleDisplay",
             ControlKind.LogControl => "LogControl",
@@ -2062,6 +2068,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.UdlDemoModuleDefinitions = properties["UdlDemoModuleDefinitions"] is { } udlDemoDefinitionsNode
             ? UdlDemoModuleDefinitionCodec.FromJsonNode(udlDemoDefinitionsNode)
             : item.UdlDemoModuleDefinitions;
+        item.UdlModuleExposureDefinitions = properties["UdlModuleExposureDefinitions"] is { } udlModuleExposureDefinitionsNode
+            ? UdlModuleExposureDefinitionCodec.SerializeDefinitions(UdlModuleExposureDefinitionCodec.FromJsonNode(udlModuleExposureDefinitionsNode))
+            : item.UdlModuleExposureDefinitions;
         item.CsvDirectory = GetStringProperty(properties, "CsvDirectory") ?? item.CsvDirectory;
         item.CsvFilename = GetStringProperty(properties, "CsvFilename") ?? item.CsvFilename;
         item.CsvAddTimestamp = GetBoolProperty(properties, "CsvAddTimestamp") ?? item.CsvAddTimestamp;
@@ -2332,7 +2341,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return kind switch
         {
             ControlKind.Button => "Button",
-            ControlKind.ListControl => "ListControl",
+            ControlKind.WidgetList => "WidgetList",
             ControlKind.TableControl => "TableControl",
             ControlKind.CircleDisplay => "CircleDisplay",
             ControlKind.LogControl => "LogControl",
@@ -2821,11 +2830,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             },
             ControlKind.Signal => CreateDefaultItem(x, y, width, height),
             ControlKind.Item => CreateDefaultItem(x, y, width, height),
-            ControlKind.ListControl => new FolderItemModel
+            ControlKind.WidgetList => new FolderItemModel
             {
-                Kind = ControlKind.ListControl,
+                Kind = ControlKind.WidgetList,
                 ControlCaption = string.Empty,
-                BodyCaption = "ListControl",
+                BodyCaption = "WidgetList",
                 Footer = "Drop controls here",
                 X = x,
                 Y = y,
@@ -3248,6 +3257,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             EditorDialogSections.Add(section);
             foreach (var field in section.Fields)
             {
+                field.IsVisible = ShouldShowEditorDialogField(item, field.Key);
                 if (_editorDialogMode == EditorDialogMode.Edit
                     && string.Equals(field.Key, "Name", StringComparison.Ordinal))
                 {
@@ -3374,7 +3384,17 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             _isRefreshingEditorDialogFields = wasRefreshing;
         }
 
+        RefreshEditorDialogFieldVisibility(item);
+
         UpdateEditorDialogChoiceDiagnostics();
+    }
+
+    private void RefreshEditorDialogFieldVisibility(FolderItemModel item)
+    {
+        foreach (var field in EnumerateEditorDialogFields())
+        {
+            field.IsVisible = ShouldShowEditorDialogField(item, field.Key);
+        }
     }
 
     private string GetSelectedTargetPath(FolderItemModel item)
@@ -3507,6 +3527,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         if (string.Equals(field.Key, "TargetPath", StringComparison.Ordinal))
         {
             field.Definition.Apply(_editorDialogItem, field.Value);
+            _editorDialogItem.TargetParameterFormat = GetTargetFormatAutofill(_editorDialogItem);
 
             var parameterField = FindDialogField("TargetParameterPath");
             if (parameterField is not null)
@@ -3523,7 +3544,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }
             }
 
-            RefreshEditorDialogFieldValues(_editorDialogItem, "Name", "Path", "Unit", "ControlCaption", "TargetPath", "TargetParameterPath");
+            RefreshEditorDialogFieldValues(_editorDialogItem, "Name", "Path", "Unit", "ControlCaption", "TargetPath", "TargetParameterPath", "TargetParameterFormatKind", "TargetParameterFormatParameter");
+            RefreshEditorDialogFieldValues(_editorDialogItem, "ResolvedTargetWritable", "ResolvedTargetWriteMode", "ResolvedTargetWritePath");
             RefreshEditorDialogChoiceOptions(_editorDialogItem);
 
             var nameField = FindDialogField("Name");
@@ -3535,18 +3557,24 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             }
         }
 
-        if (string.Equals(field.Key, "TargetParameterFormatKind", StringComparison.Ordinal))
+        if (string.Equals(field.Key, "TargetParameterFormatKind", StringComparison.Ordinal)
+            || string.Equals(field.Key, "TargetParameterFormatParameter", StringComparison.Ordinal))
         {
+            field.Definition.Apply(_editorDialogItem, field.Value);
+
             var parameterField = FindDialogField("TargetParameterFormatParameter");
             if (parameterField is not null)
             {
-                if (!FormatUsesParameter(field.Value))
+                var selectedFormatKind = FindDialogField("TargetParameterFormatKind")?.Value ?? field.Value;
+                if (!FormatUsesParameter(selectedFormatKind))
                 {
                     parameterField.Value = string.Empty;
                 }
 
-                parameterField.ToolTipText = GetFormatParameterToolTip(field.Value);
+                parameterField.ToolTipText = GetFormatParameterToolTip(selectedFormatKind);
             }
+
+            RefreshEditorDialogFieldValues(_editorDialogItem, "TargetParameterFormatKind", "TargetParameterFormatParameter");
         }
 
         if (string.Equals(field.Key, "ButtonCommand", StringComparison.Ordinal))
@@ -4385,6 +4413,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindChoice("IsReadOnly", "Readonly", current => current.IsReadOnly ? "True" : "False", (current, value) => { current.IsReadOnly = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindInt("RefreshRateMs", "RefreshRate ms", current => current.RefreshRateMs, (current, value) => current.RefreshRateMs = value)
                 }));
+                sections.Add(("SourceMeta", new List<EditorDialogBindingDefinition>
+                {
+                    BindReadOnly("ResolvedTargetWritable", "Writable", current => current.ResolvedTargetWritable, GetWriteMetadataToolTip),
+                    BindReadOnly("ResolvedTargetWriteMode", "WriteMode", current => current.ResolvedTargetWriteMode, GetWriteMetadataToolTip),
+                    BindReadOnly("ResolvedTargetWritePath", "WritePath", current => current.ResolvedTargetWritePath, GetWriteMetadataToolTip)
+                }));
                 break;
             case ControlKind.ChartControl:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>
@@ -4395,7 +4429,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindInt("ViewSeconds", "View s", current => current.ViewSeconds, (current, value) => current.ViewSeconds = value)
                 }));
                 break;
-            case ControlKind.ListControl:
+            case ControlKind.WidgetList:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
                     BindDouble("ControlHeight", "ControlHeight", current => current.ControlHeight, (current, value) => current.ControlHeight = value)
@@ -4477,6 +4511,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindChoice("UdlClientAutoConnect", "AutoConnect", current => current.UdlClientAutoConnect ? "True" : "False", (current, value) => { current.UdlClientAutoConnect = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindChoice("UdlClientDebugLogging", "DebugLogging", current => current.UdlClientDebugLogging ? "True" : "False", (current, value) => { current.UdlClientDebugLogging = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
                     BindChoice("UdlClientDemoEnabled", "Demo", current => current.UdlClientDemoEnabled ? "True" : "False", (current, value) => { current.UdlClientDemoEnabled = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" }),
+                    BindUdlModuleExposureList("UdlModuleExposureDefinitions", "ModuleExposures", current => current.UdlModuleExposureDefinitions, (current, value) => { current.UdlModuleExposureDefinitions = value; return null; }),
                     BindAttachItemList("UdlAttachedItemPaths", "AttachToUi", current => current.UdlAttachedItemPaths, (current, value) => { current.UdlAttachedItemPaths = value; return null; }, GetUdlAttachItemOptions)
                 }));
                 break;
@@ -4987,8 +5022,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return result;
     }
 
-    private static EditorDialogBindingDefinition BindReadOnly(string key, string label, Func<FolderItemModel, string> read)
-        => new(key, label, EditorPropertyType.Text, read, isReadOnly: true);
+    private static EditorDialogBindingDefinition BindReadOnly(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string>? toolTipFactory = null)
+        => new(key, label, EditorPropertyType.Text, read, isReadOnly: true, toolTipFactory: toolTipFactory);
 
     private static EditorDialogBindingDefinition BindText(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, EditorPropertyType propertyType = EditorPropertyType.Text, Func<FolderItemModel, string>? toolTipFactory = null)
         => new(key, label, propertyType, read, apply, toolTipFactory: toolTipFactory);
@@ -5008,14 +5043,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static EditorDialogBindingDefinition BindAttachItemList(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.AttachItemList, read, apply, optionsFactory: optionsFactory);
 
+    private static EditorDialogBindingDefinition BindUdlModuleExposureList(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply)
+        => new(key, label, EditorPropertyType.UdlModuleExposureList, read, apply);
+
     private static EditorDialogBindingDefinition BindInteractionRuleList(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, string>? toolTipFactory = null)
         => new(key, label, EditorPropertyType.InteractionRuleList, read, apply, toolTipFactory: toolTipFactory);
 
     private static EditorDialogBindingDefinition BindTargetTree(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.TargetTree, read, apply, optionsFactory: optionsFactory);
 
-    private static EditorDialogBindingDefinition BindChoice(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, IEnumerable<string>> optionsFactory)
-        => new(key, label, EditorPropertyType.Choice, read, apply, optionsFactory: optionsFactory);
+    private static EditorDialogBindingDefinition BindChoice(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, IEnumerable<string>> optionsFactory, Func<FolderItemModel, string>? toolTipFactory = null)
+        => new(key, label, EditorPropertyType.Choice, read, apply, optionsFactory: optionsFactory, toolTipFactory: toolTipFactory);
+
+    private static bool ShouldShowEditorDialogField(FolderItemModel item, string key)
+        => true;
 
     private IEnumerable<string> GetViewOptions(FolderItemModel item)
     {
@@ -5316,7 +5357,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     {
         item.X = 0;
         item.Y = 0;
-        listControl.ApplyListControlDefaultsToChild(item);
+        listControl.ApplyWidgetListDefaultsToChild(item);
     }
 
     private void AttachHierarchy(FolderModel page)
@@ -5559,6 +5600,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             UdlClientAutoConnect = item.UdlClientAutoConnect,
             UdlClientDebugLogging = item.UdlClientDebugLogging,
             UdlAttachedItemPaths = item.UdlAttachedItemPaths,
+            UdlModuleExposureDefinitions = item.UdlModuleExposureDefinitions,
             CsvDirectory = item.CsvDirectory,
             CsvFilename = item.CsvFilename,
             CsvAddTimestamp = item.CsvAddTimestamp,
@@ -5684,6 +5726,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             UdlClientAutoConnect = item.UdlClientAutoConnect,
             UdlClientDebugLogging = item.UdlClientDebugLogging,
             UdlAttachedItemPaths = item.UdlAttachedItemPaths,
+            UdlModuleExposureDefinitions = item.UdlModuleExposureDefinitions,
             CsvDirectory = item.CsvDirectory,
             CsvFilename = item.CsvFilename,
             CsvAddTimestamp = item.CsvAddTimestamp,
@@ -5719,7 +5762,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlKind.Button => 140,
                 ControlKind.Signal => 150,
                 ControlKind.Item => 150,
-                ControlKind.ListControl => 240,
+                ControlKind.WidgetList => 240,
                 ControlKind.TableControl => 240,
                 ControlKind.CircleDisplay => 280,
                 ControlKind.LogControl => 320,
@@ -5737,7 +5780,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlKind.Button => 56,
                 ControlKind.Signal => 72,
                 ControlKind.Item => 72,
-                ControlKind.ListControl => 180,
+                ControlKind.WidgetList => 180,
                 ControlKind.TableControl => 180,
                 ControlKind.CircleDisplay => 220,
                 ControlKind.LogControl => 220,
@@ -5762,7 +5805,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             model.Name = effectiveKind switch
             {
                 ControlKind.Button => "Button",
-                ControlKind.ListControl => "ListControl",
+                ControlKind.WidgetList => "WidgetList",
                 ControlKind.TableControl => "TableControl",
                 ControlKind.CircleDisplay => "CircleDisplay",
                 ControlKind.LogControl => "LogControl",
@@ -5966,8 +6009,21 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static string GetFormatParameterToolTip(FolderItemModel item)
         => GetFormatParameterToolTip(SplitParameterFormat(item.TargetParameterFormat).Kind);
 
+    private static string GetWriteMetadataToolTip(FolderItemModel item)
+        => "Controlled by source target. Change write routing at the source definition, not in this widget.";
+
     private static string GetChartSeriesToolTip(FolderItemModel item)
         => string.Empty;
+
+    private static string GetTargetFormatAutofill(FolderItemModel item)
+    {
+        if (item.Target is null || !item.Target.Params.Has("Format"))
+        {
+            return string.Empty;
+        }
+
+        return item.Target.Params["Format"].Value?.ToString()?.Trim() ?? string.Empty;
+    }
 
     private static string GetFormatParameterToolTip(string? kind)
     {
@@ -6057,7 +6113,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return [];
         }
 
-        return item.Params.GetDictionary().Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList();
+        return item.Params.GetDictionary().Keys
+            .Append("Value")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static string? EmptyToNull(string value)
@@ -6102,7 +6162,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         var baseName = kind switch
         {
             ControlKind.Button => "Button",
-            ControlKind.ListControl => "ListControl",
+            ControlKind.WidgetList => "WidgetList",
             ControlKind.TableControl => "TableControl",
             ControlKind.CircleDisplay => "CircleDisplay",
             ControlKind.LogControl => "LogControl",
@@ -6457,7 +6517,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private IReadOnlyList<string> GetAttachedUdlTargetOptions(FolderItemModel? item, IReadOnlyList<string> allOptions)
     {
-        if (item is null || !item.IsItem)
+        if (item is null || (item.Kind != ControlKind.Item && item.Kind != ControlKind.Signal))
         {
             return [];
         }

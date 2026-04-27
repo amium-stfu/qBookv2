@@ -84,7 +84,13 @@ public sealed class ExtendedSignalDefinitionDocument
 
     public bool Enabled { get; init; } = true;
 
+    public bool IsWritable { get; init; }
+
     public string SourcePath { get; init; } = string.Empty;
+
+    public string WritePath { get; init; } = string.Empty;
+
+    public SignalWriteMode WriteMode { get; init; } = SignalWriteMode.Request;
 
     public bool ForwardChildWritesToSource { get; init; }
 
@@ -297,7 +303,10 @@ public static class ExtendedSignalDefinitionCodec
         {
             Name = definition.Name,
             Enabled = definition.Enabled,
+            IsWritable = definition.IsWritable,
             SourcePath = ToPersistedTargetPath(definition.SourcePath, folderName),
+            WritePath = ToPersistedTargetPath(definition.WritePath, folderName),
+            WriteMode = definition.WriteMode,
             ForwardChildWritesToSource = definition.ForwardChildWritesToSource,
             Unit = definition.Unit,
             Format = definition.Format,
@@ -373,11 +382,14 @@ public static class ExtendedSignalDefinitionCodec
         {
             Name = document.Name,
             Enabled = document.Enabled,
+            IsWritable = document.IsWritable,
             SourcePath = NormalizeTargetPath(
                 string.IsNullOrWhiteSpace(document.SourcePath)
                     ? document.LegacySourceReadPath ?? string.Empty
                     : document.SourcePath,
                 folderName),
+            WritePath = NormalizeTargetPath(document.WritePath, folderName),
+            WriteMode = document.WriteMode,
             ForwardChildWritesToSource = document.ForwardChildWritesToSource,
             Unit = document.Unit,
             Format = document.Format,

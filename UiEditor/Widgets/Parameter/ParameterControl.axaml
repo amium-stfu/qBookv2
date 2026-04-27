@@ -67,7 +67,7 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate DataType="viewModels:ParameterChoiceState">
-              <Border MinWidth="72"
+              <Button MinWidth="72"
                       MinHeight="{Binding ChoiceHeight, ElementName=Root}"
                       HorizontalAlignment="{Binding BoolChoiceHorizontalAlignment, ElementName=Root}"
                       Width="{Binding BoolChoiceWidth, ElementName=Root}"
@@ -77,9 +77,9 @@
                       BorderThickness="1"
                       CornerRadius="8"
                       Tag="{Binding Index}"
-                      PointerPressed="OnBoolChoicePointerPressed">
+                      Click="OnBoolChoiceClicked">
                 <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontSize="{Binding ChoiceFontSize, ElementName=Root}" FontWeight="SemiBold" Foreground="{Binding Foreground}" Text="{Binding Label}" />
-              </Border>
+              </Button>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
@@ -93,9 +93,9 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate DataType="viewModels:ParameterChoiceState">
-            <Border HorizontalAlignment="Stretch" MinHeight="{Binding ChoiceHeight, ElementName=Root}" Margin="0,0,6,6" Padding="8,3" Background="{Binding Background}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="8" Tag="{Binding Index}" PointerPressed="OnBitChoicePointerPressed">
+            <Button HorizontalAlignment="Stretch" MinHeight="{Binding ChoiceHeight, ElementName=Root}" Margin="0,0,6,6" Padding="8,3" Background="{Binding Background}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="8" Tag="{Binding Index}" Click="OnBitChoiceClicked">
               <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontSize="{Binding ChoiceFontSize, ElementName=Root}" FontWeight="SemiBold" Foreground="{Binding Foreground}" Text="{Binding Label}" />
-            </Border>
+            </Button>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>

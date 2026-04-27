@@ -59,6 +59,12 @@ public partial class CustomSignalEditorDialogWindow : Window
         e.Handled = true;
     }
 
+    private async void OnPickWriteTargetClicked(object? sender, RoutedEventArgs e)
+    {
+        ViewModel.WritePath = await PickTargetAsync(ViewModel.WritePath) ?? ViewModel.WritePath;
+        e.Handled = true;
+    }
+
     private void OnAddVariableClicked(object? sender, RoutedEventArgs e)
     {
         ViewModel.AddVariable();
@@ -133,6 +139,8 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
     private string _selectedMode = CustomSignalMode.Input.ToString();
     private string _selectedDataType = CustomSignalDataType.Number.ToString();
     private bool _isWritable = true;
+    private string _writePath = string.Empty;
+    private string _selectedWriteMode = SignalWriteMode.Direct.ToString();
     private string _unit = string.Empty;
     private string _format = string.Empty;
     private string _valueText = string.Empty;
@@ -152,6 +160,7 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
         _availableDataTypeOptions = _allDataTypeOptions;
         ModeOptions = Enum.GetNames<CustomSignalMode>();
         TriggerOptions = Enum.GetNames<CustomSignalComputationTrigger>();
+        WriteModeOptions = Enum.GetNames<SignalWriteMode>();
         OperatorButtons = CreateOperatorButtons();
         Variables.CollectionChanged += OnVariablesCollectionChanged;
 
@@ -172,6 +181,8 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
             SelectedMode = definition.Mode.ToString();
             SelectedDataType = definition.DataType.ToString();
             IsWritable = definition.IsWritable;
+            WritePath = definition.WritePath;
+            SelectedWriteMode = definition.WriteMode.ToString();
             Unit = definition.Unit;
             Format = definition.Format;
             ValueText = definition.ValueText;
@@ -198,6 +209,8 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
     public IReadOnlyList<string> ModeOptions { get; }
 
     public IReadOnlyList<string> TriggerOptions { get; }
+
+    public IReadOnlyList<string> WriteModeOptions { get; }
 
     public IReadOnlyList<string> ReadOnlyValueOptions => ReadOnlyOptions;
 
@@ -298,6 +311,18 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
         set => SetProperty(ref _isWritable, value);
     }
 
+    public string WritePath
+    {
+        get => _writePath;
+        set => SetProperty(ref _writePath, value ?? string.Empty);
+    }
+
+    public string SelectedWriteMode
+    {
+        get => _selectedWriteMode;
+        set => SetProperty(ref _selectedWriteMode, value ?? SignalWriteMode.Direct.ToString());
+    }
+
     public string SelectedReadOnlyValue
     {
         get => IsWritable ? "False" : "True";
@@ -396,6 +421,8 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
 
     public bool IsWritableVisible => IsInput;
 
+    public bool IsWriteConfigurationVisible => IsInput;
+
     public bool IsTriggerVisible => IsComputed;
 
     public bool IsTimerTrigger => IsComputed && string.Equals(SelectedTrigger, CustomSignalComputationTrigger.Timer.ToString(), StringComparison.OrdinalIgnoreCase);
@@ -418,7 +445,7 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
         AddVariable(GenerateNextVariableName(), string.Empty);
     }
 
-    public void AddVariable(string name, string sourcePath)
+    public void AddVariable(string? name, string? sourcePath)
     {
         var trimmedName = (name ?? string.Empty).Trim();
         if (!string.IsNullOrWhiteSpace(trimmedName)
@@ -427,7 +454,7 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
             return;
         }
 
-        var variable = new CustomSignalVariableEntryViewModel(name, sourcePath);
+        var variable = new CustomSignalVariableEntryViewModel(name ?? string.Empty, sourcePath ?? string.Empty);
         variable.PropertyChanged += OnVariablePropertyChanged;
         Variables.Add(variable);
     }
@@ -506,6 +533,8 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
                 Mode = mode,
                 DataType = dataType,
                 IsWritable = false,
+                WritePath = string.Empty,
+                WriteMode = SignalWriteMode.Direct,
                 Unit = Unit.Trim(),
                 Format = Format.Trim(),
                 Formula = FormulaText.Trim(),
@@ -526,12 +555,20 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
             return true;
         }
 
+        if (!Enum.TryParse<SignalWriteMode>(SelectedWriteMode, true, out var writeMode))
+        {
+            errorMessage = "Write mode is invalid.";
+            return false;
+        }
+
         definition = new CustomSignalDefinition
         {
             Name = Name.Trim(),
             Mode = mode,
             DataType = dataType,
             IsWritable = IsWritable,
+            WritePath = WritePath.Trim(),
+            WriteMode = writeMode,
             Unit = Unit.Trim(),
             Format = Format.Trim(),
             ValueText = ValueText,
@@ -560,6 +597,7 @@ public sealed class CustomSignalEditorDialogViewModel : ObservableObject
         RaisePropertyChanged(nameof(IsInput));
         RaisePropertyChanged(nameof(IsValueVisible));
         RaisePropertyChanged(nameof(IsWritableVisible));
+        RaisePropertyChanged(nameof(IsWriteConfigurationVisible));
         RaisePropertyChanged(nameof(IsTriggerVisible));
         RaisePropertyChanged(nameof(IsTimerTrigger));
         RaisePropertyChanged(nameof(ShowComputedEditor));

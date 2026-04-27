@@ -21,7 +21,7 @@ This folder contains one Markdown document per widget type.
 - `CustomSignals.md`
 - `EnhancedSignals.md`
 - `Item.md`
-- `ListControl.md`
+- `WidgetList.md`
 - `LogControl.md`
 - `PythonClient.md`
 - `Signal.md`

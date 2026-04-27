@@ -11,5 +11,6 @@ public enum EditorPropertyType
     MultilineText,
     ChartSeriesList,
     AttachItemList,
-    InteractionRuleList
+    InteractionRuleList,
+    UdlModuleExposureList
 }

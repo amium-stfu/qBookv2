@@ -503,12 +503,18 @@ public partial class EditorPropertyDialog : UserControl
             return;
         }
 
+        if (ViewModel is null && field.PropertyType == EditorPropertyType.UdlModuleExposureList)
+        {
+            return;
+        }
+
         Window? editorWindow = field.PropertyType switch
         {
             EditorPropertyType.TargetTree => new TargetTreeSelectionDialogWindow(ViewModel, field),
             EditorPropertyType.ChartSeriesList => new ChartSeriesEditorDialogWindow(ViewModel, field),
             EditorPropertyType.AttachItemList => new AttachItemsEditorDialogWindow(ViewModel, field),
             EditorPropertyType.InteractionRuleList => new InteractionRulesEditorDialogWindow(ViewModel, field),
+            EditorPropertyType.UdlModuleExposureList => new UdlModuleExposureDialogWindow(ViewModel!, field),
             _ => null
         };
 

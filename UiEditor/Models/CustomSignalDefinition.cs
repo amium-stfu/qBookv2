@@ -72,6 +72,10 @@ public sealed class CustomSignalDefinition
 
     public bool IsWritable { get; set; } = true;
 
+    public string WritePath { get; set; } = string.Empty;
+
+    public SignalWriteMode WriteMode { get; set; } = SignalWriteMode.Direct;
+
     public string Unit { get; set; } = string.Empty;
 
     public string Format { get; set; } = string.Empty;
@@ -102,6 +106,8 @@ public sealed class CustomSignalDefinition
             Mode = Mode,
             DataType = DataType,
             IsWritable = IsWritable,
+            WritePath = WritePath,
+            WriteMode = WriteMode,
             Unit = Unit,
             Format = Format,
             ValueText = ValueText,
@@ -126,6 +132,10 @@ public sealed class CustomSignalDefinitionDocument
     public CustomSignalDataType DataType { get; init; } = CustomSignalDataType.Number;
 
     public bool IsWritable { get; init; } = true;
+
+    public string WritePath { get; init; } = string.Empty;
+
+    public SignalWriteMode WriteMode { get; init; } = SignalWriteMode.Direct;
 
     public string Unit { get; init; } = string.Empty;
 
@@ -269,6 +279,8 @@ public static class CustomSignalDefinitionCodec
             Mode = definition.Mode,
             DataType = definition.DataType,
             IsWritable = definition.IsWritable,
+            WritePath = ToPersistedTargetPath(definition.WritePath, folderName),
+            WriteMode = definition.WriteMode,
             Unit = definition.Unit,
             Format = definition.Format,
             ValueText = definition.ValueText,
@@ -298,6 +310,8 @@ public static class CustomSignalDefinitionCodec
             Mode = document.Mode,
             DataType = document.DataType,
             IsWritable = document.IsWritable,
+            WritePath = NormalizeTargetPath(document.WritePath, folderName),
+            WriteMode = document.WriteMode,
             Unit = document.Unit,
             Format = document.Format,
             ValueText = document.ValueText,
@@ -360,6 +374,10 @@ public static class CustomSignalDefinitionCodec
 
         definition.TriggerIntervalSeconds = Math.Max(1, definition.TriggerIntervalSeconds);
         definition.Variables ??= [];
+        if (!Enum.IsDefined(definition.WriteMode))
+        {
+            definition.WriteMode = SignalWriteMode.Direct;
+        }
 
         if (definition.Mode == CustomSignalMode.Computed && string.IsNullOrWhiteSpace(definition.Formula))
         {

@@ -20,10 +20,12 @@ Provides a low-code way to define project-local signals without requiring Python
 - Signal mode such as input, constant, or computed
 - Trigger mode for computed signals
 - Formula variables and operations
+- Optional write routing using `IsWritable`, `WriteMode`, and `WritePath`
 
 ## Runtime Notes
 
 Persisted target paths use dot notation and are stored relative to the current folder when possible.
+Input signals can advertise a separate direct or request-based write target so generic editors and interactions do not need to know the backend-specific path.
 
 ## Source
 

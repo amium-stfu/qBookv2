@@ -364,7 +364,7 @@ public partial class FolderEditorControl : UserControl
         ViewModel.CancelSelection();
 
         var point = e.GetCurrentPoint(EditorCanvas);
-        if (point.Properties.IsRightButtonPressed && item.IsListControl)
+        if (point.Properties.IsRightButtonPressed && item.IsWidgetList)
         {
             _ = ShowListWidgetSelectionDialogAsync(item);
             e.Handled = true;
@@ -573,7 +573,7 @@ public partial class FolderEditorControl : UserControl
         {
             CreateWidgetSelectionItem(ControlKind.Button, "Button", "Action button with text or icon.", "Button.md", "Button.help.md"),
             CreateWidgetSelectionItem(ControlKind.Signal, "Signal", "Value display and parameter interaction widget.", "Signal.md", "Signal.help.md"),
-            CreateWidgetSelectionItem(ControlKind.ListControl, "SignalList", "Vertical container with scrollable child widgets.", "ListControl.md", "ListControl.help.md"),
+            CreateWidgetSelectionItem(ControlKind.WidgetList, "WidgetList", "Vertical container with scrollable child widgets.", "WidgetList.md", "WidgetList.help.md"),
             CreateWidgetSelectionItem(ControlKind.TableControl, "WidgetTable", "Grid-based layout container for child widgets.", "TableControl.md", "TableControl.help.md"),
             CreateWidgetSelectionItem(ControlKind.CircleDisplay, "CircleDisplay", "Circular matrix and progress display widget.", "CircleDisplay.md", "CircleDisplay.help.md"),
             CreateWidgetSelectionItem(ControlKind.LogControl, "Log", "Process log viewer with filter controls.", "LogControl.md", "LogControl.help.md"),
@@ -635,7 +635,7 @@ public partial class FolderEditorControl : UserControl
             return CreateListChildPreviewHost(viewModel, preview);
         }
 
-        if (kind == ControlKind.ListControl)
+        if (kind == ControlKind.WidgetList)
         {
             PopulateListPreview(viewModel, preview);
         }
@@ -759,7 +759,7 @@ public partial class FolderEditorControl : UserControl
 
     private static FolderItemModel CreateListChildPreviewHost(MainWindowViewModel viewModel, FolderItemModel childPreview)
     {
-        var listHost = viewModel.CreateItem(ControlKind.ListControl, 0, 0, 320, 220);
+        var listHost = viewModel.CreateItem(ControlKind.WidgetList, 0, 0, 320, 220);
         listHost.Name = "PreviewList";
         listHost.Id = Guid.NewGuid().ToString("N");
         listHost.SetLayoutFilePath(string.Empty);
@@ -769,7 +769,7 @@ public partial class FolderEditorControl : UserControl
         listHost.Footer = "Scroll for more";
         listHost.ShowFooter = true;
         listHost.ListItemHeight = Math.Max(72, childPreview.Height);
-        listHost.ApplyListControlDefaultsToChild(childPreview);
+        listHost.ApplyWidgetListDefaultsToChild(childPreview);
         childPreview.SetHierarchy("Preview", listHost);
         listHost.Items.Add(childPreview);
 
@@ -782,7 +782,7 @@ public partial class FolderEditorControl : UserControl
             value: "128",
             unit: "l/min",
             format: "numeric:0");
-        listHost.ApplyListControlDefaultsToChild(secondaryItem);
+        listHost.ApplyWidgetListDefaultsToChild(secondaryItem);
         secondaryItem.SetHierarchy("Preview", listHost);
         listHost.Items.Add(secondaryItem);
 
@@ -814,7 +814,7 @@ public partial class FolderEditorControl : UserControl
 
         foreach (var child in new[] { temperature, pressure, startButton })
         {
-            listPreview.ApplyListControlDefaultsToChild(child);
+            listPreview.ApplyWidgetListDefaultsToChild(child);
             child.SetHierarchy("Preview", listPreview);
             child.ApplyTheme(viewModel.IsDarkTheme);
             listPreview.Items.Add(child);
@@ -1039,7 +1039,7 @@ public partial class FolderEditorControl : UserControl
                 item.BodyCaptionVisible = true;
                 break;
 
-            case ControlKind.ListControl:
+            case ControlKind.WidgetList:
                 item.ControlCaption = "Signal list";
                 item.BodyCaption = "Machine overview";
                 item.Footer = "Scrollable list";
@@ -1144,7 +1144,7 @@ public partial class FolderEditorControl : UserControl
         {
             ControlKind.Button => 260,
             ControlKind.Signal or ControlKind.Item => 220,
-            ControlKind.ListControl => 340,
+            ControlKind.WidgetList => 340,
             ControlKind.TableControl => 340,
             ControlKind.CircleDisplay => 300,
             ControlKind.LogControl => 420,
@@ -1169,7 +1169,7 @@ public partial class FolderEditorControl : UserControl
         {
             ControlKind.Button => 72,
             ControlKind.Signal or ControlKind.Item => 96,
-            ControlKind.ListControl => 280,
+            ControlKind.WidgetList => 280,
             ControlKind.TableControl => 260,
             ControlKind.CircleDisplay => 300,
             ControlKind.LogControl => 260,
@@ -1212,7 +1212,7 @@ public partial class FolderEditorControl : UserControl
         var centerY = draggedItem.Y + draggedItem.Height / 2;
 
         return CurrentFolder?.Items
-            .Where(item => item.IsListControl && !ReferenceEquals(item, draggedItem))
+            .Where(item => item.IsWidgetList && !ReferenceEquals(item, draggedItem))
             .FirstOrDefault(item => centerX >= item.X && centerX <= item.X + item.Width && centerY >= item.Y && centerY <= item.Y + item.Height);
     }
     private (double X, double Y) SnapGroupToEdges(double x, double y, double width, double height)

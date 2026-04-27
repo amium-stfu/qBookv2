@@ -40,9 +40,14 @@ Observed item changes can be queued so rebuilds occur safely on the UI thread.
 
 The widget listens for data registry changes and updates its visible signal rows.
 
+### Write routing
+
+Enhanced signal definitions can define `IsWritable`, `WriteMode`, and `WritePath`. Generic UI controls can then write through the published enhanced signal while the runtime routes the value to its configured backend path or request channel.
+
 ## Migration Note
 
 Use EnhancedSignals instead of deprecated FilteredSignals patterns.
+For request-oriented backends, prefer `Request` mode so the published signal stays simple while the actual write uses the runtime request path.
 
 ## Suggested Help Window Metadata
 

@@ -372,6 +372,20 @@ public static class ProjectUiLayoutLoader
             properties["UdlDemoModuleDefinitions"] = array;
         }
 
+        if (GetSequence(control, "UdlModuleExposures") is { } udlModuleExposures)
+        {
+            var array = new System.Text.Json.Nodes.JsonArray();
+            foreach (var child in udlModuleExposures.Children)
+            {
+                if (TryConvertYamlNode(child, out var converted))
+                {
+                    array.Add(converted);
+                }
+            }
+
+            properties["UdlModuleExposureDefinitions"] = array;
+        }
+
         SetPropertyIfPresent(properties, "ControlHeight", GetScalarJsonNode(control, "ControlHeight"));
         SetPropertyIfPresent(properties, "ListItemHeight", GetScalarJsonNode(control, "ListItemHeight"));
         SetPropertyIfPresent(properties, "Rows", GetScalarJsonNode(control, "Rows"));

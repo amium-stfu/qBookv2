@@ -353,41 +353,6 @@ public static class UdlDemoModuleDefinitionCodec
 
     private static UdlDemoModuleDefinition NormalizeDefinition(UdlDemoModuleDefinition definition)
     {
-        foreach (var fault in definition.Faults.Where(static fault => fault is not null))
-        {
-            NormalizeFault(fault);
-        }
-
         return definition;
-    }
-
-    private static void NormalizeFault(UdlDemoFaultDefinition fault)
-    {
-        if (fault.Kind != UdlDemoFaultKind.Noise)
-        {
-            return;
-        }
-
-        if (fault.UseJitter || fault.UseSine || fault.UsePeak)
-        {
-            return;
-        }
-
-        switch (fault.NoiseMode)
-        {
-            case UdlDemoNoiseMode.Sine:
-                fault.UseSine = true;
-                break;
-            case UdlDemoNoiseMode.SineWithJitter:
-                fault.UseJitter = true;
-                fault.UseSine = true;
-                break;
-            case UdlDemoNoiseMode.PeakJitter:
-                fault.UsePeak = true;
-                break;
-            default:
-                fault.UseJitter = true;
-                break;
-        }
     }
 }

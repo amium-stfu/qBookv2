@@ -1,4 +1,4 @@
-ListControl
+WidgetList
 
 Vertical container widget for stacking multiple child widgets in a scrollable list.
 

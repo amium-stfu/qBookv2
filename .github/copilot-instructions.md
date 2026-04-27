@@ -1,7 +1,15 @@
 # Workspace Instructions
 
+These instructions are repository-wide rules for GitHub Copilot in Visual Studio Code and Visual Studio.
+Apply them for all code generation, edits, refactorings, documentation updates, and file creation in this workspace.
+Treat these rules as higher priority than default stylistic suggestions whenever they do not conflict with the direct user request.
+
 ## General Guidelines
 
+- Keep changes minimal, targeted, and aligned with the existing architecture and naming used in the repository.
+- Prefer extending existing components over introducing new helper layers, wrapper classes, or intermediary abstractions unless technically required.
+- Preserve existing project conventions, file structure, and framework patterns before proposing alternative patterns.
+- If a rule below requires related documentation to be updated, perform that documentation update in the same change.
 - When changing or extending the bundled Python helper API under `Host/Python/**` or `UiEditor/Templates/ui_python_client/**`, update the command documentation in `Host/Python/Integration/ui-python-client-commands.md` and `UiEditor/Templates/ui_python_client/COMMANDS.md` in the same change.
 - Treat `Host/Python/Integration/ui-python-client-commands.md` as the source-of-truth documentation for predefined Python client commands.
 - When changing Python bridge behavior, generated Python folder contents, template workflow, or Python interaction argument handling, update `Host/Python/Integration/python-system-overview.md` and `UiEditor/Templates/PYTHON_SYSTEM.md` in the same change.
@@ -17,6 +25,15 @@
 - Prefer a minimally fragmented architecture: encapsulate and provide functions within their respective components rather than requiring additional separate helper components or intermediary signals. Prioritize clear, consistent architectural rules over mixed patterns for easier documentation later.
 - Remove mixed target/property patterns in widgets: controls should register all required control items, including colors, for external access, and redundant methods should be removed.
 - Bevorzugt bei Methodenaufrufen named Parameter statt rein positioneller Argumente, besonders bei mehreren Parametern oder ähnlichen Typen.
+
+## Copilot Behavior
+
+- Interpret these instructions as persistent workspace rules, even if a task only references a single file.
+- Prefer precise edits in existing files over broad rewrites.
+- Do not introduce unnecessary comments, placeholder code, dead code, or speculative abstractions.
+- Keep user-facing code texts and code comments in English unless a rule in this file explicitly states otherwise.
+- Keep assistant responses to the user in German.
+- If multiple rules apply, follow the most specific rule for the affected area.
 
 ## Logging Instructions
 

@@ -2048,7 +2048,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
         var text = string.IsNullOrWhiteSpace(node.Text) ? type : node.Text;
         var kind = GetControlKindFromUiType(type);
         var isButton = kind == ControlKind.Button;
-        var isListControl = kind == ControlKind.ListControl;
+        var isWidgetList = kind == ControlKind.WidgetList;
         var isChartControl = kind == ControlKind.ChartControl;
         var isCircleDisplay = kind == ControlKind.CircleDisplay;
         var item = new FolderItemModel
@@ -2061,8 +2061,8 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             X = node.X ?? defaultX,
             Y = node.Y ?? defaultY,
             Width = node.Width ?? (isButton ? 320 : (kind == ControlKind.LogControl ? 420 : (isChartControl ? 520 : (isCircleDisplay ? 280 : 260)))),
-            Height = node.Height ?? (isButton ? 96 : (kind == ControlKind.LogControl ? 260 : (isChartControl ? 260 : (isListControl ? 220 : (isCircleDisplay ? 280 : 84))))),
-            IsAutoHeight = isListControl,
+            Height = node.Height ?? (isButton ? 96 : (kind == ControlKind.LogControl ? 260 : (isChartControl ? 260 : (isWidgetList ? 220 : (isCircleDisplay ? 280 : 84))))),
+            IsAutoHeight = isWidgetList,
             UiNodeType = string.IsNullOrWhiteSpace(type) ? GetDefaultUiType(kind) : type,
             UiProperties = CloneJsonObject(node.Properties)
         };
@@ -2075,7 +2075,7 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             var childItems = CreateItemsFromNode(pageName, childNode, 0, 0).ToList();
             foreach (var childItem in childItems)
             {
-                if (item.IsListControl)
+                if (item.IsWidgetList)
                 {
                     item.AttachChildToList(childItem);
                 }
@@ -2107,9 +2107,10 @@ public sealed class MainWindowViewModel : Amium.UiEditor.ViewModels.MainWindowVi
             return ControlKind.Button;
         }
 
-        if (string.Equals(type, "ListControl", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(type, "WidgetList", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "ListControl", StringComparison.OrdinalIgnoreCase))
         {
-            return ControlKind.ListControl;
+            return ControlKind.WidgetList;
         }
 
         if (string.Equals(type, "TableControl", StringComparison.OrdinalIgnoreCase))

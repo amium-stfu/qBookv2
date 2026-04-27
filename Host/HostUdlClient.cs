@@ -283,6 +283,7 @@ public sealed class HostUdlClient : IHostUdlClient
         var key = FormatModuleName(moduleId);
         if (Items.Has(key) && Items[key] is UdlModule existingModule)
         {
+            existingModule.EnsureWriteMetadata();
             return existingModule;
         }
 
@@ -308,6 +309,7 @@ public sealed class HostUdlClient : IHostUdlClient
         module.SetRequest.Changed += (_, e) => OnRequestItemChanged(moduleId, module, e);
         module.OutRequest.Changed += (_, e) => OnRequestItemChanged(moduleId, module, e);
         module.CommandRequest.Changed += (_, e) => OnRequestItemChanged(moduleId, module, e);
+        module.EnsureWriteMetadata();
 
         Items[key] = module;
         return module;

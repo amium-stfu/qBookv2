@@ -3,11 +3,10 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Amium.UiEditor.Widgets"
-    xmlns:editorUi="using:Amium.UiEditor.Controls"
-    xmlns:viewModels="using:Amium.UiEditor.ViewModels">
+    xmlns:editorUi="using:Amium.UiEditor.Controls">
   <controls:UdlClientControl.HeaderActionsContent>
     <Grid ColumnDefinitions="Auto,Auto">
-          <Button Padding="0"
+      <Button Padding="0"
             Background="Transparent"
             BorderBrush="Transparent"
             BorderThickness="0"
@@ -16,34 +15,33 @@
               IsEnabled="{Binding CanToggleConnection, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}"
               Click="OnToggleConnectionClicked"
               PointerPressed="OnInteractivePointerPressed">
-      <Border Background="{Binding ConnectionStatusBackground, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}"
-          CornerRadius="6"
-          Padding="6,2">
-        <TextBlock FontSize="11"
-           FontWeight="SemiBold"
-           Foreground="{Binding ConnectionStatusForeground, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}"
-           Text="{Binding ConnectionStateText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
-      </Border>
+        <Border Background="{Binding ConnectionStatusBackground, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}"
+                CornerRadius="6"
+                Padding="6,2">
+          <TextBlock FontSize="11"
+                     FontWeight="SemiBold"
+                     Foreground="{Binding ConnectionStatusForeground, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}"
+                     Text="{Binding ConnectionStateText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
+        </Border>
       </Button>
 
       <Border Grid.Column="1"
-                          Margin="6,0,0,0"
-                          Padding="6,2"
-                          Background="#E0E0E0"
-                          BorderBrush="{Binding CardBorderBrush, RelativeSource={RelativeSource AncestorType=controls:FolderEditorControl}}"
-                          BorderThickness="1"
-                          CornerRadius="6">
+              Margin="6,0,0,0"
+              Padding="6,2"
+              Background="{Binding EffectiveBodyBackgroundBrush}"
+              BorderBrush="{Binding EffectiveBodyBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="6">
         <StackPanel Orientation="Horizontal" Spacing="4">
           <TextBlock FontSize="11"
-                     Foreground="#111827"
+                     Foreground="{Binding EffectiveBodyForegroundBrush}"
                      Text="Modules" />
           <TextBlock FontSize="11"
                      FontWeight="SemiBold"
-                     Foreground="#111827"
-                     Text="{Binding ItemCountText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
+                     Foreground="{Binding EffectiveBodyForegroundBrush}"
+                     Text="{Binding ModuleCountText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
         </StackPanel>
       </Border>
-
     </Grid>
   </controls:UdlClientControl.HeaderActionsContent>
 
@@ -53,12 +51,83 @@
             BorderBrush="{Binding EffectiveBodyBorderBrush}"
             BorderThickness="{Binding EffectiveBodyBorderThickness}"
             CornerRadius="10">
-      <Grid ColumnDefinitions="*">
-        <StackPanel Spacing="2" VerticalAlignment="Center">
-          <TextBlock FontSize="12" Foreground="{Binding EffectiveMutedForegroundBrush}" Text="Socket" />
-          <TextBlock FontSize="16" FontWeight="Bold" Foreground="{Binding EffectiveBodyForegroundBrush}" Text="{Binding SocketText, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
-        </StackPanel>
+      <Grid RowDefinitions="*,Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding Modules, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Margin="0,0,0,8"
+                        Padding="8,6"
+                        CornerRadius="8"
+                        Background="{Binding RowBackground}"
+                        BorderBrush="{Binding RowBorderBrush}"
+                        BorderThickness="1">
+                  <Grid RowDefinitions="Auto,Auto,Auto">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Grid.Column="0"
+                                 FontSize="13"
+                                 FontWeight="SemiBold"
+                                 Foreground="{Binding PrimaryForeground}"
+                                 Text="{Binding ModuleName}" />
+
+                      <StackPanel Grid.Column="1"
+                                  Margin="6,0,0,0"
+                                  Orientation="Horizontal"
+                                  Spacing="6">
+                        <Button Padding="8,2"
+                                Classes="toolbar"
+                                Click="OnEditModuleClicked"
+                                CommandParameter="{Binding .}">
+                          <TextBlock FontSize="11" Text="Edit" />
+                        </Button>
+
+                        <Button Padding="8,2"
+                                Classes="toolbar"
+                                Click="OnDeleteModuleClicked"
+                                CommandParameter="{Binding .}"
+                                IsEnabled="{Binding CanDelete}">
+                          <TextBlock FontSize="11" Text="Delete" />
+                        </Button>
+                      </StackPanel>
+                    </Grid>
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,4,0,0"
+                               FontSize="11"
+                               Foreground="{Binding SecondaryForeground}"
+                               Text="{Binding SummaryText}"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Grid.Row="2"
+                               Margin="0,4,0,0"
+                               FontSize="11"
+                               Foreground="{Binding SecondaryForeground}"
+                               Text="{Binding AlertText}"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding HasAlert}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="1"
+                   FontSize="11"
+                   Foreground="{Binding EffectiveMutedForegroundBrush}"
+                   Text="No UDL modules available. Connect the client or configure exposure entries for persisted modules."
+                   IsVisible="{Binding HasNoModules, RelativeSource={RelativeSource AncestorType=controls:UdlClientControl}}" />
       </Grid>
     </Border>
   </controls:UdlClientControl.BodyContent>
+
+  <controls:UdlClientControl.FooterContent>
+    <Border Padding="8,4">
+      <TextBlock FontSize="11"
+                 Foreground="{Binding EffectiveFooterForegroundBrush}"
+                 Text="{Binding Footer}"
+                 TextWrapping="Wrap" />
+    </Border>
+  </controls:UdlClientControl.FooterContent>
 </editorUi:EditorTemplateControl>
