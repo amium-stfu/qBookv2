@@ -7,6 +7,9 @@ using System.Text.Json.Serialization;
 
 namespace Amium.Items
 {
+    /// <summary>
+    /// Provides serialization and cloning helpers for <see cref="Item"/> and <see cref="Parameter"/> instances.
+    /// </summary>
     public static class ItemExtension
     {
 
@@ -58,6 +61,11 @@ namespace Amium.Items
                 ?? new Dictionary<string, object?>();
         }
 
+        /// <summary>
+        /// Converts the specified parameter to its JSON string representation.
+        /// </summary>
+        /// <param name="parameter">The parameter to serialize.</param>
+        /// <returns>A JSON string representing the parameter metadata and value.</returns>
         public static string ParameterToJsonString(this Parameter parameter)
         {
             var runtimeType = parameter.Value?.GetType();

@@ -455,10 +455,12 @@ public partial class UdlModuleExposureDialogWindow : Window
             var consumedChannels = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
 
             AddBitmaskRow(result, lookup, consumedChannels, "Read / Set", ["Read", "Set"]);
-            AddBitmaskRow(result, lookup, consumedChannels, "Command / State", ["Cmd", "State"]);
             AddBitmaskRow(result, lookup, consumedChannels, "Alert", ["Alert"]);
 
             foreach (var row in rows.Where(static row => row.SupportsBitExposure)
+                         .Where(static row => !string.Equals(row.ChannelName, "Cmd", System.StringComparison.OrdinalIgnoreCase)
+                                       && !string.Equals(row.ChannelName, "Command", System.StringComparison.OrdinalIgnoreCase)
+                                       && !string.Equals(row.ChannelName, "State", System.StringComparison.OrdinalIgnoreCase))
                          .Where(row => !consumedChannels.Contains(row.ChannelName)))
             {
                 result.Add(new UdlModuleExposureBitmaskRow(row.ChannelName, [row]));

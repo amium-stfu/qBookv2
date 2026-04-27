@@ -211,12 +211,13 @@
               </ItemsControl>
 
               <Grid ColumnDefinitions="230,*" Margin="0,4,0,0">
-                <TextBlock VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Read Input route to Set.Request" />
+                <TextBlock VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Read helper bits route to Set" />
                 <CheckBox Grid.Column="1"
                           Content="True/False"
                           IsChecked="{Binding ReadInputRouteToSetRequest}"
                           VerticalAlignment="Center" />
               </Grid>
+
             </StackPanel>
           </Border>
 

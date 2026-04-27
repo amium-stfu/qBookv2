@@ -2,8 +2,17 @@ using System;
 
 namespace Amium.Items;
 
+/// <summary>
+/// Provides helpers for updating item paths recursively.
+/// </summary>
 public static class ItemPathExtensions
 {
+    /// <summary>
+    /// Rewrites the path metadata of the specified item and all descendants.
+    /// </summary>
+    /// <param name="item">The root item whose paths should be updated.</param>
+    /// <param name="absolutePath">The new absolute path to assign.</param>
+    /// <returns>The same <see cref="Item"/> instance for fluent usage.</returns>
     public static Item Repath(this Item item, string absolutePath)
     {
         ArgumentNullException.ThrowIfNull(item);

@@ -56,15 +56,15 @@ Connection and item-related status values are published into runtime paths.
 
 ### Publish module exposures
 
-Configured module exposures extend the matching UDL runtime channels with `Bits.Bit0...BitN` helper items.
+Configured module exposures extend the matching UDL runtime channels with `Bits.Bit0...BitN` helper items and can also apply helper-bit routing rules such as `Read helper bits route to Set`.
 
 The inline module editor filters the dialog to the selected module and merges the result back into the stored global definition list.
 
-The dialog can already contain additional fields for later source parameterization, but in the current first step only `Publish Bits` and the stored bit count are runtime-active.
+The dialog can already contain additional fields for later source parameterization, but in the current first step the runtime-active options are `Publish Bits`, the stored bit count, and the `Read helper bits route to Set` rule.
 
-The module-scoped editor is grouped into `Main`, `Bitmask`, `Settings`, and `Adjust`. `Read / Set` and `Command / State` are shown as shared bitmask rows because those pairs belong together operationally, while `Settings` and `Adjust` are intentionally prepared as placeholders for a later extension step. The bitmask rows always expose the `Publish Bits` switch and an editable `Count`, so publishing no longer depends on selecting a format inside the dialog.
+The module-scoped editor is grouped into `Main`, `Bitmask`, `Settings`, and `Adjust`. The bitmask section currently focuses on the operational helper rows `Read / Set` and `Alert`, contains the helper-bit rule `Read helper bits route to Set`, and always exposes the `Publish Bits` switch plus an editable `Count`, so publishing no longer depends on selecting a format inside the dialog.
 
-Common bitmask channels start with a suggested default count of `4` so the first setup step stays short. If `Read Input route to Set.Request` is enabled, writes that originate from published `Read` helper bits are forwarded to the module `Set.Request` target instead of writing back into `Read` directly.
+Common bitmask channels start with a suggested default count of `4` so the first setup step stays short. If `Read helper bits route to Set` is enabled, writes that originate from published `Read` helper bits are redirected to the module `Set` channel instead of writing back into `Read` directly. If the `Set` channel itself uses request-based writing, the existing write-mode handling continues to forward the actual write to `Set.Request` automatically.
 
 The inline module delete action removes all persisted exposure definitions for the selected module. Runtime-only modules stay visible while they are available at runtime, but the delete action is only enabled when persisted helper configuration exists.
 
