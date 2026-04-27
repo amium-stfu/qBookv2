@@ -2,14 +2,13 @@ using System;
 using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
 using Amium.EditorUi.Controls;
 using Amium.UiEditor.Models;
 using Amium.UiEditor.ViewModels;
-using TableCellSlot = Amium.UiEditor.Models.FolderItemModel.TableCellSlot;
+using TableCellSlot = Amium.UiEditor.Models.PageItemModel.TableCellSlot;
 
 namespace Amium.UiEditor.Widgets;
 
@@ -30,7 +29,7 @@ public partial class EditorTableControl : EditorTemplateWidget
     private Border? _selectionOverlay;
     private Cursor? _previousCursor;
 
-    private FolderItemModel? Item => DataContext as FolderItemModel;
+    private PageItemModel? Item => DataContext as PageItemModel;
 
     private MainWindowViewModel? ViewModel
         => this.GetVisualRoot() is Window { DataContext: MainWindowViewModel viewModel } ? viewModel : null;
@@ -138,7 +137,7 @@ public partial class EditorTableControl : EditorTemplateWidget
             var columnSpan = Math.Max(1, child.TableCellColumnSpan);
 
             // Inhaltliches Widget (immer sichtbar, nicht interaktiv) –
-            // gleiche spezialisierten Controls wie im FolderEditor verwenden.
+            // gleiche spezialisierten Controls wie im PageEditor verwenden.
             Control content;
             if (child.IsButton)
             {
@@ -146,7 +145,7 @@ public partial class EditorTableControl : EditorTemplateWidget
             }
             else if (child.IsItem)
             {
-                content = new EditorSignalControl();
+                content = new EditorItemControl();
             }
             else if (child.IsLogControl)
             {
@@ -175,7 +174,6 @@ public partial class EditorTableControl : EditorTemplateWidget
             content.DataContext = child;
             content.HorizontalAlignment = HorizontalAlignment.Stretch;
             content.VerticalAlignment = VerticalAlignment.Stretch;
-            content.Bind(Control.IsVisibleProperty, new Binding(nameof(FolderItemModel.IsVisibleInActiveView)));
 
             Grid.SetRow(content, row);
             Grid.SetColumn(content, column);
@@ -191,7 +189,6 @@ public partial class EditorTableControl : EditorTemplateWidget
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch
             };
-            overlay.Bind(IsVisibleProperty, new Binding(nameof(FolderItemModel.IsVisibleInActiveView)));
 
             var toolbar = new Border
             {
@@ -296,7 +293,7 @@ public partial class EditorTableControl : EditorTemplateWidget
         var point = e.GetCurrentPoint(control);
 
         // Klick auf eine Zelle mit Child-Item: nur das Widget ist selektierbar, nicht die Zelle.
-        if (slot.ChildItem is FolderItemModel childItem
+        if (slot.ChildItem is PageItemModel childItem
             && (point.Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed
                 || point.Properties.PointerUpdateKind == PointerUpdateKind.RightButtonPressed))
         {
@@ -498,7 +495,7 @@ public partial class EditorTableControl : EditorTemplateWidget
 
     private void OnChildSettingsClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (ViewModel is null || sender is not Control { Tag: FolderItemModel child })
+        if (ViewModel is null || sender is not Control { Tag: PageItemModel child })
         {
             return;
         }
@@ -510,7 +507,7 @@ public partial class EditorTableControl : EditorTemplateWidget
 
     private void OnChildDeleteClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (Item is null || sender is not Control { Tag: FolderItemModel child })
+        if (Item is null || sender is not Control { Tag: PageItemModel child })
         {
             return;
         }

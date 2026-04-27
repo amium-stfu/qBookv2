@@ -6,7 +6,6 @@ using System.Linq;
 using Avalonia.Media;
 using Amium.Host;
 using Amium.Items;
-using Amium.UiEditor.Helpers;
 using Amium.UiEditor.Models;
 
 namespace Amium.UiEditor.ViewModels;
@@ -167,8 +166,6 @@ public sealed class EditorDialogField : ObservableObject
 
     public bool IsChoice => PropertyType == EditorPropertyType.Choice;
 
-    public bool IsTargetTree => PropertyType == EditorPropertyType.TargetTree;
-
     public bool IsColor => PropertyType == EditorPropertyType.Color;
 
     public bool IsMultilineText => PropertyType == EditorPropertyType.MultilineText;
@@ -179,7 +176,7 @@ public sealed class EditorDialogField : ObservableObject
 
     public bool IsInteractionRuleList => PropertyType == EditorPropertyType.InteractionRuleList;
 
-    public bool IsTextInput => !IsChoice && !IsTargetTree && !IsReadOnly && !IsMultilineText && !IsChartSeriesList && !IsAttachItemList && !IsInteractionRuleList;
+    public bool IsTextInput => !IsChoice && !IsReadOnly && !IsMultilineText && !IsChartSeriesList && !IsAttachItemList && !IsInteractionRuleList;
 
     public bool ShowPickerButton => IsColor && !IsReadOnly;
 
@@ -193,9 +190,6 @@ public sealed class EditorDialogField : ObservableObject
 
     public string StructuredEditorSummary => PropertyType switch
     {
-        EditorPropertyType.TargetTree => string.IsNullOrWhiteSpace(Value)
-            ? "No target selected"
-            : Value,
         EditorPropertyType.ChartSeriesList => ChartSeriesEntries.Count == 0
             ? "No series configured"
             : $"{ChartSeriesEntries.Count} series configured",
@@ -282,22 +276,6 @@ public sealed class EditorDialogField : ObservableObject
         }
 
         RebuildAttachItemEntries();
-    }
-
-    public void RefreshTargetTreeOptions(IEnumerable<string> options)
-    {
-        if (!IsTargetTree)
-        {
-            return;
-        }
-
-        Options.Clear();
-        foreach (var option in options.Where(static option => !string.IsNullOrWhiteSpace(option)).Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            Options.Add(option);
-        }
-
-        RaisePropertyChanged(nameof(StructuredEditorSummary));
     }
 
     public void RefreshInteractionRuleTargetOptions(IEnumerable<string> options)
@@ -537,7 +515,7 @@ public sealed class EditorDialogField : ObservableObject
             .Where(row => !string.IsNullOrWhiteSpace(row.TargetPath))
             .Select(row => SerializeChartSeriesEntry(row)));
 
-        Parameter.Value = TargetPathHelper.NormalizeChartSeriesDefinitions(serialized);
+        Parameter.Value = serialized;
         RaisePropertyChanged(nameof(Value));
     }
 

@@ -31,7 +31,7 @@
     <Compile Include="..\UiEditor\Models\**\*.cs" Link="Models\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\UiEditor\Persistence\**\*.cs" Link="Persistence\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\UiEditor\ViewModels\**\*.cs" Link="ViewModels\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="..\UiEditor\Host\ProjectUiLayoutLoader.cs" Link="Host\ProjectUiLayoutLoader.cs" />
+    <Compile Include="..\UiEditor\Host\BookUiLayoutLoader.cs" Link="Host\BookUiLayoutLoader.cs" />
   </ItemGroup>
 
   <ItemGroup>

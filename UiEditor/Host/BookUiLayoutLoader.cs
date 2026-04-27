@@ -9,17 +9,17 @@ using YamlDotNet.RepresentationModel;
 
 namespace Amium.Host;
 
-public sealed class ProjectFolderLayout
+public sealed class BookUiPageLayout
 {
-    public string FolderName { get; init; } = string.Empty;
+    public string PageName { get; init; } = string.Empty;
     public string Title { get; init; } = string.Empty;
     public string Caption { get; init; } = string.Empty;
     public IReadOnlyDictionary<int, string> Views { get; init; } = new Dictionary<int, string>();
     public JsonObject DocumentProperties { get; init; } = [];
-    public ProjectUiNode Layout { get; init; } = new();
+    public BookUiNode Layout { get; init; } = new();
 }
 
-public sealed class ProjectUiNode
+public sealed class BookUiNode
 {
     public string Type { get; init; } = string.Empty;
     public string Text { get; init; } = string.Empty;
@@ -29,13 +29,13 @@ public sealed class ProjectUiNode
     public double? Height { get; init; }
     public double? Spacing { get; init; }
     public JsonObject Properties { get; init; } = [];
-    public IReadOnlyList<ProjectUiNode> Children { get; init; } = [];
+    public IReadOnlyList<BookUiNode> Children { get; init; } = [];
 }
 
-public static class ProjectUiLayoutLoader
+public static class BookUiLayoutLoader
 {
 
-    public static ProjectFolderLayout LoadYaml(string uiFilePath, string fallbackPageName)
+    public static BookUiPageLayout LoadYaml(string uiFilePath, string fallbackPageName)
     {
         if (string.IsNullOrWhiteSpace(uiFilePath))
         {
@@ -59,16 +59,15 @@ public static class ProjectUiLayoutLoader
 
         if (yaml.Documents.Count == 0 || yaml.Documents[0].RootNode is not YamlMappingNode root)
         {
-            throw new InvalidDataException("Folder.yaml does not contain a valid root mapping.");
+            throw new InvalidDataException("Page.yaml does not contain a valid root mapping.");
         }
 
-        var legacyPageName = GetScalar(root, "Folder") ?? GetScalar(root, "Page");
-        var pageName = fallbackPageName;
-        var caption = GetScalar(root, "Caption") ?? GetScalar(root, "Title") ?? legacyPageName ?? pageName;
+        var pageName = GetScalar(root, "Page") ?? fallbackPageName;
+        var caption = GetScalar(root, "Caption") ?? GetScalar(root, "Title") ?? pageName;
         var views = ReadViews(root);
         var controls = GetSequence(root, "Controls");
 
-        var children = new List<ProjectUiNode>();
+        var children = new List<BookUiNode>();
         if (controls is not null)
         {
             foreach (var controlNode in controls.Children.OfType<YamlMappingNode>())
@@ -79,19 +78,20 @@ public static class ProjectUiLayoutLoader
 
         var documentProperties = new JsonObject
         {
+            ["Page"] = pageName,
             ["Title"] = caption,
             ["Caption"] = caption,
             ["Views"] = new JsonObject(views.Select(static entry => new KeyValuePair<string, JsonNode?>(entry.Key.ToString(CultureInfo.InvariantCulture), entry.Value)))
         };
 
-        return new ProjectFolderLayout
+        return new BookUiPageLayout
         {
-            FolderName = pageName,
+            PageName = pageName,
             Title = caption,
             Caption = caption,
             Views = views,
             DocumentProperties = documentProperties,
-            Layout = new ProjectUiNode
+            Layout = new BookUiNode
             {
                 Type = "Canvas",
                 Text = caption,
@@ -104,18 +104,18 @@ public static class ProjectUiLayoutLoader
         };
     }
 
-    private static ProjectFolderLayout CreateEmptyLayout(string fallbackPageName)
+    private static BookUiPageLayout CreateEmptyLayout(string fallbackPageName)
     {
-        return new ProjectFolderLayout
+        return new BookUiPageLayout
         {
-            FolderName = fallbackPageName,
+            PageName = fallbackPageName,
             Title = fallbackPageName,
             Caption = fallbackPageName,
             Views = new Dictionary<int, string>
             {
                 [1] = "HomeScreen"
             },
-            Layout = new ProjectUiNode
+            Layout = new BookUiNode
             {
                 Type = "Canvas",
                 Properties = new JsonObject
@@ -173,7 +173,7 @@ public static class ProjectUiLayoutLoader
         return views;
     }
 
-    private static ProjectUiNode ReadYamlControlNode(YamlMappingNode node)
+    private static BookUiNode ReadYamlControlNode(YamlMappingNode node)
     {
         var type = GetScalar(node, "Type") ?? string.Empty;
         var properties = new JsonObject
@@ -190,7 +190,7 @@ public static class ProjectUiLayoutLoader
             SetPropertyIfPresent(properties, "Id", GetScalarJsonNode(identity, "Id"));
         }
 
-        if (GetBoundsMapping(node) is { } rect)
+        if (GetMapping(node, "Rect") is { } rect)
         {
             SetPropertyIfPresent(properties, "X", GetScalarJsonNode(rect, "X"));
             SetPropertyIfPresent(properties, "Y", GetScalarJsonNode(rect, "Y"));
@@ -257,8 +257,8 @@ public static class ProjectUiLayoutLoader
             properties["InteractionRules"] = array;
         }
 
-        var children = new List<ProjectUiNode>();
-        if (GetWidgetPropertiesMapping(node) is { } control)
+        var children = new List<BookUiNode>();
+        if (GetMapping(node, "Control") is { } control)
         {
             ReadYamlControlProperties(type, control, properties, children);
         }
@@ -267,7 +267,7 @@ public static class ProjectUiLayoutLoader
             ?? GetStringValue(properties, "Name")
             ?? type;
 
-        return new ProjectUiNode
+        return new BookUiNode
         {
             Type = type,
             Text = text,
@@ -280,12 +280,12 @@ public static class ProjectUiLayoutLoader
         };
     }
 
-    private static void ReadYamlControlProperties(string type, YamlMappingNode control, JsonObject properties, List<ProjectUiNode> children)
+    private static void ReadYamlControlProperties(string type, YamlMappingNode control, JsonObject properties, List<BookUiNode> children)
     {
         SetPropertyIfPresent(properties, "Unit", GetScalarJsonNode(control, "Unit"));
-        SetPropertyIfPresent(properties, "TargetPath", GetScalarJsonNode(control, "Uri") ?? GetScalarJsonNode(control, "TargetPath"));
-        SetPropertyIfPresent(properties, "TargetParameterPath", GetScalarJsonNode(control, "Parameter") ?? GetScalarJsonNode(control, "TargetParameterPath"));
-        SetPropertyIfPresent(properties, "TargetParameterFormat", GetScalarJsonNode(control, "Format") ?? GetScalarJsonNode(control, "TargetParameterFormat"));
+        SetPropertyIfPresent(properties, "TargetPath", GetScalarJsonNode(control, "TargetPath"));
+        SetPropertyIfPresent(properties, "TargetParameterPath", GetScalarJsonNode(control, "TargetParameterPath"));
+        SetPropertyIfPresent(properties, "TargetParameterFormat", GetScalarJsonNode(control, "TargetParameterFormat"));
         SetPropertyIfPresent(properties, "IsReadOnly", GetScalarJsonNode(control, "IsReadOnly"));
         SetPropertyIfPresent(properties, "RefreshRateMs", GetScalarJsonNode(control, "RefreshRateMs"));
         SetPropertyIfPresent(properties, "ButtonText", GetScalarJsonNode(control, "ButtonText"));
@@ -342,7 +342,7 @@ public static class ProjectUiLayoutLoader
                 SetPropertyIfPresent(childProperties, "TableCellRowSpan", GetScalarJsonNode(cellNode, "RowSpan"));
                 SetPropertyIfPresent(childProperties, "TableCellColumnSpan", GetScalarJsonNode(cellNode, "ColumnSpan"));
 
-                children.Add(new ProjectUiNode
+                children.Add(new BookUiNode
                 {
                     Type = child.Type,
                     Text = child.Text,
@@ -355,16 +355,6 @@ public static class ProjectUiLayoutLoader
                 });
             }
         }
-    }
-
-    private static YamlMappingNode? GetWidgetPropertiesMapping(YamlMappingNode node)
-    {
-        return GetMapping(node, "Properties") ?? GetMapping(node, "Control");
-    }
-
-    private static YamlMappingNode? GetBoundsMapping(YamlMappingNode node)
-    {
-        return GetMapping(node, "Bounds") ?? GetMapping(node, "Rect");
     }
 
     private static void SetPropertyIfPresent(JsonObject target, string propertyName, JsonNode? value)
@@ -444,22 +434,7 @@ public static class ProjectUiLayoutLoader
             return JsonValue.Create(doubleResult);
         }
 
-        return JsonValue.Create(DecodeSerializedString(value));
-    }
-
-    private static string DecodeSerializedString(string value)
-    {
-        if (string.IsNullOrEmpty(value)
-            || (value.IndexOf("\\n", StringComparison.Ordinal) < 0
-                && value.IndexOf("\\r", StringComparison.Ordinal) < 0))
-        {
-            return value;
-        }
-
-        return value
-            .Replace("\\r\\n", "\n", StringComparison.Ordinal)
-            .Replace("\\n", "\n", StringComparison.Ordinal)
-            .Replace("\\r", "\r", StringComparison.Ordinal);
+        return JsonValue.Create(value);
     }
 
     private static string? GetStringValue(JsonObject properties, string propertyName)

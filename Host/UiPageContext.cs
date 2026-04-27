@@ -4,23 +4,23 @@ using Amium.Items;
 
 namespace Amium.Host;
 
-public sealed class UiFolderContext : IDisposable
+public sealed class UiPageContext : IDisposable
 {
     private readonly List<AttachedItemLink> _links = [];
-    private readonly string _folderPath;
+    private readonly string _pagePath;
 
-    public UiFolderContext(string folderName, string? projectName = null)
+    public UiPageContext(string pageName, string? bookName = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(pageName);
 
-        FolderName = folderName.Trim();
-        ProjectName = string.IsNullOrWhiteSpace(projectName) ? null : projectName.Trim();
-        _folderPath = string.IsNullOrWhiteSpace(ProjectName) ? FolderName : $"{ProjectName}/{FolderName}";
+        PageName = pageName.Trim();
+        BookName = string.IsNullOrWhiteSpace(bookName) ? null : bookName.Trim();
+        _pagePath = string.IsNullOrWhiteSpace(BookName) ? PageName : $"{BookName}/{PageName}";
     }
 
-    public string FolderName { get; }
-    public string? ProjectName { get; }
-    public string FolderPath => _folderPath;
+    public string PageName { get; }
+    public string? BookName { get; }
+    public string PagePath => _pagePath;
 
     public Item Attach(Item source, string? alias = null)
     {
@@ -29,7 +29,7 @@ public sealed class UiFolderContext : IDisposable
         var itemName = string.IsNullOrWhiteSpace(alias) ? source.Name : alias.Trim();
         ArgumentException.ThrowIfNullOrWhiteSpace(itemName);
 
-        var targetPath = $"{_folderPath}/{itemName}";
+        var targetPath = $"{_pagePath}/{itemName}";
 
         foreach (var link in _links)
         {
@@ -49,7 +49,7 @@ public sealed class UiFolderContext : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(action);
 
-        var commandPath = $"{_folderPath}/Commands/{name.Trim()}";
+        var commandPath = $"{_pagePath}/Commands/{name.Trim()}";
         return new HostCommand(commandPath, _ => action(), description: description);
     }
 

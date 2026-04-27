@@ -12,9 +12,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using Amium.UiEditor.Helpers;
 using Amium.UiEditor.ViewModels;
 
 namespace Amium.UiEditor.Widgets;
@@ -85,8 +83,7 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
 
         if (!string.IsNullOrWhiteSpace(currentIconPath))
         {
-            var normalizedStoredPath = IconPathHelper.NormalizeStoredPath(currentIconPath, GetCurrentLayoutPath());
-            SelectedIconItem = IconItems.FirstOrDefault(item => string.Equals(item.StoredPath, normalizedStoredPath, StringComparison.OrdinalIgnoreCase));
+            SelectedIconItem = IconItems.FirstOrDefault(item => string.Equals(item.IconPath, currentIconPath, StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -105,14 +102,11 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
             _selectedIconItem = value;
             OnPropertyChanged(nameof(SelectedIconItem));
             OnPropertyChanged(nameof(SelectedIconPath));
-            OnPropertyChanged(nameof(SelectedPreviewIconPath));
             OnPropertyChanged(nameof(CanSelect));
         }
     }
 
-    public string? SelectedIconPath => SelectedIconItem?.StoredPath;
-
-    public string? SelectedPreviewIconPath => SelectedIconItem?.ActualPath;
+    public string? SelectedIconPath => SelectedIconItem?.IconPath;
 
     public string? IconColor
     {
@@ -319,11 +313,6 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
                 UpdateWindowIcon();
             }
         }
-
-        if (e.PropertyName == nameof(MainWindowViewModel.SelectedFolder))
-        {
-            LoadIcons();
-        }
     }
 
     private void UpdateWindowIcon()
@@ -369,31 +358,22 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
     {
         try
         {
-            var selectedIconPath = SelectedIconItem?.StoredPath;
+            var baseDir = AppContext.BaseDirectory;
+            var iconDir = Path.Combine(baseDir, "Icons");
+            if (!Directory.Exists(iconDir))
+            {
+                return;
+            }
 
             _allIconItems.Clear();
             IconItems.Clear();
 
-            AddApplicationIconItems();
-
-            foreach (var iconDirectory in GetIconDirectories())
+            foreach (var file in Directory.EnumerateFiles(iconDir, "*.svg"))
             {
-                if (!Directory.Exists(iconDirectory))
-                {
-                    continue;
-                }
-
-                foreach (var file in Directory.EnumerateFiles(iconDirectory, "*.svg"))
-                {
-                    AddIconItem(file);
-                }
+                _allIconItems.Add(new IconPickerItem(file));
             }
 
             ApplyFilter();
-            if (!string.IsNullOrWhiteSpace(selectedIconPath))
-            {
-                SelectedIconItem = IconItems.FirstOrDefault(item => string.Equals(item.StoredPath, selectedIconPath, StringComparison.OrdinalIgnoreCase));
-            }
         }
         catch
         {
@@ -454,7 +434,12 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
 
     private void OnIconListDragOver(object? sender, DragEventArgs e)
     {
-        var hasSvg = GetDroppedSvgPaths(e.Data).Count > 0;
+        if (!e.Data.Contains(DataFormats.FileNames))
+        {
+            return;
+        }
+
+        var hasSvg = e.Data.GetFileNames()?.Any(file => string.Equals(Path.GetExtension(file), ".svg", StringComparison.OrdinalIgnoreCase)) == true;
         if (!hasSvg)
         {
             return;
@@ -466,24 +451,22 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
 
     private void OnIconListDrop(object? sender, DragEventArgs e)
     {
-        var files = GetDroppedSvgPaths(e.Data);
-        if (files.Count == 0)
+        if (!e.Data.Contains(DataFormats.FileNames))
         {
             return;
         }
 
-        var iconDir = GetActiveFolderIconDirectory();
-        if (string.IsNullOrWhiteSpace(iconDir))
+        var files = e.Data.GetFileNames();
+        if (files is null)
         {
-            ShowInfoMessage("Active folder icon directory is not available.");
-            e.Handled = true;
             return;
         }
 
+        var baseDir = AppContext.BaseDirectory;
+        var iconDir = Path.Combine(baseDir, "Icons");
         Directory.CreateDirectory(iconDir);
 
         var added = 0;
-        string? firstAddedPath = null;
 
         foreach (var file in files)
         {
@@ -500,11 +483,10 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
                     File.Copy(file, targetPath);
                 }
 
-                var storedTargetPath = IconPathHelper.NormalizeStoredPath(targetPath, GetCurrentLayoutPath());
-                if (_allIconItems.All(item => !string.Equals(item.StoredPath, storedTargetPath, StringComparison.OrdinalIgnoreCase)))
+                if (_allIconItems.All(item => !string.Equals(item.IconPath, targetPath, StringComparison.OrdinalIgnoreCase)))
                 {
+                    _allIconItems.Add(new IconPickerItem(targetPath));
                     added++;
-                    firstAddedPath ??= storedTargetPath;
                 }
             }
             catch
@@ -515,80 +497,11 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
 
         if (added > 0)
         {
-            LoadIcons();
-            if (!string.IsNullOrWhiteSpace(firstAddedPath))
-            {
-                SelectedIconItem = IconItems.FirstOrDefault(item => string.Equals(item.StoredPath, firstAddedPath, StringComparison.OrdinalIgnoreCase));
-            }
-
+            ApplyFilter();
             ShowInfoMessage($"Added {added} icon(s).");
         }
 
         e.Handled = true;
-    }
-
-    private IEnumerable<string> GetIconDirectories()
-    {
-        var activeFolderIconDirectory = GetActiveFolderIconDirectory();
-        if (!string.IsNullOrWhiteSpace(activeFolderIconDirectory))
-        {
-            yield return activeFolderIconDirectory;
-        }
-    }
-
-    private string? GetActiveFolderIconDirectory()
-        => IconPathHelper.GetFolderIconDirectory(GetCurrentLayoutPath());
-
-    private string? GetCurrentLayoutPath()
-        => _viewModel?.SelectedFolder?.UiFilePath;
-
-    private void AddIconItem(string iconPath)
-    {
-        var normalizedPath = Path.GetFullPath(iconPath);
-        var storedPath = IconPathHelper.NormalizeStoredPath(normalizedPath, GetCurrentLayoutPath());
-        AddIconItem(normalizedPath, storedPath);
-    }
-
-    private void AddApplicationIconItems()
-    {
-        var iconRoot = new Uri("avares://Amium.Editor/EditorIcons");
-        foreach (var asset in AssetLoader.GetAssets(iconRoot, null))
-        {
-            var assetPath = asset.ToString();
-            if (!assetPath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            AddIconItem(assetPath, assetPath);
-        }
-    }
-
-    private void AddIconItem(string actualPath, string storedPath)
-    {
-        if (_allIconItems.Any(item => string.Equals(item.StoredPath, storedPath, StringComparison.OrdinalIgnoreCase)))
-        {
-            return;
-        }
-
-        _allIconItems.Add(new IconPickerItem(actualPath, storedPath));
-    }
-
-    private static IReadOnlyList<string> GetDroppedSvgPaths(IDataObject data)
-    {
-        var paths = new List<string>();
-
-        foreach (var file in data.GetFiles() ?? [])
-        {
-            var localPath = file.TryGetLocalPath();
-            if (!string.IsNullOrWhiteSpace(localPath)
-                && string.Equals(Path.GetExtension(localPath), ".svg", StringComparison.OrdinalIgnoreCase))
-            {
-                paths.Add(localPath);
-            }
-        }
-
-        return paths;
     }
 
     private void OnOpenColorPickerClicked(object? sender, RoutedEventArgs e)
@@ -751,16 +664,13 @@ public sealed partial class IconPickerDialogWindow : Window, INotifyPropertyChan
 
 public sealed class IconPickerItem
 {
-    public IconPickerItem(string actualPath, string storedPath)
+    public IconPickerItem(string iconPath)
     {
-        ActualPath = actualPath;
-        StoredPath = storedPath;
-        DisplayName = Path.GetFileNameWithoutExtension(actualPath);
+        IconPath = iconPath;
+        DisplayName = Path.GetFileNameWithoutExtension(iconPath);
     }
 
-    public string ActualPath { get; }
-
-    public string StoredPath { get; }
+    public string IconPath { get; }
 
     public string DisplayName { get; }
 }

@@ -5,12 +5,12 @@ using Amium.UiEditor.ViewModels;
 
 namespace Amium.UiEditor.Models;
 
-public sealed class FolderModel : ObservableObject
+public sealed class PageModel : ObservableObject
 {
     private bool _isSelected;
     private int _actualViewId = 1;
 
-    public FolderModel()
+    public PageModel()
     {
         Items.CollectionChanged += OnItemsCollectionChanged;
     }
@@ -25,7 +25,6 @@ public sealed class FolderModel : ObservableObject
         {
             if (SetProperty(ref _actualViewId, value))
             {
-                ApplyActiveViewToItems(_actualViewId);
                 OnPropertyChanged(nameof(CurrentViewCaption));
             }
         }
@@ -49,9 +48,9 @@ public sealed class FolderModel : ObservableObject
 
     public string? UiFilePath { get; init; }
 
-    public ProjectFolderLayout? UiLayoutDefinition { get; init; }
+    public BookUiPageLayout? UiLayoutDefinition { get; init; }
 
-    public ObservableCollection<FolderItemModel> Items { get; } = [];
+    public ObservableCollection<PageItemModel> Items { get; } = [];
 
     public bool IsSelected
     {
@@ -101,16 +100,5 @@ public sealed class FolderModel : ObservableObject
     }
 
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        ApplyActiveViewToItems(ActualViewId);
-        RaisePropertyChanged(nameof(ItemSummary));
-    }
-
-    private void ApplyActiveViewToItems(int activeViewId)
-    {
-        foreach (var item in Items)
-        {
-            item.ApplyActiveView(activeViewId);
-        }
-    }
+        => RaisePropertyChanged(nameof(ItemSummary));
 }

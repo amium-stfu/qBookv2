@@ -8,7 +8,7 @@
     Path: UdlBook/Page1/Table1
     Id: demo-table-1
 
-  Bounds:
+  Rect:
     X: 100
     Y: 100
     Width: 360
@@ -49,7 +49,7 @@
 
   InteractionRules: []
 
-  Properties:
+  Control:
     Rows: 2          # Zeilen
     Columns: 2       # Spalten
 
@@ -60,13 +60,13 @@
         RowSpan: 1
         ColumnSpan: 2
         Child:
-          Type: Signal
+          Type: Item
           Identity:
             Name: Item1
             Path: UdlBook/Page1/udl1/m310
             Id: item-1
 
-          Bounds:
+          Rect:
             X: 0
             Y: 0
             Width: 160
@@ -111,7 +111,7 @@
               TargetPath: "UdlBook/Page1/udl1/m310/Set/Request"
               Argument: ""
 
-          Properties:
+          Control:
             ListItemHeight: 72
             Children: []
 
@@ -121,12 +121,12 @@
         RowSpan: 1
         ColumnSpan: 1
         Child:
-          Type: Signal
+          Type: Item
           Identity:
             Name: Item2
             Path: UdlBook/Page1/udl1/m320
             Id: item-2
-          Properties:
+          Control:
             ListItemHeight: 72
             Children: []
 
@@ -136,11 +136,11 @@
         RowSpan: 1
         ColumnSpan: 1
         Child:
-          Type: Signal
+          Type: Item
           Identity:
             Name: Item3
             Path: UdlBook/Page1/udl1/m330
             Id: item-3
-          Properties:
+          Control:
             ListItemHeight: 72
             Children: []

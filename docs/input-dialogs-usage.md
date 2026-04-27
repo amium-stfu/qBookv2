@@ -20,7 +20,7 @@ Dieses Dokument beschreibt, wie die verschiedenen Eingaben im System verwendet u
   - explizit `Text` / anderes unbekanntes Format.
 - Ergebnis wird als `string` über `TrySendInput(...)` an den Parameter geschrieben.
 
-**Beispiel YAML (SignalWidget-Auszug):**
+**Beispiel YAML (ItemWidget-Auszug):**
 
 ```yaml
 Control:
