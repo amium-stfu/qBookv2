@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "HornetStudioUiEditorCurrent": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    },
+    "HornetStudio.Editor": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    }
+  }
+}

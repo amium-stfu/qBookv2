@@ -17,6 +17,7 @@ The following short commands are treated as MODE instructions:
 - plan → [MODE: PLAN]
 - impl → [MODE: IMPLEMENT]
 - debug → [MODE: DEBUG]
+- publish -> [MODE: PUBLISH]
 
 Rules:
 - If a message starts with one of these aliases, it must be interpreted as the corresponding MODE.
@@ -91,6 +92,9 @@ What is included and what is explicitly NOT included.
 - Implement only the requested functionality.
 - Only modify files that are necessary for the requested change.
 - Do not add extra features, refactorings, or structural changes without asking.
+- Keep chat comments to an absolute minimum during implementation.
+- Only comment in chat when user input, a decision, or intervention is required.
+- Provide the final implementation summary only after the work is complete.
 
 ### DEBUG
 
@@ -139,6 +143,13 @@ Only the necessary parts.
 - Possible root causes
 ```
 
+### PUBLISH
+
+- Create a release publish only.
+- Use the publish rules defined under `Versioning and Releases`.
+- Do not add features, refactorings, or unrelated changes.
+- Update release documentation only when required by the release rules.
+
 ## General
 
 - Always answer in German in chat.
@@ -171,6 +182,8 @@ Only the necessary parts.
 ## Structure
 
 - Create a clean folder structure when topics can be clearly separated.
+- When creating a solution, use a `./src` directory structure.
+- Create a dedicated directory for each project inside `./src`.
 - Group related classes, derived types, functions, and resources meaningfully.
 - Avoid unnecessary fragmentation when a few files make the structure easier to read.
 
@@ -209,6 +222,13 @@ Only the necessary parts.
 
 - Every release version must have a unique version number.
 - The version number is based on a timestamp in the format `yyyy.MM.dd.HHmm`, for example `2026.04.27.1430`.
+
+### Publish
+
+- Publish output must be written to `./Release`.
+- Publish builds must be self-contained.
+- Publish builds must use single-file output.
+- For .NET projects, use `SelfContained=true` and `PublishSingleFile=true`.
 
 ### Assembly / NuGet
 

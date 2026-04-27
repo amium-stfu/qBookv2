@@ -7,7 +7,7 @@
 			"command": "dotnet",
 			"args": [
 				"restore",
-				"${workspaceFolder}/src/AutomationExplorer/AutomationExplorer.csproj"
+				"${workspaceFolder}/src/HornetStudio/HornetStudio.csproj"
 			],
 			"problemMatcher": []
 		},
@@ -17,7 +17,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"${workspaceFolder}/src/AutomationExplorer/AutomationExplorer.csproj",
+				"${workspaceFolder}/src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -37,7 +37,7 @@
 			"args": [
 				"run",
 				"--project",
-				"${workspaceFolder}/src/AutomationExplorer/AutomationExplorer.csproj",
+				"${workspaceFolder}/src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -49,7 +49,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"src/AutomationExplorer/AutomationExplorer.csproj",
+				"src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -65,7 +65,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"src/AutomationExplorer/AutomationExplorer.csproj",
+				"src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -81,7 +81,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"src/AutomationExplorer/AutomationExplorer.csproj",
+				"src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -97,7 +97,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"src/AutomationExplorer/AutomationExplorer.csproj",
+				"src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -113,7 +113,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"src/AutomationExplorer/AutomationExplorer.csproj",
+				"src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -129,7 +129,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"src/AutomationExplorer/AutomationExplorer.csproj",
+				"src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -145,7 +145,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"src/AutomationExplorer/AutomationExplorer.csproj",
+				"src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -161,7 +161,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"src/AutomationExplorer/AutomationExplorer.csproj",
+				"src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -177,7 +177,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"src/AutomationExplorer/AutomationExplorer.csproj",
+				"src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],
@@ -193,7 +193,7 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"src/AutomationExplorer/AutomationExplorer.csproj",
+				"src/HornetStudio/HornetStudio.csproj",
 				"-c",
 				"Debug"
 			],

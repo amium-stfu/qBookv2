@@ -3,6 +3,7 @@
 **/obj/
 artifacts/
 _buildcheck/
+Release/
 
 # IDE and local workspace files
 .vs/

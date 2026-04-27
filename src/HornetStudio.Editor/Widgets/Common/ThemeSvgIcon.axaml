@@ -1,0 +1,14 @@
+<UserControl
+    x:Class="HornetStudio.Editor.Controls.ThemeSvgIcon"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia"
+    x:Name="Root"
+    Background="Transparent"
+    IsHitTestVisible="False">
+  <svg:Svg x:Name="IconElement"
+           Width="{Binding Width, ElementName=Root}"
+           Height="{Binding Height, ElementName=Root}"
+           HorizontalAlignment="Stretch"
+           VerticalAlignment="Stretch" />
+</UserControl>

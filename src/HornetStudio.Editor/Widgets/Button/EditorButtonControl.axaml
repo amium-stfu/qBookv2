@@ -1,0 +1,12 @@
+<editorUi:EditorTemplateControl
+    x:Class="HornetStudio.Editor.Widgets.EditorButtonControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HornetStudio.Editor.Widgets"
+  xmlns:editorUi="using:HornetStudio.Editor.Controls"
+    BodyPadding="0"
+    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia">
+  <controls:EditorButtonControl.BodyContent>
+    <controls:ButtonControl HorizontalAlignment="Stretch" />
+  </controls:EditorButtonControl.BodyContent>
+</editorUi:EditorTemplateControl>

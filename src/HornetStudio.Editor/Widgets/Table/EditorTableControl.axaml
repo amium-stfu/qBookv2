@@ -1,0 +1,79 @@
+<editorUi:EditorTemplateControl
+    x:Class="HornetStudio.Editor.Widgets.EditorTableControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HornetStudio.Editor.Widgets"
+    xmlns:editorUi="using:HornetStudio.Editor.Controls"
+    xmlns:models="using:HornetStudio.Editor.Models">
+
+  <controls:EditorTableControl.BodyContent>
+    <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" x:Name="TableRoot"
+          PointerMoved="OnSelectionPointerMoved"
+          PointerReleased="OnSelectionPointerReleased">
+    <!-- Inhaltliche SignalWidgets: im View-Mode interaktiv, im EditMode deaktiviert, damit die Zellselektion greift. -->
+      <Grid x:Name="ItemContentGrid"
+      IsHitTestVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}, Converter={StaticResource BoolNegationConverter}}" />
+
+      <!--
+        Rasterdarstellung fuer den EditMode: ein Klick auf eine Zelle
+        feuert ein Event in EditorTableControl (mit Row/Column als Tag).
+      -->
+      <ItemsControl ItemsSource="{Binding TableCellSlots}"
+                    IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <UniformGrid Columns="{Binding TableColumns}" Rows="{Binding TableRows}" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+                    <Border Margin="1"
+                  BorderThickness="1"
+                  CornerRadius="2"
+                  BorderBrush="#334155"
+                    Background="{Binding IsSelected, Converter={StaticResource BoolToBrushConverter}, ConverterParameter=#1E3A8A}"
+                    PointerPressed="OnCellPointerPressed">
+              <Grid>
+                <!-- Plus-Button nur in der zuletzt gewaelten Zelle, gross in der Mitte.
+                     Linksklick oeffnet eine Typauswahl (Whitelist von Control-Typen). -->
+                <Button Content="+"
+                        Width="32"
+                        Height="32"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="18"
+                        IsVisible="{Binding IsLastSelected}"
+                        Click="OnAddItemClicked">
+                  <Button.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="Signal" Click="OnAddItemMenuClicked" />
+                      <MenuItem Header="Button" Click="OnAddButtonMenuClicked" />
+                      <MenuItem Header="Realtime Chart" Click="OnAddChartMenuClicked" />
+                      <MenuItem Header="Log" Click="OnAddLogMenuClicked" />
+                    </ContextMenu>
+                  </Button.ContextMenu>
+                </Button>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <!-- Sichtbarer Drag-Selektionsrahmen ueber dem Raster -->
+      <Border x:Name="SelectionOverlay"
+              IsHitTestVisible="False"
+              BorderBrush="#80FFFFFF"
+              BorderThickness="2"
+              CornerRadius="3"
+              Background="#200000FF"
+              IsVisible="False"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Top" />
+
+      <!-- Overlay fuer Edit-Controls (nur im EditMode, klickbar, ueber dem Raster) -->
+      <Grid x:Name="ItemOverlayGrid"
+            IsHitTestVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}}"
+            IsVisible="{Binding HostIsEditMode, RelativeSource={RelativeSource AncestorType=editorUi:EditorTemplateControl}}" />
+    </Grid>
+  </controls:EditorTableControl.BodyContent>
+</editorUi:EditorTemplateControl>

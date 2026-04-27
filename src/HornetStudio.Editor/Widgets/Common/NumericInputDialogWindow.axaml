@@ -1,0 +1,35 @@
+<Window
+    x:Class="HornetStudio.Editor.Widgets.NumericInputDialogWindow"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:widgets="using:HornetStudio.Editor.Widgets"
+    Width="570"
+    MinWidth="570"
+    Height="421"
+    MinHeight="421"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    CanResize="False"
+    SystemDecorations="BorderOnly"
+    Background="{Binding DialogBackground}"
+    Title="Enter number">
+  <Grid Margin="16" RowDefinitions="Auto,Auto,*">
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+      <TextBlock x:Name="HeaderTextBlock" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock x:Name="SubHeaderTextBlock" FontSize="13" />
+    </StackPanel>
+
+    <TextBox
+        x:Name="InputTextBox"
+        Grid.Row="1"
+        MinHeight="48"
+        FontSize="18"
+        FontWeight="Bold"
+        Margin="0,0,0,12"
+        Background="{Binding ParameterEditBackgrundColor}"
+        Foreground="{Binding ParameterEditForeColor}" />
+
+    <widgets:EditorNumericInputPad x:Name="NumericPad" Grid.Row="2" HorizontalAlignment="Center" />
+  </Grid>
+</Window>

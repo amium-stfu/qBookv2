@@ -1,0 +1,64 @@
+<Window
+  x:Class="HornetStudio.SplashScreenWindow"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  Width="640"
+  Height="156"
+  CanResize="False"
+  ShowInTaskbar="False"
+  SystemDecorations="None"
+  TransparencyLevelHint="AcrylicBlur,Transparent"
+  WindowStartupLocation="CenterScreen"
+  Background="Transparent"
+  Title="HornetStudio">
+  <Border Background="Transparent" Padding="8">
+    <Border
+      BorderBrush="{Binding CardBorderBrush, FallbackValue=#374151}"
+      BorderThickness="1"
+      Background="{Binding CardBackground, FallbackValue=#111827}"
+      CornerRadius="8"
+      Padding="22,18">
+      <Grid ColumnDefinitions="168,*" RowDefinitions="Auto,*">
+        <Panel
+          Grid.Column="0"
+          Grid.RowSpan="2"
+          Width="132"
+          Height="104"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Center"
+          Margin="0,0,18,0">
+          <Image
+            Source="avares://HornetStudio/EditorIcons/hornet.ico"
+            Stretch="Uniform" />
+        </Panel>
+
+        <TextBlock
+          Grid.Column="1"
+          Grid.Row="0"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Center"
+          FontSize="46"
+          FontWeight="Bold"
+          Foreground="{Binding PrimaryTextBrush, FallbackValue=#F9FAFB}"
+          Text="HornetStudio" />
+
+        <ProgressBar
+          x:Name="StartupProgressBar"
+          Grid.Column="1"
+          Grid.Row="1"
+          Width="328"
+          Height="24"
+          Margin="0,16,0,0"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Top"
+          Background="{Binding WindowBackground, FallbackValue=#0B0B0C}"
+          BorderBrush="{Binding CardBorderBrush, FallbackValue=#374151}"
+          BorderThickness="1"
+          Foreground="#F59E0B"
+          Minimum="0"
+          Maximum="100"
+          Value="0" />
+      </Grid>
+    </Border>
+  </Border>
+</Window>

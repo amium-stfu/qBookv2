@@ -2,13 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": ".NET Launch (AutomationExplorer)",
+      "name": ".NET Launch (HornetStudio)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-automationexplorer-debug",
-      "program": "${workspaceFolder}/src/AutomationExplorer/bin/Debug/net9.0-windows/AutomationExplorer.dll",
+      "program": "${workspaceFolder}/src/HornetStudio/bin/Debug/net9.0-windows/HornetStudio.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/src/AutomationExplorer/bin/Debug/net9.0-windows",
+      "cwd": "${workspaceFolder}/src/HornetStudio/bin/Debug/net9.0-windows",
       "stopAtEntry": false,
       "console": "integratedTerminal",
       "justMyCode": false
