@@ -1,0 +1,26 @@
+<editorUi:EditorTemplateControl
+    x:Class="HornetStudio.Editor.Widgets.EditorSignalControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HornetStudio.Editor.Widgets"
+  xmlns:editorUi="using:HornetStudio.Editor.Controls">
+
+  <controls:EditorSignalControl.BodyContent>
+    <controls:ParameterControl
+        x:Name="ParameterPresenter"
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Stretch"
+        InlineCaptionText="{Binding BodyCaption}"
+        InlineCaptionVisible="{Binding ShowInlineBodyCaption}"
+        Margin="0"
+      ChoiceFontSize="{Binding ItemValueFontSize}"
+      ChoiceHeight="{Binding ItemChoiceButtonHeight}"
+        Foreground="{Binding EffectiveBodyForegroundBrush}"
+        PointerPressed="OnParameterPressed"
+        Presentation="{Binding ItemBodyPresentation}"
+        UnitBaselineOffset="{Binding ItemUnitBaselineOffset}"
+        UnitFontSize="{Binding ItemUnitFontSize}"
+        UnitWidth="{Binding ItemUnitWidth}"
+        ValueFontSize="{Binding ItemValueFontSize}" />
+  </controls:EditorSignalControl.BodyContent>
+</editorUi:EditorTemplateControl>

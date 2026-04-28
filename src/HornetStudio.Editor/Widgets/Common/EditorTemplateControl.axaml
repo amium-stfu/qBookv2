@@ -1,0 +1,62 @@
+<controls:EditorShellControl
+    x:Class="HornetStudio.Editor.Controls.EditorTemplateControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HornetStudio.Editor.Controls"
+  xmlns:uiControls="using:HornetStudio.Editor.Widgets"
+  xmlns:uiModels="using:HornetStudio.Editor.Models"
+    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia"
+    ShellBackground="{Binding EffectiveBackgroundBrush}"
+    ShellBorderBrush="{Binding EffectiveBorderBrushValue}"
+    ShellBorderThickness="{Binding EffectiveBorderThickness}"
+    ShellCornerRadius="{Binding EffectiveCornerRadius}"
+    ShellPadding="8,4,8,4"
+    ShowHeader="{Binding ShowControlCaption}"
+    ShowSubHeader="{Binding ShowTopBodyCaption}"
+    ShowFooter="{Binding ShowItemFooterPanel}"
+    ShowOverlayContent="{Binding ShowControlCaption, Converter={StaticResource BoolNegationConverter}}"
+    HeaderBackground="{Binding EffectiveHeaderBackgroundBrush}"
+    HeaderBorderBrush="{Binding EffectiveHeaderBorderBrush}"
+    HeaderBorderThickness="{Binding EffectiveHeaderBorderThickness}"
+    HeaderCornerRadius="{Binding EffectiveHeaderCornerRadius}"
+    HeaderPadding="8,0"
+    HeaderMinHeight="{Binding ItemHeaderHeight}"
+    BodyBackground="{Binding EffectiveBodyBackgroundBrush}"
+    BodyBorderBrush="{Binding EffectiveBodyBorderBrush}"
+    BodyBorderThickness="{Binding EffectiveBodyBorderThickness}"
+    BodyCornerRadius="{Binding EffectiveBodyCornerRadius}"
+    BodyPadding="8,0,8,0"
+    FooterBackground="{Binding EffectiveFooterBackgroundBrush}"
+    FooterBorderBrush="{Binding EffectiveFooterBorderBrush}"
+    FooterBorderThickness="{Binding EffectiveFooterBorderThickness}"
+    FooterCornerRadius="{Binding EffectiveFooterCornerRadius}">
+  <controls:EditorShellControl.HeaderContent>
+    <TextBlock VerticalAlignment="Center"
+               TextTrimming="CharacterEllipsis"
+               TextWrapping="NoWrap"
+               FontSize="{Binding ItemControlCaptionFontSize}"
+               FontWeight="Medium"
+               Foreground="{Binding EffectiveHeaderForegroundBrush}"
+               Text="{Binding ControlCaption}" />
+  </controls:EditorShellControl.HeaderContent>
+
+  <controls:EditorShellControl.HeaderRightContent>
+    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+      <ContentPresenter Content="{Binding HeaderActionsContent, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
+    </StackPanel>
+  </controls:EditorShellControl.HeaderRightContent>
+
+  <controls:EditorShellControl.SubHeaderContent>
+    <TextBlock Margin="8,0,0,6" FontSize="{Binding ItemBodyCaptionFontSize}" FontWeight="SemiBold" Foreground="{Binding EffectiveBodyForegroundBrush}" Opacity="0.82" Text="{Binding BodyCaption}" />
+  </controls:EditorShellControl.SubHeaderContent>
+
+  <controls:EditorShellControl.FooterContent>
+    <!-- Footer-Subitems im ItemWidget sind deaktiviert; FooterContent bleibt leer. -->
+  </controls:EditorShellControl.FooterContent>
+
+  <controls:EditorShellControl.OverlayContent>
+    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
+      <ContentPresenter Content="{Binding HeaderActionsContent, RelativeSource={RelativeSource AncestorType=controls:EditorTemplateControl}}" />
+    </StackPanel>
+  </controls:EditorShellControl.OverlayContent>
+</controls:EditorShellControl>

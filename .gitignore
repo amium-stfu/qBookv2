@@ -3,10 +3,14 @@
 **/obj/
 artifacts/
 _buildcheck/
+Release/
 
 # IDE and local workspace files
 .vs/
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
 *.suo
 *.user
 *.userosscache
@@ -30,3 +34,5 @@ dev/Testbook.backup/
 # Generated runtime plugin copies
 Host/plugins/*
 !Host/plugins/README.md
+src/AutomationExplorer.Host/plugins/*
+!src/AutomationExplorer.Host/plugins/README.md

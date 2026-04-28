@@ -1,0 +1,11 @@
+[
+  {
+    "Name": "HornetStudio",
+    "Projects": [
+      {
+        "Path": "src\\HornetStudio\\HornetStudio.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

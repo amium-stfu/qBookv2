@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Amium.UdlClient</AssemblyName>
+    <RootNamespace>Amium.UdlClient</RootNamespace>
+    <OutputPath>..\HornetStudio.Host\plugins\Amium.UdlClient\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HornetStudio.Contracts\HornetStudio.Contracts.csproj" />
+    <ProjectReference Include="..\Amium.Item\Amium.Item.csproj" />
+  </ItemGroup>
+</Project>
