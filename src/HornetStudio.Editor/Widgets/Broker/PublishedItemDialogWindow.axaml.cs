@@ -14,7 +14,7 @@ using HornetStudio.Host;
 namespace HornetStudio.Editor.Widgets;
 
 /// <summary>
-/// Edits local registry item publishing definitions for a Broker widget root.
+/// Edits local registry item publishing definitions for an Item client root.
 /// </summary>
 public partial class PublishedItemDialogWindow : Window
 {
@@ -197,7 +197,7 @@ public partial class PublishedItemDialogWindow : Window
                 var definition = rootDefinitions.TryGetValue(path, out var existing)
                     ? existing
                     : BrokerPublishedItemDefinitionCodec.CreateDefault(path);
-                return new PublishedItemEditorRow(definition);
+                return new PublishedItemEditorRow(definition, StripFolderPrefix(path, rootPath));
             }).ToArray();
         }
 
@@ -231,6 +231,23 @@ public partial class PublishedItemDialogWindow : Window
                 }
             }
         }
+
+        private static string StripFolderPrefix(string path, string rootPath)
+        {
+            var normalizedPath = TargetPathHelper.NormalizeConfiguredTargetPath(path);
+            var segments = TargetPathHelper.SplitPathSegments(rootPath)
+                .Where(static segment => !string.IsNullOrWhiteSpace(segment))
+                .ToArray();
+            if (segments.Length < 2 || !string.Equals(segments[0], "studio", StringComparison.OrdinalIgnoreCase))
+            {
+                return normalizedPath;
+            }
+
+            var prefix = $"studio.{TargetPathHelper.NormalizeConfiguredTargetPath(segments[1])}";
+            return normalizedPath.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase)
+                ? normalizedPath[(prefix.Length + 1)..]
+                : normalizedPath;
+        }
     }
 }
 
@@ -243,18 +260,30 @@ public sealed class PublishedItemEditorRow : NotifyBase
     private string _publishMode;
     private int _publishIntervalMs;
     private bool _writable;
+    private readonly string _displayName;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PublishedItemEditorRow"/> class.
     /// </summary>
     /// <param name="definition">The source definition.</param>
     public PublishedItemEditorRow(BrokerPublishedItemDefinition definition)
+        : this(definition, string.Empty)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PublishedItemEditorRow"/> class.
+    /// </summary>
+    /// <param name="definition">The source definition.</param>
+    /// <param name="displayName">The compact display name.</param>
+    public PublishedItemEditorRow(BrokerPublishedItemDefinition definition, string displayName)
     {
         LocalPath = TargetPathHelper.NormalizeConfiguredTargetPath(definition.LocalPath);
         var brokerPath = TargetPathHelper.NormalizeConfiguredTargetPath(definition.BrokerPath);
         BrokerPath = string.IsNullOrWhiteSpace(brokerPath)
             ? BrokerPublishedItemDefinitionCodec.BuildDefaultBrokerPath(LocalPath)
             : brokerPath;
+        _displayName = string.IsNullOrWhiteSpace(displayName) ? LocalPath : displayName;
         _active = definition.Active;
         _publishMode = BrokerPublishedItemPublishModes.Normalize(definition.PublishMode);
         _publishIntervalMs = Math.Max(1, definition.PublishIntervalMs);
@@ -274,7 +303,7 @@ public sealed class PublishedItemEditorRow : NotifyBase
     /// <summary>
     /// Gets the display name.
     /// </summary>
-    public string DisplayName => LocalPath;
+    public string DisplayName => _displayName;
 
     /// <summary>
     /// Gets the row summary.

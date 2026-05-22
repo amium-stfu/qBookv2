@@ -14,7 +14,6 @@ namespace HornetStudio.Editor.Widgets;
 
 public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyChanged
 {
-    private readonly EditorDialogField? _field;
     private readonly string _folderName = string.Empty;
     private MainWindowViewModel? _viewModel;
     private TargetSelectionTreeNode? _selectedNode;
@@ -44,7 +43,6 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
 
     public TargetTreeSelectionDialogWindow(MainWindowViewModel? viewModel, EditorDialogField field)
     {
-        _field = field;
         _folderName = ExtractPageName(field.Parameter.Path);
         RootNodes = [];
         InitializeComponent();
@@ -185,14 +183,11 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
         {
             CommittedSelection = TargetPathHelper.ToPersistedLayoutTargetPath(SelectedNode.ActualPath, _folderName);
             _selectedValue = CommittedSelection;
+            Close(CommittedSelection);
+            e.Handled = true;
+            return;
         }
 
-        if (_field is not null && !string.IsNullOrWhiteSpace(CommittedSelection))
-        {
-            _field.Value = CommittedSelection;
-        }
-
-        Close();
         e.Handled = true;
     }
 
@@ -206,7 +201,7 @@ public partial class TargetTreeSelectionDialogWindow : Window, INotifyPropertyCh
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e)
     {
-        Close();
+        Close(null);
         e.Handled = true;
     }
 

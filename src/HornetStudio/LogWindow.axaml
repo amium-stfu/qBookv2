@@ -15,6 +15,7 @@
     <controls:EditorLogControl
       HorizontalAlignment="Stretch"
       VerticalAlignment="Stretch"
-      DataContext="{Binding HostLogItem, ElementName=Root}" />
+      DataContext="{Binding HostLogItem, ElementName=Root}"
+      ExplicitProcessLogPath="Logs.Host" />
   </Grid>
 </Window>

@@ -107,6 +107,8 @@ public sealed class EditorDialogField : ObservableObject
 
     public ObservableCollection<string> InteractionApplicationOptions { get; } = [];
 
+    public ObservableCollection<string> InteractionDialogOptions { get; } = [];
+
     private readonly Dictionary<string, string> _chartTargetPathByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _chartTargetNameByPath = new(StringComparer.OrdinalIgnoreCase);
 
@@ -249,6 +251,8 @@ public sealed class EditorDialogField : ObservableObject
 
     public bool IsInteractionRuleList => PropertyType == EditorPropertyType.InteractionRuleList;
 
+    public bool IsVisualRuleList => PropertyType == EditorPropertyType.VisualRuleList;
+
     public bool IsUdlModuleExposureList => PropertyType == EditorPropertyType.UdlModuleExposureList;
 
     public bool IsExposureList => IsUdlModuleExposureList;
@@ -267,6 +271,7 @@ public sealed class EditorDialogField : ObservableObject
                                && !IsChartSeriesList
                                && !IsAttachItemList
                                && !IsInteractionRuleList
+                               && !IsVisualRuleList
                                && !IsUdlModuleExposureList
                                && !IsApplicationExplorerPicker;
 
@@ -302,6 +307,12 @@ public sealed class EditorDialogField : ObservableObject
         EditorPropertyType.InteractionRuleList => InteractionRuleEntries.Count == 0
             ? "Default left click opens value editor"
             : $"{InteractionRuleEntries.Count} rules configured",
+        EditorPropertyType.VisualRuleList => VisualRuleCodec.ParseDefinitions(Value).Count switch
+        {
+            0 => "No visual rules configured",
+            1 => "1 visual rule configured",
+            var count => $"{count} visual rules configured"
+        },
         EditorPropertyType.UdlModuleExposureList => UdlModuleExposureDefinitionCodec.ParseDefinitions(Value).Count switch
         {
             0 => "No module exposures configured",
@@ -406,6 +417,7 @@ public sealed class EditorDialogField : ObservableObject
 
         RefreshInteractionRuleOptions(
             HostRegistries.Data.GetKeysByCapability(DataRegistryItemCapabilities.Display).OrderBy(key => key, StringComparer.OrdinalIgnoreCase),
+            [],
             []);
     }
 
@@ -441,7 +453,7 @@ public sealed class EditorDialogField : ObservableObject
         RaisePropertyChanged(nameof(StructuredEditorSummary));
     }
 
-    public void RefreshInteractionRuleOptions(IEnumerable<string> options, IEnumerable<string>? pythonEnvironmentOptions)
+    public void RefreshInteractionRuleOptions(IEnumerable<string> options, IEnumerable<string>? pythonEnvironmentOptions, IEnumerable<string>? dialogOptions)
     {
         if (!IsInteractionRuleList)
         {
@@ -461,6 +473,14 @@ public sealed class EditorDialogField : ObservableObject
                      .Distinct(StringComparer.OrdinalIgnoreCase))
         {
             InteractionApplicationOptions.Add(option);
+        }
+
+        InteractionDialogOptions.Clear();
+        foreach (var option in (dialogOptions ?? [])
+                     .Where(static option => !string.IsNullOrWhiteSpace(option))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            InteractionDialogOptions.Add(option);
         }
 
         if (string.IsNullOrWhiteSpace(NewInteractionTargetPath))
@@ -726,7 +746,10 @@ public sealed class EditorDialogField : ObservableObject
     public IReadOnlyList<string> GetInteractionTargetOptions(string? actionName)
         => string.Equals(actionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase)
             ? InteractionApplicationOptions.ToArray()
-            : InteractionTargetOptions.ToArray();
+            : string.Equals(actionName, nameof(ItemInteractionAction.OpenDialog), StringComparison.OrdinalIgnoreCase)
+                || string.Equals(actionName, nameof(ItemInteractionAction.CloseDialog), StringComparison.OrdinalIgnoreCase)
+                ? InteractionDialogOptions.ToArray()
+                : InteractionTargetOptions.ToArray();
 
     public IReadOnlyList<string> GetInteractionFunctionOptions(string? targetPath)
         => string.IsNullOrWhiteSpace(targetPath)
@@ -739,6 +762,16 @@ public sealed class EditorDialogField : ObservableObject
         foreach (var option in GetInteractionTargetOptions(row.ActionName))
         {
             row.TargetOptions.Add(option);
+        }
+
+        if (row.UsesComboTargetSelection)
+        {
+            var fallbackTarget = row.TargetOptions.FirstOrDefault() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(fallbackTarget)
+                && !row.TargetOptions.Contains(row.TargetPath, StringComparer.Ordinal))
+            {
+                row.TargetPath = fallbackTarget;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(row.TargetPath) && !row.TargetOptions.Contains(row.TargetPath))

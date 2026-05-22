@@ -34,6 +34,11 @@ Controls the optional caption shown in the body area.
 
 The common shell properties determine the widget appearance.
 
+### VisualRules
+
+Defines Monitor-backed visual overrides for the item body background from the Action tab.
+Version 1 exposes only `BodyBackColor`. When a rule is inactive, the widget falls back to its normal theme or configured colors unless an explicit inactive color is stored.
+
 ### IsReadOnly
 
 Blocks value editing when enabled.
@@ -55,6 +60,10 @@ Writable targets can be edited using the shared value input workflow.
 ### Apply interaction rules
 
 The widget can execute configured interaction actions against its target or other targets.
+
+### Apply visual rules
+
+The widget can react to published Monitor rule states and change `BodyBackColor` without writing any blink phase or visual state back into the layout.
 
 ### Target writeback
 

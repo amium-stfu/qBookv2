@@ -16,6 +16,7 @@ using HornetStudio.Editor.Controls;
 using HornetStudio.Editor.Widgets;
 using HornetStudio.Editor.Models;
 using HornetStudio.ViewModels;
+using DialogWidgetOverlayEntry = HornetStudio.Editor.ViewModels.DialogWidgetOverlayEntry;
 
 namespace HornetStudio;
 
@@ -100,7 +101,8 @@ public partial class MainWindow : Window
         foreach (var kvp in orderedViews)
         {
             var viewId = kvp.Key;
-            var header = string.IsNullOrWhiteSpace(kvp.Value) ? $"Screen {viewId}" : kvp.Value;
+            var screenName = string.IsNullOrWhiteSpace(kvp.Value) ? $"Screen {viewId}" : kvp.Value;
+            var header = screenName;
 
             var item = new MenuItem
             {
@@ -297,6 +299,21 @@ public partial class MainWindow : Window
                 subHeader: errorMessage,
                 initialValue: string.Empty);
         }
+    }
+
+    private void OnDialogOverlayCloseClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (sender is not Control { DataContext: DialogWidgetOverlayEntry overlay })
+        {
+            return;
+        }
+
+        viewModel.CloseDialogOverlay(overlay);
     }
 
     private void OnLegendItemPointerPressed(object? sender, PointerPressedEventArgs e)

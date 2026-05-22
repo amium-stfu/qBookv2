@@ -25,6 +25,7 @@ public sealed class FolderModel : ObservableObject
         get => _index;
         set => SetProperty(ref _index, value);
     }
+
     public Dictionary<int, string> Views { get; init; } = new();
 
     public int ActualViewId
@@ -92,6 +93,8 @@ public sealed class FolderModel : ObservableObject
         }
     }
 
+    public string CurrentViewDisplayText => CurrentViewCaption;
+
     public bool ShowDropMarkerLeft
     {
         get => _showDropMarkerLeft;
@@ -130,6 +133,7 @@ public sealed class FolderModel : ObservableObject
         if (id == ActualViewId)
         {
             OnPropertyChanged(nameof(CurrentViewCaption));
+            OnPropertyChanged(nameof(CurrentViewDisplayText));
         }
     }
 

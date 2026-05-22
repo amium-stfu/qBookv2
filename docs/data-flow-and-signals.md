@@ -192,6 +192,19 @@ Ergebnis:
 - Wenn ein Signal existiert (oder neu erzeugt werden kann), steht eine einheitliche Sicht mit Descriptor (Unit, Format, SourcePath) und `Value`-Property zur Verfügung.
 - Wenn kein Signal erzeugt werden kann, fällt der Code auf Item-basierte Pfade zurück (z.B. direkt `Item.Value`).
 
+### 5.3. Monitor Widget Runtime-Pfade
+
+Das `Monitor`-Widget veröffentlicht regelbasierte Zustände in einem eigenen Runtime-Zweig:
+
+- Format: `studio.<page>.monitor.<monitor_widget>.<rule>`
+- Aggregatpfade am Widget-Root: `studio.<page>.monitor.<monitor_widget>.fatal_active`, `error_active`, `warning_active`, `info_active`, `debug_active`
+- Jeder Aggregatpfad behaelt seinen `Value` als komma-separierte Liste aktiver `EventId`-Werte in stabiler Regelreihenfolge.
+- Dasselbe Aggregat-Item schreibt zusaetzlich `meta` als JSON in die Item-Metadaten, z.B. `{"events":[{"event_id":123,"text":"RangeError"},{"event_id":124,"text":"DI5 high"}]}`. Ohne aktive Events wird `{"events":[]}` geschrieben.
+- Jede Regel kann Timeout-, Grenzwert- und Ausdrucksbedingungen auswerten.
+- `EventId` ist pro Regel verpflichtend, muss > `0` sein und innerhalb desselben Monitor-Widgets eindeutig bleiben.
+- Aktionen werden nur bei Zustandsübergängen (`OnActivated`, `OnCleared`) ausgeführt.
+- `WriteLog` verwendet die Event-Metadaten der Regel und schreibt optional in ein konfiguriertes `ProcessLog`.
+
 ## 6. RealtimeChart – Zuordnung und Datenfluss
 
 Der RealtimeChart arbeitet aktuell noch **Item-basiert**, nutzt aber dieselben TargetPath-/Auflösungsregeln wie andere Controls.

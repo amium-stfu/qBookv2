@@ -581,10 +581,13 @@ public partial class FolderEditorControl : UserControl
             CreateWidgetSelectionItem(ControlKind.SqlLoggerControl, "SqlLogger", "SQL logger with runtime recording controls.", "SqlLoggerControl.md", "SqlLoggerControl.help.md"),
             CreateWidgetSelectionItem(ControlKind.ChartControl, "RealtimeChart", "Live chart for numeric signal history.", "ChartControl.md", "ChartControl.help.md"),
             CreateWidgetSelectionItem(ControlKind.CameraControl, "Camera", "Camera stream widget with snapshot support.", "CameraControl.md", "CameraControl.help.md"),
-            CreateWidgetSelectionItem(ControlKind.BrokerWidget, "BrokerWidget", "MQTT ItemBroker connection and attach widget.", "BrokerWidget.md", "BrokerWidget.help.md"),
+            CreateWidgetSelectionItem(ControlKind.ItemClient, "ItemClient", "MQTT ItemBroker connection and attach widget.", "ItemClient.md", "ItemClient.help.md"),
             CreateWidgetSelectionItem(ControlKind.ApplicationExplorer, "ApplicationExplorer", "Application launcher and runtime overview.", "ApplicationExplorer.md", "ApplicationExplorer.help.md"),
             CreateWidgetSelectionItem(ControlKind.CustomSignals, "CustomSignals", "Calculated and manual custom signal definitions.", "CustomSignals.md", "CustomSignals.help.md"),
-            CreateWidgetSelectionItem(ControlKind.EnhancedSignals, "EnhancedSignals", "Extended signal processing and mapping widget.", "EnhancedSignals.md", "EnhancedSignals.help.md")
+            CreateWidgetSelectionItem(ControlKind.EnhancedSignals, "EnhancedSignals", "Extended signal processing and mapping widget.", "EnhancedSignals.md", "EnhancedSignals.help.md"),
+            CreateWidgetSelectionItem(ControlKind.ControllerWidget, "ControllerWidget", "PID controller definitions with runtime publication.", "ControllerWidget.md", "ControllerWidget.help.md"),
+            CreateWidgetSelectionItem(ControlKind.Monitor, "Monitor", "Threshold, timeout, and expression-based state monitoring.", "Monitor.md", "Monitor.help.md"),
+            CreateWidgetSelectionItem(ControlKind.DialogWidget, "DialogWidget", "Internal overlay dialog definition.", "DialogWidget.md", "DialogWidget.help.md")
         };
 
         if (ViewModel?.SupportsUdlClientControl == true)
@@ -1069,9 +1072,8 @@ public partial class FolderEditorControl : UserControl
             case ControlKind.LogControl:
                 item.ControlCaption = "Log";
                 item.BodyCaption = "Runtime messages";
-                item.Footer = "Info | Warning | Error";
+                item.Footer = "debug | info | warning | error | fatal";
                 item.ShowFooter = true;
-                item.TargetLog = "Logs.Host";
                 break;
 
             case ControlKind.ChartControl:
@@ -1111,9 +1113,9 @@ public partial class FolderEditorControl : UserControl
                 item.ShowFooter = true;
                 break;
 
-            case ControlKind.BrokerWidget:
-                item.ControlCaption = "Broker";
-                item.BodyCaption = "MQTT ItemBroker";
+            case ControlKind.ItemClient:
+                item.ControlCaption = "Item Client";
+                item.BodyCaption = "MQTT Item Client";
                 item.Footer = "127.0.0.1:1883 | hornet";
                 item.ShowFooter = true;
                 break;
@@ -1138,6 +1140,27 @@ public partial class FolderEditorControl : UserControl
                 item.Footer = "2 transformed signals";
                 item.ShowFooter = true;
                 break;
+
+            case ControlKind.ControllerWidget:
+                item.ControlCaption = "Controller widget";
+                item.BodyCaption = "PID definitions";
+                item.Footer = "2 PID controllers";
+                item.ShowFooter = true;
+                break;
+
+            case ControlKind.Monitor:
+                item.ControlCaption = "Monitor";
+                item.BodyCaption = "State rules";
+                item.Footer = "3 monitor rules";
+                item.ShowFooter = true;
+                break;
+
+            case ControlKind.DialogWidget:
+                item.ControlCaption = "DialogWidget";
+                item.BodyCaption = "Dialog content";
+                item.Footer = "Open with OpenDialog";
+                item.ShowFooter = true;
+                break;
         }
     }
 
@@ -1160,9 +1183,9 @@ public partial class FolderEditorControl : UserControl
             ControlKind.CsvLoggerControl or ControlKind.SqlLoggerControl => 320,
             ControlKind.CameraControl => 340,
             ControlKind.UdlClientControl => 420,
-            ControlKind.BrokerWidget => 420,
+            ControlKind.ItemClient => 420,
             ControlKind.ApplicationExplorer => 420,
-            ControlKind.CustomSignals or ControlKind.EnhancedSignals => 420,
+            ControlKind.CustomSignals or ControlKind.EnhancedSignals or ControlKind.ControllerWidget or ControlKind.Monitor or ControlKind.DialogWidget => 420,
             _ => 260
         };
     }
@@ -1186,9 +1209,10 @@ public partial class FolderEditorControl : UserControl
             ControlKind.CsvLoggerControl or ControlKind.SqlLoggerControl => 150,
             ControlKind.CameraControl => 220,
             ControlKind.UdlClientControl => 190,
-            ControlKind.BrokerWidget => 190,
+            ControlKind.ItemClient => 190,
             ControlKind.ApplicationExplorer => 220,
-            ControlKind.CustomSignals or ControlKind.EnhancedSignals => 240,
+            ControlKind.CustomSignals or ControlKind.EnhancedSignals or ControlKind.ControllerWidget or ControlKind.Monitor => 240,
+            ControlKind.DialogWidget => 260,
             _ => 120
         };
     }

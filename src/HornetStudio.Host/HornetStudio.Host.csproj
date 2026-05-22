@@ -42,6 +42,8 @@
     <Compile Include="EnhancedSignalPathHelper.cs" />
     <Compile Include="EnhancedSignalRuntime.cs" />
     <Compile Include="EnhancedSignalRuntimeManager.cs" />
+    <Compile Include="PidControllerRuntime.cs" />
+    <Compile Include="ControllerRuntimeManager.cs" />
     <Compile Include="HostUdlClient.cs" />
     <Compile Include="HostItemBrokerClient.cs" />
     <Compile Include="CanHubRegistry.cs" />
@@ -51,6 +53,7 @@
     <Compile Include="VscodeLauncher.cs" />
     <Compile Include="Logging\HostLogger.cs" />
     <Compile Include="Logging\ProcessLog.cs" />
+    <Compile Include="Logging\ProcessLogRuntime.cs" />
     <Compile Include="Logging\CsvLogger.cs" />
     <Compile Include="Logging\SqlLogger.cs" />
     <Compile Include="Python\Legacy\**\*.cs" />

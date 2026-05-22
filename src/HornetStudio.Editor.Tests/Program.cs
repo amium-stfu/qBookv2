@@ -1,12 +1,15 @@
 using ItemModel = Amium.Items.Item;
 using Amium.Items;
 using Amium.Item.Client;
+using Avalonia.Media;
 using HornetStudio.Editor.Models;
 using HornetStudio.Editor.Persistence;
 using HornetStudio.Editor.ViewModels;
 using HornetStudio.Editor.Widgets;
 using HornetStudio.Host;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 var tests = new (string Name, Action Run)[]
 {
@@ -17,25 +20,75 @@ var tests = new (string Name, Action Run)[]
     ("Custom signal editor defaults to snake_case name", CustomSignalEditorDefaultsToSnakeCaseName),
     ("Custom signal editor rejects uppercase name", CustomSignalEditorRejectsUppercaseName),
     ("Custom signal manual trigger path uses lowercase suffix", CustomSignalManualTriggerPathUsesLowercaseSuffix),
+    ("Monitor codec preserves multiple actions per trigger", MonitorCodecPreservesMultipleActionsPerTrigger),
+    ("Monitor codec preserves action specific fields", MonitorCodecPreservesActionSpecificFields),
+    ("Monitor editor accepts multiple actions per trigger", MonitorEditorAcceptsMultipleActionsPerTrigger),
+    ("Monitor editor rejects WriteLog actions without target", MonitorEditorRejectsWriteLogActionWithoutTarget),
+    ("Monitor YAML control definition writes monitor definitions", MonitorYamlControlDefinitionWritesMonitorDefinitions),
+    ("Project UI YAML loader imports monitor definitions", ProjectUiYamlLoaderImportsMonitorDefinitions),
+    ("VisualRule codec roundtrip", VisualRuleCodecRoundtrip),
+    ("VisualRule source path display hides technical monitor prefix", VisualRuleSourcePathDisplayHidesTechnicalMonitorPrefix),
+    ("VisualRule layout document roundtrip", VisualRuleLayoutDocumentRoundtrip),
+    ("Project UI YAML loader keeps screen definitions scalar compatible", ProjectUiYamlLoaderKeepsScreenDefinitionsScalarCompatible),
+    ("Runtime YAML loader maps dialog widget controls", RuntimeYamlLoaderMapsDialogWidgetControls),
+    ("Dialog interaction rules persist dialog widget ids", DialogInteractionRulesPersistDialogWidgetIds),
+    ("Dialog widget picker only lists dialog widgets", DialogWidgetPickerOnlyListsDialogWidgets),
+    ("OpenDialog keeps one overlay per dialog widget", OpenDialogKeepsOneOverlayPerDialogWidget),
+    ("OpenDialog applies default placement", OpenDialogAppliesDefaultPlacement),
+    ("OpenDialog preserves dialog grid child placement", OpenDialogPreservesDialogGridChildPlacement),
+    ("OpenDialog uses dialog widget bounds", OpenDialogUsesDialogWidgetBounds),
+    ("Project UI YAML loader imports visual rules", ProjectUiYamlLoaderImportsVisualRules),
+    ("Signal visual rule applies body back color", SignalVisualRuleAppliesBodyBackColor),
+    ("Button visual rule applies button back color", ButtonVisualRuleAppliesButtonBackColor),
+    ("Circle display visual rule applies display back color", CircleDisplayVisualRuleAppliesDisplayBackColor),
+    ("Monitor SetValue transition action writes target value", MonitorSetValueTransitionActionWritesTargetValue),
+    ("Monitor SetValue clear action remains stable for independent target", MonitorSetValueClearActionRemainsStableForIndependentTarget),
+    ("Monitor WriteLog resolves relative owned log path", MonitorWriteLogResolvesRelativeOwnedLogPath),
+    ("Monitor aggregate metadata includes active event texts", MonitorAggregateMetadataIncludesActiveEventTexts),
+    ("Monitor control ignores non-monitor items", MonitorControlIgnoresNonMonitorItems),
+    ("Monitor row visuals highlight active severity", MonitorRowVisualsHighlightActiveSeverity),
+    ("Monitor editor auto assigns next free EventId", MonitorEditorAutoAssignsNextFreeEventId),
+    ("Monitor editor rejects duplicate EventId", MonitorEditorRejectsDuplicateEventId),
+    ("Monitor editor rejects blank and zero EventId", MonitorEditorRejectsBlankAndZeroEventId),
+    ("Monitor editor allows unchanged EventId when editing", MonitorEditorAllowsUnchangedEventIdWhenEditing),
     ("Enhanced signal editor defaults to snake_case name", EnhancedSignalEditorDefaultsToSnakeCaseName),
     ("Enhanced signal editor rejects uppercase name", EnhancedSignalEditorRejectsUppercaseName),
     ("Enhanced signal runtime path uses snake_case segments", EnhancedSignalRuntimePathUsesSnakeCaseSegments),
-    ("Broker widget mode defaults to external", BrokerWidgetModeDefaultsToExternal),
-    ("Broker widget mode normalizes values", BrokerWidgetModeNormalizesValues),
-    ("Broker widget layout document defaults to external mode", BrokerWidgetLayoutDocumentDefaultsToExternalMode),
-    ("Broker widget publish items default empty", BrokerWidgetPublishItemsDefaultEmpty),
-    ("Broker widget layout publish items default empty", BrokerWidgetLayoutPublishItemsDefaultEmpty),
-    ("Broker widget publish options use metadata", BrokerWidgetPublishOptionsUseMetadata),
-    ("Broker widget publish options exclude broker received items", BrokerWidgetPublishOptionsExcludeBrokerReceivedItems),
-    ("Broker widget publish options de-duplicate legacy roots", BrokerWidgetPublishOptionsDeduplicateLegacyRoots),
+    ("Python application runtime path uses snake_case segments", PythonApplicationRuntimePathUsesSnakeCaseSegments),
+    ("Application explorer registry root uses snake_case segments", ApplicationExplorerRegistryRootUsesSnakeCaseSegments),
+    ("Circle display runtime path uses snake_case segments", CircleDisplayRuntimePathUsesSnakeCaseSegments),
+    ("Csv logger runtime path uses snake_case segments", CsvLoggerRuntimePathUsesSnakeCaseSegments),
+    ("Sql logger runtime path uses snake_case segments", SqlLoggerRuntimePathUsesSnakeCaseSegments),
+    ("LogControl owned path uses folder identity", LogControlOwnedPathUsesFolderIdentity),
+    ("LogControl owned directory uses project logs folder", LogControlOwnedDirectoryUsesProjectLogsFolder),
+    ("LogControl legacy values do not control owned path", LogControlLegacyValuesDoNotControlOwnedPath),
+    ("LogControl YAML omits legacy log properties", LogControlYamlOmitsLegacyLogProperties),
+    ("LogControl document serialization omits legacy log properties", LogControlDocumentSerializationOmitsLegacyLogProperties),
+    ("LogControl ensures owned process log publication", LogControlEnsuresOwnedProcessLogPublication),
+    ("Logger runtime control constants use snake_case", LoggerRuntimeControlConstantsUseSnakeCase),
+    ("Item client mode defaults to external", ItemClientModeDefaultsToExternal),
+    ("Item client mode normalizes values", ItemClientModeNormalizesValues),
+    ("Item client base topic allows empty", ItemClientBaseTopicAllowsEmpty),
+    ("Item client layout document defaults to external mode", ItemClientLayoutDocumentDefaultsToExternalMode),
+    ("Item client publish items default empty", ItemClientPublishItemsDefaultEmpty),
+    ("Item client layout publish items default empty", ItemClientLayoutPublishItemsDefaultEmpty),
+    ("Item client publish options use metadata", ItemClientPublishOptionsUseMetadata),
+    ("Item client publish options exclude broker received items", ItemClientPublishOptionsExcludeBrokerReceivedItems),
+    ("Item client publish options de-duplicate legacy roots", ItemClientPublishOptionsDeduplicateLegacyRoots),
     ("ItemModel tree visibility uses display metadata", ItemTreeVisibilityUsesDisplayMetadata),
     ("Broker attach options use internal discovery", BrokerAttachOptionsUseInternalDiscovery),
-    ("Broker widget publish items renders flat attach rows", BrokerWidgetPublishItemsRendersFlatAttachRows),
-    ("Broker widget received path uses MQTT branch", BrokerWidgetReceivedPathUsesMqttBranch),
-    ("Broker widget received path collapses nested MQTT identity", BrokerWidgetReceivedPathCollapsesNestedMqttIdentity),
-    ("Broker widget attach identity collapses nested MQTT identity", BrokerWidgetAttachIdentityCollapsesNestedMqttIdentity),
+    ("Item client publish items renders flat attach rows", ItemClientPublishItemsRendersFlatAttachRows),
+    ("Item client attached body row hides widget prefix", ItemClientAttachedBodyRowHidesWidgetPrefix),
+    ("Item client published body row hides Studio folder prefix", ItemClientPublishedBodyRowHidesStudioFolderPrefix),
+    ("Item client published dialog shows root row and hides folder prefix", ItemClientPublishedDialogShowsRootRowAndHidesFolderPrefix),
+    ("Item client received path uses flat widget branch", ItemClientReceivedPathUsesFlatWidgetBranch),
+    ("Item client received path collapses nested MQTT identity", ItemClientReceivedPathCollapsesNestedMqttIdentity),
+    ("Item client attach identity collapses nested MQTT identity", ItemClientAttachIdentityCollapsesNestedMqttIdentity),
+    ("Item client attach identity includes base topic", ItemClientAttachIdentityIncludesBaseTopic),
+    ("Item client attach options use item values", ItemClientAttachOptionsUseItemValues),
+    ("Item client attach option path splits dotted identity", ItemClientAttachOptionPathSplitsDottedIdentity),
     ("Broker attach normalization strips prefix before MQTT identity", BrokerAttachNormalizationStripsPrefixBeforeMqttIdentity),
-    ("Broker widget attach selection normalizes legacy shared path", BrokerWidgetAttachSelectionNormalizesLegacySharedPath),
+    ("Item client attach selection normalizes legacy shared path", ItemClientAttachSelectionNormalizesLegacySharedPath),
     ("UDL attach add normalizes and de-duplicates paths", UdlAttachAddNormalizesAndDeduplicatesPaths),
     ("UDL attach remove clears selected path", UdlAttachRemoveClearsSelectedPath),
     ("UDL received rows stay visible when attached", UdlReceivedRowsStayVisibleWhenAttached),
@@ -51,9 +104,20 @@ var tests = new (string Name, Action Run)[]
     ("Broker published item codec filters active root definitions", BrokerPublishedItemCodecFiltersActiveRootDefinitions),
     ("Broker published item change matcher scopes changes", BrokerPublishedItemChangeMatcherScopesChanges),
     ("Broker publisher sends value update for unregistered value change", BrokerPublisherSendsValueUpdateForUnregisteredValueChange),
+    ("Broker publisher sends repeated write property command", BrokerPublisherSendsRepeatedWritePropertyCommand),
+    ("Broker publisher records local host write state for writable value changes", BrokerPublisherRecordsLocalHostWriteStateForWritableValueChanges),
+    ("Broker publisher omits write properties from retained snapshots", BrokerPublisherOmitsWritePropertiesFromRetainedSnapshots),
+    ("Broker publisher skips child items and non-MQTT snapshot properties", BrokerPublisherSkipsChildItemsAndNonMqttSnapshotProperties),
     ("Broker write-back ignores non-writable entries", BrokerWriteBackIgnoresNonWritableEntries),
     ("Broker write-back ignores inactive entries", BrokerWriteBackIgnoresInactiveEntries),
     ("Broker write-back updates writable value", BrokerWriteBackUpdatesWritableValue),
+    ("Broker write-back applies write requests", BrokerWriteBackAppliesWriteRequests),
+    ("Broker write-back ignores own write request echo once", BrokerWriteBackIgnoresOwnWriteRequestEchoOnce),
+    ("Broker write-back notifies repeated write requests", BrokerWriteBackNotifiesRepeatedWriteRequests),
+    ("Broker write-back ignores property-style write state", BrokerWriteBackIgnoresPropertyStyleWriteState),
+    ("Broker write-back ignores stale read after recent local host write", BrokerWriteBackIgnoresStaleReadAfterRecentLocalHostWrite),
+    ("Broker write-back applies uncached source write requests", BrokerWriteBackAppliesUncachedSourceWriteRequests),
+    ("Broker write-back keeps external write requests enabled after recent local host write", BrokerWriteBackKeepsExternalWriteRequestsEnabledAfterRecentLocalHostWrite),
     ("Broker write-back normalizes legacy request mode", BrokerWriteBackNormalizesLegacyRequestMode),
     ("Broker write-back converts numeric value to local type", BrokerWriteBackConvertsNumericValueToLocalType),
     ("Broker write-back blocks protected properties", BrokerWriteBackBlocksProtectedProperties),
@@ -153,6 +217,8 @@ static void PathIdentityValidationAcceptsOnlySnakeCase()
     AssertEqual(true, method.Invoke(null, ["signal1"]));
     AssertEqual(false, method.Invoke(null, ["CustomSignal1"]));
     AssertEqual(false, method.Invoke(null, ["custom-signal-1"]));
+    AssertEqual(false, method.Invoke(null, ["_signal1"]));
+    AssertEqual(false, method.Invoke(null, ["1signal"]));
 }
 
 static void FolderIdentityValidationAcceptsOnlySnakeCase()
@@ -230,6 +296,1234 @@ static void CustomSignalManualTriggerPathUsesLowercaseSuffix()
     AssertEqual("studio.default_layout.custom_signals.signal_1.trigger", method.Invoke(null, ["studio.default_layout.custom_signals.signal_1"]));
 }
 
+static void MonitorCodecPreservesMultipleActionsPerTrigger()
+{
+    var raw = MonitorDefinitionCodec.SerializeDefinitions(
+    [
+        new MonitorDefinition
+        {
+            Name = "pressure_low",
+            SourcePath = "studio.default_layout.sensors.pressure",
+            RefreshRateMs = 500,
+            Mode = MonitorRuleMode.Default,
+            EventId = 1001,
+            EventText = "Pressure below lower limit",
+            LogLevel = MonitorLogLevel.Warning,
+            Actions =
+            [
+                new MonitorActionDefinition
+                {
+                    Trigger = MonitorActionTrigger.OnActivated,
+                    ActionType = MonitorActionType.WriteLog,
+                    TargetLog = "Logs.process"
+                },
+                new MonitorActionDefinition
+                {
+                    Trigger = MonitorActionTrigger.OnActivated,
+                    ActionType = MonitorActionType.WriteLog,
+                    TargetLog = "Logs.audit"
+                },
+                new MonitorActionDefinition
+                {
+                    Trigger = MonitorActionTrigger.OnCleared,
+                    ActionType = MonitorActionType.WriteLog,
+                    TargetLog = "Logs.process"
+                }
+            ]
+        }
+    ]);
+
+    var parsed = MonitorDefinitionCodec.ParseDefinitions(raw);
+
+    AssertEqual(1, parsed.Count);
+    AssertEqual(3, parsed[0].Actions.Count);
+    AssertEqual(MonitorActionTrigger.OnActivated, parsed[0].Actions[0].Trigger);
+    AssertEqual(MonitorActionTrigger.OnActivated, parsed[0].Actions[1].Trigger);
+    AssertEqual("logs.process", parsed[0].Actions[0].TargetLog);
+    AssertEqual("logs.audit", parsed[0].Actions[1].TargetLog);
+    AssertEqual(MonitorActionTrigger.OnCleared, parsed[0].Actions[2].Trigger);
+}
+
+static void MonitorEditorAcceptsMultipleActionsPerTrigger()
+{
+    var viewModel = new MonitorEditorDialogViewModel(mainWindowViewModel: null, new FolderItemModel(), definition: null, targetLogOptions: ["Logs.process", "Logs.audit"])
+    {
+        SourcePath = "Logs.source"
+    };
+
+    viewModel.AddAction(MonitorActionTrigger.OnActivated.ToString(), MonitorActionType.WriteLog.ToString(), "Logs.process");
+    viewModel.AddAction(MonitorActionTrigger.OnActivated.ToString(), MonitorActionType.WriteLog.ToString(), "Logs.audit");
+
+    AssertTrue(viewModel.TryBuildDefinition(out var definition, out var errorMessage));
+    AssertEqual(string.Empty, errorMessage);
+    AssertEqual(2, definition.Actions.Count);
+    AssertEqual(MonitorActionTrigger.OnActivated, definition.Actions[0].Trigger);
+    AssertEqual(MonitorActionTrigger.OnActivated, definition.Actions[1].Trigger);
+    AssertEqual("logs.process", definition.Actions[0].TargetLog);
+    AssertEqual("logs.audit", definition.Actions[1].TargetLog);
+}
+
+static void MonitorEditorRejectsWriteLogActionWithoutTarget()
+{
+    var viewModel = new MonitorEditorDialogViewModel(mainWindowViewModel: null, new FolderItemModel(), definition: null, targetLogOptions: [])
+    {
+        SourcePath = "Logs.source"
+    };
+
+    viewModel.AddAction(MonitorActionTrigger.OnActivated.ToString(), MonitorActionType.WriteLog.ToString(), string.Empty);
+
+    AssertFalse(viewModel.TryBuildDefinition(out _, out var errorMessage));
+    AssertTrue(errorMessage.Contains("target log", StringComparison.Ordinal));
+}
+
+static void MonitorCodecPreservesActionSpecificFields()
+{
+    var raw = MonitorDefinitionCodec.SerializeDefinitions(
+    [
+        new MonitorDefinition
+        {
+            Name = "monitor_actions",
+            SourcePath = "studio.default_layout.sensors.pressure",
+            Actions =
+            [
+                new MonitorActionDefinition
+                {
+                    Trigger = MonitorActionTrigger.OnActivated,
+                    ActionType = MonitorActionType.SetValue,
+                    TargetPath = "runtime.outputs.setpoint",
+                    Argument = "42"
+                },
+                new MonitorActionDefinition
+                {
+                    Trigger = MonitorActionTrigger.OnCleared,
+                    ActionType = MonitorActionType.InvokeFunction,
+                    TargetPath = "app_demo:runtime",
+                    FunctionName = "reset_alarm",
+                    Argument = "{\"value\":false}"
+                }
+            ]
+        }
+    ]);
+
+    var parsed = MonitorDefinitionCodec.ParseDefinitions(raw);
+
+    AssertEqual(1, parsed.Count);
+    AssertEqual(2, parsed[0].Actions.Count);
+    AssertEqual(MonitorActionType.SetValue, parsed[0].Actions[0].ActionType);
+    AssertEqual("runtime.outputs.setpoint", parsed[0].Actions[0].TargetPath);
+    AssertEqual("42", parsed[0].Actions[0].Argument);
+    AssertEqual(MonitorActionType.InvokeFunction, parsed[0].Actions[1].ActionType);
+    AssertEqual("app_demo:runtime", parsed[0].Actions[1].TargetPath);
+    AssertEqual("reset_alarm", parsed[0].Actions[1].FunctionName);
+    AssertEqual("{\"value\":false}", parsed[0].Actions[1].Argument);
+}
+
+static void MonitorYamlControlDefinitionWritesMonitorDefinitions()
+{
+    var method = typeof(MainWindowViewModel).GetMethod("BuildYamlControlDefinition", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("BuildYamlControlDefinition was not found.");
+    }
+
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Monitor,
+        Name = "monitor_1",
+        MonitorDefinitions = MonitorDefinitionCodec.SerializeDefinitions(
+        [
+            new MonitorDefinition
+            {
+                Name = "pressure_low",
+                SourcePath = "studio.default_layout.sensors.pressure",
+                LowerLimit = "2.5",
+                Actions =
+                [
+                    new MonitorActionDefinition
+                    {
+                        Trigger = MonitorActionTrigger.OnActivated,
+                        ActionType = MonitorActionType.WriteLog,
+                        TargetLog = "Logs.process"
+                    }
+                ]
+            }
+        ])
+    };
+
+    var node = (JsonObject?)method.Invoke(null, [item]);
+    var properties = node?["Properties"] as JsonObject;
+    var monitorDefinitions = properties?["MonitorDefinitions"] as JsonArray;
+
+    AssertTrue(monitorDefinitions is not null);
+    AssertEqual(1, monitorDefinitions!.Count);
+    AssertEqual("pressure_low", monitorDefinitions[0]?["Name"]?.GetValue<string>());
+}
+
+static void ProjectUiYamlLoaderImportsMonitorDefinitions()
+{
+    var yamlPath = Path.Combine(AppContext.BaseDirectory, "monitor_import_test.yaml");
+    File.WriteAllText(
+        yamlPath,
+        """
+Caption: 'main'
+Screens:
+  1: 'HomeScreen'
+Controls:
+  -
+    Type: 'Monitor'
+    Screen: '1'
+    Enabled: true
+    Identity:
+      Name: 'monitor_1'
+      Text: 'monitor_1'
+      Path: 'monitor_1'
+      Id: 'monitor-test'
+    Bounds:
+      X: 10
+      Y: 20
+      Width: 420
+      Height: 220
+    Properties:
+      MonitorDefinitions:
+        -
+          name: 'monitor_rule_1'
+          sourcePath: ''
+          refreshRateMs: 1000
+          mode: 'Custom'
+          lowerLimit: ''
+          upperLimit: ''
+          inhibitMs: 0
+          customFormula: '{A}==true'
+          customVariables:
+            -
+              name: 'A'
+              sourcePath: 'custom_signals_1.dummy_bool'
+          eventId: 0
+          eventText: ''
+          actions:
+            -
+              trigger: 'OnActivated'
+              actionType: 'SetValue'
+              targetLog: ''
+              targetPath: 'enhanced_signals.filtered_1.set'
+              functionName: ''
+              argument: '1000'
+          targetLog: ''
+          logLevel: 'Warning'
+""");
+
+    var layout = ProjectUiLayoutLoader.LoadYaml(yamlPath, "main");
+    var monitorNode = layout.Layout.Children.Single(child => string.Equals(child.Type, "Monitor", StringComparison.OrdinalIgnoreCase));
+    if (monitorNode.Properties["MonitorDefinitions"] is null)
+    {
+        throw new InvalidOperationException($"MonitorDefinitions was not mapped by the YAML loader. Properties: {monitorNode.Properties.ToJsonString()}");
+    }
+
+    var importedDefinitions = MonitorDefinitionCodec.FromJsonNode(monitorNode.Properties["MonitorDefinitions"], "main");
+    if (string.IsNullOrWhiteSpace(importedDefinitions))
+    {
+        throw new InvalidOperationException($"MonitorDefinitions could not be decoded. Node: {monitorNode.Properties["MonitorDefinitions"]?.ToJsonString()}");
+    }
+
+    var method = typeof(MainWindowViewModel).GetMethod("ApplyKnownUiProperties", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("ApplyKnownUiProperties was not found.");
+    }
+
+    var item = new FolderItemModel { Kind = ControlKind.Monitor };
+    method.Invoke(null, [item, monitorNode.Properties, "main", "Monitor"]);
+
+    var definitions = MonitorDefinitionCodec.ParseDefinitions(item.MonitorDefinitions);
+    if (definitions.Count != 1)
+    {
+        throw new InvalidOperationException($"Expected one monitor definition, actual {definitions.Count}. Raw: {item.MonitorDefinitions}");
+    }
+
+    AssertEqual("monitor_rule_1", definitions[0].Name);
+    if (definitions[0].CustomVariables.Count != 1)
+    {
+        throw new InvalidOperationException($"Expected one monitor variable, actual {definitions[0].CustomVariables.Count}. Raw: {item.MonitorDefinitions}");
+    }
+
+    AssertEqual("custom_signals_1.dummy_bool", definitions[0].CustomVariables[0].SourcePath);
+    if (definitions[0].Actions.Count != 1)
+    {
+        throw new InvalidOperationException($"Expected one monitor action, actual {definitions[0].Actions.Count}. Raw: {item.MonitorDefinitions}");
+    }
+
+    AssertEqual(MonitorActionType.SetValue, definitions[0].Actions[0].ActionType);
+    AssertEqual("enhanced_signals.filtered_1.set", definitions[0].Actions[0].TargetPath);
+    AssertEqual("1000", definitions[0].Actions[0].Argument);
+}
+
+static void VisualRuleCodecRoundtrip()
+{
+    var serialized = VisualRuleCodec.SerializeDefinitions(
+    [
+        new VisualRule
+        {
+            SourceKind = VisualRuleSourceKind.MonitorRule,
+            SourcePath = "studio.main.monitor.monitor_1.temperature_alarm",
+            Target = VisualRuleTarget.Header,
+            Property = VisualRuleProperty.BodyBackColor,
+            Effect = VisualRuleEffect.Blink,
+            ActiveValue = "#FF0000",
+            InactiveValue = "#202020"
+        }
+    ]);
+
+    var parsed = VisualRuleCodec.ParseDefinitions(serialized);
+    AssertEqual(1, parsed.Count);
+    AssertEqual(VisualRuleSourceKind.MonitorRule, parsed[0].SourceKind);
+    AssertEqual("studio.main.monitor.monitor_1.temperature_alarm", parsed[0].SourcePath);
+    AssertEqual(VisualRuleTarget.Body, parsed[0].Target);
+    AssertEqual(VisualRuleProperty.BodyBackColor, parsed[0].Property);
+    AssertEqual(VisualRuleEffect.Blink, parsed[0].Effect);
+    AssertEqual("#FF0000", parsed[0].ActiveValue);
+    AssertEqual("#202020", parsed[0].InactiveValue);
+}
+
+static void VisualRuleSourcePathDisplayHidesTechnicalMonitorPrefix()
+{
+    AssertEqual(
+        "monitor_1.temperature_alarm",
+        VisualRulesEditorDialogWindow.GetSourcePathDisplayText("studio.main.monitor.monitor_1.temperature_alarm"));
+    AssertEqual(
+        "monitor_1.temperature_alarm",
+        VisualRulesEditorDialogWindow.GetSourcePathDisplayText("monitor.monitor_1.temperature_alarm"));
+    AssertEqual(
+        "runtime.sensors.pressure.value",
+        VisualRulesEditorDialogWindow.GetSourcePathDisplayText("runtime.sensors.pressure.value"));
+}
+
+static void VisualRuleLayoutDocumentRoundtrip()
+{
+    var toDocument = typeof(MainWindowViewModel).GetMethod("ToDocument", BindingFlags.NonPublic | BindingFlags.Static, null, [typeof(FolderItemModel)], null);
+    var toModel = typeof(MainWindowViewModel).GetMethod("ToModel", BindingFlags.NonPublic | BindingFlags.Static, null, [typeof(FolderItemDocument), typeof(bool)], null);
+    if (toDocument is null || toModel is null)
+    {
+        throw new InvalidOperationException("VisualRule layout roundtrip helpers were not found.");
+    }
+
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Signal,
+        Name = "signal_1",
+        VisualRules = VisualRuleCodec.SerializeDefinitions(
+        [
+            new VisualRule
+            {
+                SourceKind = VisualRuleSourceKind.MonitorRule,
+                SourcePath = "studio.main.monitor.monitor_1.temperature_alarm",
+                Target = VisualRuleTarget.Body,
+                Property = VisualRuleProperty.BodyBackColor,
+                Effect = VisualRuleEffect.None,
+                ActiveValue = "#11AA22",
+                InactiveValue = string.Empty
+            }
+        ])
+    };
+    item.SetHierarchy("main", parentItem: null);
+
+    var document = (FolderItemDocument?)toDocument.Invoke(null, [item]);
+    AssertTrue(document is not null);
+    AssertEqual(1, document!.VisualRules.Count);
+    AssertEqual("monitor.monitor_1.temperature_alarm", document.VisualRules[0].SourcePath);
+
+    var roundtripItem = (FolderItemModel?)toModel.Invoke(null, [document, true]);
+    AssertTrue(roundtripItem is not null);
+    var parsed = VisualRuleCodec.ParseDefinitions(roundtripItem!.VisualRules);
+    AssertEqual(1, parsed.Count);
+    AssertEqual("monitor.monitor_1.temperature_alarm", parsed[0].SourcePath);
+    AssertEqual(VisualRuleTarget.Body, parsed[0].Target);
+    AssertEqual(VisualRuleProperty.BodyBackColor, parsed[0].Property);
+    AssertEqual("#11AA22", parsed[0].ActiveValue);
+}
+
+static void ProjectUiYamlLoaderKeepsScreenDefinitionsScalarCompatible()
+{
+    var yamlPath = Path.Combine(AppContext.BaseDirectory, "dialog_screen_scalar_import_test.yaml");
+    File.WriteAllText(
+        yamlPath,
+        """
+Caption: 'main'
+Screens:
+  1: 'HomeScreen'
+  2:
+    Name: 'AlarmScreen'
+    Kind: 'Dialog'
+Controls: []
+""");
+
+    var layout = ProjectUiLayoutLoader.LoadYaml(yamlPath, "main");
+
+    AssertEqual("HomeScreen", layout.Views[1]);
+    AssertEqual("AlarmScreen", layout.Views[2]);
+
+    var screens = layout.DocumentProperties["Screens"] as JsonObject;
+    AssertTrue(screens is not null);
+    AssertEqual("AlarmScreen", screens!["2"]?.GetValue<string>());
+}
+
+static void RuntimeYamlLoaderMapsDialogWidgetControls()
+{
+    var yamlPath = Path.Combine(AppContext.BaseDirectory, "dialog_widget_import_test.yaml");
+    File.WriteAllText(
+        yamlPath,
+        """
+Caption: 'main'
+Screens:
+  1: 'HomeScreen'
+Controls:
+  -
+    Type: 'DialogWidget'
+    Screen: '1'
+    Enabled: true
+    Identity:
+      Name: 'dialog_widget_1'
+      Text: 'dialog_widget_1'
+      Path: 'dialog_widget_1'
+      Id: 'dialog-widget-1'
+    Bounds:
+      X: 8
+      Y: 12
+      Width: 432
+      Height: 308
+    Rows: 4
+    Columns: 5
+""");
+
+    var layout = ProjectUiLayoutLoader.LoadYaml(yamlPath, "main");
+    var dialogNode = layout.Layout.Children.Single(child => string.Equals(child.Type, "DialogWidget", StringComparison.OrdinalIgnoreCase));
+
+    var method = typeof(HornetStudio.ViewModels.MainWindowViewModel).GetMethod("GetControlKindFromUiType", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("GetControlKindFromUiType was not found.");
+    }
+
+    var kind = method.Invoke(null, ["DialogWidget"]);
+    AssertEqual(ControlKind.DialogWidget, kind);
+    AssertEqual(4, dialogNode.Properties["Rows"]?.GetValue<int>());
+    AssertEqual(5, dialogNode.Properties["Columns"]?.GetValue<int>());
+
+    var applyMethod = typeof(MainWindowViewModel).GetMethod("ApplyKnownUiProperties", BindingFlags.NonPublic | BindingFlags.Static);
+    if (applyMethod is null)
+    {
+        throw new InvalidOperationException("ApplyKnownUiProperties was not found.");
+    }
+
+    var item = new FolderItemModel { Kind = ControlKind.DialogWidget };
+    applyMethod.Invoke(null, [item, dialogNode.Properties, "main", "DialogWidget"]);
+    AssertEqual("dialog-widget-1", item.Id);
+    AssertEqual(4, item.TableRows);
+    AssertEqual(5, item.TableColumns);
+}
+
+static void DialogInteractionRulesPersistDialogWidgetIds()
+{
+    var method = typeof(MainWindowViewModel).GetMethod("BuildYamlControlDefinition", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("BuildYamlControlDefinition was not found.");
+    }
+
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Button,
+        Name = "button_1",
+        InteractionRules = ItemInteractionRuleCodec.SerializeDefinitions(
+        [
+            new ItemInteractionRule
+            {
+                Event = ItemInteractionEvent.BodyLeftClick,
+                Action = ItemInteractionAction.OpenDialog,
+                TargetPath = "dialog-widget-1 - Alarm Dialog (main)",
+                Argument = "Screen,Center"
+            }
+        ])
+    };
+    item.SetHierarchy("main", parentItem: null);
+
+    var node = (JsonObject?)method.Invoke(null, [item]);
+    var interactionRules = node?["InteractionRules"] as JsonArray;
+    AssertTrue(interactionRules is not null);
+    AssertEqual("dialog-widget-1", interactionRules![0]?["TargetPath"]?.GetValue<string>());
+}
+
+static void DialogWidgetPickerOnlyListsDialogWidgets()
+{
+    var viewModel = new MainWindowViewModel();
+    var page = viewModel.SelectedFolder;
+    var button = new FolderItemModel
+    {
+        Kind = ControlKind.Button,
+        Name = "button_1"
+    };
+    var dialog = new FolderItemModel
+    {
+        Kind = ControlKind.DialogWidget,
+        Id = "dialog-widget-1",
+        Name = "alarm_dialog",
+        ControlCaption = "Alarm Dialog"
+    };
+    page.Items.Add(button);
+    page.Items.Add(dialog);
+
+    var method = typeof(MainWindowViewModel).GetMethod("GetSelectableDialogWidgetOptions", BindingFlags.NonPublic | BindingFlags.Instance);
+    if (method is null)
+    {
+        throw new InvalidOperationException("GetSelectableDialogWidgetOptions was not found.");
+    }
+
+    var options = ((IEnumerable<string>?)method.Invoke(viewModel, [button]))?.ToArray() ?? [];
+    AssertEqual(1, options.Length);
+    AssertTrue(!string.IsNullOrWhiteSpace(options[0]));
+}
+
+static void OpenDialogKeepsOneOverlayPerDialogWidget()
+{
+    var viewModel = new MainWindowViewModel();
+    var page = viewModel.SelectedFolder;
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Button,
+        Name = "button_1"
+    };
+    var dialog = new FolderItemModel
+    {
+        Kind = ControlKind.DialogWidget,
+        Id = "dialog-widget-1",
+        Name = "alarm_dialog",
+        ControlCaption = "Alarm Dialog"
+    };
+    page.Items.Add(item);
+    page.Items.Add(dialog);
+
+    AssertTrue(viewModel.OpenDialogWidget("dialog-widget-1", null, item, out var openError));
+    AssertEqual(string.Empty, openError);
+    AssertEqual(1, viewModel.OpenDialogOverlays.Count);
+    AssertEqual("dialog-widget-1", viewModel.OpenDialogOverlays[0].DialogWidgetId);
+
+    AssertTrue(viewModel.OpenDialogWidget("dialog-widget-1", null, item, out openError));
+    AssertEqual(string.Empty, openError);
+    AssertEqual(1, viewModel.OpenDialogOverlays.Count);
+
+    AssertTrue(viewModel.CloseDialogWidget("dialog-widget-1", item, out var closeError));
+    AssertEqual(string.Empty, closeError);
+    AssertEqual(0, viewModel.OpenDialogOverlays.Count);
+}
+
+static void OpenDialogAppliesDefaultPlacement()
+{
+    var viewModel = new MainWindowViewModel();
+    var page = viewModel.SelectedFolder;
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Button,
+        Name = "button_1"
+    };
+    var dialog = new FolderItemModel
+    {
+        Kind = ControlKind.DialogWidget,
+        Id = "dialog-widget-1",
+        Name = "alarm_dialog"
+    };
+    page.Items.Add(item);
+    page.Items.Add(dialog);
+
+    AssertTrue(viewModel.OpenDialogWidget("dialog-widget-1", null, item, out var openError));
+    AssertEqual(string.Empty, openError);
+    AssertEqual("Screen", viewModel.OpenDialogOverlays[0].Origin);
+    AssertEqual("Center", viewModel.OpenDialogOverlays[0].Position);
+}
+
+static void OpenDialogUsesDialogWidgetBounds()
+{
+    var viewModel = new MainWindowViewModel();
+    var page = viewModel.SelectedFolder;
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Button,
+        Name = "button_1"
+    };
+    var dialog = new FolderItemModel
+    {
+        Kind = ControlKind.DialogWidget,
+        Id = "dialog-widget-1",
+        Name = "alarm_dialog",
+        Title = "Alarm Dialog",
+        Width = 432,
+        Height = 308,
+        TableRows = 2,
+        TableColumns = 2
+    };
+    dialog.Items.Add(new FolderItemModel
+    {
+        Kind = ControlKind.Signal,
+        Name = "dialog_signal",
+        TableCellRow = 1,
+        TableCellColumn = 1
+    });
+    page.Items.Add(item);
+    page.Items.Add(dialog);
+
+    AssertTrue(viewModel.OpenDialogWidget("dialog-widget-1", null, item, out var openError));
+    AssertEqual(string.Empty, openError);
+    AssertEqual(432d, viewModel.OpenDialogOverlays[0].ContentWidth);
+    AssertEqual(308d, viewModel.OpenDialogOverlays[0].ContentHeight);
+    AssertEqual("dialog-widget-1", viewModel.OpenDialogOverlays[0].DialogItem.Id);
+    AssertFalse(viewModel.OpenDialogOverlays[0].DialogItem.ShowControlCaption);
+    AssertTrue(dialog.ShowControlCaption);
+    AssertEqual(1, viewModel.OpenDialogOverlays[0].DialogItem.Items.Count);
+    AssertTrue(viewModel.OpenDialogOverlays[0].DialogItem.Items[0].IsTableChildControl);
+}
+
+static void OpenDialogPreservesDialogGridChildPlacement()
+{
+    var viewModel = new MainWindowViewModel();
+    var page = viewModel.SelectedFolder;
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Button,
+        Name = "button_1"
+    };
+    var dialog = new FolderItemModel
+    {
+        Kind = ControlKind.DialogWidget,
+        Id = "dialog-widget-1",
+        Name = "alarm_dialog",
+        Width = 432,
+        Height = 308,
+        TableRows = 2,
+        TableColumns = 2
+    };
+    dialog.Items.Add(new FolderItemModel
+    {
+        Kind = ControlKind.Signal,
+        Name = "dialog_signal",
+        TableCellRow = 1,
+        TableCellColumn = 1,
+        TableCellRowSpan = 1,
+        TableCellColumnSpan = 2
+    });
+    dialog.Items.Add(new FolderItemModel
+    {
+        Kind = ControlKind.Button,
+        Name = "button_3",
+        TableCellRow = 2,
+        TableCellColumn = 1,
+        TableCellRowSpan = 1,
+        TableCellColumnSpan = 2
+    });
+    page.Items.Add(item);
+    page.Items.Add(dialog);
+
+    AssertTrue(viewModel.OpenDialogWidget("dialog-widget-1", null, item, out var openError));
+    AssertEqual(string.Empty, openError);
+    AssertEqual(1, viewModel.OpenDialogOverlays.Count);
+
+    var overlayDialog = viewModel.OpenDialogOverlays[0].DialogItem;
+    AssertEqual(2, overlayDialog.Items.Count);
+
+    AssertEqual("dialog_signal", overlayDialog.Items[0].Name);
+    AssertEqual(1, overlayDialog.Items[0].TableCellRow);
+    AssertEqual(1, overlayDialog.Items[0].TableCellColumn);
+    AssertEqual(1, overlayDialog.Items[0].TableCellRowSpan);
+    AssertEqual(2, overlayDialog.Items[0].TableCellColumnSpan);
+
+    AssertEqual("button_3", overlayDialog.Items[1].Name);
+    AssertEqual(2, overlayDialog.Items[1].TableCellRow);
+    AssertEqual(1, overlayDialog.Items[1].TableCellColumn);
+    AssertEqual(1, overlayDialog.Items[1].TableCellRowSpan);
+    AssertEqual(2, overlayDialog.Items[1].TableCellColumnSpan);
+}
+
+static void ProjectUiYamlLoaderImportsVisualRules()
+{
+    var yamlPath = Path.Combine(AppContext.BaseDirectory, "visual_rule_import_test.yaml");
+    File.WriteAllText(
+        yamlPath,
+        """
+Caption: 'main'
+Screens:
+  1: 'HomeScreen'
+Controls:
+  -
+    Type: 'Signal'
+    Screen: '1'
+    Enabled: true
+    Identity:
+      Name: 'signal_1'
+      Text: 'signal_1'
+      Path: 'signal_1'
+      Id: 'signal-test'
+    Bounds:
+      X: 10
+      Y: 20
+      Width: 220
+      Height: 120
+    VisualRules:
+      -
+        SourceKind: 'MonitorRule'
+        SourcePath: 'studio.main.monitor.monitor_1.temperature_alarm'
+        Target: 'Body'
+        Property: 'Background'
+        Effect: 'Blink'
+        ActiveValue: '#FFAA00'
+        InactiveValue: ''
+""");
+
+    var layout = ProjectUiLayoutLoader.LoadYaml(yamlPath, "main");
+    var signalNode = layout.Layout.Children.Single(child => string.Equals(child.Type, "Signal", StringComparison.OrdinalIgnoreCase));
+    if (signalNode.Properties["VisualRules"] is null)
+    {
+        throw new InvalidOperationException($"VisualRules was not mapped by the YAML loader. Properties: {signalNode.Properties.ToJsonString()}");
+    }
+
+    var method = typeof(MainWindowViewModel).GetMethod("ApplyKnownUiProperties", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("ApplyKnownUiProperties was not found.");
+    }
+
+    var item = new FolderItemModel { Kind = ControlKind.Signal };
+    method.Invoke(null, [item, signalNode.Properties, "main", "Signal"]);
+
+    var rules = VisualRuleCodec.ParseDefinitions(item.VisualRules);
+    AssertEqual(1, rules.Count);
+    AssertEqual("studio.main.monitor.monitor_1.temperature_alarm", rules[0].SourcePath);
+    AssertEqual(VisualRuleTarget.Body, rules[0].Target);
+    AssertEqual(VisualRuleProperty.BodyBackColor, rules[0].Property);
+    AssertEqual(VisualRuleEffect.Blink, rules[0].Effect);
+    AssertEqual("#FFAA00", rules[0].ActiveValue);
+}
+
+static void SignalVisualRuleAppliesBodyBackColor()
+{
+    var sourcePath = "studio.editor_tests.visual_rules.signal_active";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, true));
+
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Signal,
+        Name = "signal_1",
+        VisualRules = VisualRuleCodec.SerializeDefinitions(
+        [
+            new VisualRule
+            {
+                SourceKind = VisualRuleSourceKind.MonitorRule,
+                SourcePath = sourcePath,
+                Property = VisualRuleProperty.BodyBackColor,
+                Effect = VisualRuleEffect.None,
+                ActiveValue = "#112233"
+            }
+        ])
+    };
+
+    item.SetHierarchy("main", parentItem: null);
+    item.ApplyTheme(isDarkTheme: false);
+
+    AssertEqual("#112233", item.EffectiveBodyBackground);
+}
+
+static void ButtonVisualRuleAppliesButtonBackColor()
+{
+    var sourcePath = "studio.editor_tests.visual_rules.button_active";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, true));
+
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Button,
+        Name = "button_1",
+        ButtonBodyBackground = "#556677",
+        VisualRules = VisualRuleCodec.SerializeDefinitions(
+        [
+            new VisualRule
+            {
+                SourceKind = VisualRuleSourceKind.MonitorRule,
+                SourcePath = sourcePath,
+                Property = VisualRuleProperty.ButtonBackColor,
+                Effect = VisualRuleEffect.None,
+                ActiveValue = "#334455"
+            }
+        ])
+    };
+
+    item.SetHierarchy("main", parentItem: null);
+    item.ApplyTheme(isDarkTheme: false);
+
+    AssertEqual("#334455", item.EffectiveButtonBodyBackground);
+    AssertEqual("Transparent", item.EffectiveBodyBackground);
+}
+
+static void CircleDisplayVisualRuleAppliesDisplayBackColor()
+{
+    var sourcePath = "studio.editor_tests.visual_rules.circle_active";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, true));
+
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.CircleDisplay,
+        Name = "circle_1",
+        VisualRules = VisualRuleCodec.SerializeDefinitions(
+        [
+            new VisualRule
+            {
+                SourceKind = VisualRuleSourceKind.MonitorRule,
+                SourcePath = sourcePath,
+                Property = VisualRuleProperty.DisplayBackColor,
+                Effect = VisualRuleEffect.None,
+                ActiveValue = "#778899"
+            }
+        ])
+    };
+
+    item.SetHierarchy("main", parentItem: null);
+    item.ApplyTheme(isDarkTheme: false);
+
+    AssertEqual("#778899", item.EffectiveDisplayBackColor);
+}
+
+static void MonitorSetValueTransitionActionWritesTargetValue()
+{
+    var sourcePath = "studio.editor_tests.monitor.source";
+    var targetPath = "studio.editor_tests.monitor.target";
+
+    var source = ItemExtension.CreateWithPath(sourcePath, 1d);
+    HostRegistries.Data.UpsertSnapshot(sourcePath, source);
+
+    var target = ItemExtension.CreateWithPath(targetPath, 0d);
+    target.Properties["writable"].Value = true;
+    HostRegistries.Data.UpsertSnapshot(targetPath, target);
+
+    var ownerItem = new FolderItemModel
+    {
+        Name = "monitor_widget"
+    };
+
+    using var row = new MonitorRuleRow(
+        ownerItem,
+        new MonitorDefinition
+        {
+            Name = "target_write",
+            SourcePath = sourcePath,
+            Mode = MonitorRuleMode.Default,
+            LowerLimit = "2",
+            Actions =
+            [
+                new MonitorActionDefinition
+                {
+                    Trigger = MonitorActionTrigger.OnActivated,
+                    ActionType = MonitorActionType.SetValue,
+                    TargetPath = targetPath,
+                    Argument = "42"
+                }
+            ]
+        },
+        static () => { });
+
+    AssertTrue(HostRegistries.Data.TryResolve(targetPath, out var resolved));
+    AssertEqual(42d, resolved?.Value);
+}
+
+static void MonitorSetValueClearActionRemainsStableForIndependentTarget()
+{
+    var sourcePath = "studio.editor_tests.monitor.clear_source";
+    var targetPath = "studio.editor_tests.monitor.clear_target";
+
+    var source = ItemExtension.CreateWithPath(sourcePath, true);
+    HostRegistries.Data.UpsertSnapshot(sourcePath, source);
+
+    var target = ItemExtension.CreateWithPath(targetPath, 0d);
+    target.Properties["writable"].Value = true;
+    HostRegistries.Data.UpsertSnapshot(targetPath, target);
+
+    var ownerItem = new FolderItemModel
+    {
+        Name = "monitor_widget"
+    };
+
+    using var row = new MonitorRuleRow(
+        ownerItem,
+        new MonitorDefinition
+        {
+            Name = "independent_target_write",
+            SourcePath = sourcePath,
+            Mode = MonitorRuleMode.Custom,
+            CustomFormula = "{A} == true",
+            CustomVariables =
+            [
+                new MonitorVariableDefinition
+                {
+                    Name = "A",
+                    SourcePath = sourcePath
+                }
+            ],
+            Actions =
+            [
+                new MonitorActionDefinition
+                {
+                    Trigger = MonitorActionTrigger.OnActivated,
+                    ActionType = MonitorActionType.SetValue,
+                    TargetPath = targetPath,
+                    Argument = "1000"
+                },
+                new MonitorActionDefinition
+                {
+                    Trigger = MonitorActionTrigger.OnCleared,
+                    ActionType = MonitorActionType.SetValue,
+                    TargetPath = targetPath,
+                    Argument = "0"
+                }
+            ]
+        },
+        static () => { });
+
+    AssertTrue(HostRegistries.Data.TryResolve(targetPath, out var activeTarget));
+    AssertEqual(1000d, activeTarget?.Value);
+
+    AssertTrue(HostRegistries.Data.UpdateValue(sourcePath, false));
+    row.Evaluate();
+
+    AssertTrue(HostRegistries.Data.TryResolve(targetPath, out var clearedTarget));
+    AssertEqual(0d, clearedTarget?.Value);
+
+    row.Evaluate();
+
+    AssertTrue(HostRegistries.Data.TryResolve(targetPath, out var stableTarget));
+    AssertEqual(0d, stableTarget?.Value);
+}
+
+static void MonitorAggregateMetadataIncludesActiveEventTexts()
+{
+    var warningSourceAPath = "studio.editor_tests.monitor.aggregate.warning_a";
+    var warningSourceBPath = "studio.editor_tests.monitor.aggregate.warning_b";
+    var warningInactivePath = "studio.editor_tests.monitor.aggregate.warning_inactive";
+    var errorSourcePath = "studio.editor_tests.monitor.aggregate.error";
+
+    HostRegistries.Data.UpsertSnapshot(warningSourceAPath, ItemExtension.CreateWithPath(warningSourceAPath, 1d));
+    HostRegistries.Data.UpsertSnapshot(warningSourceBPath, ItemExtension.CreateWithPath(warningSourceBPath, 2d));
+    HostRegistries.Data.UpsertSnapshot(warningInactivePath, ItemExtension.CreateWithPath(warningInactivePath, 10d));
+    HostRegistries.Data.UpsertSnapshot(errorSourcePath, ItemExtension.CreateWithPath(errorSourcePath, 1d));
+
+    try
+    {
+        var ownerItem = new FolderItemModel
+        {
+            Name = "monitor_widget"
+        };
+
+        using var warningRowA = new MonitorRuleRow(
+            ownerItem,
+            new MonitorDefinition
+            {
+                Name = "alarm_a",
+                SourcePath = warningSourceAPath,
+                Mode = MonitorRuleMode.Default,
+                LowerLimit = "5",
+                EventId = 123,
+                EventText = "RangeError",
+                LogLevel = MonitorLogLevel.Warning
+            },
+            static () => { });
+
+        using var warningRowB = new MonitorRuleRow(
+            ownerItem,
+            new MonitorDefinition
+            {
+                Name = "alarm_b",
+                SourcePath = warningSourceBPath,
+                Mode = MonitorRuleMode.Default,
+                LowerLimit = "5",
+                EventId = 124,
+                EventText = "DI5 high",
+                LogLevel = MonitorLogLevel.Warning
+            },
+            static () => { });
+
+        using var warningInactiveRow = new MonitorRuleRow(
+            ownerItem,
+            new MonitorDefinition
+            {
+                Name = "alarm_c",
+                SourcePath = warningInactivePath,
+                Mode = MonitorRuleMode.Default,
+                LowerLimit = "5",
+                EventId = 125,
+                EventText = "Ignored",
+                LogLevel = MonitorLogLevel.Warning
+            },
+            static () => { });
+
+        using var errorRow = new MonitorRuleRow(
+            ownerItem,
+            new MonitorDefinition
+            {
+                Name = "error_a",
+                SourcePath = errorSourcePath,
+                Mode = MonitorRuleMode.Default,
+                LowerLimit = "5",
+                EventId = 500,
+                EventText = "FatalError",
+                LogLevel = MonitorLogLevel.Error
+            },
+            static () => { });
+
+        var aggregates = MonitorControl.BuildActiveEventIdAggregates([warningRowB, warningInactiveRow, errorRow, warningRowA]);
+        var warningAggregate = aggregates.Single(static aggregate => string.Equals(aggregate.ItemName, "warning_active", StringComparison.OrdinalIgnoreCase));
+        var errorAggregate = aggregates.Single(static aggregate => string.Equals(aggregate.ItemName, "error_active", StringComparison.OrdinalIgnoreCase));
+        var debugAggregate = aggregates.Single(static aggregate => string.Equals(aggregate.ItemName, "debug_active", StringComparison.OrdinalIgnoreCase));
+
+        AssertEqual("123,124", warningAggregate.EventIds);
+        AssertEqual("500", errorAggregate.EventIds);
+        AssertEqual(string.Empty, debugAggregate.EventIds);
+
+        using var warningMeta = JsonDocument.Parse(warningAggregate.MetaJson);
+        var warningEvents = warningMeta.RootElement.GetProperty("events");
+        AssertEqual(2, warningEvents.GetArrayLength());
+        AssertEqual(123, warningEvents[0].GetProperty("event_id").GetInt32());
+        AssertEqual("RangeError", warningEvents[0].GetProperty("text").GetString());
+        AssertEqual(124, warningEvents[1].GetProperty("event_id").GetInt32());
+        AssertEqual("DI5 high", warningEvents[1].GetProperty("text").GetString());
+
+        using var debugMeta = JsonDocument.Parse(debugAggregate.MetaJson);
+        AssertEqual(0, debugMeta.RootElement.GetProperty("events").GetArrayLength());
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(warningSourceAPath);
+        HostRegistries.Data.Remove(warningSourceBPath);
+        HostRegistries.Data.Remove(warningInactivePath);
+        HostRegistries.Data.Remove(errorSourcePath);
+    }
+}
+
+static void MonitorControlIgnoresNonMonitorItems()
+{
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.ApplicationExplorer,
+        Name = "application_explorer_1"
+    };
+    item.SetHierarchy("monitor_guard_test", parentItem: null);
+
+    var aggregatePath = MonitorRuleRow.BuildMonitorRegistryPath(item.FolderName, item.Name);
+    HostRegistries.Data.Remove(aggregatePath);
+
+    try
+    {
+        var method = typeof(MonitorControl).GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+            .Single(methodInfo => string.Equals(methodInfo.Name, "PublishAggregateRuntime", StringComparison.Ordinal)
+                && methodInfo.GetParameters().Length == 2);
+
+        var published = (bool)method.Invoke(null, [item, Array.Empty<MonitorRuleRow>()])!;
+        AssertFalse(published);
+        AssertFalse(HostRegistries.Data.TryResolve(aggregatePath, out _));
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(aggregatePath);
+    }
+}
+
+static void MonitorRowVisualsHighlightActiveSeverity()
+{
+    var activeSourcePath = "studio.editor_tests.monitor.visuals.active";
+    var inactiveSourcePath = "studio.editor_tests.monitor.visuals.inactive";
+
+    HostRegistries.Data.UpsertSnapshot(activeSourcePath, ItemExtension.CreateWithPath(activeSourcePath, 1d));
+    HostRegistries.Data.UpsertSnapshot(inactiveSourcePath, ItemExtension.CreateWithPath(inactiveSourcePath, 10d));
+
+    try
+    {
+        var ownerItem = new FolderItemModel
+        {
+            Name = "monitor_widget",
+            BodyBackColor = "#FFFFFF",
+            BodyBorderColor = "#D4D4D8"
+        };
+        ownerItem.ApplyTheme(isDarkTheme: false);
+
+        using var activeRow = new MonitorRuleRow(
+            ownerItem,
+            new MonitorDefinition
+            {
+                Name = "warning_active",
+                SourcePath = activeSourcePath,
+                Mode = MonitorRuleMode.Default,
+                LowerLimit = "5",
+                LogLevel = MonitorLogLevel.Warning
+            },
+            static () => { });
+
+        using var inactiveRow = new MonitorRuleRow(
+            ownerItem,
+            new MonitorDefinition
+            {
+                Name = "warning_inactive",
+                SourcePath = inactiveSourcePath,
+                Mode = MonitorRuleMode.Default,
+                LowerLimit = "5",
+                LogLevel = MonitorLogLevel.Warning
+            },
+            static () => { });
+
+        AssertTrue(activeRow.IsActive);
+        AssertFalse(inactiveRow.IsActive);
+        AssertEqual(ownerItem.EffectiveBodyBackground, inactiveRow.RowBackground);
+        AssertEqual(ownerItem.EffectiveBodyBorder, inactiveRow.RowBorderBrush);
+        AssertEqual(ThemePalette.Light.LogWarningForeground, activeRow.RowBorderBrush);
+        AssertFalse(string.Equals(ownerItem.EffectiveBodyBackground, activeRow.RowBackground, StringComparison.OrdinalIgnoreCase));
+        AssertTrue(Color.TryParse(activeRow.RowBackground, out _));
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(activeSourcePath);
+        HostRegistries.Data.Remove(inactiveSourcePath);
+    }
+}
+
+static void MonitorEditorAutoAssignsNextFreeEventId()
+{
+    var ownerItem = new FolderItemModel
+    {
+        MonitorDefinitions = MonitorDefinitionCodec.SerializeDefinitions(
+        [
+            new MonitorDefinition { Name = "monitor_rule_1", EventId = 1 },
+            new MonitorDefinition { Name = "monitor_rule_2", EventId = 3 },
+            new MonitorDefinition { Name = "monitor_rule_3", EventId = 4 }
+        ])
+    };
+
+    var viewModel = new MonitorEditorDialogViewModel(mainWindowViewModel: null, ownerItem, definition: null, targetLogOptions: []);
+
+    AssertEqual("2", viewModel.EventIdText);
+}
+
+static void MonitorEditorRejectsDuplicateEventId()
+{
+    var ownerItem = new FolderItemModel
+    {
+        MonitorDefinitions = MonitorDefinitionCodec.SerializeDefinitions(
+        [
+            new MonitorDefinition { Name = "monitor_rule_1", EventId = 7 }
+        ])
+    };
+
+    var viewModel = new MonitorEditorDialogViewModel(mainWindowViewModel: null, ownerItem, definition: null, targetLogOptions: [])
+    {
+        SourcePath = "Logs.source",
+        EventIdText = "7"
+    };
+
+    AssertFalse(viewModel.TryBuildDefinition(out _, out var errorMessage));
+    AssertTrue(errorMessage.Contains("unique", StringComparison.Ordinal));
+}
+
+static void MonitorEditorRejectsBlankAndZeroEventId()
+{
+    var ownerItem = new FolderItemModel();
+
+    var blankViewModel = new MonitorEditorDialogViewModel(mainWindowViewModel: null, ownerItem, definition: null, targetLogOptions: [])
+    {
+        SourcePath = "Logs.source",
+        EventIdText = "   "
+    };
+
+    AssertFalse(blankViewModel.TryBuildDefinition(out _, out var blankErrorMessage));
+    AssertTrue(blankErrorMessage.Contains("required", StringComparison.Ordinal));
+
+    var zeroViewModel = new MonitorEditorDialogViewModel(mainWindowViewModel: null, ownerItem, definition: null, targetLogOptions: [])
+    {
+        SourcePath = "Logs.source",
+        EventIdText = "0"
+    };
+
+    AssertFalse(zeroViewModel.TryBuildDefinition(out _, out var zeroErrorMessage));
+    AssertTrue(zeroErrorMessage.Contains("greater than 0", StringComparison.Ordinal));
+}
+
+static void MonitorEditorAllowsUnchangedEventIdWhenEditing()
+{
+    var existingDefinition = new MonitorDefinition
+    {
+        Name = "monitor_rule_1",
+        SourcePath = "Logs.source",
+        EventId = 7,
+        LogLevel = MonitorLogLevel.Warning
+    };
+
+    var ownerItem = new FolderItemModel
+    {
+        MonitorDefinitions = MonitorDefinitionCodec.SerializeDefinitions(
+        [
+            existingDefinition,
+            new MonitorDefinition { Name = "monitor_rule_2", EventId = 8 }
+        ])
+    };
+
+    var viewModel = new MonitorEditorDialogViewModel(mainWindowViewModel: null, ownerItem, existingDefinition, targetLogOptions: [])
+    {
+        SourcePath = "Logs.source",
+        EventIdText = "7"
+    };
+
+    AssertTrue(viewModel.TryBuildDefinition(out var definition, out var errorMessage));
+    AssertEqual(string.Empty, errorMessage);
+    AssertEqual(7, definition.EventId);
+}
+
+static void MonitorWriteLogResolvesRelativeOwnedLogPath()
+{
+    var sourcePath = "studio.editor_tests.monitor.write_log_source";
+    var logName = $"monitor_log_{Guid.NewGuid():N}";
+    var ownedLogPath = $"studio.monitor_page.logs.{logName}";
+    var relativeLogPath = $"logs.{logName}";
+
+    var source = ItemExtension.CreateWithPath(sourcePath, 1d);
+    HostRegistries.Data.UpsertSnapshot(sourcePath, source);
+    HornetStudio.Logging.ProcessLogRuntime.EnsurePublished(ownedLogPath, "Monitor Log");
+
+    var ownerItem = new FolderItemModel
+    {
+        Name = "monitor_widget"
+    };
+    ownerItem.SetHierarchy("monitor_page", parentItem: null);
+
+    using var row = new MonitorRuleRow(
+        ownerItem,
+        new MonitorDefinition
+        {
+            Name = "relative_log_write",
+            SourcePath = sourcePath,
+            Mode = MonitorRuleMode.Default,
+            LowerLimit = "2",
+            EventId = 1001,
+            EventText = "Relative log write",
+            LogLevel = MonitorLogLevel.Warning,
+            Actions =
+            [
+                new MonitorActionDefinition
+                {
+                    Trigger = MonitorActionTrigger.OnActivated,
+                    ActionType = MonitorActionType.WriteLog,
+                    TargetLog = relativeLogPath
+                }
+            ]
+        },
+        static () => { });
+
+    AssertTrue(HostRegistries.Data.TryResolve(ownedLogPath, out var logItem));
+    AssertTrue(logItem?.Value is HornetStudio.Logging.ProcessLog);
+
+    var processLog = (HornetStudio.Logging.ProcessLog)logItem!.Value!;
+    var warningEntry = processLog.GetEntries(levelFilter: "Warning").LastOrDefault();
+    AssertEqual("Warning", warningEntry?.Level);
+    AssertEqual("[1001] Relative log write", warningEntry?.Message);
+}
+
 static void EnhancedSignalEditorDefaultsToSnakeCaseName()
 {
     var ownerItem = new FolderItemModel
@@ -272,6 +1566,273 @@ static void EnhancedSignalRuntimePathUsesSnakeCaseSegments()
     AssertEqual(
         "studio.default_layout.enhanced_signals.enhanced_signal_1",
         EnhancedSignalRuntime.BuildRegistryPath("default_layout", definition));
+}
+
+static void PythonApplicationRuntimePathUsesSnakeCaseSegments()
+{
+    var method = typeof(FolderItemModel).GetMethod("GetScriptRuntimePath", BindingFlags.NonPublic | BindingFlags.Instance);
+    if (method is null)
+    {
+        throw new InvalidOperationException("GetScriptRuntimePath was not found.");
+    }
+
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.PythonClient,
+        Name = "RawApp42",
+        PythonScriptPath = "Applications/Python/RawApp42/main.py"
+    };
+    SetFolderName(item, "Main Folder");
+
+    AssertEqual("studio.main_folder.applications.python.raw_app42", method.Invoke(item, null));
+}
+
+static void ApplicationExplorerRegistryRootUsesSnakeCaseSegments()
+{
+    var method = typeof(ApplicationEntryRow).GetMethod("BuildValueRegistryRootPath", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("BuildValueRegistryRootPath was not found.");
+    }
+
+    var ownerItem = new FolderItemModel
+    {
+    };
+    SetFolderName(ownerItem, "Main Folder");
+
+    AssertEqual(
+        "studio.main_folder.applications.python.raw_test_env",
+        method.Invoke(null, [ownerItem, "RawTestEnv"]));
+}
+
+static void CircleDisplayRuntimePathUsesSnakeCaseSegments()
+{
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.CircleDisplay,
+        Name = "CircleDisplay",
+        SignalColor = "#22C55E",
+        SignalRun = true,
+        ProgressBar = true,
+        ProgressState = 74,
+        ProgressBarColor = "#0EA5E9"
+    };
+
+    item.SetHierarchy(pageName: "Main Folder", parentItem: null);
+
+    var basePath = item.GetDisplayRuntimeBasePath();
+    var signalColorPath = item.GetDisplayRuntimePath("SignalColor");
+    var progressBarColorPath = item.GetDisplayRuntimePath("ProgressBarColor");
+
+    try
+    {
+        AssertEqual("studio.main_folder.display_runtime.circle_display", basePath);
+        AssertEqual("studio.main_folder.display_runtime.circle_display.signal_color", signalColorPath);
+        AssertEqual("studio.main_folder.display_runtime.circle_display.progress_bar_color", progressBarColorPath);
+        AssertTrue(HostRegistries.Data.TryResolve(basePath, out var runtimeRoot));
+        AssertTrue(runtimeRoot?.GetDictionary().ContainsKey("signal_color") == true);
+        AssertFalse(runtimeRoot?.GetDictionary().ContainsKey("SignalColor") == true);
+        AssertTrue(HostRegistries.Data.TryResolve(signalColorPath, out var signalColor));
+        AssertEqual("#22C55E", signalColor?.Value);
+        AssertTrue(HostRegistries.Data.TryResolve(progressBarColorPath, out var progressBarColor));
+        AssertEqual("#0EA5E9", progressBarColor?.Value);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(signalColorPath);
+        HostRegistries.Data.Remove(item.GetDisplayRuntimePath("SignalRun"));
+        HostRegistries.Data.Remove(item.GetDisplayRuntimePath("ProgressBar"));
+        HostRegistries.Data.Remove(item.GetDisplayRuntimePath("ProgressState"));
+        HostRegistries.Data.Remove(progressBarColorPath);
+        HostRegistries.Data.Remove(basePath);
+    }
+}
+
+static void CsvLoggerRuntimePathUsesSnakeCaseSegments()
+{
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.CsvLoggerControl,
+        Name = "CsvLogger"
+    };
+
+    item.SetHierarchy(pageName: "Main Folder", parentItem: null);
+
+    AssertEqual("studio.main_folder.logger_runtime.csv_logger", item.GetLoggerRuntimeBasePath());
+    AssertEqual("studio.main_folder.logger_runtime.csv_logger.record", item.GetLoggerRuntimePath("record"));
+    AssertEqual("studio.main_folder.logger_runtime.csv_logger.output_path", item.GetLoggerRuntimePath("OutputPath"));
+    AssertEqual("studio.main_folder.Loggerruntime.csv_logger.output_path", item.GetLoggerLegacyRuntimePath("OutputPath"));
+}
+
+static void SqlLoggerRuntimePathUsesSnakeCaseSegments()
+{
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.SqlLoggerControl,
+        Name = "SqlLogger"
+    };
+
+    item.SetHierarchy(pageName: "Main Folder", parentItem: null);
+
+    AssertEqual("studio.main_folder.logger_runtime.sql_logger", item.GetLoggerRuntimeBasePath());
+    AssertEqual("studio.main_folder.logger_runtime.sql_logger.is_recording", item.GetLoggerRuntimePath("IsRecording"));
+    AssertEqual("studio.main_folder.logger_runtime.sql_logger.last_file", item.GetLoggerRuntimePath("LastFile"));
+    AssertEqual("studio.main_folder.Loggerruntime.sql_logger.last_file", item.GetLoggerLegacyRuntimePath("LastFile"));
+}
+
+static void LogControlOwnedPathUsesFolderIdentity()
+{
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.LogControl,
+        Name = "log_widget"
+    };
+
+    item.SetHierarchy("main_page", parentItem: null);
+
+    AssertEqual("studio.main_page.logs.log_widget", item.GetOwnedProcessLogPath());
+    AssertEqual("studio.main_page.logs.log_widget", item.GetAutoCreatedLogPath());
+}
+
+static void LogControlOwnedDirectoryUsesProjectLogsFolder()
+{
+    var projectRoot = Path.Combine(Path.GetTempPath(), "HornetStudioEditorTests", Guid.NewGuid().ToString("N"));
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.LogControl,
+        Name = "LogWidget"
+    };
+
+    item.SetHierarchy("Main Folder", parentItem: null);
+
+    AssertEqual(Path.Combine(projectRoot, "Logs", "main_folder", "log_widget"), item.GetOwnedProcessLogDirectory(projectRoot));
+}
+
+static void LogControlLegacyValuesDoNotControlOwnedPath()
+{
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.LogControl,
+        Name = "legacy_log_widget",
+        TargetLog = "Logs.legacy_target",
+        AutoCreateLog = false
+    };
+
+    item.SetHierarchy("legacy_page", parentItem: null);
+
+    AssertEqual("studio.legacy_page.logs.legacy_log_widget", item.GetOwnedProcessLogPath());
+    AssertEqual("studio.legacy_page.logs.legacy_log_widget", item.GetAutoCreatedLogPath());
+}
+
+static void LogControlYamlOmitsLegacyLogProperties()
+{
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.LogControl,
+        Name = "log_widget"
+    };
+
+    item.SetHierarchy("main_page", parentItem: null);
+
+    var method = typeof(MainWindowViewModel).GetMethod("BuildYamlControlDefinition", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("BuildYamlControlDefinition was not found.");
+    }
+
+    var definition = (JsonObject?)method.Invoke(null, [item]);
+    AssertTrue(definition is not null);
+    var properties = definition!["Properties"] as JsonObject;
+    if (properties is null)
+    {
+        AssertFalse(definition.ContainsKey("Properties"));
+        return;
+    }
+
+    AssertFalse(properties.ContainsKey("TargetLog"));
+    AssertFalse(properties.ContainsKey("AutoCreateLog"));
+}
+
+static void LogControlDocumentSerializationOmitsLegacyLogProperties()
+{
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.LogControl,
+        Name = "log_widget",
+        TargetLog = "Logs.legacy_target",
+        AutoCreateLog = true
+    };
+
+    item.SetHierarchy("main_page", parentItem: null);
+
+    var method = typeof(MainWindowViewModel).GetMethod("ToDocument", BindingFlags.NonPublic | BindingFlags.Static, null, [typeof(FolderItemModel)], null);
+    if (method is null)
+    {
+        throw new InvalidOperationException("ToDocument was not found.");
+    }
+
+    var document = (FolderItemDocument?)method.Invoke(null, [item]);
+    AssertTrue(document is not null);
+
+    var serialized = JsonSerializer.Serialize(document);
+    AssertFalse(serialized.Contains("TargetLog", StringComparison.Ordinal));
+    AssertFalse(serialized.Contains("AutoCreateLog", StringComparison.Ordinal));
+}
+
+static void LogControlEnsuresOwnedProcessLogPublication()
+{
+    var projectRoot = Path.Combine(Path.GetTempPath(), "HornetStudioEditorTests", Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(Path.Combine(projectRoot, "Folders"));
+    File.WriteAllText(Path.Combine(projectRoot, "Program.cs"), string.Empty);
+
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.LogControl,
+        Name = $"log_widget_{Guid.NewGuid():N}"
+    };
+
+    item.SetHierarchy("runtime_page", parentItem: null);
+    Core.SetOpenedDirectory(projectRoot);
+
+    var ownedPath = item.GetOwnedProcessLogPath();
+    var ownedDirectory = item.GetOwnedProcessLogDirectory(projectRoot);
+    item.EnsureOwnedProcessLog();
+
+    AssertTrue(HostRegistries.Data.TryResolve(ownedPath, out var logItem));
+    AssertTrue(logItem?.Value is HornetStudio.Logging.ProcessLog);
+    AssertEqual(ownedDirectory, ((HornetStudio.Logging.ProcessLog)logItem!.Value!).LogDirectory);
+
+    foreach (var level in new[] { "debug", "info", "warning", "error", "fatal" })
+    {
+        AssertTrue(HostRegistries.Data.TryResolve($"{ownedPath}.{level}", out var inputItem));
+        AssertEqual(true, inputItem?.Properties["writable"].Value);
+    }
+}
+
+static void LoggerRuntimeControlConstantsUseSnakeCase()
+{
+    AssertEqual("record", GetPrivateConstString(typeof(EditorCsvLoggerControl), "RecordItemName"));
+    AssertEqual("output_path", GetPrivateConstString(typeof(EditorCsvLoggerControl), "OutputPathItemName"));
+    AssertEqual("is_recording", GetPrivateConstString(typeof(EditorCsvLoggerControl), "IsRecordingItemName"));
+    AssertEqual("last_file", GetPrivateConstString(typeof(EditorCsvLoggerControl), "LastFileItemName"));
+    AssertEqual("status", GetPrivateConstString(typeof(EditorCsvLoggerControl), "StatusItemName"));
+
+    AssertEqual("record", GetPrivateConstString(typeof(EditorSqlLoggerControl), "RecordItemName"));
+    AssertEqual("output_path", GetPrivateConstString(typeof(EditorSqlLoggerControl), "OutputPathItemName"));
+    AssertEqual("is_recording", GetPrivateConstString(typeof(EditorSqlLoggerControl), "IsRecordingItemName"));
+    AssertEqual("last_file", GetPrivateConstString(typeof(EditorSqlLoggerControl), "LastFileItemName"));
+    AssertEqual("status", GetPrivateConstString(typeof(EditorSqlLoggerControl), "StatusItemName"));
+}
+
+static void SetFolderName(FolderItemModel item, string folderName)
+{
+    var property = typeof(FolderItemModel).GetProperty("FolderName", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+    if (property is null)
+    {
+        throw new InvalidOperationException("FolderName property was not found.");
+    }
+
+    property.SetValue(item, folderName);
 }
 
 static void ItemExposureCodecRoundtrip()
@@ -367,46 +1928,59 @@ static void TargetPropertyProtectedFallbackUsesValue()
     AssertEqual("read", item.TargetPropertyView.Property?.Name);
 }
 
-static void BrokerWidgetModeDefaultsToExternal()
+static void ItemClientModeDefaultsToExternal()
 {
-    var item = new FolderItemModel { Kind = ControlKind.BrokerWidget };
+    var item = new FolderItemModel { Kind = ControlKind.ItemClient };
 
-    AssertEqual(BrokerWidgetModes.External, item.BrokerMode);
+    AssertEqual(ItemClientModes.External, item.BrokerMode);
 }
 
-static void BrokerWidgetModeNormalizesValues()
+static void ItemClientModeNormalizesValues()
 {
-    var item = new FolderItemModel { Kind = ControlKind.BrokerWidget };
+    var item = new FolderItemModel { Kind = ControlKind.ItemClient };
 
     item.BrokerMode = "Own";
-    AssertEqual(BrokerWidgetModes.Own, item.BrokerMode);
+    AssertEqual(ItemClientModes.Own, item.BrokerMode);
 
     item.BrokerMode = "unexpected";
-    AssertEqual(BrokerWidgetModes.External, item.BrokerMode);
+    AssertEqual(ItemClientModes.External, item.BrokerMode);
 }
 
-static void BrokerWidgetLayoutDocumentDefaultsToExternalMode()
+static void ItemClientBaseTopicAllowsEmpty()
+{
+    var item = new FolderItemModel { Kind = ControlKind.ItemClient };
+
+    AssertEqual(string.Empty, item.BrokerBaseTopic);
+
+    item.BrokerBaseTopic = " edm1 ";
+    AssertEqual("edm1", item.BrokerBaseTopic);
+
+    item.BrokerBaseTopic = " ";
+    AssertEqual(string.Empty, item.BrokerBaseTopic);
+}
+
+static void ItemClientLayoutDocumentDefaultsToExternalMode()
 {
     var document = new FolderItemDocument();
 
-    AssertEqual(BrokerWidgetModes.External, document.BrokerMode);
+    AssertEqual(ItemClientModes.External, document.BrokerMode);
 }
 
-static void BrokerWidgetPublishItemsDefaultEmpty()
+static void ItemClientPublishItemsDefaultEmpty()
 {
-    var item = new FolderItemModel { Kind = ControlKind.BrokerWidget };
+    var item = new FolderItemModel { Kind = ControlKind.ItemClient };
 
     AssertEqual(string.Empty, item.BrokerPublishedItemPaths);
 }
 
-static void BrokerWidgetLayoutPublishItemsDefaultEmpty()
+static void ItemClientLayoutPublishItemsDefaultEmpty()
 {
     var document = new FolderItemDocument();
 
     AssertEqual(string.Empty, document.BrokerPublishedItemPaths);
 }
 
-static void BrokerWidgetPublishOptionsUseMetadata()
+static void ItemClientPublishOptionsUseMetadata()
 {
     var publicPath = "studio.metadata_publish.public_signal";
     var customSignalPath = "studio.metadata_publish.custom_signals.signal1";
@@ -430,7 +2004,7 @@ static void BrokerWidgetPublishOptionsUseMetadata()
             throw new InvalidOperationException("GetBrokerPublishItemOptions was not found.");
         }
 
-        var options = ((IEnumerable<string>)method.Invoke(null, [new FolderItemModel { Kind = ControlKind.BrokerWidget }])!).ToArray();
+        var options = ((IEnumerable<string>)method.Invoke(null, [new FolderItemModel { Kind = ControlKind.ItemClient }])!).ToArray();
 
         AssertTrue(options.Contains(publicPath, StringComparer.OrdinalIgnoreCase));
         AssertTrue(options.Contains(customSignalPath, StringComparer.OrdinalIgnoreCase));
@@ -446,10 +2020,10 @@ static void BrokerWidgetPublishOptionsUseMetadata()
     }
 }
 
-static void BrokerWidgetPublishOptionsExcludeBrokerReceivedItems()
+static void ItemClientPublishOptionsExcludeBrokerReceivedItems()
 {
     var localPath = "studio.metadata_publish.local_signal";
-    var receivedPath = "studio.metadata_publish.broker_widget1.mqtt.device.temperature";
+    var receivedPath = "studio.metadata_publish.item_client1.device.temperature";
     HostRegistries.Data.Remove(localPath);
     HostRegistries.Data.Remove(receivedPath);
 
@@ -470,7 +2044,7 @@ static void BrokerWidgetPublishOptionsExcludeBrokerReceivedItems()
             throw new InvalidOperationException("GetBrokerPublishItemOptions was not found.");
         }
 
-        var options = ((IEnumerable<string>)method.Invoke(null, [new FolderItemModel { Kind = ControlKind.BrokerWidget }])!).ToArray();
+        var options = ((IEnumerable<string>)method.Invoke(null, [new FolderItemModel { Kind = ControlKind.ItemClient }])!).ToArray();
 
         AssertTrue(options.Contains(localPath, StringComparer.OrdinalIgnoreCase));
         AssertFalse(options.Contains(receivedPath, StringComparer.OrdinalIgnoreCase));
@@ -482,7 +2056,7 @@ static void BrokerWidgetPublishOptionsExcludeBrokerReceivedItems()
     }
 }
 
-static void BrokerWidgetPublishOptionsDeduplicateLegacyRoots()
+static void ItemClientPublishOptionsDeduplicateLegacyRoots()
 {
     var legacyPath = "project.metadata_publish.deduplicated_signal";
     var canonicalPath = "studio.metadata_publish.deduplicated_signal";
@@ -500,7 +2074,7 @@ static void BrokerWidgetPublishOptionsDeduplicateLegacyRoots()
             throw new InvalidOperationException("GetBrokerPublishItemOptions was not found.");
         }
 
-        var options = ((IEnumerable<string>)method.Invoke(null, [new FolderItemModel { Kind = ControlKind.BrokerWidget }])!)
+        var options = ((IEnumerable<string>)method.Invoke(null, [new FolderItemModel { Kind = ControlKind.ItemClient }])!)
             .Where(path => path.EndsWith(".metadata_publish.deduplicated_signal", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
@@ -516,8 +2090,8 @@ static void BrokerWidgetPublishOptionsDeduplicateLegacyRoots()
 
 static void ItemTreeVisibilityUsesDisplayMetadata()
 {
-    var internalPath = "studio.registry_visibility.broker_widget1.status.attach_options.broker_widget1.mqtt.edm1.temperature";
-    var receivedPath = "studio.registry_visibility.broker_widget1.mqtt.edm1.temperature";
+    var internalPath = "studio.registry_visibility.item_client1.status.attach_options.item_client1.edm1.temperature";
+    var receivedPath = "studio.registry_visibility.item_client1.edm1.temperature";
     HostRegistries.Data.Remove(internalPath);
     HostRegistries.Data.Remove(receivedPath);
 
@@ -547,7 +2121,7 @@ static void ItemTreeVisibilityUsesDisplayMetadata()
 
 static void BrokerAttachOptionsUseInternalDiscovery()
 {
-    var attachOptionPath = "studio.registry_visibility.broker_widget1.status.attach_options.broker_widget1.mqtt.edm1.temperature";
+    var attachOptionPath = "studio.registry_visibility.item_client1.status.attach_options.item_client1.edm1.temperature";
     HostRegistries.Data.Remove(attachOptionPath);
 
     try
@@ -562,14 +2136,14 @@ static void BrokerAttachOptionsUseInternalDiscovery()
 
         var item = new FolderItemModel
         {
-            Kind = ControlKind.BrokerWidget,
-            Name = "BrokerWidget1"
+            Kind = ControlKind.ItemClient,
+            Name = "ItemClient1"
         };
         item.SetHierarchy("RegistryVisibility", parentItem: null);
 
         var options = ((IEnumerable<string>)method.Invoke(null, [item])!).ToArray();
 
-        AssertTrue(options.Contains("broker_widget1.mqtt.edm1.temperature", StringComparer.OrdinalIgnoreCase));
+        AssertTrue(options.Contains("item_client1.edm1.temperature", StringComparer.OrdinalIgnoreCase));
     }
     finally
     {
@@ -577,11 +2151,11 @@ static void BrokerAttachOptionsUseInternalDiscovery()
     }
 }
 
-static void BrokerWidgetPublishItemsRendersFlatAttachRows()
+static void ItemClientPublishItemsRendersFlatAttachRows()
 {
     var item = new FolderItemModel
     {
-        Kind = ControlKind.BrokerWidget,
+        Kind = ControlKind.ItemClient,
         BrokerPublishedItemPaths = "studio.default_layout.Edm1.Pressure"
     };
     var definition = new EditorDialogBindingDefinition(
@@ -605,9 +2179,89 @@ static void BrokerWidgetPublishItemsRendersFlatAttachRows()
     AssertEqual(false, field.AttachItemEntries[1].IsAttached);
 }
 
-static void BrokerWidgetReceivedPathUsesMqttBranch()
+static void ItemClientAttachedBodyRowHidesWidgetPrefix()
 {
-    var method = typeof(BrokerClientControl).GetMethod("BuildReceivedMqttRuntimePath", BindingFlags.NonPublic | BindingFlags.Static);
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.ItemClient,
+        Name = "item_client_1"
+    };
+
+    var row = new BrokerAttachedItemRow(
+        ownerItem: item,
+        itemPath: "item_client_1.edm1.pressure",
+        displayName: "pressure",
+        summaryText: "Live broker item.",
+        alertText: string.Empty,
+        isLive: true);
+
+    AssertEqual("item_client_1.edm1.pressure", row.ItemPath);
+    AssertEqual("edm1.pressure", row.PathText);
+}
+
+static void ItemClientPublishedBodyRowHidesStudioFolderPrefix()
+{
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.ItemClient,
+        Name = "item_client_1"
+    };
+    item.SetHierarchy("main", parentItem: null);
+
+    var row = new BrokerPublishedRootRow(
+        ownerItem: item,
+        localRootPath: "studio.main.enhanced_signals.filtered_1",
+        displayName: "filtered_1",
+        summaryText: "1 active entry.",
+        alertText: string.Empty,
+        hasActiveEntries: true,
+        exists: true);
+
+    AssertEqual("studio.main.enhanced_signals.filtered_1", row.LocalRootPath);
+    AssertEqual("enhanced_signals.filtered_1", row.PathText);
+}
+
+static void ItemClientPublishedDialogShowsRootRowAndHidesFolderPrefix()
+{
+    var rootPath = "studio.main.enhanced_signals.filtered_1";
+    var childPath = "studio.main.enhanced_signals.filtered_1.command";
+    var definitions = new BrokerPublishedItemDefinition[]
+    {
+        new()
+        {
+            LocalRootPath = rootPath,
+            LocalPath = rootPath,
+            BrokerPath = rootPath,
+            Active = true
+        },
+        new()
+        {
+            LocalRootPath = rootPath,
+            LocalPath = childPath,
+            BrokerPath = childPath,
+            Active = true
+        }
+    };
+
+    var viewModelType = typeof(PublishedItemDialogWindow).GetNestedType("DialogViewModel", BindingFlags.NonPublic);
+    var method = viewModelType?.GetMethod("BuildRows", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("PublishedItemDialogWindow.DialogViewModel.BuildRows was not found.");
+    }
+
+    var rows = ((IEnumerable<PublishedItemEditorRow>)method.Invoke(null, [definitions, rootPath])!).ToArray();
+
+    AssertEqual(2, rows.Length);
+    AssertEqual(rootPath, rows[0].LocalPath);
+    AssertEqual("enhanced_signals.filtered_1", rows[0].DisplayName);
+    AssertEqual(childPath, rows[1].LocalPath);
+    AssertEqual("enhanced_signals.filtered_1.command", rows[1].DisplayName);
+}
+
+static void ItemClientReceivedPathUsesFlatWidgetBranch()
+{
+    var method = typeof(ItemClientControl).GetMethod("BuildReceivedMqttRuntimePath", BindingFlags.NonPublic | BindingFlags.Static);
     if (method is null)
     {
         throw new InvalidOperationException("BuildReceivedMqttRuntimePath was not found.");
@@ -615,21 +2269,21 @@ static void BrokerWidgetReceivedPathUsesMqttBranch()
 
     var item = new FolderItemModel
     {
-        Kind = ControlKind.BrokerWidget,
-        Name = "BrokerWidget1"
+        Kind = ControlKind.ItemClient,
+        Name = "ItemClient1"
     };
     item.SetHierarchy("default_layout", parentItem: null);
 
     var path = (string)method.Invoke(null, [item, "shared", "Edm1.Pressure"])!;
 
-    AssertEqual("studio.default_layout.broker_widget1.mqtt.edm1.pressure", path);
+    AssertEqual("studio.default_layout.item_client1.edm1.pressure", path);
     AssertFalse(path.Contains("shared", StringComparison.OrdinalIgnoreCase));
     AssertFalse(path.Contains("Status.AttachOptions", StringComparison.OrdinalIgnoreCase));
 }
 
-static void BrokerWidgetReceivedPathCollapsesNestedMqttIdentity()
+static void ItemClientReceivedPathCollapsesNestedMqttIdentity()
 {
-    var method = typeof(BrokerClientControl).GetMethod("BuildReceivedMqttRuntimePath", BindingFlags.NonPublic | BindingFlags.Static);
+    var method = typeof(ItemClientControl).GetMethod("BuildReceivedMqttRuntimePath", BindingFlags.NonPublic | BindingFlags.Static);
     if (method is null)
     {
         throw new InvalidOperationException("BuildReceivedMqttRuntimePath was not found.");
@@ -637,29 +2291,81 @@ static void BrokerWidgetReceivedPathCollapsesNestedMqttIdentity()
 
     var item = new FolderItemModel
     {
-        Kind = ControlKind.BrokerWidget,
-        Name = "BrokerWidget1"
+        Kind = ControlKind.ItemClient,
+        Name = "ItemClient1"
     };
     item.SetHierarchy("default_layout", parentItem: null);
 
-    var path = (string)method.Invoke(null, [item, "Edm1.Pressure", "broker_widget1.mqtt.edm1.pressure"])!;
+    var path = (string)method.Invoke(null, [item, "Edm1.Pressure", "item_client1.edm1.pressure"])!;
 
-    AssertEqual("studio.default_layout.broker_widget1.mqtt.edm1.pressure", path);
-    AssertFalse(path.Contains("Edm1.Pressure.BrokerWidget1", StringComparison.OrdinalIgnoreCase));
+    AssertEqual("studio.default_layout.item_client1.edm1.pressure", path);
+    AssertFalse(path.Contains("Edm1.Pressure.ItemClient1", StringComparison.OrdinalIgnoreCase));
 }
 
-static void BrokerWidgetAttachIdentityCollapsesNestedMqttIdentity()
+static void ItemClientAttachIdentityCollapsesNestedMqttIdentity()
 {
-    var method = typeof(BrokerClientControl).GetMethod("BuildBrokerAttachIdentity", BindingFlags.NonPublic | BindingFlags.Static);
+    var method = typeof(ItemClientControl).GetMethod("BuildBrokerAttachIdentity", BindingFlags.NonPublic | BindingFlags.Static);
     if (method is null)
     {
         throw new InvalidOperationException("BuildBrokerAttachIdentity was not found.");
     }
 
-    var path = (string)method.Invoke(null, ["broker_widget1", "Edm1.Pressure", "broker_widget1.mqtt.edm1.pressure"])!;
+    var path = (string)method.Invoke(null, ["item_client1", string.Empty, "Edm1.Pressure", "item_client1.edm1.pressure"])!;
 
-    AssertEqual("broker_widget1.mqtt.edm1.pressure", path);
-    AssertFalse(path.Contains("Edm1.Pressure.BrokerWidget1", StringComparison.OrdinalIgnoreCase));
+    AssertEqual("item_client1.edm1.pressure", path);
+    AssertFalse(path.Contains("Edm1.Pressure.ItemClient1", StringComparison.OrdinalIgnoreCase));
+}
+
+static void ItemClientAttachIdentityIncludesBaseTopic()
+{
+    var method = typeof(ItemClientControl).GetMethod("BuildBrokerAttachIdentity", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("BuildBrokerAttachIdentity was not found.");
+    }
+
+    var path = (string)method.Invoke(null, ["item_client1", "edm1", "shared", "pressure"])!;
+
+    AssertEqual("item_client1.edm1.pressure", path);
+}
+
+static void ItemClientAttachOptionsUseItemValues()
+{
+    var method = typeof(ItemClientControl).GetMethod(
+        "EnumerateAttachOptions",
+        BindingFlags.Static | BindingFlags.NonPublic,
+        types: [typeof(string), typeof(string), typeof(IReadOnlyDictionary<string, ItemModel>)]);
+    if (method is null)
+    {
+        throw new InvalidOperationException("Broker attach option helper was not found.");
+    }
+
+    var root = new ItemModel("shared", path: "runtime.item_broker.item_client1");
+    root["edm1"] = new ItemModel("edm1", path: root.Path);
+    root["edm1"]["pressure"] = ItemExtension.CreateWithPath("runtime.item_broker.item_client1.shared.edm1.pressure", 12.5f);
+
+    var snapshots = new Dictionary<string, ItemModel>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["shared"] = root,
+    };
+
+    var options = ((IEnumerable<string>)method.Invoke(null, ["item_client1", string.Empty, snapshots])!).ToArray();
+
+    AssertTrue(options.Contains("item_client1.edm1.pressure", StringComparer.OrdinalIgnoreCase));
+}
+
+static void ItemClientAttachOptionPathSplitsDottedIdentity()
+{
+    var method = typeof(ItemClientControl).GetMethod("BuildAttachOptionPath", BindingFlags.Static | BindingFlags.NonPublic);
+    if (method is null)
+    {
+        throw new InvalidOperationException("BuildAttachOptionPath was not found.");
+    }
+
+    var path = (string)method.Invoke(null, ["studio.registry_visibility.item_client1.status.attach_options", "item_client1.pressure"])!;
+
+    AssertEqual("studio.registry_visibility.item_client1.status.attach_options.item_client1.pressure", path);
+    _ = ItemExtension.CreateWithPath(path);
 }
 
 static void BrokerAttachNormalizationStripsPrefixBeforeMqttIdentity()
@@ -676,24 +2382,24 @@ static void BrokerAttachNormalizationStripsPrefixBeforeMqttIdentity()
         throw new InvalidOperationException("ToBrokerReceivedAttachIdentity was not found.");
     }
 
-    AssertEqual("broker_widget1.mqtt.edm1.pressure", method.Invoke(null, ["Edm1.Pressure.BrokerWidget1.Mqtt.Edm1.Pressure"]));
-    AssertEqual("broker_widget1.mqtt.edm1.pressure", method.Invoke(null, ["studio.Folder1.BrokerWidget1.Mqtt.Edm1.Pressure"]));
+    AssertEqual("item_client1.edm1.pressure", method.Invoke(null, ["Edm1.Pressure.ItemClient1.Mqtt.Edm1.Pressure"]));
+    AssertEqual("item_client1.edm1.pressure", method.Invoke(null, ["studio.Folder1.ItemClient1.Mqtt.Edm1.Pressure"]));
 }
 
-static void BrokerWidgetAttachSelectionNormalizesLegacySharedPath()
+static void ItemClientAttachSelectionNormalizesLegacySharedPath()
 {
-    var item = new FolderItemModel { Kind = ControlKind.BrokerWidget };
+    var item = new FolderItemModel { Kind = ControlKind.ItemClient };
     var definition = new EditorDialogBindingDefinition(
         "BrokerAttachedItemPaths",
         "AttachToUi",
         EditorPropertyType.AttachItemList,
-        _ => "runtime.item_broker.BrokerWidget1.shared.Edm1.Pressure",
-        optionsFactory: _ => ["broker_widget1.mqtt.edm1.pressure"]);
+        _ => "runtime.item_broker.ItemClient1.shared.Edm1.Pressure",
+        optionsFactory: _ => ["item_client1.edm1.pressure"]);
 
     var field = definition.CreateField(item);
 
     AssertEqual(1, field.AttachItemEntries.Count);
-    AssertEqual("broker_widget1.mqtt.edm1.pressure", field.AttachItemEntries[0].RelativePath);
+    AssertEqual("item_client1.edm1.pressure", field.AttachItemEntries[0].RelativePath);
     AssertEqual(true, field.AttachItemEntries[0].IsAttached);
     AssertEqual(false, field.AttachItemEntries[0].IsMissing);
 }
@@ -1101,11 +2807,11 @@ static void BrokerPublishedItemChangeMatcherScopesChanges()
         childDefinition,
         new DataChangedEventArgs("studio.default_layout.edm1.pressure", rootItem["pressure"], DataChangeKind.ValueUpdated),
         Resolve));
-    AssertTrue(BrokerPublishedItemChangeMatcher.ShouldPublish(
+    AssertFalse(BrokerPublishedItemChangeMatcher.ShouldPublish(
         rootDefinition,
         new DataChangedEventArgs("studio.default_layout.edm1.pressure", rootItem["pressure"], DataChangeKind.ValueUpdated),
         Resolve));
-    AssertTrue(BrokerPublishedItemChangeMatcher.ShouldPublish(
+    AssertFalse(BrokerPublishedItemChangeMatcher.ShouldPublish(
         childDefinition,
         new DataChangedEventArgs("studio.default_layout.edm1", rootItem, DataChangeKind.SnapshotUpserted),
         Resolve));
@@ -1127,7 +2833,7 @@ static void BrokerPublisherSendsValueUpdateForUnregisteredValueChange()
 
     var widget = new FolderItemModel
     {
-        Kind = ControlKind.BrokerWidget,
+        Kind = ControlKind.ItemClient,
         Name = "BrokerPublisher",
         BrokerPublishedItemPaths = BrokerPublishedItemDefinitionCodec.SerializeDefinitions(
         [
@@ -1153,6 +2859,200 @@ static void BrokerPublisherSendsValueUpdateForUnregisteredValueChange()
     AssertEqual(1, client.ValueUpdates.Count);
     AssertEqual(brokerPath, client.ValueUpdates[0].Path);
     AssertEqual(42, client.ValueUpdates[0].Value);
+}
+
+static void BrokerPublisherSendsRepeatedWritePropertyCommand()
+{
+    var localPath = "studio.default_layout.enhanced_signals.filtered_1.set";
+    var brokerPath = "studio.default_layout.enhanced_signals.filtered_1.set";
+    var target = ItemExtension.CreateWithPath(localPath, 10d);
+    target.Properties["writable"].Value = true;
+    target.Properties["write"].Value = 1000000d;
+    HostRegistries.Data.UpsertSnapshot(localPath, target);
+
+    try
+    {
+        var widget = new FolderItemModel
+        {
+            Kind = ControlKind.ItemClient,
+            Name = "BrokerPublisher",
+            BrokerPublishedItemPaths = BrokerPublishedItemDefinitionCodec.SerializeDefinitions(
+            [
+                new BrokerPublishedItemDefinition
+                {
+                    LocalRootPath = localPath,
+                    LocalPath = localPath,
+                    BrokerPath = brokerPath,
+                    PublishMode = BrokerPublishedItemPublishModes.OnChanged,
+                    Active = true,
+                    Writable = true,
+                }
+            ])
+        };
+
+        var signal = new FolderItemModel
+        {
+            Kind = ControlKind.Signal,
+            Name = "Signal2Set",
+            TargetPath = localPath,
+        };
+
+        var client = new FakeHostItemBrokerClient();
+        using var publisher = CreateBrokerPublisher(widget, client);
+        StartBrokerPublisher(publisher, publishInitialSnapshots: false);
+
+        AssertTrue(signal.TryUpdateTargetPropertyValue(1000000d, out var error));
+        AssertEqual(string.Empty, error);
+
+        AssertEqual(0, client.PublishedSnapshots.Count);
+        AssertEqual(0, client.ValueUpdates.Count);
+        AssertEqual(1, client.ParameterUpdates.Count);
+        AssertEqual(brokerPath, client.ParameterUpdates[0].ItemModel.Path);
+        AssertEqual("write", client.ParameterUpdates[0].ParameterName);
+        AssertEqual(1000000d, client.ParameterUpdates[0].ItemModel.Properties["write"].Value);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(localPath);
+    }
+}
+
+static void BrokerPublisherRecordsLocalHostWriteStateForWritableValueChanges()
+{
+    var localPath = "runtime.broker_publish.local_write_state";
+    var brokerPath = "studio.runtime.broker_publish.local_write_state";
+    HostRegistries.Data.UpsertSnapshot(localPath, ItemExtension.CreateWithPath(localPath, 1));
+
+    try
+    {
+        var ownerItem = new FolderItemModel
+        {
+            BrokerPublishedItemPaths = BrokerPublishedItemDefinitionCodec.SerializeDefinitions(
+            [
+                new BrokerPublishedItemDefinition
+                {
+                    LocalRootPath = localPath,
+                    LocalPath = localPath,
+                    BrokerPath = brokerPath,
+                    Active = true,
+                    Writable = true,
+                    PublishMode = BrokerPublishedItemPublishModes.OnChanged,
+                }
+            ])
+        };
+
+        var recordedWrites = new List<string>();
+        var client = new FakeHostItemBrokerClient();
+        using var publisher = CreateBrokerPublisher(
+            ownerItem,
+            client,
+            recordLocalHostWriteState: (targetPath, parameterName, value) => recordedWrites.Add($"{targetPath}|{parameterName}|{value}"));
+
+        StartBrokerPublisher(publisher, publishInitialSnapshots: false);
+        HostRegistries.Data.UpdateValue(localPath, 42);
+
+        AssertEqual(1, recordedWrites.Count);
+        AssertEqual($"{localPath}|read|42", recordedWrites[0]);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(localPath);
+    }
+}
+
+static void BrokerPublisherOmitsWritePropertiesFromRetainedSnapshots()
+{
+    var localPath = "runtime.broker_publisher.write_snapshot";
+    var brokerPath = "studio.folder1.write_snapshot";
+    var item = ItemExtension.CreateWithPath(localPath, 1);
+    item.Properties["unit"].Value = "bar";
+    item.Properties["write"].Value = 10;
+    item.AddItem("child");
+    item["child"].Value = 2;
+    item["child"].Properties["unit"].Value = "deg_c";
+    item["child"].Properties["write"].Value = 20;
+    HostRegistries.Data.UpsertSnapshot(localPath, item);
+
+    try
+    {
+        var widget = new FolderItemModel
+        {
+            Kind = ControlKind.ItemClient,
+            Name = "BrokerPublisher",
+            BrokerPublishedItemPaths = BrokerPublishedItemDefinitionCodec.SerializeDefinitions(
+            [
+                new BrokerPublishedItemDefinition
+                {
+                    LocalRootPath = localPath,
+                    LocalPath = localPath,
+                    BrokerPath = brokerPath,
+                    PublishMode = BrokerPublishedItemPublishModes.OnChanged,
+                    Active = true,
+                    Writable = true,
+                }
+            ])
+        };
+
+        var client = new FakeHostItemBrokerClient();
+        using var publisher = CreateBrokerPublisher(widget, client);
+        StartBrokerPublisher(publisher, publishInitialSnapshots: true);
+
+        AssertEqual(1, client.PublishedSnapshots.Count);
+        AssertEqual(brokerPath, client.PublishedSnapshots[0].Path);
+        AssertTrue(client.PublishedSnapshots[0].Properties.Has("unit"));
+        AssertFalse(client.PublishedSnapshots[0].Properties.Has("write"));
+        AssertFalse(client.PublishedSnapshots[0].GetDictionary().ContainsKey("child"));
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(localPath);
+    }
+}
+
+static void BrokerPublisherSkipsChildItemsAndNonMqttSnapshotProperties()
+{
+    var localPath = "runtime.broker_publisher.invalid_property_snapshot";
+    var brokerPath = "studio.folder1.invalid_property_snapshot";
+    var item = ItemExtension.CreateWithPath(localPath, 1);
+    item.Properties["valid_property"].Value = "ok";
+    item.Properties["InvalidProperty"].Value = "skip";
+    item.AddItem("child");
+    item["child"].Properties["child_property"].Value = "ok";
+    item["child"].Properties["ChildProperty"].Value = "skip";
+    HostRegistries.Data.UpsertSnapshot(localPath, item);
+
+    try
+    {
+        var widget = new FolderItemModel
+        {
+            Kind = ControlKind.ItemClient,
+            Name = "BrokerPublisher",
+            BrokerPublishedItemPaths = BrokerPublishedItemDefinitionCodec.SerializeDefinitions(
+            [
+                new BrokerPublishedItemDefinition
+                {
+                    LocalRootPath = localPath,
+                    LocalPath = localPath,
+                    BrokerPath = brokerPath,
+                    PublishMode = BrokerPublishedItemPublishModes.OnChanged,
+                    Active = true,
+                }
+            ])
+        };
+
+        var client = new FakeHostItemBrokerClient();
+        using var publisher = CreateBrokerPublisher(widget, client);
+        StartBrokerPublisher(publisher, publishInitialSnapshots: true);
+
+        AssertEqual(1, client.PublishedSnapshots.Count);
+        AssertTrue(client.PublishedSnapshots[0].Properties.Has("valid_property"));
+        AssertFalse(client.PublishedSnapshots[0].Properties.Has("InvalidProperty"));
+        AssertFalse(client.PublishedSnapshots[0].GetDictionary().ContainsKey("child"));
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(localPath);
+    }
 }
 
 static void SignalWriteEmitsRegistryValueUpdate()
@@ -1264,6 +3164,246 @@ static void BrokerWriteBackUpdatesWritableValue()
     AssertEqual(42, resolved?.Value);
 }
 
+static void BrokerWriteBackAppliesWriteRequests()
+{
+    var localPath = "runtime.broker_write_back.write_request";
+    var brokerPath = "studio.runtime.broker_write_back.write_request";
+    var item = ItemExtension.CreateWithPath(localPath, 1);
+    item.Properties["write"].Value = 1;
+    HostRegistries.Data.UpsertSnapshot(localPath, item);
+
+    var client = new FakeHostItemBrokerClient();
+    using var writeBack = CreateWriteBackClient(client, localPath, brokerPath, active: true, writable: true);
+    writeBack.StartAsync().GetAwaiter().GetResult();
+
+    client.PublishToSubscription(new ItemWriteRequestMessage(brokerPath, "write", 23, null, "external-client", null, DateTimeOffset.UtcNow));
+
+    AssertTrue(HostRegistries.Data.TryResolve(localPath, out var resolved));
+    AssertEqual(1, resolved?.Value);
+    AssertEqual(23, resolved?.Properties["write"].Value);
+}
+
+static void BrokerWriteBackIgnoresOwnWriteRequestEchoOnce()
+{
+    var localPath = "runtime.broker_write_back.own_write_echo";
+    var brokerPath = "studio.runtime.broker_write_back.own_write_echo";
+    var item = ItemExtension.CreateWithPath(localPath, 1);
+    item.Properties["write"].Value = 10;
+    HostRegistries.Data.UpsertSnapshot(localPath, item);
+    var writeUpdateCount = 0;
+
+    try
+    {
+        var client = new FakeHostItemBrokerClient();
+        var pendingOwnEchoes = 1;
+        using var writeBack = new HostItemBrokerWriteBackClient(
+            client,
+            [
+                new BrokerPublishedItemDefinition
+                {
+                    LocalRootPath = localPath,
+                    LocalPath = localPath,
+                    BrokerPath = brokerPath,
+                    Active = true,
+                    Writable = true,
+                }
+            ],
+            (path, parameter, value) =>
+            {
+                if (pendingOwnEchoes <= 0
+                    || !string.Equals(path, brokerPath, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(parameter, "write", StringComparison.OrdinalIgnoreCase)
+                    || !Equals(value, 10))
+                {
+                    return false;
+                }
+
+                pendingOwnEchoes--;
+                return true;
+            });
+        writeBack.StartAsync().GetAwaiter().GetResult();
+
+        HostRegistries.Data.ItemChanged += OnItemChanged;
+        try
+        {
+            client.PublishToSubscription(new ItemWriteRequestMessage(brokerPath, "write", 10, null, null, null, DateTimeOffset.UtcNow));
+            AssertEqual(0, writeUpdateCount);
+
+            client.PublishToSubscription(new ItemWriteRequestMessage(brokerPath, "write", 10, null, null, null, DateTimeOffset.UtcNow));
+            AssertEqual(1, writeUpdateCount);
+        }
+        finally
+        {
+            HostRegistries.Data.ItemChanged -= OnItemChanged;
+        }
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(localPath);
+    }
+
+    void OnItemChanged(object? sender, DataChangedEventArgs e)
+    {
+        if (e.ChangeKind == DataChangeKind.PropertyUpdated
+            && string.Equals(e.Key, localPath, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(e.ParameterName, "write", StringComparison.OrdinalIgnoreCase))
+        {
+            writeUpdateCount++;
+        }
+    }
+}
+
+static void BrokerWriteBackNotifiesRepeatedWriteRequests()
+{
+    var localPath = "runtime.broker_write_back.repeated_write_request";
+    var brokerPath = "studio.runtime.broker_write_back.repeated_write_request";
+    var item = ItemExtension.CreateWithPath(localPath, 1);
+    item.Properties["write"].Value = 10;
+    HostRegistries.Data.UpsertSnapshot(localPath, item);
+
+    var client = new FakeHostItemBrokerClient();
+    using var writeBack = CreateWriteBackClient(client, localPath, brokerPath, active: true, writable: true);
+    writeBack.StartAsync().GetAwaiter().GetResult();
+
+    var writeUpdateCount = 0;
+    HostRegistries.Data.ItemChanged += OnItemChanged;
+    try
+    {
+        client.PublishToSubscription(new ItemWriteRequestMessage(brokerPath, "write", 10, null, "external-client", null, DateTimeOffset.UtcNow));
+        client.PublishToSubscription(new ItemWriteRequestMessage(brokerPath, "write", 10, null, "external-client", null, DateTimeOffset.UtcNow));
+
+        AssertTrue(HostRegistries.Data.TryResolve(localPath, out var resolved));
+        AssertEqual(10, resolved?.Properties["write"].Value);
+        AssertEqual(2, writeUpdateCount);
+    }
+    finally
+    {
+        HostRegistries.Data.ItemChanged -= OnItemChanged;
+        HostRegistries.Data.Remove(localPath);
+    }
+
+    void OnItemChanged(object? sender, DataChangedEventArgs e)
+    {
+        if (e.ChangeKind == DataChangeKind.PropertyUpdated
+            && string.Equals(e.Key, localPath, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(e.ParameterName, "write", StringComparison.OrdinalIgnoreCase))
+        {
+            writeUpdateCount++;
+        }
+    }
+}
+
+static void BrokerWriteBackIgnoresPropertyStyleWriteState()
+{
+    var localPath = "runtime.broker_write_back.write_property_state";
+    var brokerPath = "studio.runtime.broker_write_back.write_property_state";
+    var item = ItemExtension.CreateWithPath(localPath, 1);
+    item.Properties["write"].Value = 1;
+    HostRegistries.Data.UpsertSnapshot(localPath, item);
+
+    try
+    {
+        var client = new FakeHostItemBrokerClient();
+        using var writeBack = CreateWriteBackClient(client, localPath, brokerPath, active: true, writable: true);
+        writeBack.StartAsync().GetAwaiter().GetResult();
+
+        client.PublishToSubscription(new ItemPropertyChangedMessage(brokerPath, "write", 1000, "external-client", null, DateTimeOffset.UtcNow));
+
+        AssertTrue(HostRegistries.Data.TryResolve(localPath, out var resolved));
+        AssertEqual(1, resolved?.Properties["write"].Value);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(localPath);
+    }
+}
+
+static void BrokerWriteBackIgnoresStaleReadAfterRecentLocalHostWrite()
+{
+    var localPath = "runtime.broker_write_back.host_priority";
+    var brokerPath = "studio.runtime.broker_write_back.host_priority";
+    HostRegistries.Data.UpsertSnapshot(localPath, ItemExtension.CreateWithPath(localPath, 42));
+
+    try
+    {
+        var tracker = CreateLocalHostWriteTracker();
+        RecordLocalHostWrite(tracker, localPath, "read", 42);
+
+        var client = new FakeHostItemBrokerClient();
+        using var writeBack = CreateWriteBackClient(
+            client,
+            localPath,
+            brokerPath,
+            active: true,
+            writable: true,
+            hasRecentLocalHostWriteConflict: (targetPath, parameterName, value) => HasRecentLocalHostWriteConflict(tracker, targetPath, parameterName, value));
+        writeBack.StartAsync().GetAwaiter().GetResult();
+
+        client.PublishToSubscription(new ItemValueChangedMessage(brokerPath, 5, "external-client", null, DateTimeOffset.UtcNow));
+
+        AssertTrue(HostRegistries.Data.TryResolve(localPath, out var resolved));
+        AssertEqual(42, resolved?.Value);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(localPath);
+    }
+}
+
+static void BrokerWriteBackAppliesUncachedSourceWriteRequests()
+{
+    var localPath = "runtime.broker_write_back.write_request_uncached_source";
+    var brokerPath = "studio.runtime.broker_write_back.write_request_uncached_source";
+    var item = ItemExtension.CreateWithPath(localPath, 1);
+    item.Properties["write"].Value = 1;
+    HostRegistries.Data.UpsertSnapshot(localPath, item);
+
+    var client = new FakeHostItemBrokerClient();
+    using var writeBack = CreateWriteBackClient(client, localPath, brokerPath, active: true, writable: true);
+    writeBack.StartAsync().GetAwaiter().GetResult();
+
+    client.PublishToSubscription(new ItemPropertyChangedMessage(brokerPath, "write", 10, null, null, DateTimeOffset.UtcNow));
+    HostRegistries.Data.UpdateProperty(localPath, "write", 1);
+    client.PublishToSubscription(new ItemWriteRequestMessage(brokerPath, "write", 10, null, null, null, DateTimeOffset.UtcNow));
+
+    AssertTrue(HostRegistries.Data.TryResolve(localPath, out var resolved));
+    AssertEqual(10, resolved?.Properties["write"].Value);
+}
+
+static void BrokerWriteBackKeepsExternalWriteRequestsEnabledAfterRecentLocalHostWrite()
+{
+    var localPath = "runtime.broker_write_back.host_priority_write_request";
+    var brokerPath = "studio.runtime.broker_write_back.host_priority_write_request";
+    var item = ItemExtension.CreateWithPath(localPath, 42);
+    item.Properties["write"].Value = 42;
+    HostRegistries.Data.UpsertSnapshot(localPath, item);
+
+    try
+    {
+        var tracker = CreateLocalHostWriteTracker();
+        RecordLocalHostWrite(tracker, localPath, "write", 42);
+
+        var client = new FakeHostItemBrokerClient();
+        using var writeBack = CreateWriteBackClient(
+            client,
+            localPath,
+            brokerPath,
+            active: true,
+            writable: true,
+            hasRecentLocalHostWriteConflict: (targetPath, parameterName, value) => HasRecentLocalHostWriteConflict(tracker, targetPath, parameterName, value));
+        writeBack.StartAsync().GetAwaiter().GetResult();
+
+        client.PublishToSubscription(new ItemWriteRequestMessage(brokerPath, "write", 23, null, "external-client", null, DateTimeOffset.UtcNow));
+
+        AssertTrue(HostRegistries.Data.TryResolve(localPath, out var resolved));
+        AssertEqual(23, resolved?.Properties["write"].Value);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(localPath);
+    }
+}
+
 static void BrokerWriteBackNormalizesLegacyRequestMode()
 {
     var localPath = "runtime.broker_write_back.request_value";
@@ -1361,7 +3501,8 @@ static HostItemBrokerWriteBackClient CreateWriteBackClient(
     string localPath,
     string brokerPath,
     bool active,
-    bool writable)
+    bool writable,
+    Func<string, string, object?, bool>? hasRecentLocalHostWriteConflict = null)
     => new(client,
     [
         new BrokerPublishedItemDefinition
@@ -1372,20 +3513,61 @@ static HostItemBrokerWriteBackClient CreateWriteBackClient(
             Active = active,
             Writable = writable,
         }
-    ]);
+    ],
+    tryConsumeOwnWriteEcho: null,
+    hasRecentLocalHostWriteConflict: hasRecentLocalHostWriteConflict);
 
-static IDisposable CreateBrokerPublisher(FolderItemModel item, IHostItemBrokerClient client)
+static IDisposable CreateBrokerPublisher(
+    FolderItemModel item,
+    IHostItemBrokerClient client,
+    Action<string, string, object?>? recordOwnWriteCommand = null,
+    Action<string, string, object?>? recordLocalHostWriteState = null)
 {
-    var publisherType = typeof(BrokerClientControl).GetNestedType("HostItemBrokerPublisher", BindingFlags.NonPublic)
+    var publisherType = typeof(ItemClientControl).GetNestedType("HostItemBrokerPublisher", BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("Broker publisher type was not found.");
     var constructor = publisherType.GetConstructor(
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
         binder: null,
-        types: [typeof(FolderItemModel), typeof(IHostItemBrokerClient)],
+        types: [typeof(FolderItemModel), typeof(IHostItemBrokerClient), typeof(Action<string, string, object?>), typeof(Action<string, string, object?>)],
+        modifiers: null)
+        ?? publisherType.GetConstructor(
+        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+        binder: null,
+        types: [typeof(FolderItemModel), typeof(IHostItemBrokerClient), typeof(Action<string, string, object?>)],
         modifiers: null)
         ?? throw new InvalidOperationException("Broker publisher constructor was not found.");
 
-    return (IDisposable)constructor.Invoke([item, client]);
+    object?[] parameters = constructor.GetParameters().Length == 4
+        ? [item, client, recordOwnWriteCommand ?? NoopRecordOwnWriteCommand, recordLocalHostWriteState ?? NoopRecordOwnWriteCommand]
+        : [item, client, recordOwnWriteCommand ?? NoopRecordOwnWriteCommand];
+    return (IDisposable)constructor.Invoke(parameters);
+}
+
+static void NoopRecordOwnWriteCommand(string brokerPath, string parameterName, object? value)
+{
+}
+
+static object CreateLocalHostWriteTracker()
+{
+    var trackerType = typeof(ItemClientControl).GetNestedType("LocalHostWriteTracker", BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("LocalHostWriteTracker type was not found.");
+    return Activator.CreateInstance(trackerType)
+        ?? throw new InvalidOperationException("LocalHostWriteTracker could not be created.");
+}
+
+static void RecordLocalHostWrite(object tracker, string targetPath, string parameterName, object? value)
+{
+    var method = tracker.GetType().GetMethod("Record", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("LocalHostWriteTracker.Record was not found.");
+    method.Invoke(tracker, [targetPath, parameterName, value]);
+}
+
+static bool HasRecentLocalHostWriteConflict(object tracker, string targetPath, string parameterName, object? value)
+{
+    var method = tracker.GetType().GetMethod("HasRecentConflict", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("LocalHostWriteTracker.HasRecentConflict was not found.");
+    return (bool)(method.Invoke(tracker, [targetPath, parameterName, value])
+        ?? throw new InvalidOperationException("LocalHostWriteTracker.HasRecentConflict returned null."));
 }
 
 static void StartBrokerPublisher(IDisposable publisher, bool publishInitialSnapshots)
@@ -1514,6 +3696,17 @@ static void AssertEqual(object? expected, object? actual)
     }
 }
 
+static string? GetPrivateConstString(Type type, string fieldName)
+{
+    var field = type.GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Static);
+    if (field is null)
+    {
+        throw new InvalidOperationException($"Field '{fieldName}' was not found on '{type.Name}'.");
+    }
+
+    return field.GetRawConstantValue()?.ToString();
+}
+
 static bool ContainsTreePath(IEnumerable<HornetStudio.ViewModels.ItemTreeNodeViewModel> nodes, string path)
 {
     foreach (var node in nodes)
@@ -1535,7 +3728,7 @@ sealed class FakeHostItemBrokerClient : IHostItemBrokerClient
 
     public string ClientIdValue { get; set; } = "broker-widget-test";
 
-    public string Name => "BrokerWidgetTest";
+    public string Name => "ItemClientTest";
 
     public string Host => "127.0.0.1";
 
@@ -1547,7 +3740,7 @@ sealed class FakeHostItemBrokerClient : IHostItemBrokerClient
 
     public bool IsConnected => true;
 
-    public ItemDictionary Items { get; } = new("runtime.item_broker.BrokerWidgetTest");
+    public ItemDictionary Items { get; } = new("runtime.item_broker.ItemClientTest");
 
     public List<FakeItemSubscription> Subscriptions { get; } = [];
 
@@ -1569,7 +3762,11 @@ sealed class FakeHostItemBrokerClient : IHostItemBrokerClient
         remove => _itemsChanged -= value;
     }
 
-    public IReadOnlyDictionary<string, ItemModel> GetItemSnapshots() => new Dictionary<string, ItemModel>();
+    public IReadOnlyDictionary<string, ItemModel> GetItemSnapshots()
+        => Items.GetDictionary().ToDictionary(entry => entry.Key, entry => entry.Value.Clone(), StringComparer.OrdinalIgnoreCase);
+
+    public IReadOnlyDictionary<string, ItemModel> GetReceivedItemRootSnapshots()
+        => GetItemSnapshots();
 
     public Task PublishSnapshotAsync(ItemModel item, CancellationToken cancellationToken = default)
     {

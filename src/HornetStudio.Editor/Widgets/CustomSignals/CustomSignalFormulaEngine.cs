@@ -2,12 +2,45 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using HornetStudio.Editor.Models;
 
 namespace HornetStudio.Editor.Widgets;
 
 internal static class CustomSignalFormulaEngine
 {
+    public static bool TryEvaluateBooleanExpression(string? formula, IReadOnlyDictionary<string, object?> variables, out bool value, out string errorMessage)
+    {
+        value = false;
+        errorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(formula))
+        {
+            errorMessage = "Condition is required.";
+            return false;
+        }
+
+        try
+        {
+            var parser = new Parser(formula, variables);
+            var result = parser.ParseExpression();
+            parser.EnsureCompleted();
+            if (result is not bool booleanResult)
+            {
+                errorMessage = "Condition must evaluate to bool.";
+                return false;
+            }
+
+            value = booleanResult;
+            return true;
+        }
+        catch (FormulaException exception)
+        {
+            errorMessage = exception.Message;
+            return false;
+        }
+    }
+
     public static bool TryEvaluate(CustomSignalDefinition definition, Func<string, object?> resolveVariable, out object? value, out string errorMessage)
     {
         value = null;
@@ -223,6 +256,11 @@ internal static class CustomSignalFormulaEngine
                 return double.Parse(numberToken.Text, CultureInfo.InvariantCulture);
             }
 
+            if (Match(TokenKind.String, out var stringToken))
+            {
+                return stringToken.Text;
+            }
+
             if (Match(TokenKind.Boolean, out var booleanToken))
             {
                 return bool.Parse(booleanToken.Text);
@@ -368,6 +406,54 @@ internal static class CustomSignalFormulaEngine
                     continue;
                 }
 
+                if (current == '\'' || current == '"')
+                {
+                    var quote = current;
+                    var builder = new StringBuilder();
+                    var closed = false;
+                    while (index + 1 < formula.Length)
+                    {
+                        index++;
+                        var stringCharacter = formula[index];
+                        if (stringCharacter == '\\')
+                        {
+                            if (index + 1 >= formula.Length)
+                            {
+                                throw new FormulaException("String literal ends with an incomplete escape sequence.");
+                            }
+
+                            index++;
+                            builder.Append(formula[index] switch
+                            {
+                                '\\' => '\\',
+                                '\'' => '\'',
+                                '"' => '"',
+                                'n' => '\n',
+                                'r' => '\r',
+                                't' => '\t',
+                                var escaped => escaped
+                            });
+                            continue;
+                        }
+
+                        if (stringCharacter == quote)
+                        {
+                            closed = true;
+                            break;
+                        }
+
+                        builder.Append(stringCharacter);
+                    }
+
+                    if (!closed)
+                    {
+                        throw new FormulaException("Missing closing quote for string literal.");
+                    }
+
+                    tokens.Add(new Token(TokenKind.String, builder.ToString()));
+                    continue;
+                }
+
                 if (char.IsDigit(current) || current == '.')
                 {
                     var start = index;
@@ -493,6 +579,7 @@ internal static class CustomSignalFormulaEngine
     {
         End,
         Number,
+        String,
         Boolean,
         Identifier,
         Variable,

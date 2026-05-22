@@ -1928,6 +1928,7 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
                 Name = pageName,
                 DisplayText = pageDisplayText,
                 UiFilePath = yamlPath,
+                Views = layout.Views.ToDictionary(static entry => entry.Key, static entry => entry.Value),
                 UiLayoutDefinition = layout
             };
 
@@ -2079,7 +2080,7 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
         var isWidgetList = kind == ControlKind.WidgetList;
         var isChartControl = kind == ControlKind.ChartControl;
         var isCircleDisplay = kind == ControlKind.CircleDisplay;
-        var isBrokerWidget = kind == ControlKind.BrokerWidget;
+        var isItemClient = kind == ControlKind.ItemClient;
         var item = new FolderItemModel
         {
             Kind = kind,
@@ -2089,8 +2090,8 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
             Footer = isButton ? "Action" : type,
             X = node.X ?? defaultX,
             Y = node.Y ?? defaultY,
-            Width = node.Width ?? (isButton ? 320 : (kind == ControlKind.LogControl ? 420 : (isChartControl ? 520 : (isBrokerWidget ? 420 : (isCircleDisplay ? 280 : 260))))),
-            Height = node.Height ?? (isButton ? 96 : (kind == ControlKind.LogControl ? 260 : (isChartControl ? 260 : (isWidgetList ? 220 : (isBrokerWidget ? 190 : (isCircleDisplay ? 280 : 84)))))),
+            Width = node.Width ?? (isButton ? 320 : (kind == ControlKind.LogControl ? 420 : (isChartControl ? 520 : (isItemClient ? 420 : (isCircleDisplay ? 280 : 260))))),
+            Height = node.Height ?? (isButton ? 96 : (kind == ControlKind.LogControl ? 260 : (isChartControl ? 260 : (isWidgetList ? 220 : (isItemClient ? 190 : (isCircleDisplay ? 280 : 84)))))),
             IsAutoHeight = isWidgetList,
             UiNodeType = string.IsNullOrWhiteSpace(type) ? GetDefaultUiType(kind) : type,
             UiProperties = CloneJsonObject(node.Properties)
@@ -2167,11 +2168,10 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
             return ControlKind.UdlClientControl;
         }
 
-        if (string.Equals(type, "BrokerWidget", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(type, "BrokerClientControl", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(type, "ItemBroker", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(type, "ItemClient", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "ItemClientControl", StringComparison.OrdinalIgnoreCase))
         {
-            return ControlKind.BrokerWidget;
+            return ControlKind.ItemClient;
         }
 
         if (string.Equals(type, "CsvLoggerControl", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "CsvLogger", StringComparison.OrdinalIgnoreCase))
@@ -2203,6 +2203,21 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
         if (string.Equals(type, "EnhancedSignals", StringComparison.OrdinalIgnoreCase))
         {
             return ControlKind.EnhancedSignals;
+        }
+
+        if (string.Equals(type, "ControllerWidget", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.ControllerWidget;
+        }
+
+        if (string.Equals(type, "Monitor", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.Monitor;
+        }
+
+        if (string.Equals(type, "DialogWidget", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.DialogWidget;
         }
 
         return ControlKind.Signal;

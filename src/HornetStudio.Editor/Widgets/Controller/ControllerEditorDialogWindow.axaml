@@ -1,0 +1,143 @@
+<Window
+    x:Class="HornetStudio.Editor.Widgets.ControllerEditorDialogWindow"
+    x:Name="Root"
+    x:CompileBindings="False"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:widgets="using:HornetStudio.Editor.Widgets"
+    Width="760"
+    MinWidth="700"
+    Height="610"
+    MinHeight="610"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    Title="PID Controller"
+    Background="{Binding DialogBackground}">
+  <Window.Styles>
+    <Style Selector="TextBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Margin" Value="0,3,14,3" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor}" />
+      <Setter Property="Foreground" Value="{Binding EditorForeground}" />
+      <Setter Property="CaretBrush" Value="{Binding EditorForeground}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Margin" Value="0,3,14,3" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor}" />
+      <Setter Property="Foreground" Value="{Binding EditorForeground}" />
+    </Style>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Margin" Value="0,3,0,3" />
+      <Setter Property="Background" Value="{Binding ButtonBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground}" />
+    </Style>
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="MinWidth" Value="120" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{Binding SecondaryTextBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <Border Padding="16">
+      <StackPanel Spacing="14">
+        <TextBlock FontSize="20"
+                   FontWeight="SemiBold"
+                   Foreground="{Binding PrimaryTextBrush}"
+                   Text="PID Controller" />
+
+        <Border Padding="12"
+          Background="{Binding SectionBackground}"
+          BorderBrush="{Binding BorderColor}"
+          BorderThickness="1"
+          CornerRadius="10">
+          <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Classes="field-label" Text="Type" ToolTip.Tip="Controller type. Currently only PID is supported." />
+            <ComboBox Grid.Row="0" Grid.Column="1" Classes="dialog-field" ItemsSource="{Binding TypeOptions}" SelectedItem="{Binding SelectedType}" IsEnabled="False" ToolTip.Tip="Controller type. Currently only PID is supported." />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Classes="field-label" Text="Name" ToolTip.Tip="Unique controller name within this ControllerWidget." />
+            <TextBox Grid.Row="1" Grid.Column="1" Classes="dialog-field" Text="{Binding Name}" ToolTip.Tip="Unique controller name within this ControllerWidget." />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Classes="field-label" Text="Source" ToolTip.Tip="Runtime item path used as process value input." />
+            <TextBox Grid.Row="2" Grid.Column="1" Classes="dialog-field" Text="{Binding SourcePath}" ToolTip.Tip="Runtime item path used as process value input." />
+            <Button Grid.Row="2" Grid.Column="2" Classes="dialog-button" Click="OnPickSourceClicked" Content="Pick" />
+          </Grid>
+        </Border>
+
+        <Border Padding="12"
+                Background="{Binding SectionBackground}"
+                BorderBrush="{Binding BorderColor}"
+                BorderThickness="1"
+                CornerRadius="10">
+          <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Classes="field-label" Text="Output" ToolTip.Tip="Runtime item path written by the PID controller output." />
+            <TextBox Grid.Row="0" Grid.Column="1" Classes="dialog-field" Text="{Binding OutputPath}" ToolTip.Tip="Runtime item path written by the PID controller output." />
+            <Button Grid.Row="0" Grid.Column="2" Classes="dialog-button" Click="OnPickOutputClicked" Content="Pick" />
+          </Grid>
+        </Border>
+
+        <Border Padding="12"
+                Background="{Binding SectionBackground}"
+                BorderBrush="{Binding BorderColor}"
+                BorderThickness="1"
+                CornerRadius="10">
+          <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto,Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Classes="field-label" Text="Loop factor (Ks)" ToolTip.Tip="System gain factor describing how strongly the system output reacts to a change of the input signal." />
+            <TextBox Grid.Row="0" Grid.Column="1" Classes="dialog-field" Text="{Binding KsText}" ToolTip.Tip="System gain factor describing how strongly the system output reacts to a change of the input signal." />
+            <TextBlock Grid.Row="0" Grid.Column="2" Classes="field-label" Text="Dead time (Tu) s" ToolTip.Tip="Dead time of the system between an input change and the first visible reaction of the output." />
+            <TextBox Grid.Row="0" Grid.Column="3" Classes="dialog-field" Text="{Binding TuText}" ToolTip.Tip="Dead time of the system between an input change and the first visible reaction of the output." />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Classes="field-label" Text="Rise time (Tg) s" ToolTip.Tip="Time constant describing how fast the system responds after the dead time until it approaches the target value." />
+            <TextBox Grid.Row="1" Grid.Column="1" Classes="dialog-field" Text="{Binding TgText}" ToolTip.Tip="Time constant describing how fast the system responds after the dead time until it approaches the target value." />
+            <TextBlock Grid.Row="1" Grid.Column="2" Classes="field-label" Text="D filter tau ms" ToolTip.Tip="Derivative filter time constant in milliseconds." />
+            <TextBox Grid.Row="1" Grid.Column="3" Classes="dialog-field" Text="{Binding DFilterTauMsText}" ToolTip.Tip="Derivative filter time constant in milliseconds." />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Classes="field-label" Text="Compute interval ms" ToolTip.Tip="Interval for evaluating the PID loop." />
+            <TextBox Grid.Row="2" Grid.Column="1" Classes="dialog-field" Text="{Binding ComputeIntervalMsText}" ToolTip.Tip="Interval for evaluating the PID loop." />
+            <TextBlock Grid.Row="2" Grid.Column="2" Classes="field-label" Text="Output interval ms" ToolTip.Tip="Interval for publishing output updates." />
+            <TextBox Grid.Row="2" Grid.Column="3" Classes="dialog-field" Text="{Binding OutputIntervalMsText}" ToolTip.Tip="Interval for publishing output updates." />
+          </Grid>
+        </Border>
+
+        <Border Padding="12"
+                Background="{Binding SectionBackground}"
+                BorderBrush="{Binding BorderColor}"
+                BorderThickness="1"
+                CornerRadius="10">
+          <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Classes="field-label" Text="Set min" ToolTip.Tip="Minimum setpoint value for normalization." />
+            <TextBox Grid.Row="0" Grid.Column="1" Classes="dialog-field" Text="{Binding SetMinText}" ToolTip.Tip="Minimum setpoint value for normalization." />
+            <TextBlock Grid.Row="0" Grid.Column="2" Classes="field-label" Text="Set max" ToolTip.Tip="Maximum setpoint value for normalization." />
+            <TextBox Grid.Row="0" Grid.Column="3" Classes="dialog-field" Text="{Binding SetMaxText}" ToolTip.Tip="Maximum setpoint value for normalization." />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Classes="field-label" Text="Out min (output scale)" ToolTip.Tip="Minimum value written to the output target after scaling." />
+            <TextBox Grid.Row="1" Grid.Column="1" Classes="dialog-field" Text="{Binding OutMinText}" ToolTip.Tip="Minimum value written to the output target after scaling." />
+            <TextBlock Grid.Row="1" Grid.Column="2" Classes="field-label" Text="Out max (output scale)" ToolTip.Tip="Maximum value written to the output target after scaling." />
+            <TextBox Grid.Row="1" Grid.Column="3" Classes="dialog-field" Text="{Binding OutMaxText}" ToolTip.Tip="Maximum value written to the output target after scaling." />
+          </Grid>
+        </Border>
+
+        <TextBlock Foreground="#B91C1C"
+                   Text="{Binding ErrorMessage}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding HasError}" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+          <Button Classes="dialog-button" Click="OnCancelClicked" Content="Cancel" />
+          <Button Classes="dialog-button" Click="OnSaveClicked" Content="Save" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </ScrollViewer>
+</Window>

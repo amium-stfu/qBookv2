@@ -16,6 +16,8 @@ public enum ItemInteractionAction
     ToggleBool,
     SetValue,
     SendInputTo,
+    OpenDialog,
+    CloseDialog,
     InvokePythonFunction
 }
 

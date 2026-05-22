@@ -508,12 +508,26 @@ public partial class EditorPropertyDialog : UserControl
             return;
         }
 
+        if (field.PropertyType == EditorPropertyType.TargetTree)
+        {
+            var targetDialog = new TargetTreeSelectionDialogWindow(ViewModel, field);
+            await targetDialog.ShowDialog(owner);
+            var selectedTarget = targetDialog.CommittedSelection;
+            if (!string.IsNullOrWhiteSpace(selectedTarget))
+            {
+                field.Value = selectedTarget;
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         Window? editorWindow = field.PropertyType switch
         {
-            EditorPropertyType.TargetTree => new TargetTreeSelectionDialogWindow(ViewModel, field),
             EditorPropertyType.ChartSeriesList => new ChartSeriesEditorDialogWindow(ViewModel, field),
             EditorPropertyType.AttachItemList => new AttachItemsEditorDialogWindow(ViewModel, field),
             EditorPropertyType.InteractionRuleList => new InteractionRulesEditorDialogWindow(ViewModel, field),
+            EditorPropertyType.VisualRuleList => new VisualRulesEditorDialogWindow(ViewModel, field),
             EditorPropertyType.UdlModuleExposureList => new UdlModuleExposureDialogWindow(ViewModel!, field),
             _ => null
         };

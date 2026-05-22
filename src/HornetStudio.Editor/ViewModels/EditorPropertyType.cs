@@ -12,5 +12,6 @@ public enum EditorPropertyType
     ChartSeriesList,
     AttachItemList,
     InteractionRuleList,
+    VisualRuleList,
     UdlModuleExposureList
 }

@@ -53,6 +53,12 @@ public interface IHostItemBrokerClient : IAsyncDisposable
     IReadOnlyDictionary<string, ItemModel> GetItemSnapshots();
 
     /// <summary>
+    /// Gets snapshot clones of the direct received item roots before compatibility visibility filtering.
+    /// </summary>
+    /// <returns>The direct received item root snapshots.</returns>
+    IReadOnlyDictionary<string, ItemModel> GetReceivedItemRootSnapshots();
+
+    /// <summary>
     /// Publishes a local item snapshot to the broker.
     /// </summary>
     /// <param name="item">The item snapshot.</param>
@@ -132,9 +138,11 @@ public interface IHostItemBrokerClient : IAsyncDisposable
 /// </summary>
 public sealed class HostItemBrokerClient : IHostItemBrokerClient
 {
+    private const string PublishDiagnosticsSwitchName = "HornetStudio.ItemClient.PublishDiagnostics";
     private readonly object _sync = new();
     private readonly MqttItemClient _remoteClient;
     private readonly string _runtimeName;
+    private string _lastReceiveDiagnosticsSignature = string.Empty;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HostItemBrokerClient"/> class.
@@ -148,11 +156,11 @@ public sealed class HostItemBrokerClient : IHostItemBrokerClient
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(host);
-        ArgumentException.ThrowIfNullOrWhiteSpace(baseTopic);
+        ArgumentNullException.ThrowIfNull(baseTopic);
         ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
 
         Name = name.Trim();
-        _runtimeName = NormalizePathSegment(Name, "broker_widget");
+        _runtimeName = NormalizePathSegment(Name, "item_client");
         Host = host.Trim();
         Port = port <= 0 ? 1883 : port;
         BaseTopic = baseTopic.Trim();
@@ -207,13 +215,21 @@ public sealed class HostItemBrokerClient : IHostItemBrokerClient
     }
 
     /// <inheritdoc />
+    public IReadOnlyDictionary<string, ItemModel> GetReceivedItemRootSnapshots()
+        => _remoteClient.ReceivedItems.GetItemRoots();
+
+    /// <inheritdoc />
     public Task PublishSnapshotAsync(ItemModel item, CancellationToken cancellationToken = default)
     {
-        HostLogger.Log.Debug(
-            "[HostItemBrokerClientPublish] kind=snapshot client={ClientId} path={Path} value={Value}",
-            ClientId,
-            item.Path ?? string.Empty,
-            item.Value);
+        if (ShouldWritePublishDiagnostics())
+        {
+            HostLogger.Log.Debug(
+                "[HostItemBrokerClientPublish] kind=snapshot client={ClientId} path={Path} value={Value}",
+                ClientId,
+                item.Path ?? string.Empty,
+                item.Value);
+        }
+
         return _remoteClient.PublishSnapshotAsync(item, cancellationToken: cancellationToken);
     }
 
@@ -224,13 +240,17 @@ public sealed class HostItemBrokerClient : IHostItemBrokerClient
         bool retained = false,
         CancellationToken cancellationToken = default)
     {
-        HostLogger.Log.Debug(
-            "[HostItemBrokerClientPublish] kind=read client={ClientId} path={Path} value={Value} retained={Retained} publishEpoch={PublishEpoch}",
-            ClientId,
-            item.Path ?? string.Empty,
-            item.Value,
-            retained,
-            publishEpoch);
+        if (ShouldWritePublishDiagnostics())
+        {
+            HostLogger.Log.Debug(
+                "[HostItemBrokerClientPublish] kind=read client={ClientId} path={Path} value={Value} retained={Retained} publishEpoch={PublishEpoch}",
+                ClientId,
+                item.Path ?? string.Empty,
+                item.Value,
+                retained,
+                publishEpoch);
+        }
+
         return _remoteClient.PublishReadAsync(item, publishEpoch, retained, cancellationToken);
     }
 
@@ -241,14 +261,18 @@ public sealed class HostItemBrokerClient : IHostItemBrokerClient
         bool retained = false,
         CancellationToken cancellationToken = default)
     {
-        var value = item.Properties.Has(parameterName) ? item.Properties[parameterName].Value : null;
-        HostLogger.Log.Debug(
-            "[HostItemBrokerClientPublish] kind=property client={ClientId} path={Path} parameter={Parameter} value={Value} retained={Retained}",
-            ClientId,
-            item.Path ?? string.Empty,
-            parameterName,
-            value,
-            retained);
+        if (ShouldWritePublishDiagnostics())
+        {
+            var value = item.Properties.Has(parameterName) ? item.Properties[parameterName].Value : null;
+            HostLogger.Log.Debug(
+                "[HostItemBrokerClientPublish] kind=property client={ClientId} path={Path} parameter={Parameter} value={Value} retained={Retained}",
+                ClientId,
+                item.Path ?? string.Empty,
+                parameterName,
+                value,
+                retained);
+        }
+
         return _remoteClient.PublishPropertyAsync(item, parameterName, retained, cancellationToken);
     }
 
@@ -335,6 +359,52 @@ public sealed class HostItemBrokerClient : IHostItemBrokerClient
         {
             Items[sharedRoot.Name] = sharedRoot;
         }
+
+        LogReceiveDiagnostics();
+    }
+
+    private void LogReceiveDiagnostics()
+    {
+        var visibleRoots = Items.GetDictionary();
+        var receivedRoots = _remoteClient.ReceivedItems.GetItemRoots();
+        var visibleRootCount = visibleRoots.Count == 0
+            ? 0
+            : visibleRoots.Values.Sum(static root => root.GetDictionary().Count);
+        var sampleReceivedRoots = string.Join(", ", receivedRoots.Keys.OrderBy(static key => key, StringComparer.OrdinalIgnoreCase).Take(4));
+        var sampleVisibleRoots = string.Join(", ", visibleRoots.Values
+            .SelectMany(static root => root.GetDictionary().Keys)
+            .OrderBy(static key => key, StringComparer.OrdinalIgnoreCase)
+            .Take(4));
+        var signature = $"{receivedRoots.Count}|{visibleRootCount}|{sampleReceivedRoots}|{sampleVisibleRoots}";
+        if (string.Equals(signature, _lastReceiveDiagnosticsSignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastReceiveDiagnosticsSignature = signature;
+        var shouldWarn = receivedRoots.Count > 0 && visibleRootCount == 0;
+        if (shouldWarn)
+        {
+            HostLogger.Log.Warning(
+                "[HostItemBrokerClientReceive] client={ClientId} baseTopic={BaseTopic} receivedRoots={ReceivedRoots} visibleRoots={VisibleRoots} received={Received} visible={Visible}",
+                ClientId,
+                FormatBaseTopic(BaseTopic),
+                receivedRoots.Count,
+                visibleRootCount,
+                sampleReceivedRoots,
+                sampleVisibleRoots);
+        }
+        else
+        {
+            HostLogger.Log.Debug(
+                "[HostItemBrokerClientReceive] client={ClientId} baseTopic={BaseTopic} receivedRoots={ReceivedRoots} visibleRoots={VisibleRoots} received={Received} visible={Visible}",
+                ClientId,
+                FormatBaseTopic(BaseTopic),
+                receivedRoots.Count,
+                visibleRootCount,
+                sampleReceivedRoots,
+                sampleVisibleRoots);
+        }
     }
 
     private static string NormalizePathSegment(string? segment, string fallbackSegment)
@@ -394,6 +464,12 @@ public sealed class HostItemBrokerClient : IHostItemBrokerClient
 
         return index + 1 < value.Length && char.IsLower(value[index + 1]);
     }
+
+    private static bool ShouldWritePublishDiagnostics()
+        => AppContext.TryGetSwitch(PublishDiagnosticsSwitchName, out var enabled) && enabled;
+
+    private static string FormatBaseTopic(string baseTopic)
+        => string.IsNullOrWhiteSpace(baseTopic) ? "(none)" : baseTopic.Trim();
 
     private void OnRemoteDiagnostic(string message)
         => RaiseDiagnostic(message);

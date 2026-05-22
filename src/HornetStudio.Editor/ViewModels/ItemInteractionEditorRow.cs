@@ -24,7 +24,10 @@ public sealed class ItemInteractionEditorRow : ObservableObject
             if (SetProperty(ref _actionName, string.IsNullOrWhiteSpace(value) ? "OpenValueEditor" : value))
             {
                 RaisePropertyChanged(nameof(IsPythonFunctionAction));
-                RaisePropertyChanged(nameof(IsStandardInteractionAction));
+                RaisePropertyChanged(nameof(IsDialogInteractionAction));
+                RaisePropertyChanged(nameof(UsesComboTargetSelection));
+                RaisePropertyChanged(nameof(UsesBrowseTargetSelection));
+                RaisePropertyChanged(nameof(ShowsFunctionPicker));
             }
         }
     }
@@ -32,7 +35,16 @@ public sealed class ItemInteractionEditorRow : ObservableObject
     public string TargetPath
     {
         get => _targetPath;
-        set => SetProperty(ref _targetPath, string.IsNullOrWhiteSpace(value) ? "this" : value);
+        set
+        {
+            var normalizedValue = value ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(normalizedValue))
+            {
+                normalizedValue = UsesBrowseTargetSelection ? "this" : string.Empty;
+            }
+
+            SetProperty(ref _targetPath, normalizedValue);
+        }
     }
 
     public string FunctionName
@@ -49,7 +61,15 @@ public sealed class ItemInteractionEditorRow : ObservableObject
 
     public bool IsPythonFunctionAction => string.Equals(ActionName, "InvokePythonFunction", System.StringComparison.OrdinalIgnoreCase);
 
-    public bool IsStandardInteractionAction => !IsPythonFunctionAction;
+    public bool IsDialogInteractionAction
+        => string.Equals(ActionName, "OpenDialog", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(ActionName, "CloseDialog", System.StringComparison.OrdinalIgnoreCase);
+
+    public bool UsesComboTargetSelection => IsPythonFunctionAction || IsDialogInteractionAction;
+
+    public bool UsesBrowseTargetSelection => !UsesComboTargetSelection;
+
+    public bool ShowsFunctionPicker => IsPythonFunctionAction;
 
     public ObservableCollection<string> EventOptions { get; } = [];
 

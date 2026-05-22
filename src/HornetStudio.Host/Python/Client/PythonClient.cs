@@ -860,10 +860,10 @@ public sealed class PythonClient : IAsyncDisposable
         var registryRootPath = NormalizeRegistryPath(_options.RegistryRootPath ?? string.Empty);
         if (!string.IsNullOrWhiteSpace(registryRootPath))
         {
-            return $"{registryRootPath}.{SanitizePathSegment(valueName)}";
+            return $"{registryRootPath}.{NormalizeRegistryPathSegment(valueName)}";
         }
 
-        return $"PythonClients.{SanitizePathSegment(_options.Name)}.{SanitizePathSegment(valueName)}";
+        return $"python_clients.{NormalizeRegistryPathSegment(_options.Name)}.{NormalizeRegistryPathSegment(valueName)}";
     }
 
     private static string NormalizeRegistryPath(string path)
@@ -872,27 +872,16 @@ public sealed class PythonClient : IAsyncDisposable
             .Replace('\\', '.')
             .Replace('/', '.')
             .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(SanitizePathSegment)
+            .Select(NormalizeRegistryPathSegment)
             .Where(static segment => !string.IsNullOrWhiteSpace(segment));
 
         return string.Join('.', segments);
     }
 
-    private static string SanitizePathSegment(string? name)
+    private static string NormalizeRegistryPathSegment(string? name)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return "item";
-        }
-
-        var builder = new StringBuilder(name.Length);
-        foreach (var c in name.Trim())
-        {
-            builder.Append(char.IsLetterOrDigit(c) || c is '_' or '-' ? c : '_');
-        }
-
-        var sanitized = builder.ToString().Trim('_');
-        return string.IsNullOrWhiteSpace(sanitized) ? "item" : sanitized;
+        var normalized = HostPathSegmentNormalizer.Normalize(name);
+        return string.IsNullOrWhiteSpace(normalized) ? "item" : normalized;
     }
 
     private static string GetLastPathSegment(string? path)

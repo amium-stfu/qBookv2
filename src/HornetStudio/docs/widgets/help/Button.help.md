@@ -7,6 +7,7 @@
 ## Overview
 
 The Button widget provides an interactive action surface with optional text, icon, command execution, and interaction rule handling.
+It can also react visually to Monitor rule states through widget-level visual rules.
 
 ## Properties
 
@@ -50,6 +51,11 @@ Optional explicit icon tint.
 
 Controls whether icon tint should follow the effective theme color.
 
+### VisualRules
+
+Defines Monitor-driven background overrides for the visible button fill.
+Version 1 exposes only `ButtonBackColor` with `None` or `Blink` as the active effect.
+
 ## Functions and Behavior
 
 ### Execute button command
@@ -59,10 +65,15 @@ The widget can execute a configured host command or legacy Python script command
 ### Execute interaction rules
 
 Mouse release events can trigger configured interaction rules instead of or in addition to command behavior.
+Dialog-oriented rules can use `OpenDialog(dialogWidgetId, origin = Screen, position = Center)` and `CloseDialog(dialogWidgetId)` with a `DialogWidget` id to control the internal overlay host.
 
 ### Respect edit mode
 
 In editor mode, runtime interaction behavior is suppressed unless the interaction mode allows it.
+
+### Apply visual rules
+
+The Action tab includes a `Visual` section for Monitor-backed `ButtonBackColor` changes without altering persisted theme defaults.
 
 ## Runtime Notes
 

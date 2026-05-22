@@ -99,6 +99,11 @@ public sealed class ProcessLog
         SetLogDirectory(directory);
 
         var logFilePath = Path.Combine(directory, "process-.log");
+        if (_log is IDisposable disposableLog)
+        {
+            disposableLog.Dispose();
+        }
+
         _log = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .WriteTo.File(
@@ -137,6 +142,16 @@ public sealed class ProcessLog
     public void Fatal(string message, Exception ex) => Log.Fatal(ex, message);
     public void Info(string message) => Log.Information(message);
     public void Debug(string message) => Log.Debug(message);
+
+    /// <summary>
+    /// Writes a runtime-created entry through the configured log sinks.
+    /// </summary>
+    /// <param name="level">The log event level.</param>
+    /// <param name="message">The rendered log message.</param>
+    public void WriteEntry(LogEventLevel level, string message)
+    {
+        Log.Write(level, "{ProcessLogMessage:l}", message);
+    }
 
     public DataTable GetBufferedLogs(string? levelFilter = null, string? textFilter = null)
     {
@@ -206,6 +221,11 @@ public sealed class ProcessLog
             message,
             logEvent.Exception?.ToString() ?? string.Empty);
 
+        AddEntry(entry, logEvent.Level);
+    }
+
+    private void AddEntry(ProcessLogEntry entry, LogEventLevel level)
+    {
         lock (_bufferLock)
         {
             _bufferTable.Rows.Add(entry.Timestamp, entry.Level, entry.Message, entry.Exception);
@@ -216,7 +236,7 @@ public sealed class ProcessLog
             }
         }
 
-        if (!Pause && IsLevelVisible(logEvent.Level))
+        if (!Pause && IsLevelVisible(level))
         {
             EntryAdded?.Invoke(entry);
         }

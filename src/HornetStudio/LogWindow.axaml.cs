@@ -19,7 +19,6 @@ public partial class LogWindow : Window
             Name = "HostLogWindow",
             Title = "Host ProcessLog",
             Footer = "Logs.Host",
-            TargetLog = "Logs.Host",
             Width = 860,
             Height = 580
         };

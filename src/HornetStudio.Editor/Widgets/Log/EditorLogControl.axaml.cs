@@ -25,6 +25,9 @@ public partial class EditorLogControl : UserControl
     public static readonly StyledProperty<bool> PageIsActiveProperty =
         AvaloniaProperty.Register<EditorLogControl, bool>(nameof(PageIsActive), true);
 
+    public static readonly StyledProperty<string> ExplicitProcessLogPathProperty =
+        AvaloniaProperty.Register<EditorLogControl, string>(nameof(ExplicitProcessLogPath), string.Empty);
+
     private static readonly IBrush ActiveButtonBackground = new SolidColorBrush(Color.Parse("#916afd"));
     private static readonly IBrush ActiveButtonBorderBrush = new SolidColorBrush(Color.Parse("#916afd"));
     private static readonly IBrush ActiveButtonForeground = Brushes.White;
@@ -46,6 +49,7 @@ public partial class EditorLogControl : UserControl
     private Button? _openFolderButton;
     private ThemeSvgIcon? _pauseIcon;
     private ThemeSvgIcon? _openFolderIcon;
+    private bool _scrollToEndPending;
 
     public EditorLogControl()
     {
@@ -64,6 +68,12 @@ public partial class EditorLogControl : UserControl
         set => SetValue(PageIsActiveProperty, value);
     }
 
+    public string ExplicitProcessLogPath
+    {
+        get => GetValue(ExplicitProcessLogPathProperty);
+        set => SetValue(ExplicitProcessLogPathProperty, value ?? string.Empty);
+    }
+
     private FolderItemModel? LogItem => DataContext as FolderItemModel;
 
     private MainWindowViewModel? ViewModel
@@ -74,6 +84,13 @@ public partial class EditorLogControl : UserControl
         base.OnPropertyChanged(change);
         if (change.Property == PageIsActiveProperty && PageIsActive)
         {
+            ReloadEntries();
+            UpdateFilterButtons();
+        }
+
+        if (change.Property == ExplicitProcessLogPathProperty)
+        {
+            ResolveProcessLog();
             ReloadEntries();
             UpdateFilterButtons();
         }
@@ -145,7 +162,8 @@ public partial class EditorLogControl : UserControl
 
     private void ResolveProcessLog()
     {
-        var resolved = ResolveProcessLogFromTarget(LogItem?.TargetLog);
+        EnsureAutoCreatedProcessLog();
+        var resolved = ResolveProcessLogFromTarget(GetResolvedProcessLogPath(), allowHostFallback: string.IsNullOrWhiteSpace(ExplicitProcessLogPath));
         if (ReferenceEquals(_processLog, resolved))
         {
             return;
@@ -228,11 +246,16 @@ public partial class EditorLogControl : UserControl
 
     private void OnLogItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(FolderItemModel.TargetLog))
+        if (e.PropertyName is nameof(FolderItemModel.Name) or nameof(FolderItemModel.Path))
         {
             ResolveProcessLog();
             ReloadEntries();
             UpdateFilterButtons();
+            return;
+        }
+
+        if (e.PropertyName is nameof(FolderItemModel.TargetLog) or nameof(FolderItemModel.AutoCreateLog))
+        {
             return;
         }
 
@@ -521,6 +544,27 @@ public partial class EditorLogControl : UserControl
 
     private void ScrollToEnd()
     {
+        ScrollToEndNow();
+        if (_scrollToEndPending)
+        {
+            return;
+        }
+
+        _scrollToEndPending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _scrollToEndPending = false;
+            ScrollToEndNow();
+        }, DispatcherPriority.Background);
+    }
+
+    private void ScrollToEndNow()
+    {
+        if (LogEntries.Count > 0)
+        {
+            _logListBox?.ScrollIntoView(LogEntries[^1]);
+        }
+
         _scrollViewer?.ScrollToEnd();
     }
 
@@ -549,14 +593,29 @@ public partial class EditorLogControl : UserControl
         await clipboard.SetTextAsync(text);
     }
 
-    private static ProcessLog? ResolveProcessLogFromTarget(string? targetLog)
+    private string? GetResolvedProcessLogPath()
+    {
+        if (!string.IsNullOrWhiteSpace(ExplicitProcessLogPath))
+        {
+            return ExplicitProcessLogPath;
+        }
+
+        return LogItem?.GetOwnedProcessLogPath();
+    }
+
+    private static ProcessLog? ResolveProcessLogFromTarget(string? targetLog, bool allowHostFallback)
     {
         if (TryResolveProcessLog(targetLog, out var resolved))
         {
             return resolved;
         }
 
-        return TryResolveProcessLog("Logs.Host", out resolved) ? resolved : null;
+        return allowHostFallback && TryResolveProcessLog("Logs.Host", out resolved) ? resolved : null;
+    }
+
+    private void EnsureAutoCreatedProcessLog()
+    {
+        LogItem?.EnsureOwnedProcessLog(ViewModel?.ProjectRootDirectory);
     }
 
     private static bool TryResolveProcessLog(string? targetLog, out ProcessLog? resolved)

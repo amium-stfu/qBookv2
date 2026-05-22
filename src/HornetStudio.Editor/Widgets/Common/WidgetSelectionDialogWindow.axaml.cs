@@ -512,13 +512,16 @@ public sealed partial class WidgetSelectionDialogWindow : Window, INotifyPropert
                     PageIsActive = true
                 },
                 ControlKind.UdlClientControl => CreatePlaceholderPreview(item, "UDL client preview"),
-                ControlKind.BrokerWidget => CreatePlaceholderPreview(item, "MQTT ItemBroker preview"),
+                ControlKind.ItemClient => CreatePlaceholderPreview(item, "MQTT ItemBroker preview"),
                 ControlKind.CsvLoggerControl => CreatePlaceholderPreview(item, "CSV logger preview"),
                 ControlKind.SqlLoggerControl => CreatePlaceholderPreview(item, "SQL logger preview"),
                 ControlKind.CameraControl => CreatePlaceholderPreview(item, "Camera preview"),
                 ControlKind.ApplicationExplorer => CreatePlaceholderPreview(item, "Application overview preview"),
                 ControlKind.CustomSignals => CreatePlaceholderPreview(item, "Custom signals preview"),
                 ControlKind.EnhancedSignals => CreatePlaceholderPreview(item, "Enhanced signals preview"),
+                ControlKind.ControllerWidget => CreatePlaceholderPreview(item, "PID controller preview"),
+                ControlKind.Monitor => CreatePlaceholderPreview(item, "Monitor preview"),
+                ControlKind.DialogWidget => CreatePlaceholderPreview(item, "Dialog widget preview"),
                 _ => new EditorSignalControl()
             };
 

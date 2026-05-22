@@ -22,7 +22,8 @@ Logs configured signals into a SQLite-backed database file and exposes runtime l
 
 ## Runtime Notes
 
-The SQL logger follows the same logger runtime pattern as the CSV logger, but stores data in a database file.
+The SQL logger follows the same logger runtime pattern as the CSV logger and publishes runtime items below `studio.<folder_name>.logger_runtime.<logger_name>`.
+Child items use lowercase snake_case names: `record`, `output_path`, `is_recording`, `last_file`, and `status`.
 
 ## Source
 

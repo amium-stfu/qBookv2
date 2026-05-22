@@ -18,11 +18,14 @@ This folder contains one Markdown document per widget type.
 - `ChartControl.md`
 - `CircleDisplay.md`
 - `CsvLoggerControl.md`
+- `ControllerWidget.md`
 - `CustomSignals.md`
+- `DialogWidget.md`
 - `EnhancedSignals.md`
 - `Item.md`
 - `WidgetList.md`
 - `LogControl.md`
+- `Monitor.md`
 - `PythonClient.md`
 - `Signal.md`
 - `SqlLoggerControl.md`

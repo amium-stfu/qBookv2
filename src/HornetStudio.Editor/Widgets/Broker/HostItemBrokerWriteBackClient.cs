@@ -12,10 +12,11 @@ using HornetStudio.Logging;
 namespace HornetStudio.Editor.Widgets;
 
 /// <summary>
-/// Applies writable BrokerWidget updates from the broker back to local host registry items.
+/// Applies writable ItemClient updates from the broker back to local host registry items.
 /// </summary>
 public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposable
 {
+    private const string WriteBackDiagnosticsSwitchName = "HornetStudio.ItemClient.WriteBackDiagnostics";
     private static readonly ItemSubscriptionOptions ExactSubscriptionOptions = new()
     {
         Recursive = false,
@@ -24,6 +25,8 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
 
     private readonly IHostItemBrokerClient _client;
     private readonly IReadOnlyDictionary<string, BrokerPublishedItemDefinition> _definitionsByBrokerPath;
+    private readonly Func<string, string, object?, bool>? _tryConsumeOwnWriteEcho;
+    private readonly Func<string, string, object?, bool>? _hasRecentLocalHostWriteConflict;
     private readonly Dictionary<string, object?> _lastAppliedValues = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<IItemSubscription> _subscriptions = [];
     private bool _disposed;
@@ -33,13 +36,35 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
     /// </summary>
     /// <param name="client">The connected broker client.</param>
     /// <param name="definitions">The publish definitions used for write-back.</param>
-    public HostItemBrokerWriteBackClient(IHostItemBrokerClient client, IEnumerable<BrokerPublishedItemDefinition> definitions)
+    /// <param name="tryConsumeOwnWriteEcho">An optional callback that consumes a pending self-published write echo.</param>
+    public HostItemBrokerWriteBackClient(
+        IHostItemBrokerClient client,
+        IEnumerable<BrokerPublishedItemDefinition> definitions,
+        Func<string, string, object?, bool>? tryConsumeOwnWriteEcho = null)
+        : this(client, definitions, tryConsumeOwnWriteEcho, hasRecentLocalHostWriteConflict: null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="HostItemBrokerWriteBackClient"/> class.
+    /// </summary>
+    /// <param name="client">The connected broker client.</param>
+    /// <param name="definitions">The publish definitions used for write-back.</param>
+    /// <param name="tryConsumeOwnWriteEcho">An optional callback that consumes a pending self-published write echo.</param>
+    /// <param name="hasRecentLocalHostWriteConflict">An optional callback that reports whether a recent local host write should keep priority over broker state.</param>
+    public HostItemBrokerWriteBackClient(
+        IHostItemBrokerClient client,
+        IEnumerable<BrokerPublishedItemDefinition> definitions,
+        Func<string, string, object?, bool>? tryConsumeOwnWriteEcho,
+        Func<string, string, object?, bool>? hasRecentLocalHostWriteConflict)
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(definitions);
 
         _client = client;
         _definitionsByBrokerPath = BuildWritableDefinitions(definitions);
+        _tryConsumeOwnWriteEcho = tryConsumeOwnWriteEcho;
+        _hasRecentLocalHostWriteConflict = hasRecentLocalHostWriteConflict;
     }
 
     /// <summary>
@@ -93,7 +118,7 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
             }
             catch (Exception ex)
             {
-                HostLogger.Log.Warning(ex, "[BrokerWidgetWriteBack] Failed to dispose subscription Path={Path}.", subscription.Path);
+                HostLogger.Log.Warning(ex, "[ItemClientWriteBack] Failed to dispose subscription Path={Path}.", subscription.Path);
             }
         }
 
@@ -112,15 +137,33 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
         if (string.IsNullOrWhiteSpace(parameterName)
             || !_definitionsByBrokerPath.TryGetValue(TargetPathHelper.NormalizeConfiguredTargetPath(message.Path), out var definition))
         {
+            LogDecision(
+                message: message,
+                brokerPath: message.Path,
+                parameterName: parameterName ?? "<none>",
+                value: value,
+                localPath: "<none>",
+                resolvedWriteTargetPath: "<none>",
+                action: "ignored",
+                reason: "definitionMissing");
             return Task.CompletedTask;
         }
 
         if (!HostRegistries.Data.TryResolve(definition.LocalPath, out var localItem) || localItem is null)
         {
             HostLogger.Log.Warning(
-                "[BrokerWidgetWriteBack] Ignored write-back because the local item was not found. LocalPath={LocalPath} BrokerPath={BrokerPath}",
+                "[ItemClientWriteBack] Ignored write-back because the local item was not found. LocalPath={LocalPath} BrokerPath={BrokerPath}",
                 definition.LocalPath,
                 definition.BrokerPath);
+            LogDecision(
+                message: message,
+                brokerPath: definition.BrokerPath,
+                parameterName: parameterName,
+                value: value,
+                localPath: definition.LocalPath,
+                resolvedWriteTargetPath: "<missing>",
+                action: "ignored",
+                reason: "localItemMissing");
             return Task.CompletedTask;
         }
 
@@ -135,20 +178,90 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
             }
         }
 
-        if (IsEcho(echoItem, definition.BrokerPath, parameterName, value, message.SourceClientId))
+        var resolvedWriteTargetPath = message is ItemWriteRequestMessage
+            ? ResolveWriteRequestTargetPath(localItem, definition.LocalPath)
+            : writeTargetPath;
+        if (message is ItemWriteRequestMessage
+            && IsWriteParameter(parameterName)
+            && _tryConsumeOwnWriteEcho?.Invoke(definition.BrokerPath, parameterName, value) == true)
         {
+            LogDecision(
+                message: message,
+                brokerPath: definition.BrokerPath,
+                parameterName: parameterName,
+                value: value,
+                localPath: definition.LocalPath,
+                resolvedWriteTargetPath: resolvedWriteTargetPath,
+                action: "ignored",
+                reason: "ownWriteEcho");
             return Task.CompletedTask;
         }
 
-        var updated = string.Equals(parameterName, "read", StringComparison.OrdinalIgnoreCase)
-            ? HostRegistries.Data.UpdateValue(writeTargetPath, value)
-            : TryUpdateProperty(definition.LocalPath, parameterName, value);
+        if (message is not ItemWriteRequestMessage
+            && IsWriteParameter(parameterName))
+        {
+            LogDecision(
+                message: message,
+                brokerPath: definition.BrokerPath,
+                parameterName: parameterName,
+                value: value,
+                localPath: definition.LocalPath,
+                resolvedWriteTargetPath: resolvedWriteTargetPath,
+                action: "ignored",
+                reason: "writeStateIgnored");
+            return Task.CompletedTask;
+        }
+
+        if (message is not ItemWriteRequestMessage
+            && _hasRecentLocalHostWriteConflict?.Invoke(resolvedWriteTargetPath, parameterName, value) == true)
+        {
+            LogDecision(
+                message: message,
+                brokerPath: definition.BrokerPath,
+                parameterName: parameterName,
+                value: value,
+                localPath: definition.LocalPath,
+                resolvedWriteTargetPath: resolvedWriteTargetPath,
+                action: "ignored",
+                reason: "hostWritePriority");
+            return Task.CompletedTask;
+        }
+
+        if (message is not ItemWriteRequestMessage
+            && IsEcho(echoItem, definition.BrokerPath, parameterName, value, message.SourceClientId))
+        {
+            LogDecision(
+                message: message,
+                brokerPath: definition.BrokerPath,
+                parameterName: parameterName,
+                value: value,
+                localPath: definition.LocalPath,
+                resolvedWriteTargetPath: resolvedWriteTargetPath,
+                action: "ignored",
+                reason: "selfEcho");
+            return Task.CompletedTask;
+        }
+
+        var updated = message is ItemWriteRequestMessage
+            ? TryApplyWriteRequest(definition.LocalPath, localItem, value)
+            : string.Equals(parameterName, "read", StringComparison.OrdinalIgnoreCase)
+                ? HostRegistries.Data.UpdateValue(writeTargetPath, value)
+                : TryUpdateProperty(definition.LocalPath, parameterName, value);
 
         if (updated)
         {
             _lastAppliedValues[GetStateKey(definition.BrokerPath, parameterName)] = value;
         }
 
+        LogDecision(
+            message: message,
+            brokerPath: definition.BrokerPath,
+            parameterName: parameterName,
+            value: value,
+            localPath: definition.LocalPath,
+            resolvedWriteTargetPath: resolvedWriteTargetPath,
+            action: updated ? "applied" : "ignored",
+            reason: updated ? GetAppliedReason(message, parameterName) : "registryUpdateSkipped");
         return Task.CompletedTask;
     }
 
@@ -164,6 +277,7 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
     private static string? GetParameterName(ItemServerMessage message)
         => message switch
         {
+            ItemWriteRequestMessage writeRequest => writeRequest.ParameterName,
             ItemValueChangedMessage => "read",
             ItemPropertyChangedMessage parameterChanged => parameterChanged.PropertyName,
             _ => null,
@@ -172,17 +286,55 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
     private static object? GetValue(ItemServerMessage message)
         => message switch
         {
+            ItemWriteRequestMessage writeRequest => writeRequest.Value,
             ItemValueChangedMessage valueChanged => valueChanged.Value,
             ItemPropertyChangedMessage parameterChanged => parameterChanged.Value,
             _ => null,
         };
+
+    private static bool TryApplyWriteRequest(string localPath, Amium.Items.Item localItem, object? value)
+    {
+        if (localItem.Properties.Has("write"))
+        {
+            return HostRegistries.Data.UpdateProperty(
+                key: localPath,
+                parameterName: "write",
+                value: value,
+                forceChangeNotification: true);
+        }
+
+        var writeTargetPath = ResolveValueWriteTargetPath(localItem, localPath);
+        if (HostRegistries.Data.TryResolve(writeTargetPath, out var writeTargetItem) && writeTargetItem?.Properties.Has("write") == true)
+        {
+            return HostRegistries.Data.UpdateProperty(
+                key: writeTargetPath,
+                parameterName: "write",
+                value: value,
+                forceChangeNotification: true);
+        }
+
+        return HostRegistries.Data.UpdateValue(writeTargetPath, value);
+    }
+
+    internal static string ResolveWriteRequestTargetPath(Amium.Items.Item localItem, string localPath)
+    {
+        if (localItem.Properties.Has("write"))
+        {
+            return localItem.Path ?? localPath;
+        }
+
+        var writeTargetPath = ResolveValueWriteTargetPath(localItem, localPath);
+        return HostRegistries.Data.TryResolve(writeTargetPath, out var writeTargetItem) && writeTargetItem?.Properties.Has("write") == true
+            ? writeTargetItem.Path ?? writeTargetPath
+            : writeTargetPath;
+    }
 
     private static bool TryUpdateProperty(string localPath, string parameterName, object? value)
     {
         if (!HostRegistryPropertyPolicy.CanUserWriteProperty(parameterName))
         {
             HostLogger.Log.Warning(
-                "[BrokerWidgetWriteBack] Blocked protected parameter write. LocalPath={LocalPath} Parameter={Parameter}",
+                "[ItemClientWriteBack] Blocked protected parameter write. LocalPath={LocalPath} Parameter={Parameter}",
                 localPath,
                 parameterName);
             return false;
@@ -191,7 +343,10 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
         return HostRegistries.Data.TryUpdateUserProperty(localPath, parameterName, value);
     }
 
-    private static string ResolveValueWriteTargetPath(Amium.Items.Item sourceItem, string fallbackPath)
+    private static bool IsWriteParameter(string parameterName)
+        => string.Equals(parameterName, "write", StringComparison.OrdinalIgnoreCase);
+
+    internal static string ResolveValueWriteTargetPath(Amium.Items.Item sourceItem, string fallbackPath)
     {
         if (sourceItem.Properties.Has("write"))
         {
@@ -272,6 +427,61 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
 
     private static string GetStateKey(string brokerPath, string parameterName)
         => $"{TargetPathHelper.NormalizeConfiguredTargetPath(brokerPath)}\n{parameterName.Trim()}";
+
+    private static string GetAppliedReason(ItemServerMessage message, string parameterName)
+    {
+        if (message is ItemWriteRequestMessage)
+        {
+            return "writeRequestApplied";
+        }
+
+        return string.Equals(parameterName, "read", StringComparison.OrdinalIgnoreCase)
+            ? "stateReadApplied"
+            : "propertyApplied";
+    }
+
+    private static void LogDecision(
+        ItemServerMessage message,
+        string brokerPath,
+        string parameterName,
+        object? value,
+        string localPath,
+        string resolvedWriteTargetPath,
+        string action,
+        string reason)
+    {
+        if (!ShouldWriteBackDiagnostics())
+        {
+            return;
+        }
+
+        HostLogger.Log.Debug(
+            "[ItemClientWriteBack] messageType={MessageType} brokerPath={BrokerPath} parameter={Parameter} value={Value} sourceClientId={SourceClientId} localPath={LocalPath} resolvedWriteTarget={ResolvedWriteTarget} action={Action} reason={Reason}",
+            message.GetType().Name,
+            brokerPath,
+            parameterName,
+            FormatDiagnosticValue(value),
+            message.SourceClientId ?? "<none>",
+            localPath,
+            resolvedWriteTargetPath,
+            action,
+            reason);
+    }
+
+    private static bool ShouldWriteBackDiagnostics()
+        => AppContext.TryGetSwitch(WriteBackDiagnosticsSwitchName, out var enabled) && enabled;
+
+    private static string FormatDiagnosticValue(object? value)
+    {
+        if (value is null)
+        {
+            return "<null>";
+        }
+
+        return value is IFormattable formattable
+            ? $"{formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture)} ({value.GetType().Name})"
+            : $"{value} ({value.GetType().Name})";
+    }
 
     private static bool ValuesEqual(object? left, object? right)
     {

@@ -52,6 +52,3 @@
       Action: OpenValueEditor
       TargetPath: "this"
       Argument: ""
-
-  Properties:
-    TargetLog: Logs.Host

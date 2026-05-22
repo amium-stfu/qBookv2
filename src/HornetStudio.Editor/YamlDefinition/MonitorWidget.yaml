@@ -1,0 +1,99 @@
+- Type: Monitor
+
+  Screen: 1
+  Enabled: True
+
+  Identity:
+    Name: monitor1
+    Path: udl_book.Page1.monitor1
+    Id: demo-monitor-1
+
+  Bounds:
+    X: 120
+    Y: 120
+    Width: 320
+    Height: 180
+
+  Design:
+    CornerRadius: 12
+    BorderWidth: 1
+    BorderColor: null        # Theme
+    BackColor: null          # Theme
+    ToolTip: ""
+
+  Header:
+    ControlCaption: Monitor
+    HeaderForeColor: null    # Theme
+    CaptionVisible: true
+    HeaderCornerRadius: 6
+    HeaderBorderWidth: 0
+    HeaderBorderColor: null  # Theme
+    HeaderBackColor: null    # Theme
+
+  Body:
+    BodyCaption: Rules
+    BodyCaptionPosition: Top
+    BodyForeColor: null      # Theme
+    BodyCaptionVisible: true
+    BodyCornerRadius: 8
+    BodyBorderWidth: 0
+    BodyBorderColor: null    # Theme
+    BodyBackColor: null      # Theme
+
+  Footer:
+    ShowFooter: true
+    FooterCornerRadius: 6
+    FooterBorderWidth: 0
+    FooterBorderColor: null  # Theme
+    FooterBackColor: null    # Theme
+
+  Properties:
+    MonitorDefinitions:
+      - Name: pressure_low
+        SourcePath: "runtime.sensors.pressure.value"
+        RefreshRateMs: 250
+        TimeoutMs: 1500
+        Mode: Default
+        LowerLimit: "2.5"
+        UpperLimit: ""
+        InhibitMs: 250
+        CustomVariables: []
+        CustomFormula: ""
+        EventId: 1001
+        EventText: "Pressure below lower limit"
+        LogLevel: Warning
+        Actions:
+          - Trigger: OnActivated
+            ActionType: WriteLog
+            TargetLog: "Logs.process"
+          - Trigger: OnCleared
+            ActionType: WriteLog
+            TargetLog: "Logs.process"
+          - Trigger: OnActivated
+            ActionType: SetValue
+            TargetPath: "runtime.outputs.warning_lamp"
+            Argument: "true"
+      - Name: source_custom
+        SourcePath: "runtime.sensors.pressure.value"
+        RefreshRateMs: 1000
+        TimeoutMs: 1500
+        Mode: Custom
+        LowerLimit: ""
+        UpperLimit: ""
+        InhibitMs: 0
+        CustomVariables:
+          - Name: limit
+            SourcePath: "runtime.sensors.pressure.limit"
+        CustomFormula: "{value} < {limit} && {limit} > 0"
+        EventId: 1002
+        EventText: "Pressure is below custom limit"
+        LogLevel: Error
+        Actions:
+          - Trigger: OnActivated
+            ActionType: WriteLog
+            TargetLog: "Logs.process"
+          - Trigger: OnCleared
+            ActionType: InvokeFunction
+            TargetPath: "python_app:main"
+            FunctionName: "reset_alarm"
+            Argument: "{\"event_id\":1002}"

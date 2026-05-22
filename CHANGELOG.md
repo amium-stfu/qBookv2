@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Replaced the unfinished dialog-screen model with `DialogWidget` overlays targeted by `OpenDialog(dialogWidgetId, origin = Screen, position = Center)` and `CloseDialog(dialogWidgetId)`.
+- Fixed Item client writable publish definitions so recent local Host writes keep short-term priority over conflicting retained or echoed MQTT state, while external non-retained MQTT `write` requests remain allowed.
+- Changed `VisualRules` version 1 to a constrained widget-specific surface: `Signal` and `Item` now expose only `BodyBackColor`, `Button` exposes only `ButtonBackColor`, `CircleDisplay` exposes only `DisplayBackColor`, unsupported widgets no longer show a Visual editor, and legacy body `Background` rules continue to load for compatible widgets.
+- Changed LogControl-owned process log files to use a project-local `Logs/<folder>/<widget>/` directory when the project root can be resolved.
+- Fixed LogControl-owned process log entries so item-driven writes are persisted to the log file and auto-created `TargetLog` values are saved as folder-relative `logs.<widget>` paths.
+- Simplified LogControl behavior so each widget always owns and displays its own process log instead of exposing `TargetLog` and `AutoCreateLog` as user-facing choices.
+- Added LogControl-owned process logs with writable `debug`, `info`, `warning`, `error`, and `fatal` runtime input items.
+- Fixed Item client publish/write-back feedback by omitting command-like `write` properties from retained snapshots, ignoring property-style `write` state on write-back, consuming self-published live `write` echoes once, and preserving notifications for repeated external live `write` requests.
+- Changed Item clients to use an empty MQTT `BrokerBaseTopic` by default, allow intentionally empty saved values, and pass empty base topics through to the Item client/server so unprefixed retained topics are visible.
+- Documented Item client write-back semantics explicitly: external `.../write` requests must be non-retained, retained `.../write` messages are reconstructed only as broker state, and accidental retained write values should be cleared explicitly.
+- Fixed Item client receive discovery so MQTT `/read` values reconstructed as item values are offered as attachable UI items, and added compact receive diagnostics that compare direct received roots, visible roots, and attach options.
+- Changed Item client received item paths to omit the `.Mqtt` transport segment, so attach identities now use flat paths such as `item_client1.edm1.pressure` while older `.Mqtt` selections are still normalized.
+- Fixed Item client snapshot publishing so local HornetStudio metadata properties with non-MQTT names such as CamelCase signal diagnostics are skipped instead of repeatedly failing Item client topic validation and flooding the host log.
 - Kept the normal Item and Signal widget `Property` editor field hidden while keeping `write` out of display-property pickers, and documented that runtime input automatically writes to an item's `write` property when available before falling back to `read`.
 - Removed the legacy `tools/` tree, including the old Amium multimaster demo build output and the obsolete `Item.Server.Monitor` project, and detached the monitor from the solution and host tests.
 - Migrated HornetStudio from embedded `amium_item/` source and artifact DLL references to fixed-version internal NuGet packages `Amium.Item`, `Amium.Item.Client`, and `Amium.Item.Server` from the configured `amium-at` feed, and simplified the local build flow to restore and build `HornetStudio.sln` directly.
@@ -38,26 +51,26 @@
 - Added `Amium.Item.Server.DemoClient` as a small 10 Hz in-process publishing template for two demo items.
 - Added recursive MQTT client publishing for item snapshots and value updates with focused coverage for child item topics.
 - Added MQTT ItemBroker client subscriptions, remote retained item reconstruction, direct retained writes, and BaseTopic-aware item topic mapping.
-- Added a HornetStudio Broker widget that exposes MQTT ItemBroker runtime items under `Runtime.ItemBroker.{WidgetName}.{RemoteClientId}.{ItemPath}`.
-- Added generated readonly local MQTT client ids for Broker widgets and normalized older remote-client values on load.
-- Fixed Broker widget retained MQTT item loading during connection and regenerated widget ids on layout load.
+- Added a HornetStudio Item client that exposes MQTT ItemBroker runtime items under `Runtime.ItemBroker.{WidgetName}.{RemoteClientId}.{ItemPath}`.
+- Added generated readonly local MQTT client ids for Item clients and normalized older remote-client values on load.
+- Fixed Item client retained MQTT item loading during connection and regenerated widget ids on layout load.
 - Removed legacy incoming MQTT value topic handling with trailing `/value`; the primary channel now uses `/read`.
-- Added MQTT subscribe and receive diagnostics for Broker widget debugging.
+- Added MQTT subscribe and receive diagnostics for Item client debugging.
 - Added central `IDataRegistry.TryResolve` item path resolving for root and descendant items.
 - Updated signal, chart, logger, custom signal, UDL exposure, and UI target lookups to use the central resolver.
 - Added indexed descendant item resolving, canonical data-change keys, and focused host registry tests.
-- Added explicit Broker widget `BrokerMode` support for external endpoints or widget-owned in-process MQTT ItemBroker instances.
+- Added explicit Item client `BrokerMode` support for external endpoints or widget-owned in-process MQTT ItemBroker instances.
 - Added protected host registry parameter policy with picker filtering and guarded user parameter writes.
 - Hid the normal widget `Parameter` property in editor dialogs and defaulted invalid target parameter paths to `Value`.
-- Added Broker widget write-back for active published definitions with `Writable=true`, protected by the central host registry parameter policy.
-- Changed Broker widget MQTT publishing and write-back to use shared flat item topics such as `hornet/Studio/.../Request`.
+- Added Item client write-back for active published definitions with `Writable=true`, protected by the central host registry parameter policy.
+- Changed Item client MQTT publishing and write-back to use shared flat item topics such as `hornet/Studio/.../Request`.
 - Fixed broker write-back numeric payloads so MQTT integers can update existing floating-point target values.
-- Added host data registry item roles/capabilities and changed Broker widget publish selection to show only explicitly publishable registry items.
-- Hid Broker widget internal status/options registry items from publish selection and filtered self-published broker items from received remote items.
-- Prevented Broker widget received broker items from being offered again in `PublishItems` while keeping them visible and attachable.
-- Changed new Broker widget published item defaults and documentation examples to use `Studio.<LocalPath>` broker paths while preserving existing explicit `HornetStudio.*` paths.
+- Added host data registry item roles/capabilities and changed Item client publish selection to show only explicitly publishable registry items.
+- Hid Item client internal status/options registry items from publish selection and filtered self-published broker items from received remote items.
+- Prevented Item client received broker items from being offered again in `PublishItems` while keeping them visible and attachable.
+- Changed new Item client published item defaults and documentation examples to use `Studio.<LocalPath>` broker paths while preserving existing explicit `HornetStudio.*` paths.
 - Normalized project/runtime item paths to the canonical `Studio.<Folder>...` root while preserving legacy `Project.<Folder>...` resolution.
-- Changed Broker widget received MQTT item registration to use `Studio.<Folder>.<BrokerWidget>.Mqtt...` paths while preserving legacy shared attach selections.
+- Changed Item client received MQTT item registration to use `Studio.<Folder>.<ItemClient>...` paths while preserving legacy shared and `.Mqtt` attach selections.
 - Added reusable `MqttItemServerHost` and `MqttRemoteItemClient` facades so selfhosted, remote, and hybrid MQTT ItemBroker scenarios are consumable without HornetStudio-specific classes.
 - Slimmed `HostItemBrokerClient` down to a HornetStudio composition layer over the reusable MQTT remote client facade.
 - Changed ItemBroker MQTT item topics so the main item topic carries `meta` JSON, `/read` carries `Item.Value`, direct child topics carry properties, and an empty `BaseTopic` removes the prefix.

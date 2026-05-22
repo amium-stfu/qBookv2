@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using HornetStudio.Editor.Models;
 using YamlDotNet.RepresentationModel;
 
 namespace HornetStudio.Host;
@@ -81,7 +82,7 @@ public static class ProjectUiLayoutLoader
         {
             ["Title"] = caption,
             ["Caption"] = caption,
-            ["Screens"] = new JsonObject(views.Select(static entry => new KeyValuePair<string, JsonNode?>(entry.Key.ToString(CultureInfo.InvariantCulture), entry.Value)))
+            ["Screens"] = BuildScreensJson(views)
         };
 
         return new ProjectFolderLayout
@@ -154,14 +155,25 @@ public static class ProjectUiLayoutLoader
 
         foreach (var entry in viewsNode.Children)
         {
-            if (entry.Key is not YamlScalarNode keyNode || entry.Value is not YamlScalarNode valueNode)
+            if (entry.Key is not YamlScalarNode keyNode)
             {
                 continue;
             }
 
-            if (int.TryParse(keyNode.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var key))
+            if (!int.TryParse(keyNode.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var key))
             {
-                views[key] = valueNode.Value ?? string.Empty;
+                continue;
+            }
+
+            switch (entry.Value)
+            {
+                case YamlScalarNode valueNode:
+                    views[key] = valueNode.Value ?? string.Empty;
+                    break;
+
+                case YamlMappingNode valueMapping:
+                    views[key] = GetScalar(valueMapping, "Name") ?? GetScalar(valueMapping, "Title") ?? string.Empty;
+                    break;
             }
         }
 
@@ -171,6 +183,17 @@ public static class ProjectUiLayoutLoader
         }
 
         return views;
+    }
+
+    private static JsonObject BuildScreensJson(IReadOnlyDictionary<int, string> views)
+    {
+        var screens = new JsonObject();
+        foreach (var entry in views.OrderBy(static entry => entry.Key))
+        {
+            screens[entry.Key.ToString(CultureInfo.InvariantCulture)] = entry.Value;
+        }
+
+        return screens;
     }
 
     private static ProjectUiNode ReadYamlControlNode(YamlMappingNode node)
@@ -198,6 +221,9 @@ public static class ProjectUiLayoutLoader
             SetPropertyIfPresent(properties, "Width", GetScalarJsonNode(rect, "Width"));
             SetPropertyIfPresent(properties, "Height", GetScalarJsonNode(rect, "Height"));
         }
+
+        SetPropertyIfPresent(properties, "Rows", GetScalarJsonNode(node, "Rows"));
+        SetPropertyIfPresent(properties, "Columns", GetScalarJsonNode(node, "Columns"));
 
         if (GetMapping(node, "Design") is { } design)
         {
@@ -251,13 +277,32 @@ public static class ProjectUiLayoutLoader
                 var rule = new JsonObject();
                 SetPropertyIfPresent(rule, "Event", GetScalarJsonNode(ruleNode, "Event"));
                 SetPropertyIfPresent(rule, "Action", GetScalarJsonNode(ruleNode, "Action"));
-                SetPropertyIfPresent(rule, "TargetPath", GetScalarJsonNode(ruleNode, "TargetPath"));
+                SetPropertyIfPresent(rule, "TargetPath", GetScalarJsonNode(ruleNode, "TargetPath") ?? GetScalarJsonNode(ruleNode, "Target") ?? GetScalarJsonNode(ruleNode, "DialogWidgetId"));
                 SetPropertyIfPresent(rule, "FunctionName", GetScalarJsonNode(ruleNode, "FunctionName"));
                 SetPropertyIfPresent(rule, "Argument", GetScalarJsonNode(ruleNode, "Argument"));
                 array.Add(rule);
             }
 
             properties["InteractionRules"] = array;
+        }
+
+        if (GetSequence(node, "VisualRules") is { } visualRules)
+        {
+            var array = new JsonArray();
+            foreach (var ruleNode in visualRules.Children.OfType<YamlMappingNode>())
+            {
+                var rule = new JsonObject();
+                SetPropertyIfPresent(rule, "SourceKind", GetScalarJsonNode(ruleNode, "SourceKind"));
+                SetPropertyIfPresent(rule, "SourcePath", GetScalarJsonNode(ruleNode, "SourcePath"));
+                SetPropertyIfPresent(rule, "Target", GetScalarJsonNode(ruleNode, "Target"));
+                SetPropertyIfPresent(rule, "Property", GetScalarJsonNode(ruleNode, "Property"));
+                SetPropertyIfPresent(rule, "Effect", GetScalarJsonNode(ruleNode, "Effect"));
+                SetPropertyIfPresent(rule, "ActiveValue", GetScalarJsonNode(ruleNode, "ActiveValue"));
+                SetPropertyIfPresent(rule, "InactiveValue", GetScalarJsonNode(ruleNode, "InactiveValue"));
+                array.Add(rule);
+            }
+
+            properties["VisualRules"] = array;
         }
 
         var children = new List<ProjectUiNode>();
@@ -316,10 +361,34 @@ public static class ProjectUiLayoutLoader
 
             properties["EnhancedSignals"] = array;
         }
+        if (GetSequence(control, "ControllerDefinitions") is { } controllerDefinitions)
+        {
+            var array = new JsonArray();
+            foreach (var controllerNode in controllerDefinitions.Children.OfType<YamlMappingNode>())
+            {
+                array.Add(ConvertYamlMappingToJsonObject(controllerNode));
+            }
+
+            properties["ControllerDefinitions"] = array;
+        }
+        if (GetSequence(control, "MonitorDefinitions") is { } monitorDefinitions)
+        {
+            var array = new JsonArray();
+            foreach (var monitorNode in monitorDefinitions.Children.OfType<YamlMappingNode>())
+            {
+                array.Add(ConvertYamlMappingToJsonObject(monitorNode));
+            }
+
+            properties["MonitorDefinitions"] = array;
+        }
         SetPropertyIfPresent(properties, "TargetPropertyPath", GetScalarJsonNode(control, "Property") ?? GetScalarJsonNode(control, "Parameter") ?? GetScalarJsonNode(control, "TargetPropertyPath") ?? GetScalarJsonNode(control, "TargetParameterPath"));
         SetPropertyIfPresent(properties, "TargetPropertyFormat", GetScalarJsonNode(control, "Format") ?? GetScalarJsonNode(control, "TargetPropertyFormat") ?? GetScalarJsonNode(control, "TargetParameterFormat"));
         SetPropertyIfPresent(properties, "IsReadOnly", GetScalarJsonNode(control, "IsReadOnly"));
         SetPropertyIfPresent(properties, "RefreshRateMs", GetScalarJsonNode(control, "RefreshRateMs"));
+        SetPropertyIfPresent(properties, "DefaultTimeoutMs", GetScalarJsonNode(control, "DefaultTimeoutMs"));
+        SetPropertyIfPresent(properties, "DefaultLowerLimit", GetScalarJsonNode(control, "DefaultLowerLimit"));
+        SetPropertyIfPresent(properties, "DefaultUpperLimit", GetScalarJsonNode(control, "DefaultUpperLimit"));
+        SetPropertyIfPresent(properties, "DefaultInhibitMs", GetScalarJsonNode(control, "DefaultInhibitMs"));
         SetPropertyIfPresent(properties, "ButtonText", GetScalarJsonNode(control, "ButtonText"));
         SetPropertyIfPresent(properties, "ButtonIcon", GetScalarJsonNode(control, "ButtonIcon"));
         SetPropertyIfPresent(properties, "ButtonIconColor", GetScalarJsonNode(control, "ButtonIconColor"));
@@ -437,7 +506,8 @@ public static class ProjectUiLayoutLoader
         }
 
         if ((string.Equals(type, "TableControl", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(type, "CircleDisplay", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(type, "CircleDisplay", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "DialogWidget", StringComparison.OrdinalIgnoreCase))
             && GetSequence(control, "Cells") is { } cells)
         {
             foreach (var cellNode in cells.Children.OfType<YamlMappingNode>())

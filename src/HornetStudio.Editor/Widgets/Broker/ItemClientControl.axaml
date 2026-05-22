@@ -1,0 +1,220 @@
+<editorUi:EditorTemplateControl
+    x:Class="HornetStudio.Editor.Widgets.ItemClientControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HornetStudio.Editor.Widgets"
+    xmlns:editorUi="using:HornetStudio.Editor.Controls">
+  <controls:ItemClientControl.BodyContent>
+    <Border Padding="10,8"
+            Background="{Binding EffectiveBodyBackgroundBrush}"
+            BorderBrush="{Binding EffectiveBodyBorderBrush}"
+            BorderThickness="{Binding EffectiveBodyBorderThickness}"
+            CornerRadius="10">
+      <Grid RowDefinitions="Auto,*">
+        <StackPanel Grid.Row="0" Margin="0,0,0,8" Spacing="4">
+          <TextBlock FontSize="12"
+                     FontWeight="SemiBold"
+                     Foreground="{Binding EffectiveBodyForegroundBrush}"
+                     Text="{Binding EndpointText, RelativeSource={RelativeSource AncestorType=controls:ItemClientControl}}" />
+          <TextBlock FontSize="11"
+                     Foreground="{Binding EffectiveBodyForegroundBrush}"
+                     Text="{Binding ClientText, RelativeSource={RelativeSource AncestorType=controls:ItemClientControl}}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" RowDefinitions="*,*">
+          <Border Grid.Row="0"
+                  Margin="0,0,0,5"
+                  Padding="8"
+                  Background="{Binding EffectiveBodyBackgroundBrush}"
+                  BorderBrush="{Binding EffectiveBodyBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8">
+            <Grid RowDefinitions="Auto,*">
+              <Grid Grid.Row="0"
+                    Margin="0,0,0,6"
+                    ColumnDefinitions="*,Auto,Auto">
+                <TextBlock Grid.Column="0"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="{Binding EffectiveBodyForegroundBrush}"
+                           Text="Attached To UI"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1"
+                        Margin="6,0,0,0"
+                        Padding="8,2"
+                        Classes="toolbar"
+                        Click="OnHeaderAttachClicked">
+                  <TextBlock FontSize="11" Text="Attach" />
+                </Button>
+                <Border Grid.Column="2"
+                        Margin="6,0,0,0"
+                        MinWidth="22"
+                        Padding="6,2"
+                        Background="{Binding EffectiveBodyBackgroundBrush}"
+                        BorderBrush="{Binding EffectiveBodyBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="999"
+                        VerticalAlignment="Center">
+                  <TextBlock FontSize="11"
+                             FontWeight="SemiBold"
+                             Foreground="{Binding EffectiveBodyForegroundBrush}"
+                             HorizontalAlignment="Center"
+                             Text="{Binding ReceivedItemCountText, RelativeSource={RelativeSource AncestorType=controls:ItemClientControl}}" />
+                </Border>
+              </Grid>
+              <Grid Grid.Row="1">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                  <ItemsControl ItemsSource="{Binding AttachedItems, RelativeSource={RelativeSource AncestorType=controls:ItemClientControl}}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Margin="0,0,0,6"
+                                Padding="6,4"
+                                Background="{Binding RowBackground}"
+                                BorderBrush="{Binding RowBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                ToolTip.Tip="{Binding ToolTipText}">
+                          <Grid ColumnDefinitions="Auto,*,Auto"
+                                VerticalAlignment="Center">
+                            <Border Width="10"
+                                    Height="10"
+                                    CornerRadius="999"
+                                    Background="{Binding StatusIndicatorBrush}"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,8,0" />
+                            <TextBlock Grid.Column="1"
+                                       FontSize="12"
+                                       Foreground="{Binding PrimaryForeground}"
+                                       Text="{Binding PathText}"
+                                       TextTrimming="CharacterEllipsis"
+                                       TextWrapping="NoWrap"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2"
+                                        Orientation="Horizontal"
+                                        Spacing="6">
+                              <Button Padding="8,2"
+                                      Classes="toolbar"
+                                      Click="OnEditAttachedItemClicked"
+                                      CommandParameter="{Binding .}">
+                                <TextBlock FontSize="11" Text="Edit" />
+                              </Button>
+                              <Button Padding="8,2"
+                                      Classes="toolbar"
+                                      Click="OnDeleteAttachedItemClicked"
+                                      CommandParameter="{Binding .}">
+                                <TextBlock FontSize="11" Text="Delete" />
+                              </Button>
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+                <TextBlock FontSize="11"
+                           Foreground="{Binding EffectiveMutedForegroundBrush}"
+                           Text="No broker items attached. Use AttachToUi to select broker items."
+                           IsVisible="{Binding HasNoAttachedItems, RelativeSource={RelativeSource AncestorType=controls:ItemClientControl}}"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           Margin="12" />
+              </Grid>
+            </Grid>
+          </Border>
+
+          <Border Grid.Row="1"
+                  Margin="0,5,0,0"
+                  Padding="8"
+                  Background="{Binding EffectiveBodyBackgroundBrush}"
+                  BorderBrush="{Binding EffectiveBodyBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8">
+            <Grid RowDefinitions="Auto,*">
+              <Grid Grid.Row="0"
+                    Margin="0,0,0,6"
+                    ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="{Binding EffectiveBodyForegroundBrush}"
+                           Text="Published Items"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1"
+                        Margin="6,0,0,0"
+                        Padding="8,2"
+                        Classes="toolbar"
+                        Click="OnHeaderPublishClicked">
+                  <TextBlock FontSize="11" Text="Publish" />
+                </Button>
+              </Grid>
+              <Grid Grid.Row="1">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                  <ItemsControl ItemsSource="{Binding PublishedItems, RelativeSource={RelativeSource AncestorType=controls:ItemClientControl}}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Margin="0,0,0,6"
+                                Padding="6,4"
+                                Background="{Binding RowBackground}"
+                                BorderBrush="{Binding RowBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                ToolTip.Tip="{Binding ToolTipText}">
+                          <Grid ColumnDefinitions="Auto,*,Auto"
+                                VerticalAlignment="Center">
+                            <Border Width="10"
+                                    Height="10"
+                                    CornerRadius="999"
+                                    Background="{Binding StatusIndicatorBrush}"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,8,0" />
+                            <TextBlock Grid.Column="1"
+                                       FontSize="12"
+                                       Foreground="{Binding PrimaryForeground}"
+                                       Text="{Binding PathText}"
+                                       TextTrimming="CharacterEllipsis"
+                                       TextWrapping="NoWrap"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2"
+                                        Orientation="Horizontal"
+                                        Spacing="6">
+                              <Button Padding="8,2"
+                                      Classes="toolbar"
+                                      Click="OnEditPublishedItemClicked"
+                                      CommandParameter="{Binding .}">
+                                <TextBlock FontSize="11" Text="Edit" />
+                              </Button>
+                              <Button Padding="8,2"
+                                      Classes="toolbar"
+                                      Click="OnDeletePublishedItemClicked"
+                                      CommandParameter="{Binding .}">
+                                <TextBlock FontSize="11" Text="Delete" />
+                              </Button>
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+                <TextBlock FontSize="11"
+                           Foreground="{Binding EffectiveMutedForegroundBrush}"
+                           Text="No local items selected for publishing. Use PublishItems to select local registry roots."
+                           IsVisible="{Binding HasNoPublishedItems, RelativeSource={RelativeSource AncestorType=controls:ItemClientControl}}"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           Margin="12" />
+              </Grid>
+            </Grid>
+          </Border>
+        </Grid>
+      </Grid>
+    </Border>
+  </controls:ItemClientControl.BodyContent>
+</editorUi:EditorTemplateControl>

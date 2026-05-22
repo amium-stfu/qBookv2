@@ -34,6 +34,11 @@ Defines the progress bar color.
 
 CircleDisplay uses table-like layout metadata for its internal visible cell logic.
 
+### VisualRules
+
+Defines Monitor-driven background overrides for the circular display fill.
+Version 1 exposes only `DisplayBackColor` with `None` or `Blink` as the active effect.
+
 ## Functions and Behavior
 
 ### Publish display runtime values
@@ -48,9 +53,15 @@ Changing the display-related properties triggers publication updates.
 
 The control can determine whether a conceptual cell lies inside the circular display area.
 
+### Apply visual rules
+
+The Action tab includes a `Visual` section for Monitor-backed `DisplayBackColor` changes without altering persisted theme defaults.
+
 ## Runtime Notes
 
 CircleDisplay runtime values are published as child items so other runtime features can consume them.
+The runtime root is `studio.<folder_name>.display_runtime.<widget_name>`.
+Child item segments are `signal_color`, `signal_run`, `progress_bar`, `progress_state`, and `progress_bar_color`.
 
 ## Suggested Help Window Metadata
 
@@ -59,4 +70,5 @@ CircleDisplay runtime values are published as child items so other runtime featu
 
 ## Source
 
-- `src/Hornetstudio.Editor/Models/PageItemModel.cs`
+- `src/HornetStudio.Editor/Models/PageItemModel.cs`
+- `src/HornetStudio.Editor/Widgets/CircleDisplay/`

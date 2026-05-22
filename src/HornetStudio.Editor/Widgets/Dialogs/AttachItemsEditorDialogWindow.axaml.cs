@@ -79,7 +79,7 @@ public partial class AttachItemsEditorDialogWindow : Window, INotifyPropertyChan
     public bool ShowEmptyRowsMessage => Rows.Count == 0;
 
     public string EmptyRowsMessage
-        => _field?.OwnerItem?.IsBrokerWidget == true
+        => _field?.OwnerItem?.IsItemClient == true
            && string.Equals(_field.Key, "BrokerAttachedItemPaths", StringComparison.Ordinal)
             ? "No live broker items found. Check that the widget is connected and LocalMqttClientId is unique, for example hornet-studio instead of the remote client id."
             : "No items available.";
@@ -268,7 +268,7 @@ public partial class AttachItemsEditorDialogWindow : Window, INotifyPropertyChan
         {
             _field.RefreshAttachItemOptions(GetUdlAttachItemOptions(ownerItem));
         }
-        else if (_field.OwnerItem is { IsBrokerWidget: true } brokerItem
+        else if (_field.OwnerItem is { IsItemClient: true } brokerItem
                  && string.Equals(_field.Key, "BrokerAttachedItemPaths", StringComparison.Ordinal))
         {
             _field.RefreshAttachItemOptions(GetBrokerAttachItemOptions(brokerItem));
@@ -477,7 +477,7 @@ public partial class AttachItemsEditorDialogWindow : Window, INotifyPropertyChan
     }
 
     private bool ShouldAutoRefreshBrokerOptions()
-        => _field?.OwnerItem?.IsBrokerWidget == true
+        => _field?.OwnerItem?.IsItemClient == true
            && string.Equals(_field.Key, "BrokerAttachedItemPaths", StringComparison.Ordinal);
 
     private void SetAndRaise(ref string field, string value, string propertyName)

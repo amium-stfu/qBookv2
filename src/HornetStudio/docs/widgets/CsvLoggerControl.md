@@ -25,7 +25,8 @@ Logs selected signal values into CSV files and exposes logger runtime state.
 
 ## Runtime Notes
 
-The widget publishes runtime items such as record state, output path, status, and last written file.
+The widget publishes canonical runtime items below `studio.<folder_name>.logger_runtime.<logger_name>`.
+Child items use lowercase snake_case names: `record`, `output_path`, `is_recording`, `last_file`, and `status`.
 
 ## Source
 

@@ -105,7 +105,8 @@ public partial class CustomSignalEditorDialogWindow : Window
     {
         var dialog = new TargetTreeSelectionDialogWindow(_viewModel, _sourceOptions, currentSelection, _ownerItem?.FolderName ?? string.Empty);
         await dialog.ShowDialog(this);
-        return string.IsNullOrWhiteSpace(dialog.CommittedSelection) ? currentSelection : dialog.CommittedSelection;
+        var selectedTarget = dialog.CommittedSelection;
+        return string.IsNullOrWhiteSpace(selectedTarget) ? currentSelection : selectedTarget;
     }
 
     private void OnSaveClicked(object? sender, RoutedEventArgs e)

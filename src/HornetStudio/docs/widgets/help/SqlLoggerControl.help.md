@@ -46,7 +46,8 @@ External state updates can be synchronized into the widget state.
 
 ## Runtime Notes
 
-Although the runtime sink is database-based, the widget shares a similar runtime status pattern with the CSV logger.
+Although the runtime sink is database-based, the widget shares the same canonical logger runtime path pattern as the CSV logger.
+Published runtime items live below `studio.<folder_name>.logger_runtime.<logger_name>` and use snake_case child names: `record`, `output_path`, `is_recording`, `last_file`, and `status`.
 
 ## Suggested Help Window Metadata
 

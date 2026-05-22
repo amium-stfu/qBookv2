@@ -107,21 +107,21 @@
                   <Grid ColumnDefinitions="160,170,260,220,150,Auto" Margin="0,0,0,8">
                     <ComboBox Classes="dialog-field" ItemsSource="{Binding EventOptions}" SelectedItem="{Binding EventName, Mode=TwoWay}" />
                     <ComboBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding ActionName, Mode=TwoWay}" />
-                    <Grid Grid.Column="2" Margin="8,0,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding IsStandardInteractionAction}">
-                      <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding TargetPath, Mode=TwoWay}" />
+                    <Grid Grid.Column="2" Margin="8,0,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding UsesBrowseTargetSelection}">
+                      <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding TargetPath, Mode=OneWay}" />
                       <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" ToolTip.Tip="Browse targets" Click="OnBrowseRowTargetClicked">
                         <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
                       </Button>
                     </Grid>
-                    <ComboBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding IsPythonFunctionAction}" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding TargetPath, Mode=TwoWay}">
+                    <ComboBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding UsesComboTargetSelection}" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding TargetPath, Mode=TwoWay}">
                       <ComboBox.ItemTemplate>
                         <DataTemplate>
                           <TextBlock Text="{Binding Converter={StaticResource PythonInteractionTargetDisplayConverter}}" />
                         </DataTemplate>
                       </ComboBox.ItemTemplate>
                     </ComboBox>
-                    <ComboBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding IsPythonFunctionAction}" ItemsSource="{Binding FunctionOptions}" SelectedItem="{Binding FunctionName, Mode=TwoWay}" />
-                    <TextBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding IsStandardInteractionAction}" IsEnabled="False" Text="-" />
+                    <ComboBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding ShowsFunctionPicker}" ItemsSource="{Binding FunctionOptions}" SelectedItem="{Binding FunctionName, Mode=TwoWay}" />
+                    <TextBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding !ShowsFunctionPicker}" IsEnabled="False" Text="-" />
                     <TextBox Grid.Column="4" Margin="8,0,0,0" Classes="dialog-field" Text="{Binding Argument, Mode=TwoWay}" Watermark="Argument" />
                     <Button Grid.Column="5" Margin="8,0,0,0" Classes="dialog-button" Content="Remove" Click="OnRemoveClicked" />
                   </Grid>
@@ -146,21 +146,21 @@
 
             <ComboBox Grid.Row="1" Margin="0,6,0,0" Classes="dialog-field" ItemsSource="{Binding EventOptions}" SelectedItem="{Binding NewEventName, Mode=TwoWay}" />
             <ComboBox Grid.Row="1" Grid.Column="1" Margin="8,6,0,0" Classes="dialog-field" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding NewActionName, Mode=TwoWay}" />
-            <Grid Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding IsNewStandardAction}">
-              <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding NewTargetPath, Mode=TwoWay}" />
+            <Grid Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding UsesBrowseTargetSelection}">
+              <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding NewTargetPath, Mode=OneWay}" />
               <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" ToolTip.Tip="Browse targets" Click="OnBrowseNewTargetClicked">
                 <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
               </Button>
             </Grid>
-            <ComboBox Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding IsNewPythonFunctionAction}" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding NewTargetPath, Mode=TwoWay}">
+            <ComboBox Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding UsesComboTargetSelection}" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding NewTargetPath, Mode=TwoWay}">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
                   <TextBlock Text="{Binding Converter={StaticResource PythonInteractionTargetDisplayConverter}}" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
-            <ComboBox x:Name="NewFunctionComboBox" Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding IsNewPythonFunctionAction}" SelectedItem="{Binding NewFunctionName, Mode=TwoWay}" />
-            <TextBox Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding IsNewStandardAction}" IsEnabled="False" Text="-" />
+            <ComboBox x:Name="NewFunctionComboBox" Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding ShowsFunctionPicker}" SelectedItem="{Binding NewFunctionName, Mode=TwoWay}" />
+            <TextBox Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding !ShowsFunctionPicker}" IsEnabled="False" Text="-" />
             <TextBox Grid.Row="1" Grid.Column="4" Margin="8,6,0,0" Classes="dialog-field" Text="{Binding NewArgument, Mode=TwoWay}" Watermark="Argument" />
             <Button Grid.Row="1" Grid.Column="5" Margin="8,6,0,0" Classes="dialog-button" Content="Add" Click="OnAddClicked" />
           </Grid>

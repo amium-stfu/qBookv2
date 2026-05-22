@@ -1,0 +1,607 @@
+<Window
+    x:Class="HornetStudio.Editor.Widgets.MonitorEditorDialogWindow"
+    x:Name="Root"
+    x:CompileBindings="False"
+  x:DataType="widgets:MonitorEditorDialogViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HornetStudio.Editor.Controls"
+    xmlns:widgets="using:HornetStudio.Editor.Widgets"
+    Width="820"
+    MinWidth="760"
+    Height="860"
+    MinHeight="760"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    Title="Monitor Rule"
+    Background="{Binding DialogBackground}">
+  <Window.Styles>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="{Binding ButtonBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground}" />
+    </Style>
+
+    <Style Selector="Button.icon-button">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{Binding ButtonBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground}" />
+    </Style>
+
+    <Style Selector="TextBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor}" />
+      <Setter Property="Foreground" Value="{Binding EditorForeground}" />
+      <Setter Property="CaretBrush" Value="{Binding EditorForeground}" />
+      <Setter Property="SelectionBrush" Value="{Binding ParameterHoverColor}" />
+      <Setter Property="SelectionForegroundBrush" Value="{Binding EditorForeground}" />
+    </Style>
+
+    <Style Selector="TextBox.dialog-field:pointerover">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding EditorForeground}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.dialog-field:focus">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding EditorForeground}" />
+      <Setter Property="CaretBrush" Value="{Binding EditorForeground}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="ComboBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor}" />
+      <Setter Property="Foreground" Value="{Binding EditorForeground}" />
+    </Style>
+
+    <Style Selector="ComboBox.dialog-field:pointerover">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding EditorForeground}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="ComboBox.dialog-field:focus">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding EditorForeground}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.dialog-field /template/ Border">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor}" />
+    </Style>
+
+    <Style Selector="TextBox.dialog-field:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.dialog-field:focus /template/ Border">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.dialog-field /template/ ScrollViewer">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding EditorForeground}" />
+    </Style>
+
+    <Style Selector="ComboBox.dialog-field /template/ Border">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor}" />
+    </Style>
+
+    <Style Selector="ComboBox.dialog-field:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="ComboBox.dialog-field:focus /template/ Border">
+      <Setter Property="Background" Value="{Binding EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.BorderColor}" />
+      <Setter Property="Foreground" Value="{Binding #Root.DataContext.EditorForeground}" />
+      <Setter Property="CaretBrush" Value="{Binding #Root.DataContext.EditorForeground}" />
+      <Setter Property="SelectionBrush" Value="{Binding #Root.DataContext.ParameterHoverColor}" />
+      <Setter Property="SelectionForegroundBrush" Value="{Binding #Root.DataContext.EditorForeground}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field:pointerover">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding #Root.DataContext.EditorForeground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field:focus">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding #Root.DataContext.EditorForeground}" />
+      <Setter Property="CaretBrush" Value="{Binding #Root.DataContext.EditorForeground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field /template/ Border">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.BorderColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field:focus /template/ Border">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field /template/ ScrollViewer">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding #Root.DataContext.EditorForeground}" />
+    </Style>
+
+    <Style Selector="ComboBox.template-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.BorderColor}" />
+      <Setter Property="Foreground" Value="{Binding #Root.DataContext.EditorForeground}" />
+    </Style>
+
+    <Style Selector="ComboBox.template-field:pointerover">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding #Root.DataContext.EditorForeground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="ComboBox.template-field:focus">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding #Root.DataContext.EditorForeground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="ComboBox.template-field /template/ Border">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.BorderColor}" />
+    </Style>
+
+    <Style Selector="ComboBox.template-field:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="ComboBox.template-field:focus /template/ Border">
+      <Setter Property="Background" Value="{Binding #Root.DataContext.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.DataContext.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="Button.token-button">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Width" Value="48" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Background" Value="{Binding ButtonBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground}" />
+    </Style>
+
+  </Window.Styles>
+
+  <controls:EditorShellControl Margin="16"
+                               ShellBackground="{Binding DialogBackground}"
+                               ShellBorderBrush="{Binding BorderColor}"
+                               ShellBorderThickness="1"
+                               ShellCornerRadius="10"
+                               ShellPadding="16"
+                               ShowHeader="True"
+                               ShowFooter="True">
+    <controls:EditorShellControl.HeaderContent>
+      <StackPanel>
+        <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Monitor Rule" />
+        <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="Configure one monitored rule with per-rule cadence, timeout, inhibit, mode-specific conditions, event metadata, and transition-based actions." TextWrapping="Wrap" />
+      </StackPanel>
+    </controls:EditorShellControl.HeaderContent>
+
+    <controls:EditorShellControl.BodyContent>
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12">
+          <TabControl>
+            <TabItem Header="Rule">
+              <StackPanel Margin="0,12,0,0" Spacing="12">
+                <Border Padding="12"
+                        Background="{Binding SectionBackground}"
+                        BorderBrush="{Binding BorderColor}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                  <Grid ColumnDefinitions="160,*,Auto"
+                        RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                    <TextBlock VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Name" />
+                    <TextBox Grid.Column="1" Grid.ColumnSpan="2" Classes="dialog-field" Text="{Binding Name, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Row="1" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Source" IsVisible="{Binding IsDefaultMode}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Margin="0,5,0,0" Classes="dialog-field" Text="{Binding SourcePath, Mode=TwoWay}" IsVisible="{Binding IsDefaultMode}" />
+                    <Button Grid.Row="1" Grid.Column="2" Margin="8,5,0,0" Classes="icon-button" ToolTip.Tip="Pick source" Click="OnPickSourceClicked" IsVisible="{Binding ShowSourcePicker}">
+                      <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg" TintColor="{Binding ButtonForeground}" />
+                    </Button>
+
+                    <TextBlock Grid.Row="2" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Mode" />
+                    <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Classes="dialog-field" ItemsSource="{Binding AvailableModeOptions}" SelectedItem="{Binding SelectedMode, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Row="3" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Refresh rate (ms)" />
+                    <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Classes="dialog-field" Text="{Binding RefreshRateMsText, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Row="4" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Timeout (ms)" />
+                    <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Classes="dialog-field" Text="{Binding TimeoutMsText, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Row="5" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Inhibit (ms)" />
+                    <TextBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Classes="dialog-field" Text="{Binding InhibitMsText, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Row="6" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Event Id" />
+                    <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Classes="dialog-field" Text="{Binding EventIdText, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Row="7" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Log Level" />
+                    <ComboBox Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Classes="dialog-field" ItemsSource="{Binding AvailableLogLevelOptions}" SelectedItem="{Binding SelectedLogLevel, Mode=TwoWay}" />
+
+                    <TextBlock Grid.Row="8" Margin="0,5,0,0" VerticalAlignment="Top" Foreground="{Binding PrimaryTextBrush}" Text="Event Text" />
+                    <TextBox Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Classes="dialog-field" AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" Text="{Binding EventText, Mode=TwoWay}" />
+                  </Grid>
+                </Border>
+
+                <Border Padding="12"
+                        Background="{Binding SectionBackground}"
+                        BorderBrush="{Binding BorderColor}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        IsVisible="{Binding IsDefaultMode}">
+                  <StackPanel Spacing="10">
+                    <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Default Limits" />
+                    <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto">
+                      <TextBlock VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Lower Limit" />
+                      <TextBox Grid.Column="1" Classes="dialog-field" Text="{Binding LowerLimit, Mode=TwoWay}" />
+
+                      <TextBlock Grid.Row="1" Margin="0,5,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Upper Limit" />
+                      <TextBox Grid.Row="1" Grid.Column="1" Margin="0,5,0,0" Classes="dialog-field" Text="{Binding UpperLimit, Mode=TwoWay}" />
+                    </Grid>
+                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="Only configured limits are evaluated in Default mode." TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+
+                <Border Padding="12"
+                        Background="{Binding SectionBackground}"
+                        BorderBrush="{Binding BorderColor}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        IsVisible="{Binding IsCustomMode}">
+                  <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                      <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Variables" />
+                        <Button Grid.Column="1"
+                              Width="40"
+                              Height="40"
+                              Classes="dialog-button"
+                              Background="{Binding ButtonBackground}"
+                              BorderBrush="{Binding ButtonBorderBrush}"
+                              Foreground="{Binding ButtonForeground}"
+                              ToolTip.Tip="Add variable"
+                              Click="OnAddVariableClicked">
+                        <controls:ThemeSvgIcon Width="22"
+                                                Height="22"
+                                                IconPath="avares://HornetStudio.Editor/EditorIcons/circle-plus-solid-full.svg"
+                                                TintColor="{Binding ButtonForeground}" />
+                      </Button>
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding Variables}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="widgets:CustomSignalVariableEntryViewModel">
+                          <Grid ColumnDefinitions="92,*,40,40" Margin="0,10,0,8">
+                            <TextBox Classes="template-field"
+                                     Background="{Binding #Root.DataContext.EditorBackground}"
+                                     BorderBrush="{Binding #Root.DataContext.BorderColor}"
+                                     Foreground="{Binding #Root.DataContext.EditorForeground}"
+                                     Text="{Binding Name, Mode=TwoWay}" />
+                            <TextBox Grid.Column="1"
+                                     Margin="8,0,0,0"
+                                     Classes="template-field"
+                                     Background="{Binding #Root.DataContext.EditorBackground}"
+                                     BorderBrush="{Binding #Root.DataContext.BorderColor}"
+                                     Foreground="{Binding #Root.DataContext.EditorForeground}"
+                                     Text="{Binding SourcePath, Mode=TwoWay}" />
+                            <Button Grid.Column="2"
+                                    Margin="8,0,0,0"
+                                    Classes="icon-button"
+                                    Background="{Binding #Root.DataContext.ButtonBackground}"
+                                    BorderBrush="{Binding #Root.DataContext.ButtonBorderBrush}"
+                                    Foreground="{Binding #Root.DataContext.ButtonForeground}"
+                                    ToolTip.Tip="Pick variable source"
+                                    Click="OnPickVariableSourceClicked"
+                                    CommandParameter="{Binding .}">
+                              <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg" TintColor="{Binding #Root.DataContext.ButtonForeground}" />
+                            </Button>
+                            <Button Grid.Column="3"
+                                    Margin="8,0,0,0"
+                                    Classes="icon-button"
+                                    Background="{Binding #Root.DataContext.ButtonBackground}"
+                                    BorderBrush="{Binding #Root.DataContext.ButtonBorderBrush}"
+                                    Foreground="{Binding #Root.DataContext.ButtonForeground}"
+                                    ToolTip.Tip="Delete variable"
+                                    Click="OnRemoveVariableClicked"
+                                    CommandParameter="{Binding .}">
+                              <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/trash.svg" TintColor="{Binding #Root.DataContext.ButtonForeground}" />
+                            </Button>
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="Use short variable names like A, B or Speed and pick the source path for each variable." TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+
+                <Border Padding="12"
+                        Background="{Binding SectionBackground}"
+                        BorderBrush="{Binding BorderColor}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        IsVisible="{Binding IsCustomMode}">
+                  <StackPanel Spacing="10">
+                    <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Formula" />
+
+                    <Grid ColumnDefinitions="*,260" VerticalAlignment="Top">
+                      <Grid RowDefinitions="Auto,*">
+                        <ItemsControl ItemsSource="{Binding VariableButtons}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="widgets:FormulaInsertButtonDefinition">
+                                    <Button Margin="0,0,6,6"
+                                      Classes="token-button"
+                                      Background="{Binding #Root.DataContext.TokenButtonBackground}"
+                                      BorderBrush="{Binding #Root.DataContext.TokenButtonBorderBrush}"
+                                      Foreground="{Binding #Root.DataContext.TokenButtonForeground}"
+                                      Content="{Binding Label}"
+                                      ToolTip.Tip="{Binding ToolTip}"
+                                      Click="OnInsertFormulaTokenClicked"
+                                      CommandParameter="{Binding .}" />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Border Grid.Row="1"
+                                Margin="0,8,0,0"
+                                Background="{Binding FormulaPanelBackground}"
+                                BorderBrush="{Binding BorderColor}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="0">
+                          <TextBox x:Name="FormulaEditorTextBox"
+                                   AcceptsReturn="True"
+                                   MinHeight="150"
+                                   TextWrapping="Wrap"
+                                   VerticalContentAlignment="Top"
+                                   Background="Transparent"
+                                   BorderThickness="0"
+                                   Foreground="{Binding EditorForeground}"
+                                   Padding="12"
+                                   Text="{Binding FormulaText, Mode=TwoWay}" />
+                        </Border>
+                      </Grid>
+
+                      <ItemsControl Grid.Column="1" Margin="12,42,0,0" ItemsSource="{Binding OperatorButtons}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <UniformGrid Columns="5" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="widgets:FormulaInsertButtonDefinition">
+                                <Button Margin="0,0,4,4"
+                                  Classes="token-button"
+                                  Background="{Binding #Root.DataContext.TokenButtonBackground}"
+                                  BorderBrush="{Binding #Root.DataContext.TokenButtonBorderBrush}"
+                                  Foreground="{Binding #Root.DataContext.TokenButtonForeground}"
+                                  Content="{Binding Label}"
+                                    ToolTip.Tip="{Binding ToolTip}"
+                                    Click="OnInsertFormulaTokenClicked"
+                                    CommandParameter="{Binding .}" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Grid>
+
+                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="{Binding ExampleText}" TextWrapping="Wrap" />
+                    <TextBlock FontSize="11" Foreground="{Binding FormulaStatusBrush}" Text="{Binding FormulaStatusMessage}" TextWrapping="Wrap" IsVisible="{Binding ShowFormulaStatus}" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </TabItem>
+
+            <TabItem Header="Actions">
+              <StackPanel Margin="0,12,0,0" Spacing="12">
+                <Border Padding="12"
+                        Background="{Binding SectionBackground}"
+                        BorderBrush="{Binding BorderColor}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                  <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                      <StackPanel Spacing="4">
+                        <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Configured Actions" />
+                        <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="Actions run only on state transitions. WriteLog uses the rule Event Id, Event Text, and Log Level." TextWrapping="Wrap" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                        <Button Classes="dialog-button" Content="Add Action" Click="OnAddActionClicked" />
+                      </StackPanel>
+                    </Grid>
+
+                    <Border Height="1" Background="{Binding BorderColor}" />
+
+                    <Grid ColumnDefinitions="160,170,*,40,40" Margin="10,0,10,0" IsVisible="{Binding HasActions}">
+                      <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush}" Text="Trigger" />
+                      <TextBlock Grid.Column="1" Margin="10,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush}" Text="Action" />
+                      <TextBlock Grid.Column="2" Margin="10,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush}" Text="Target" />
+                    </Grid>
+
+                    <Border Background="{Binding EditorBackground}"
+                            BorderBrush="{Binding BorderColor}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="10">
+                      <Grid>
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Foreground="{Binding SecondaryTextBrush}"
+                                   Text="No actions configured yet. Add one or more transition actions for OnActivated or OnCleared."
+                                   TextWrapping="Wrap"
+                                   IsVisible="{Binding HasNoActions}" />
+
+                        <ScrollViewer MaxHeight="360"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Auto"
+                                      IsVisible="{Binding HasActions}">
+                          <ItemsControl ItemsSource="{Binding Actions}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="widgets:MonitorActionEntryViewModel">
+                                <Border Margin="0,0,0,8"
+                                        Padding="10"
+                                        Background="{Binding #Root.DataContext.SectionBackground}"
+                                        BorderBrush="{Binding #Root.DataContext.BorderColor}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                  <StackPanel Spacing="10">
+                                    <Grid ColumnDefinitions="160,170,*,40,40">
+                                      <ComboBox Classes="template-field"
+                                                Background="{Binding #Root.DataContext.EditorBackground}"
+                                                BorderBrush="{Binding #Root.DataContext.BorderColor}"
+                                                Foreground="{Binding #Root.DataContext.EditorForeground}"
+                                                ItemsSource="{Binding AvailableTriggerOptions}"
+                                                SelectedItem="{Binding SelectedTrigger, Mode=TwoWay}" />
+                                      <ComboBox Grid.Column="1"
+                                                Margin="10,0,0,0"
+                                                Classes="template-field"
+                                                Background="{Binding #Root.DataContext.EditorBackground}"
+                                                BorderBrush="{Binding #Root.DataContext.BorderColor}"
+                                                Foreground="{Binding #Root.DataContext.EditorForeground}"
+                                                ItemsSource="{Binding AvailableActionTypeOptions}"
+                                                SelectedItem="{Binding SelectedActionType, Mode=TwoWay}" />
+                                      <TextBox Grid.Column="2"
+                                               Margin="10,0,0,0"
+                                               Classes="template-field"
+                                               Background="{Binding #Root.DataContext.EditorBackground}"
+                                               BorderBrush="{Binding #Root.DataContext.BorderColor}"
+                                               Foreground="{Binding #Root.DataContext.EditorForeground}"
+                                               Text="{Binding DisplayTarget, Mode=TwoWay}"
+                                               Watermark="Target" />
+                                      <Button Grid.Column="3"
+                                              Margin="10,0,0,0"
+                                              Classes="icon-button"
+                                              Background="{Binding #Root.DataContext.ButtonBackground}"
+                                              BorderBrush="{Binding #Root.DataContext.ButtonBorderBrush}"
+                                              Foreground="{Binding #Root.DataContext.ButtonForeground}"
+                                              ToolTip.Tip="Pick target"
+                                              Click="OnPickActionTargetLogClicked"
+                                              CommandParameter="{Binding .}">
+                                        <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg" TintColor="{Binding #Root.DataContext.ButtonForeground}" />
+                                      </Button>
+                                      <Button Grid.Column="4"
+                                              Margin="10,0,0,0"
+                                              Classes="icon-button"
+                                              Background="{Binding #Root.DataContext.ButtonBackground}"
+                                              BorderBrush="{Binding #Root.DataContext.ButtonBorderBrush}"
+                                              Foreground="{Binding #Root.DataContext.ButtonForeground}"
+                                              ToolTip.Tip="Delete action"
+                                              Click="OnRemoveActionClicked"
+                                              CommandParameter="{Binding .}">
+                                        <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/trash.svg" TintColor="{Binding #Root.DataContext.ButtonForeground}" />
+                                      </Button>
+                                    </Grid>
+
+                                    <Grid ColumnDefinitions="160,*"
+                                          Margin="0,0,100,0"
+                                          IsVisible="{Binding ShowFunction}">
+                                      <TextBlock VerticalAlignment="Center"
+                                                 Foreground="{Binding #Root.DataContext.PrimaryTextBrush}"
+                                                 Text="Function" />
+                                      <ComboBox Grid.Column="1"
+                                                Margin="10,0,0,0"
+                                                Classes="template-field"
+                                                Background="{Binding #Root.DataContext.EditorBackground}"
+                                                BorderBrush="{Binding #Root.DataContext.BorderColor}"
+                                                Foreground="{Binding #Root.DataContext.EditorForeground}"
+                                                ItemsSource="{Binding FunctionOptions}"
+                                                SelectedItem="{Binding FunctionName, Mode=TwoWay}" />
+                                    </Grid>
+
+                                    <Grid ColumnDefinitions="160,*"
+                                          Margin="0,0,100,0"
+                                          IsVisible="{Binding ShowArgument}">
+                                      <TextBlock VerticalAlignment="Center"
+                                                 Foreground="{Binding #Root.DataContext.PrimaryTextBrush}"
+                                                 Text="Argument" />
+                                      <TextBox Grid.Column="1"
+                                               Margin="10,0,0,0"
+                                               Classes="template-field"
+                                               Background="{Binding #Root.DataContext.EditorBackground}"
+                                               BorderBrush="{Binding #Root.DataContext.BorderColor}"
+                                               Foreground="{Binding #Root.DataContext.EditorForeground}"
+                                               Text="{Binding Argument, Mode=TwoWay}"
+                                               Watermark="Argument" />
+                                    </Grid>
+                                  </StackPanel>
+                                </Border>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </ScrollViewer>
+                      </Grid>
+                    </Border>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </TabItem>
+          </TabControl>
+
+          <TextBlock FontSize="12" Foreground="{Binding ValidationErrorBrush}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </StackPanel>
+      </ScrollViewer>
+    </controls:EditorShellControl.BodyContent>
+
+    <controls:EditorShellControl.FooterContent>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <Button Classes="dialog-button" Content="Save" Click="OnSaveClicked" />
+        <Button Classes="dialog-button" Content="Cancel" Click="OnCancelClicked" />
+      </StackPanel>
+    </controls:EditorShellControl.FooterContent>
+  </controls:EditorShellControl>
+</Window>

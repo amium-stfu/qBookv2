@@ -69,7 +69,7 @@ public static class TargetPathHelper
     /// Determines whether a technical identity already uses strict snake_case.
     /// </summary>
     /// <param name="name">The identity name to validate.</param>
-    /// <returns><c>true</c> when the identity name contains only lowercase letters, digits, and underscores.</returns>
+    /// <returns><c>true</c> when the identity name starts with a lowercase letter and then contains only lowercase letters, digits, and underscores.</returns>
     public static bool IsValidPathIdentityName(string? name)
     {
         var normalized = NormalizeIdentityName(name);
@@ -78,8 +78,14 @@ public static class TargetPathHelper
             return false;
         }
 
-        foreach (var character in normalized)
+        if (normalized[0] < 'a' || normalized[0] > 'z')
         {
+            return false;
+        }
+
+        for (var index = 1; index < normalized.Length; index++)
+        {
+            var character = normalized[index];
             if (character == '_')
             {
                 continue;
@@ -222,7 +228,7 @@ public static class TargetPathHelper
     }
 
     /// <summary>
-    /// Removes the broker widget and MQTT client segments from a flat ItemBroker path when present.
+    /// Removes the item client transport/client segments from a flat ItemBroker path when present.
     /// </summary>
     public static string ToRelativeItemServerPath(string? path)
     {
@@ -251,19 +257,19 @@ public static class TargetPathHelper
             && segments.Length >= 5
             && string.Equals(segments[3], "mqtt", StringComparison.OrdinalIgnoreCase))
         {
-            return string.Join('.', segments.Skip(2));
+            return string.Join('.', new[] { segments[2] }.Concat(segments.Skip(4)));
         }
 
         if (segments.Length >= 3 && string.Equals(segments[1], "shared", StringComparison.OrdinalIgnoreCase))
         {
-            return string.Join('.', new[] { segments[0], "mqtt" }.Concat(segments.Skip(2)));
+            return string.Join('.', new[] { segments[0] }.Concat(segments.Skip(2)));
         }
 
         for (var index = 1; index < segments.Length - 1; index++)
         {
             if (string.Equals(segments[index], "mqtt", StringComparison.OrdinalIgnoreCase))
             {
-                return string.Join('.', segments.Skip(index - 1));
+                return string.Join('.', new[] { segments[index - 1] }.Concat(segments.Skip(index + 1)));
             }
         }
 
@@ -271,12 +277,12 @@ public static class TargetPathHelper
     }
 
     /// <summary>
-    /// Gets the canonical broker widget segment used in runtime and studio paths.
+    /// Gets the canonical item client segment used in runtime and studio paths.
     /// </summary>
     /// <param name="widgetName">The configured widget name.</param>
-    /// <returns>The canonical broker widget segment.</returns>
-    public static string GetCanonicalBrokerWidgetName(string? widgetName)
-        => NormalizePathSegment(widgetName, "broker_widget");
+    /// <returns>The canonical item client segment.</returns>
+    public static string GetCanonicalItemClientName(string? widgetName)
+        => NormalizePathSegment(widgetName, "item_client");
 
     /// <summary>
     /// Gets the canonical broker attach-options base path.
@@ -287,7 +293,7 @@ public static class TargetPathHelper
     public static string GetCanonicalBrokerAttachOptionsBasePath(string? folderName, string? widgetName)
     {
         var normalizedFolderName = NormalizeConfiguredTargetPath(folderName);
-        return JoinPath(StudioRootSegment, JoinPath(normalizedFolderName, $"{GetCanonicalBrokerWidgetName(widgetName)}.status.attach_options"));
+        return JoinPath(StudioRootSegment, JoinPath(normalizedFolderName, $"{GetCanonicalItemClientName(widgetName)}.status.attach_options"));
     }
 
     /// <summary>
@@ -300,9 +306,9 @@ public static class TargetPathHelper
     {
         var prefixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var canonicalFolder = NormalizeConfiguredTargetPath(folderName);
-        var canonicalWidget = GetCanonicalBrokerWidgetName(widgetName);
+        var canonicalWidget = GetCanonicalItemClientName(widgetName);
         var legacyFolder = NormalizePathDelimiters(folderName);
-        var legacyWidget = string.IsNullOrWhiteSpace(widgetName) ? "BrokerWidget" : widgetName.Trim();
+        var legacyWidget = string.IsNullOrWhiteSpace(widgetName) ? "ItemClient" : widgetName.Trim();
 
         foreach (var root in BrokerAttachOptionRoots)
         {

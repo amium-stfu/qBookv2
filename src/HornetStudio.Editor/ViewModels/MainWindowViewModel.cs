@@ -126,6 +126,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private readonly ConcurrentDictionary<string, byte> _pendingPageYamlSaves = new(StringComparer.OrdinalIgnoreCase);
     private FolderItemModel? _activeValueInputItem;
     private bool _isValueInputOpen;
+    private readonly ObservableCollection<DialogWidgetOverlayEntry> _openDialogOverlays = [];
     private UserLevel _currentUser = UserLevel.Default;
     private Dock _tabStripPlacement = Dock.Right;
     protected bool AutoSaveOnEditModeExit { get; set; } = true;
@@ -139,6 +140,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         EditorDialogSections = [];
         EditorDialogActionFields = [];
         Messages = [];
+        OpenDialogOverlays = _openDialogOverlays;
         LayoutFilePath = Path.Combine(AppContext.BaseDirectory, "layout.json");
         SelectFolderCommand = new RelayCommand<FolderModel>(SelectFolder);
         SaveLayoutCommand = new RelayCommand(SaveLayout);
@@ -160,6 +162,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         _currentUser = UserLevel.Default;
         _viewLimit = _currentUser.ViewLimit;
         HostRegistries.Data.RegistryChanged += OnDataRegistryStructureChanged;
+        _openDialogOverlays.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasOpenDialogOverlays));
 
         SetFolders(CreateDefaultPages());
         RefreshDataRegistryDiagnostics();
@@ -176,6 +179,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     public ObservableCollection<EditorDialogField> EditorDialogActionFields { get; }
 
     public ObservableCollection<HostMessageEntry> Messages { get; }
+
+    public ObservableCollection<DialogWidgetOverlayEntry> OpenDialogOverlays { get; }
+
+    public bool HasOpenDialogOverlays => OpenDialogOverlays.Count > 0;
 
     public bool HasEditorDialogActionFields => EditorDialogActionFields.Count > 0;
 
@@ -797,7 +804,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         // Keine verschachtelten Container-Controls im Table zulassen.
-        if (kind == ControlKind.TableControl || kind == ControlKind.CircleDisplay || kind == ControlKind.WidgetList || kind == ControlKind.UdlClientControl)
+        if (kind == ControlKind.TableControl || kind == ControlKind.CircleDisplay || kind == ControlKind.WidgetList || kind == ControlKind.UdlClientControl || kind == ControlKind.DialogWidget)
         {
             return;
         }
@@ -1070,6 +1077,95 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         OpenValueInput(target);
+    }
+
+    /// <summary>
+    /// Opens a dialog widget as an internal overlay.
+    /// </summary>
+    /// <param name="rawDialogWidgetId">The dialog widget id or picker display value.</param>
+    /// <param name="placementArgument">The optional placement argument in the form origin,position.</param>
+    /// <param name="sourceItem">The item that triggered the interaction.</param>
+    /// <param name="error">The error message when opening fails.</param>
+    /// <returns><c>true</c> when the dialog widget was opened.</returns>
+    public bool OpenDialogWidget(string? rawDialogWidgetId, string? placementArgument, FolderItemModel sourceItem, out string error)
+    {
+        error = string.Empty;
+        if (!TryResolveDialogWidget(rawDialogWidgetId, sourceItem, out var dialogWidget, out error))
+        {
+            return false;
+        }
+
+        var existing = OpenDialogOverlays.FirstOrDefault(entry => string.Equals(entry.DialogWidgetId, dialogWidget.Id, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            OpenDialogOverlays.Remove(existing);
+        }
+
+        var (origin, position) = ParseDialogPlacement(placementArgument);
+        OpenDialogOverlays.Add(new DialogWidgetOverlayEntry
+        {
+            DialogWidgetId = dialogWidget.Id,
+            DialogName = string.IsNullOrWhiteSpace(dialogWidget.ControlCaption) ? dialogWidget.Name : dialogWidget.ControlCaption,
+            Origin = origin,
+            Position = position,
+            Folder = CreateDialogWidgetOverlayFolder(dialogWidget, out var dialogItem),
+            DialogItem = dialogItem,
+            ContentWidth = Math.Max(1, dialogWidget.Width),
+            ContentHeight = Math.Max(1, dialogWidget.Height)
+        });
+
+        StatusText = $"Dialog opened: {dialogWidget.Name}";
+        return true;
+    }
+
+    /// <summary>
+    /// Closes an internal overlay for a dialog widget.
+    /// </summary>
+    /// <param name="rawDialogWidgetId">The dialog widget id or picker display value.</param>
+    /// <param name="sourceItem">The item that triggered the interaction.</param>
+    /// <param name="error">The error message when closing fails.</param>
+    /// <returns><c>true</c> when the close request was handled.</returns>
+    public bool CloseDialogWidget(string? rawDialogWidgetId, FolderItemModel sourceItem, out string error)
+    {
+        error = string.Empty;
+        if (!TryResolveDialogWidget(rawDialogWidgetId, sourceItem, out var dialogWidget, out error))
+        {
+            return false;
+        }
+
+        var existing = OpenDialogOverlays.FirstOrDefault(entry => string.Equals(entry.DialogWidgetId, dialogWidget.Id, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            return true;
+        }
+
+        OpenDialogOverlays.Remove(existing);
+        StatusText = $"Dialog closed: {dialogWidget.Name}";
+        return true;
+    }
+
+    /// <summary>
+    /// Closes a specific dialog widget overlay entry.
+    /// </summary>
+    /// <param name="overlay">The overlay entry to close.</param>
+    public void CloseDialogOverlay(DialogWidgetOverlayEntry? overlay)
+    {
+        if (overlay is null)
+        {
+            return;
+        }
+
+        OpenDialogOverlays.Remove(overlay);
+    }
+
+    public void CloseAllDialogOverlays()
+    {
+        if (OpenDialogOverlays.Count == 0)
+        {
+            return;
+        }
+
+        OpenDialogOverlays.Clear();
     }
 
     public void CancelValueInput()
@@ -1542,14 +1638,23 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ? page.Views
             : new Dictionary<int, string> { [1] = "HomeScreen" };
 
-        var views = new JsonObject(pageViews
-            .OrderBy(static entry => entry.Key)
-            .Select(static entry => new KeyValuePair<string, JsonNode?>(entry.Key.ToString(System.Globalization.CultureInfo.InvariantCulture), entry.Value)));
+        var views = BuildScreenDefinitionsJson(pageViews);
         root["Screens"] = views;
 
         var controls = new JsonArray(page.Items.Select(item => (JsonNode?)BuildYamlControlDefinition(item)).ToArray());
         root["Controls"] = controls;
         return root;
+    }
+
+    private static JsonObject BuildScreenDefinitionsJson(IReadOnlyDictionary<int, string> views)
+    {
+        var screens = new JsonObject();
+        foreach (var entry in views.OrderBy(static entry => entry.Key))
+        {
+            screens[entry.Key.ToString(System.Globalization.CultureInfo.InvariantCulture)] = entry.Value;
+        }
+
+        return screens;
     }
 
     protected bool TrySaveBookManifest(out string savedTarget)
@@ -1656,7 +1761,15 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         SetOptionalJsonValue(nodeObject, "Applications", item.ApplicationDefinitions);
         nodeObject["ApplicationAutoStart"] = item.ApplicationAutoStart;
         nodeObject["Unit"] = item.Unit;
-        nodeObject["TargetLog"] = item.TargetLog;
+        if (item.Kind != ControlKind.LogControl)
+        {
+            nodeObject["TargetLog"] = item.TargetLog;
+        }
+        else
+        {
+            nodeObject.Remove("TargetLog");
+            nodeObject.Remove("AutoCreateLog");
+        }
         nodeObject["RefreshRateMs"] = item.RefreshRateMs;
         nodeObject["HistorySeconds"] = item.HistorySeconds;
         nodeObject["ViewSeconds"] = item.ViewSeconds;
@@ -1668,6 +1781,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         else
         {
             nodeObject.Remove("InteractionRules");
+        }
+        if (TryBuildVisualRulesJson(item.VisualRules, item.FolderName, out var visualRulesJson))
+        {
+            nodeObject["VisualRules"] = visualRulesJson;
+        }
+        else
+        {
+            nodeObject.Remove("VisualRules");
         }
         nodeObject["UdlClientHost"] = item.UdlClientHost;
         nodeObject["UdlClientPort"] = item.UdlClientPort;
@@ -1801,6 +1922,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             node["InteractionRules"] = interactionRules;
         }
 
+        if (TryBuildVisualRulesJson(item.VisualRules, item.FolderName, out var visualRules))
+        {
+            node["VisualRules"] = visualRules;
+        }
+
         var control = new JsonObject();
 
         switch (item.Kind)
@@ -1833,6 +1959,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 break;
             case ControlKind.TableControl:
             case ControlKind.CircleDisplay:
+            case ControlKind.DialogWidget:
                 control["Rows"] = item.TableRows;
                 control["Columns"] = item.TableColumns;
                 if (item.Kind == ControlKind.CircleDisplay)
@@ -1862,7 +1989,6 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 control["Cells"] = cells;
                 break;
             case ControlKind.LogControl:
-                control["TargetLog"] = item.TargetLog;
                 break;
             case ControlKind.ChartControl:
                 control["RefreshRateMs"] = item.RefreshRateMs;
@@ -1913,7 +2039,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }
 
                 break;
-            case ControlKind.BrokerWidget:
+            case ControlKind.ItemClient:
                 control["BrokerHost"] = item.BrokerHost;
                 control["BrokerPort"] = item.BrokerPort;
                 control["BrokerBaseTopic"] = item.BrokerBaseTopic;
@@ -1940,6 +2066,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 break;
             case ControlKind.EnhancedSignals:
                 control["EnhancedSignals"] = ExtendedSignalDefinitionCodec.ToJsonArray(item.EnhancedSignalDefinitions, item.FolderName);
+                break;
+            case ControlKind.ControllerWidget:
+                control["ControllerDefinitions"] = ControllerDefinitionCodec.ToJsonArray(item.ControllerDefinitions);
+                break;
+            case ControlKind.Monitor:
+                control["MonitorDefinitions"] = MonitorDefinitionCodec.ToJsonArray(item.MonitorDefinitions, item.FolderName);
                 break;
         }
 
@@ -1992,7 +2124,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClient",
-            ControlKind.BrokerWidget => "BrokerWidget",
+            ControlKind.ItemClient => "ItemClient",
             ControlKind.CsvLoggerControl => "CsvLoggerControl",
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
@@ -2000,6 +2132,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.ApplicationExplorer => "ApplicationExplorer",
             ControlKind.CustomSignals => "CustomSignals",
             ControlKind.EnhancedSignals => "EnhancedSignals",
+            ControlKind.ControllerWidget => "ControllerWidget",
+            ControlKind.Monitor => "Monitor",
+            ControlKind.DialogWidget => "DialogWidget",
             ControlKind.ItemModel or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -2008,7 +2143,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     protected static void ApplyKnownUiProperties(FolderItemModel item, JsonObject properties, string pageName, string? fallbackType)
     {
         item.Name = GetStringProperty(properties, "Name") ?? item.Name;
-        item.Id = Guid.NewGuid().ToString("N");
+        item.Id = GetStringProperty(properties, "Id") ?? Guid.NewGuid().ToString("N");
         item.Enabled = GetBoolProperty(properties, "Enabled") ?? item.Enabled;
         item.View = GetFirstIntProperty(properties, "Screen", "View") ?? item.View;
         item.Title = GetFirstStringProperty(properties, "Text", "Title") ?? item.Title;
@@ -2075,6 +2210,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ?? item.ApplicationDefinitions;
         item.CustomSignalDefinitions = CustomSignalDefinitionCodec.FromJsonNode(properties["CustomSignals"], pageName);
         item.EnhancedSignalDefinitions = ExtendedSignalDefinitionCodec.FromJsonNode(properties["EnhancedSignals"], pageName);
+        item.ControllerDefinitions = ControllerDefinitionCodec.FromJsonNode(properties["ControllerDefinitions"]);
+        item.MonitorDefinitions = MonitorDefinitionCodec.FromJsonNode(properties["MonitorDefinitions"], pageName);
         if (item.IsEnhancedSignals)
         {
             Core.LogInfo($"[EnhancedSignalsSet] origin=from-json-node item={item.Path} page={pageName} summary={SummarizeEnhancedSignalDefinitions(item.EnhancedSignalDefinitions)} raw={item.EnhancedSignalDefinitions}");
@@ -2087,11 +2224,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         item.TargetPropertyFormat = GetFirstStringProperty(properties, "Format", "TargetPropertyFormat", "TargetParameterFormat") ?? item.TargetPropertyFormat;
         item.Unit = GetFirstStringProperty(properties, "Unit", "Footer") ?? item.Unit;
         item.TargetLog = GetStringProperty(properties, "TargetLog") ?? item.TargetLog;
+        item.AutoCreateLog = GetBoolProperty(properties, "AutoCreateLog") ?? item.AutoCreateLog;
         item.RefreshRateMs = GetIntProperty(properties, "RefreshRateMs") ?? item.RefreshRateMs;
         item.HistorySeconds = GetIntProperty(properties, "HistorySeconds") ?? item.HistorySeconds;
         item.ViewSeconds = GetIntProperty(properties, "ViewSeconds") ?? item.ViewSeconds;
         item.ChartSeriesDefinitions = TargetPathHelper.NormalizeChartSeriesDefinitions(GetStringProperty(properties, "ChartSeriesDefinitions") ?? item.ChartSeriesDefinitions);
         item.InteractionRules = ReadInteractionRulesProperty(properties) ?? item.InteractionRules;
+        item.VisualRules = ReadVisualRulesProperty(properties) ?? item.VisualRules;
         item.UdlClientHost = GetStringProperty(properties, "UdlClientHost") ?? item.UdlClientHost;
         item.UdlClientPort = GetIntProperty(properties, "UdlClientPort") ?? item.UdlClientPort;
         item.UdlClientAutoConnect = GetBoolProperty(properties, "UdlClientAutoConnect") ?? item.UdlClientAutoConnect;
@@ -2181,6 +2320,23 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return rules.Count > 0;
     }
 
+    private static bool TryBuildVisualRulesJson(string definitions, string? pageName, out JsonArray array)
+    {
+        var rules = VisualRuleCodec.ParseDefinitions(definitions);
+        array = new JsonArray(rules.Select(rule => (JsonNode?)new JsonObject
+        {
+            ["SourceKind"] = rule.SourceKind.ToString(),
+            ["SourcePath"] = TargetPathHelper.ToPersistedLayoutTargetPath(rule.SourcePath, pageName),
+            ["Target"] = rule.Target.ToString(),
+            ["Property"] = rule.Property.ToString(),
+            ["Effect"] = rule.Effect.ToString(),
+            ["ActiveValue"] = rule.ActiveValue,
+            ["InactiveValue"] = rule.InactiveValue
+        }).ToArray());
+
+        return rules.Count > 0;
+    }
+
     private static string? ReadInteractionRulesProperty(JsonObject properties)
     {
         if (properties["InteractionRules"] is JsonArray array)
@@ -2209,7 +2365,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     {
                         Event = eventKind,
                         Action = actionKind,
-                        TargetPath = NormalizeInteractionRuleTargetPath(actionKind, GetStringValue(ruleObject, "TargetPath") ?? "this"),
+                        TargetPath = NormalizeInteractionRuleTargetPath(actionKind, GetStringValue(ruleObject, "TargetPath") ?? GetStringValue(ruleObject, "Target") ?? GetStringValue(ruleObject, "DialogWidgetId") ?? "this"),
                         FunctionName = functionName,
                         Argument = argument
                     };
@@ -2217,6 +2373,40 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         return GetStringProperty(properties, "InteractionRules");
+    }
+
+    private static string? ReadVisualRulesProperty(JsonObject properties)
+    {
+        if (properties["VisualRules"] is JsonArray array)
+        {
+            return VisualRuleCodec.SerializeDefinitions(array
+                .OfType<JsonObject>()
+                .Select(static ruleObject => new VisualRule
+                {
+                    SourceKind = Enum.TryParse<VisualRuleSourceKind>(GetStringValue(ruleObject, "SourceKind"), ignoreCase: true, out var sourceKind)
+                        ? sourceKind
+                        : VisualRuleSourceKind.MonitorRule,
+                    SourcePath = TargetPathHelper.NormalizeConfiguredTargetPath(GetStringValue(ruleObject, "SourcePath")),
+                    Target = Enum.TryParse<VisualRuleTarget>(GetStringValue(ruleObject, "Target"), ignoreCase: true, out var target)
+                        ? target
+                        : VisualRuleTarget.Body,
+                    Property = VisualRuleCodec.TryParsePersistedProperty(
+                        GetStringValue(ruleObject, "Property"),
+                        Enum.TryParse<VisualRuleTarget>(GetStringValue(ruleObject, "Target"), ignoreCase: true, out var parsedTarget)
+                            ? parsedTarget
+                            : VisualRuleTarget.Body,
+                        out var property)
+                        ? property
+                        : VisualRuleProperty.BodyBackColor,
+                    Effect = Enum.TryParse<VisualRuleEffect>(GetStringValue(ruleObject, "Effect"), ignoreCase: true, out var effect)
+                        ? effect
+                        : VisualRuleEffect.None,
+                    ActiveValue = GetStringValue(ruleObject, "ActiveValue") ?? string.Empty,
+                    InactiveValue = GetStringValue(ruleObject, "InactiveValue") ?? string.Empty
+                }));
+        }
+
+        return GetStringProperty(properties, "VisualRules");
     }
 
     private static string? GetStringValue(JsonObject properties, string propertyName)
@@ -2393,7 +2583,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClientControl",
-            ControlKind.BrokerWidget => "BrokerWidget",
+            ControlKind.ItemClient => "ItemClient",
             ControlKind.CsvLoggerControl => "CsvLoggerControl",
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
@@ -2401,6 +2591,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.ApplicationExplorer => "ApplicationExplorer",
             ControlKind.CustomSignals => "CustomSignals",
             ControlKind.EnhancedSignals => "EnhancedSignals",
+            ControlKind.ControllerWidget => "ControllerWidget",
+            ControlKind.Monitor => "Monitor",
+            ControlKind.DialogWidget => "DialogWidget",
             ControlKind.ItemModel or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -2642,6 +2835,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             IsDarkTheme = string.Equals(manifest.Theme, "Dark", StringComparison.OrdinalIgnoreCase);
         }
     }
+
+    public string? ProjectRootDirectory => CurrentProjectRootDirectory;
 
     protected virtual string? CurrentProjectRootDirectory => null;
 
@@ -2933,7 +3128,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 BodyCaption = string.Empty,
                 BodyCaptionVisible = false,
                 ShowFooter = true,
-                Footer = "Logs.Host",
+                Footer = "debug | info | warning | error | fatal",
                 X = x,
                 Y = y,
                 Width = Math.Max(width, 420),
@@ -3013,20 +3208,20 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Height = Math.Max(height, 170),
                 ContainerBorderWidth = 0
             },
-            ControlKind.BrokerWidget => new FolderItemModel
+            ControlKind.ItemClient => new FolderItemModel
             {
-                Kind = ControlKind.BrokerWidget,
-                Name = "BrokerWidget",
+                Kind = ControlKind.ItemClient,
+                Name = "ItemClient",
                 ControlCaption = string.Empty,
-                BodyCaption = "Broker",
+                BodyCaption = "Item Client",
                 BodyCaptionVisible = true,
                 ShowFooter = true,
                 Footer = "Disconnected",
-                BrokerHost = BrokerWidgetDefaults.Host,
-                BrokerPort = BrokerWidgetDefaults.Port,
-                BrokerBaseTopic = BrokerWidgetDefaults.BaseTopic,
-                ServerClientId = BrokerWidgetClientId.Create(),
-                BrokerMode = BrokerWidgetModes.External,
+                BrokerHost = ItemClientDefaults.Host,
+                BrokerPort = ItemClientDefaults.Port,
+                BrokerBaseTopic = ItemClientDefaults.BaseTopic,
+                ServerClientId = ItemClientId.Create(),
+                BrokerMode = ItemClientModes.External,
                 BrokerAutoConnect = false,
                 X = x,
                 Y = y,
@@ -3092,6 +3287,53 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Y = y,
                 Width = Math.Max(width, 420),
                 Height = Math.Max(height, 220),
+                ContainerBorderWidth = 0
+            },
+            ControlKind.ControllerWidget => new FolderItemModel
+            {
+                Kind = ControlKind.ControllerWidget,
+                Name = "ControllerWidget",
+                ControlCaption = "ControllerWidget",
+                BodyCaption = string.Empty,
+                BodyCaptionVisible = false,
+                ShowFooter = true,
+                Footer = "No PID controllers configured",
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 420),
+                Height = Math.Max(height, 220),
+                ContainerBorderWidth = 0
+            },
+            ControlKind.Monitor => new FolderItemModel
+            {
+                Kind = ControlKind.Monitor,
+                Name = "Monitor",
+                ControlCaption = "Monitor",
+                BodyCaption = string.Empty,
+                BodyCaptionVisible = false,
+                ShowFooter = true,
+                Footer = "No monitor rules configured",
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 420),
+                Height = Math.Max(height, 220),
+                ContainerBorderWidth = 0
+            },
+            ControlKind.DialogWidget => new FolderItemModel
+            {
+                Kind = ControlKind.DialogWidget,
+                Name = "DialogWidget",
+                ControlCaption = "DialogWidget",
+                BodyCaption = "Dialog content",
+                BodyCaptionVisible = true,
+                ShowFooter = true,
+                Footer = "Internal dialog overlay",
+                TableRows = 3,
+                TableColumns = 3,
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 420),
+                Height = Math.Max(height, 260),
                 ContainerBorderWidth = 0
             },
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
@@ -3249,9 +3491,12 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     protected void SetFolders(IReadOnlyList<FolderModel> pages)
     {
+        CloseAllDialogOverlays();
+
         foreach (var existingPage in Folders)
         {
             EnhancedSignalRuntimeManager.ReleaseFolder(existingPage.Name);
+            ControllerRuntimeManager.ReleaseFolder(existingPage.Name);
         }
 
         Folders.Clear();
@@ -3261,6 +3506,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             AttachPage(page);
             AttachHierarchy(page);
             SyncEnhancedSignals(page, forceRecreate: false);
+            SyncControllers(page, forceRecreate: false);
             Folders.Add(page);
         }
 
@@ -3426,7 +3672,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 {
                     field.RefreshInteractionRuleOptions(
                         GetSelectableTargetOptions(item),
-                        GetSelectableApplicationOptions(item));
+                        GetSelectableApplicationOptions(item),
+                        GetSelectableDialogWidgetOptions(item));
                     continue;
                 }
 
@@ -4375,26 +4622,41 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private IReadOnlyList<EditorDialogField> BuildActionFieldsForItem(FolderItemModel item)
     {
-        // Allow Action/InteractionRules for ItemModel, Signal and Button controls
-        if (item.Kind is not (ControlKind.ItemModel or ControlKind.Signal or ControlKind.Button))
+        var fields = new List<EditorDialogField>();
+
+        if (item.Kind is ControlKind.ItemModel or ControlKind.Signal or ControlKind.Button)
         {
-            return [];
+            fields.Add(
+                BindInteractionRuleList(
+                    "InteractionRules",
+                    "Interactions",
+                    current => current.InteractionRules,
+                    (current, value) =>
+                    {
+                        current.InteractionRules = value;
+                        return null;
+                    },
+                    _ => "Default without rules: left click opens the value editor or triggers the button action. Event and Action are stored as enum strings in export and import.")
+                    .CreateField(item));
         }
 
-        return
-        [
-            BindInteractionRuleList(
-                "InteractionRules",
-                "Interactions",
-                current => current.InteractionRules,
-                (current, value) =>
-                {
-                    current.InteractionRules = value;
-                    return null;
-                },
-                _ => "Default without rules: left click opens the value editor or triggers the button action. Event and Action are stored as enum strings in export and import.")
-                .CreateField(item)
-        ];
+        if (VisualRuleCodec.SupportsVisualRules(item))
+        {
+            fields.Add(
+                BindVisualRuleList(
+                    "VisualRules",
+                    "Visual",
+                    current => current.VisualRules,
+                    (current, value) =>
+                    {
+                        current.VisualRules = value;
+                        return null;
+                    },
+                    current => $"If a referenced Monitor rule is active, the widget-specific visual property is overridden ({string.Join(", ", VisualRuleCodec.GetPropertyOptions(current))}). Sources are stored as monitor rule runtime paths.")
+                    .CreateField(item));
+        }
+
+        return fields;
     }
 
     private IReadOnlyList<(string Title, IReadOnlyList<EditorDialogBindingDefinition> Bindings)> BuildBindingSectionsForItem(FolderItemModel item)
@@ -4530,6 +4792,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindInt("Columns", "Columns", current => current.TableColumns, (current, value) => current.TableColumns = value)
                 }));
                 break;
+            case ControlKind.DialogWidget:
+                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
+                {
+                    BindInt("Rows", "Rows", current => current.TableRows, (current, value) => current.TableRows = value),
+                    BindInt("Columns", "Columns", current => current.TableColumns, (current, value) => current.TableColumns = value)
+                }));
+                break;
             case ControlKind.CircleDisplay:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
@@ -4544,10 +4813,6 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 }));
                 break;
             case ControlKind.LogControl:
-                sections.Add(("Properties", new List<EditorDialogBindingDefinition>
-                {
-                    BindChoice("TargetLog", "TargetLog", current => current.TargetLog, (current, value) => { current.TargetLog = value; return null; }, _ => GetProcessLogTargetOptions())
-                }));
                 break;
             case ControlKind.CsvLoggerControl:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>
@@ -4601,14 +4866,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     BindChoice("UdlClientDemoEnabled", "Demo", current => current.UdlClientDemoEnabled ? "True" : "False", (current, value) => { current.UdlClientDemoEnabled = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" })
                 }));
                 break;
-            case ControlKind.BrokerWidget:
+            case ControlKind.ItemClient:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>
                 {
                     BindText("BrokerHost", "Host", current => current.BrokerHost, (current, value) => { current.BrokerHost = value; return null; }),
                     BindInt("BrokerPort", "Port", current => current.BrokerPort, (current, value) => current.BrokerPort = value),
                     BindText("BrokerBaseTopic", "BaseTopic", current => current.BrokerBaseTopic, (current, value) => { current.BrokerBaseTopic = value; return null; }),
                     BindReadOnly("ServerClientId", "LocalMqttClientId", current => current.ServerClientId, _ => "Generated local MQTT client id for this widget. Existing saved values are preserved and should not be copied from remote clients."),
-                    BindChoice("BrokerMode", "BrokerMode", current => current.BrokerMode, (current, value) => { current.BrokerMode = value; return null; }, _ => new[] { BrokerWidgetModes.External, BrokerWidgetModes.Own }),
+                    BindChoice("BrokerMode", "BrokerMode", current => current.BrokerMode, (current, value) => { current.BrokerMode = value; return null; }, _ => new[] { ItemClientModes.External, ItemClientModes.Own }),
                     BindChoice("BrokerAutoConnect", "AutoConnect", current => current.BrokerAutoConnect ? "True" : "False", (current, value) => { current.BrokerAutoConnect = string.Equals(value, "True", StringComparison.OrdinalIgnoreCase); return null; }, _ => new[] { "False", "True" })
                 }));
                 break;
@@ -4652,6 +4917,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>()));
                 break;
             case ControlKind.EnhancedSignals:
+            case ControlKind.ControllerWidget:
                 sections.Add(("Properties", new List<EditorDialogBindingDefinition>()));
                 break;
         }
@@ -5146,6 +5412,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
     private static EditorDialogBindingDefinition BindInteractionRuleList(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, string>? toolTipFactory = null)
         => new(key, label, EditorPropertyType.InteractionRuleList, read, apply, toolTipFactory: toolTipFactory);
 
+    private static EditorDialogBindingDefinition BindVisualRuleList(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, string>? toolTipFactory = null)
+        => new(key, label, EditorPropertyType.VisualRuleList, read, apply, toolTipFactory: toolTipFactory);
+
     private static EditorDialogBindingDefinition BindTargetTree(string key, string label, Func<FolderItemModel, string> read, Func<FolderItemModel, string, string?> apply, Func<FolderItemModel, IEnumerable<string>> optionsFactory)
         => new(key, label, EditorPropertyType.TargetTree, read, apply, optionsFactory: optionsFactory);
 
@@ -5429,6 +5698,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ApplyThemeRecursive(item);
             }
         }
+
+        foreach (var overlay in OpenDialogOverlays)
+        {
+            foreach (var item in overlay.Folder.Items)
+            {
+                ApplyThemeRecursive(item);
+            }
+        }
     }
 
     private void ApplyThemeRecursive(FolderItemModel item)
@@ -5579,6 +5856,56 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .ToArray();
     }
 
+    private IReadOnlyList<PidControllerRuntime> SyncControllers(FolderModel page, bool forceRecreate = false)
+    {
+        var controllerItems = EnumeratePageItems(page.Items)
+            .Where(static item => item.IsControllerWidget)
+            .ToArray();
+
+        if (controllerItems.Length == 0)
+        {
+            ControllerRuntimeManager.ReleaseFolder(page.Name);
+            return Array.Empty<PidControllerRuntime>();
+        }
+
+        string BuildCombinedRawDefinitions()
+        {
+            var definitions = controllerItems
+                .SelectMany(item => ControllerDefinitionCodec.ParseDefinitions(item.ControllerDefinitions))
+                .ToArray();
+
+            return ControllerDefinitionCodec.SerializeDefinitions(definitions);
+        }
+
+        return ControllerRuntimeManager.SyncDefinitions(page.Name, BuildCombinedRawDefinitions(), forceRecreate);
+    }
+
+    public IReadOnlyList<PidControllerRuntime> GetControllerRuntimes(FolderItemModel ownerItem, bool forceRecreate = false)
+    {
+        ArgumentNullException.ThrowIfNull(ownerItem);
+
+        var page = FindOwningPage(ownerItem) ?? Folders.FirstOrDefault(candidate => string.Equals(candidate.Name, ownerItem.FolderName, StringComparison.Ordinal));
+        if (page is null)
+        {
+            return Array.Empty<PidControllerRuntime>();
+        }
+
+        var ownerDefinitionNames = ControllerDefinitionCodec.ParseDefinitions(ownerItem.ControllerDefinitions)
+            .Select(definition => definition.Name)
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (ownerDefinitionNames.Count == 0)
+        {
+            SyncControllers(page, forceRecreate);
+            return Array.Empty<PidControllerRuntime>();
+        }
+
+        return SyncControllers(page, forceRecreate)
+            .Where(runtime => ownerDefinitionNames.Contains(runtime.Definition.Name))
+            .ToArray();
+    }
+
     private static IEnumerable<FolderItemModel> EnumeratePageItems(IEnumerable<FolderItemModel> items)
     {
         foreach (var item in items)
@@ -5627,6 +5954,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         {
             Index = page.Index,
             Name = page.Name,
+            Screens = page.Views
+                .OrderBy(static entry => entry.Key)
+                .Select(entry => new FolderScreenDocument
+                {
+                    Id = entry.Key,
+                    Name = entry.Value
+                })
+                .ToList(),
             Items = page.Items.Select(ToDocument).ToList()
         };
     }
@@ -5693,14 +6028,18 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             Applications = item.ApplicationDefinitions,
             CustomSignals = CustomSignalDefinitionCodec.ToDocuments(item.CustomSignalDefinitions, item.FolderName),
             EnhancedSignals = ExtendedSignalDefinitionCodec.ToDocuments(item.EnhancedSignalDefinitions, item.FolderName),
+            ControllerDefinitions = ControllerDefinitionCodec.ToDocuments(item.ControllerDefinitions),
+            MonitorDefinitions = MonitorDefinitionCodec.ToDocuments(item.MonitorDefinitions, item.FolderName),
             ApplicationAutoStart = item.ApplicationAutoStart,
             Unit = item.Unit,
-            TargetLog = item.TargetLog,
+            TargetLog = item.Kind == ControlKind.LogControl ? null : item.TargetLog,
+            AutoCreateLog = item.Kind != ControlKind.LogControl && item.AutoCreateLog,
             RefreshRateMs = item.RefreshRateMs,
             HistorySeconds = item.HistorySeconds,
             ViewSeconds = item.ViewSeconds,
             ChartSeriesDefinitions = TargetPathHelper.ToPersistedChartSeriesDefinitions(item.ChartSeriesDefinitions, item.FolderName),
             InteractionRules = ToInteractionRuleDocuments(item.InteractionRules, item.FolderName),
+            VisualRules = ToVisualRuleDocuments(item.VisualRules, item.FolderName),
             UdlClientHost = item.UdlClientHost,
             UdlClientPort = item.UdlClientPort,
             UdlClientAutoConnect = item.UdlClientAutoConnect,
@@ -5736,6 +6075,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlHeight = item.ControlHeight,
             TableRows = item.TableRows,
             TableColumns = item.TableColumns,
+            TableCellRow = item.TableCellRow,
+            TableCellColumn = item.TableCellColumn,
+            TableCellRowSpan = item.TableCellRowSpan,
+            TableCellColumnSpan = item.TableCellColumnSpan,
             DisplayBackColor = item.DisplayBackColor,
             SignalColor = item.SignalColor,
             SignalRun = item.SignalRun,
@@ -5755,7 +6098,14 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
     private static FolderModel ToModel(FolderDocument page)
     {
-        var model = new FolderModel { Index = page.Index, Name = page.Name };
+        var model = new FolderModel
+        {
+            Index = page.Index,
+            Name = page.Name,
+            Views = page.Screens.Count > 0
+                ? page.Screens.ToDictionary(static screen => screen.Id, static screen => screen.Name)
+                : new Dictionary<int, string> { [1] = "HomeScreen" }
+        };
         foreach (var item in page.Items)
         {
             model.Items.Add(ToModel(item));
@@ -5764,10 +6114,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         return model;
     }
 
-    private static FolderItemModel ToModel(FolderItemDocument item)
+    private static FolderItemModel ToModel(FolderItemDocument item, bool resolveLegacyKind = true)
     {
         var enhancedSignalDefinitions = ExtendedSignalDefinitionCodec.FromDocuments(item.EnhancedSignals, null);
-        var effectiveKind = ResolveDocumentKind(item);
+        var controllerDefinitions = ControllerDefinitionCodec.FromDocuments(item.ControllerDefinitions);
+        var effectiveKind = resolveLegacyKind ? ResolveDocumentKind(item) : item.Kind;
 
         var model = new FolderItemModel
         {
@@ -5828,14 +6179,18 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ApplicationDefinitions = string.IsNullOrWhiteSpace(item.Applications) ? item.LegacyPythonEnvironments ?? string.Empty : item.Applications,
             CustomSignalDefinitions = CustomSignalDefinitionCodec.FromDocuments(item.CustomSignals, null),
             EnhancedSignalDefinitions = enhancedSignalDefinitions,
+            ControllerDefinitions = controllerDefinitions,
+            MonitorDefinitions = MonitorDefinitionCodec.FromDocuments(item.MonitorDefinitions, null),
             ApplicationAutoStart = item.ApplicationAutoStart || item.LegacyPythonEnvAutoStart,
             Unit = item.Unit,
-            TargetLog = item.TargetLog,
+            TargetLog = item.TargetLog ?? string.Empty,
+            AutoCreateLog = item.AutoCreateLog,
             RefreshRateMs = item.RefreshRateMs,
             HistorySeconds = item.HistorySeconds,
             ViewSeconds = item.ViewSeconds,
             ChartSeriesDefinitions = TargetPathHelper.NormalizeChartSeriesDefinitions(item.ChartSeriesDefinitions),
             InteractionRules = FromInteractionRuleDocuments(item.InteractionRules),
+            VisualRules = FromVisualRuleDocuments(item.VisualRules),
             UdlClientHost = item.UdlClientHost,
             UdlClientPort = item.UdlClientPort,
             UdlClientAutoConnect = item.UdlClientAutoConnect,
@@ -5870,6 +6225,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ListItemHeight = item.ControlHeight > 0 ? item.ControlHeight : item.ListItemHeight,
             TableRows = item.TableRows,
             TableColumns = item.TableColumns,
+            TableCellRow = Math.Max(1, item.TableCellRow),
+            TableCellColumn = Math.Max(1, item.TableCellColumn),
+            TableCellRowSpan = Math.Max(1, item.TableCellRowSpan),
+            TableCellColumnSpan = Math.Max(1, item.TableCellColumnSpan),
             DisplayBackColor = item.DisplayBackColor,
             SignalColor = item.SignalColor,
             SignalRun = item.SignalRun,
@@ -5897,6 +6256,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlKind.PythonClient => 220,
                 ControlKind.CustomSignals => 420,
                 ControlKind.EnhancedSignals => 420,
+                ControlKind.ControllerWidget => 420,
+                ControlKind.Monitor => 420,
+                ControlKind.DialogWidget => 420,
                 _ => 140
             }),
             Height = Math.Max(item.Height, effectiveKind switch
@@ -5915,6 +6277,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlKind.PythonClient => 80,
                 ControlKind.CustomSignals => 180,
                 ControlKind.EnhancedSignals => 180,
+                ControlKind.ControllerWidget => 180,
+                ControlKind.Monitor => 180,
+                ControlKind.DialogWidget => 260,
                 _ => 72
             })
         };
@@ -5942,6 +6307,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlKind.ApplicationExplorer => "ApplicationExplorer",
                 ControlKind.CustomSignals => "CustomSignals",
                 ControlKind.EnhancedSignals => "EnhancedSignals",
+                ControlKind.ControllerWidget => "ControllerWidget",
+                ControlKind.Monitor => "Monitor",
+                ControlKind.DialogWidget => "DialogWidget",
                 ControlKind.ItemModel or ControlKind.Signal => "Signal",
                 _ => "Signal"
             };
@@ -5957,7 +6325,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
         foreach (var child in item.Items)
         {
-            model.Items.Add(ToModel(child));
+            model.Items.Add(ToModel(child, resolveLegacyKind));
         }
 
         model.ApplyTargetSelection(model.TargetPath);
@@ -6011,15 +6379,47 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             Argument = rule.Argument
         }));
 
+    private static List<ItemVisualRuleDocument> ToVisualRuleDocuments(string definitions, string? pageName)
+        => VisualRuleCodec.ParseDefinitions(definitions)
+            .Select(rule => new ItemVisualRuleDocument
+            {
+                SourceKind = rule.SourceKind,
+                SourcePath = TargetPathHelper.ToPersistedLayoutTargetPath(rule.SourcePath, pageName),
+                Target = rule.Target,
+                Property = rule.Property,
+                Effect = rule.Effect,
+                ActiveValue = rule.ActiveValue,
+                InactiveValue = rule.InactiveValue
+            })
+            .ToList();
+
+    private static string FromVisualRuleDocuments(IEnumerable<ItemVisualRuleDocument>? documents)
+        => VisualRuleCodec.SerializeDefinitions((documents ?? []).Select(static rule => new VisualRule
+        {
+            SourceKind = rule.SourceKind,
+            SourcePath = TargetPathHelper.NormalizeConfiguredTargetPath(rule.SourcePath),
+            Target = rule.Target,
+            Property = rule.Property,
+            Effect = rule.Effect,
+            ActiveValue = rule.ActiveValue,
+            InactiveValue = rule.InactiveValue
+        }));
+
     private static string ToPersistedInteractionRuleTargetPath(ItemInteractionRule rule, string? pageName)
-        => rule.Action == ItemInteractionAction.InvokePythonFunction
-            ? HornetStudio.Editor.Widgets.ApplicationExplorerRuntime.ToPersistedInteractionTargetPath(rule.TargetPath)
-            : TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath, pageName);
+        => rule.Action switch
+        {
+            ItemInteractionAction.InvokePythonFunction => HornetStudio.Editor.Widgets.ApplicationExplorerRuntime.ToPersistedInteractionTargetPath(rule.TargetPath),
+            ItemInteractionAction.OpenDialog or ItemInteractionAction.CloseDialog => ExtractDialogWidgetId(rule.TargetPath),
+            _ => TargetPathHelper.ToPersistedLayoutTargetPath(rule.TargetPath, pageName)
+        };
 
     private static string NormalizeInteractionRuleTargetPath(ItemInteractionAction action, string? targetPath)
-        => action == ItemInteractionAction.InvokePythonFunction
-            ? (targetPath?.Trim() ?? string.Empty)
-            : TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
+        => action switch
+        {
+            ItemInteractionAction.InvokePythonFunction => targetPath?.Trim() ?? string.Empty,
+            ItemInteractionAction.OpenDialog or ItemInteractionAction.CloseDialog => ExtractDialogWidgetId(targetPath),
+            _ => TargetPathHelper.NormalizeConfiguredTargetPath(targetPath)
+        };
 
     internal static (string Kind, string Parameter) SplitPropertyFormat(string? format)
     {
@@ -6304,7 +6704,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.LogControl => "log_control",
             ControlKind.ChartControl => "chart_control",
             ControlKind.UdlClientControl => "udl_client_control",
-            ControlKind.BrokerWidget => "broker_widget",
+            ControlKind.ItemClient => "item_client",
             ControlKind.CsvLoggerControl => "csv_logger_control",
             ControlKind.SqlLoggerControl => "sql_logger_control",
             ControlKind.CameraControl => "camera_control",
@@ -6312,6 +6712,9 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.ApplicationExplorer => "application_explorer",
             ControlKind.CustomSignals => "custom_signals",
             ControlKind.EnhancedSignals => "enhanced_signals",
+            ControlKind.ControllerWidget => "controller_widget",
+            ControlKind.Monitor => "monitor",
+            ControlKind.DialogWidget => "dialog_widget",
             ControlKind.ItemModel or ControlKind.Signal => "signal",
             _ => "signal"
         };
@@ -6703,6 +7106,127 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .ToArray();
     }
 
+    private IEnumerable<string> GetSelectableDialogWidgetOptions(FolderItemModel? item = null)
+    {
+        return Folders
+            .SelectMany(page => EnumeratePageItems(page.Items)
+                .Where(candidate => candidate.Kind == ControlKind.DialogWidget)
+                .Select(candidate => FormatDialogWidgetOption(page, candidate)))
+            .ToArray();
+    }
+
+    private bool TryResolveDialogWidget(string? rawDialogWidgetId, FolderItemModel sourceItem, out FolderItemModel dialogWidget, out string error)
+    {
+        dialogWidget = null!;
+        error = string.Empty;
+
+        var dialogWidgetId = ExtractDialogWidgetId(rawDialogWidgetId);
+        if (string.IsNullOrWhiteSpace(dialogWidgetId))
+        {
+            error = "Dialog widget id is required.";
+            return false;
+        }
+
+        dialogWidget = Folders
+            .SelectMany(page => EnumeratePageItems(page.Items))
+            .FirstOrDefault(candidate => candidate.Kind == ControlKind.DialogWidget
+                                         && (string.Equals(candidate.Id, dialogWidgetId, StringComparison.OrdinalIgnoreCase)
+                                             || string.Equals(candidate.Name, dialogWidgetId, StringComparison.OrdinalIgnoreCase)
+                                             || string.Equals(candidate.ControlCaption, dialogWidgetId, StringComparison.OrdinalIgnoreCase)))!;
+        if (dialogWidget is null)
+        {
+            error = $"Dialog widget '{dialogWidgetId}' does not exist.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string ExtractDialogWidgetId(string? rawDialogWidgetId)
+    {
+        if (string.IsNullOrWhiteSpace(rawDialogWidgetId))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = rawDialogWidgetId.Trim();
+        var separatorIndex = trimmed.IndexOf(" - ", StringComparison.Ordinal);
+        return separatorIndex > 0 ? trimmed[..separatorIndex].Trim() : trimmed;
+    }
+
+    private static (string Origin, string Position) ParseDialogPlacement(string? placementArgument)
+    {
+        const string defaultOrigin = "Screen";
+        const string defaultPosition = "Center";
+        if (string.IsNullOrWhiteSpace(placementArgument))
+        {
+            return (defaultOrigin, defaultPosition);
+        }
+
+        var parts = placementArgument.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var origin = parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]) ? parts[0] : defaultOrigin;
+        var position = parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]) ? parts[1] : defaultPosition;
+        return (origin, position);
+    }
+
+    private static string FormatDialogWidgetOption(FolderModel page, FolderItemModel dialogWidget)
+    {
+        var name = string.IsNullOrWhiteSpace(dialogWidget.ControlCaption) ? dialogWidget.Name : dialogWidget.ControlCaption;
+        var context = string.IsNullOrWhiteSpace(page.DisplayText) ? page.Name : page.DisplayText;
+        return $"{dialogWidget.Id} - {name} ({context})";
+    }
+
+    private FolderModel CreateDialogWidgetOverlayFolder(FolderItemModel dialogWidget, out FolderItemModel dialogItem)
+    {
+        var overlayFolder = new FolderModel
+        {
+            Index = 1,
+            Name = dialogWidget.FolderName,
+            DisplayText = string.IsNullOrWhiteSpace(dialogWidget.ControlCaption) ? dialogWidget.Name : dialogWidget.ControlCaption,
+            Views = new Dictionary<int, string> { [1] = "Dialog" }
+        };
+
+        var overlayItem = ToModel(ToDocument(dialogWidget), resolveLegacyKind: false);
+        overlayItem.Id = dialogWidget.Id;
+    overlayItem.CaptionVisible = false;
+        overlayItem.X = 0;
+        overlayItem.Y = 0;
+        overlayItem.View = 1;
+        overlayFolder.Items.Add(overlayItem);
+        dialogItem = overlayItem;
+
+        AttachHierarchy(overlayFolder);
+        overlayFolder.ActualViewId = 1;
+
+        foreach (var item in overlayFolder.Items)
+        {
+            ApplyThemeRecursive(item);
+        }
+
+        return overlayFolder;
+    }
+
+    internal IReadOnlyList<string> GetSelectableVisualRuleSourceOptions(FolderItemModel? item = null)
+    {
+        var pages = Folders.Count == 0
+            ? (SelectedFolder is null ? [] : [SelectedFolder])
+            : Folders;
+
+        return pages
+            .SelectMany(page => EnumeratePageItems(page.Items))
+            .Where(candidate => candidate.Kind == ControlKind.Monitor)
+            .SelectMany(candidate => MonitorDefinitionCodec.ParseDefinitions(candidate.MonitorDefinitions)
+                .Where(static definition => !string.IsNullOrWhiteSpace(definition.Name))
+                .Select(definition => HornetStudio.Editor.Widgets.MonitorRuleRow.BuildRegistryPath(candidate.FolderName, candidate.Name, definition.Name)))
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    internal IReadOnlyList<string> GetSelectableVisualRulePropertyOptions(FolderItemModel? item = null)
+        => VisualRuleCodec.GetPropertyOptions(item);
+
     internal static IEnumerable<string> EnumerateSignalSourceOptions()
     {
         return HostRegistries.Data.GetKeysByCapability(DataRegistryItemCapabilities.Display)
@@ -6773,7 +7297,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         }
 
         return EnumeratePageItems(owningPage.Items)
-            .Where(static pageItem => pageItem.Kind == ControlKind.BrokerWidget)
+            .Where(static pageItem => pageItem.Kind == ControlKind.ItemClient)
             .SelectMany(GetBrokerAttachItemOptions)
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -6799,7 +7323,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             .Where(pageItem => pageItem.Kind is ControlKind.CsvLoggerControl or ControlKind.SqlLoggerControl)
             .Select(pageItem => NormalizeTargetPathSegment(pageItem.Name))
             .Where(static name => !string.IsNullOrWhiteSpace(name))
-            .Select(name => $"studio.{pageName}.Loggerruntime.{name}")
+            .SelectMany(name => new[]
+            {
+                $"studio.{pageName}.logger_runtime.{name}",
+                $"studio.{pageName}.Loggerruntime.{name}"
+            })
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -6811,8 +7339,10 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             return false;
         }
 
-        const string loggerRuntimeMarker = ".Loggerruntime.";
-        if (path.IndexOf(loggerRuntimeMarker, StringComparison.OrdinalIgnoreCase) < 0)
+        const string canonicalLoggerRuntimeMarker = ".logger_runtime.";
+        const string legacyLoggerRuntimeMarker = ".Loggerruntime.";
+        if (path.IndexOf(canonicalLoggerRuntimeMarker, StringComparison.OrdinalIgnoreCase) < 0
+            && path.IndexOf(legacyLoggerRuntimeMarker, StringComparison.OrdinalIgnoreCase) < 0)
         {
             return true;
         }
@@ -6846,7 +7376,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
 
             foreach (var pageItem in EnumeratePageItems(page.Items))
             {
-                if (pageItem.Kind != ControlKind.UdlClientControl && pageItem.Kind != ControlKind.BrokerWidget)
+                if (pageItem.Kind != ControlKind.UdlClientControl && pageItem.Kind != ControlKind.ItemClient)
                 {
                     continue;
                 }
@@ -7074,7 +7604,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             new FolderModel
             {
                 Index = 1,
-                Name = "page_1"
+                Name = "page_1",
+                Views = new Dictionary<int, string>
+                {
+                    [1] = "HomeScreen"
+                }
             }
         ];
     }

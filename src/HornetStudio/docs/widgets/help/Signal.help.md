@@ -7,6 +7,7 @@
 ## Overview
 
 The Signal widget displays a bound runtime signal and supports typed editing, bool toggling, bit toggling, and interaction-rule-based actions.
+It can also react visually to Monitor rule states through widget-level visual rules.
 
 ## Properties
 
@@ -28,7 +29,12 @@ Optional unit override for the displayed value.
 
 ### InteractionRules
 
-Defines additional click-based behavior such as open editor, set value, toggle bool, or invoke Python functions.
+Defines additional click-based behavior such as open editor, set value, toggle bool, open or close `DialogWidget` overlays, or invoke Python functions.
+
+### VisualRules
+
+Defines Monitor-driven visual state overrides for the signal body background.
+Version 1 exposes only `BodyBackColor` with `None` or `Blink` while the referenced Monitor rule is active.
 
 ### IsReadOnly
 
@@ -39,6 +45,7 @@ Blocks input actions when enabled.
 ### Open value dialog
 
 The widget can open the shared value input editor for writable targets.
+The body click area remains available when the displayed value is empty.
 
 ### Target writeback
 
@@ -55,6 +62,12 @@ Bool-oriented UI choices can send direct input values.
 ### Execute interactions
 
 The widget can execute configured interaction rules for body and sub-control actions.
+`OpenDialog` and `CloseDialog` accept a dialog `Screen` id from the current folder and show or hide the matching internal overlay.
+
+### Apply visual rules
+
+The Action tab also exposes a `Visual` section.
+When a referenced Monitor rule runtime path becomes active, the widget can override `BodyBackColor` and optionally blink until the rule clears.
 
 ### Respect editor mode
 

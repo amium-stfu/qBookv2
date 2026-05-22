@@ -6,6 +6,8 @@ using Amium.Item.Client;
 using HornetStudio.Contracts;
 using HornetStudio.Editor.Models;
 using HornetStudio.Host;
+using HornetStudio.Logging;
+using HornetStudio.Host.Python.Client;
 using MQTTnet.Server;
 using System.Reflection;
 using System.Net;
@@ -40,11 +42,26 @@ var tests = new (string Name, Func<Task> Run)[]
     ("UI folder child source update preserves write property", () => RunSync(UiFolderChildSourceUpdatePreservesWriteProperty)),
     ("UI folder initial publish preserves source runtime paths", () => RunSync(UiFolderInitialPublishPreservesSourceRuntimePaths)),
     ("Host UDL client creates flat channels", () => RunSync(HostUdlClientCreatesFlatChannels)),
+    ("Python client registry paths normalize to snake_case", PythonClientRegistryPathsNormalizeToSnakeCase),
     ("Enhanced signal runtime publishes snake_case write paths", () => RunSync(EnhancedSignalRuntimePublishesSnakeCaseWritePaths)),
     ("Enhanced signal set write forwards inverse adjustment", () => RunSync(EnhancedSignalSetWriteForwardsInverseAdjustment)),
     ("Enhanced signal prefers child read over source container text", () => RunSync(EnhancedSignalPrefersChildReadOverSourceContainerText)),
     ("Enhanced signal ignores nonnumeric source text for numeric conversion", () => RunSync(EnhancedSignalIgnoresNonnumericSourceTextForNumericConversion)),
+    ("Registry direct update writes writable child channel", () => RunSync(RegistryDirectUpdateWritesWritableChildChannel)),
+    ("PID controller runtime publishes stable paths", () => RunSync(PidControllerRuntimePublishesStablePaths)),
+    ("PID controller run value starts and stops", () => RunSync(PidControllerRunValueStartsAndStops)),
+    ("PID controller legacy write property still starts and stops", () => RunSync(PidControllerRunWritePropertyStartsAndStops)),
+    ("PID controller guards invalid numeric input", () => RunSync(PidControllerGuardsInvalidNumericInput)),
+    ("PID controller rejects invalid owned setpoint", () => RunSync(PidControllerRejectsInvalidOwnedSetpoint)),
+    ("PID controller owned setpoint write changes output", () => RunSync(PidControllerOwnedSetpointWriteChangesOutput)),
+    ("PID controller does not bias output to setpoint", () => RunSync(PidControllerDoesNotBiasOutputToSetpoint)),
+    ("PID controller clamps scaled output", () => RunSync(PidControllerClampsScaledOutput)),
+    ("PID controller rejects invalid CHR parameters", () => RunSync(PidControllerRejectsInvalidChrParameters)),
+    ("Process log runtime publishes level input items", () => RunSync(ProcessLogRuntimePublishesLevelInputItems)),
+    ("Process log runtime updates log directory", () => RunSync(ProcessLogRuntimeUpdatesLogDirectory)),
     ("Host item broker client receives live items", HostItemBrokerClientReceivesLiveItems),
+    ("Host item broker client exposes direct received roots", HostItemBrokerClientExposesDirectReceivedRoots),
+    ("Host item broker client receives live items without base topic", HostItemBrokerClientReceivesLiveItemsWithoutBaseTopic),
     ("Host item broker client hides self-published items", HostItemBrokerClientHidesSelfPublishedItems),
     ("Host item broker client snapshots are detached", HostItemBrokerClientSnapshotsAreDetached),
     ("Host item broker client publishes local snapshots", HostItemBrokerClientPublishesLocalSnapshots),
@@ -412,6 +429,35 @@ static void HostUdlClientCreatesFlatChannels()
     AssertFalse(module["alert"].Properties.Has("write"));
 }
 
+static async Task PythonClientRegistryPathsNormalizeToSnakeCase()
+{
+    await using var client = new PythonClient(new PythonClientOptions
+    {
+        Name = "RawClient42",
+        RegistryRootPath = "studio.Main.Applications.Python.RawTest"
+    });
+
+    var method = typeof(PythonClient).GetMethod("ResolveRegistryValuePath", BindingFlags.NonPublic | BindingFlags.Instance);
+    if (method is null)
+    {
+        throw new InvalidOperationException("ResolveRegistryValuePath was not found.");
+    }
+
+    var normalizedPath = method.Invoke(client, ["RawValueA", null]);
+    AssertEqual("studio.main.applications.python.raw_test.raw_value_a", normalizedPath);
+
+    var explicitPath = method.Invoke(client, ["IgnoredName", "studio/Main/Applications/Python/RawTest/Value-B"]);
+    AssertEqual("studio.main.applications.python.raw_test.value_b", explicitPath);
+
+    await using var fallbackClient = new PythonClient(new PythonClientOptions
+    {
+        Name = "MixedClient"
+    });
+
+    var fallbackPath = method.Invoke(fallbackClient, ["ValueB", null]);
+    AssertEqual("python_clients.mixed_client.value_b", fallbackPath);
+}
+
 static void EnhancedSignalRuntimePublishesSnakeCaseWritePaths()
 {
     var definition = new ExtendedSignalDefinition
@@ -557,6 +603,391 @@ static void EnhancedSignalIgnoresNonnumericSourceTextForNumericConversion()
     AssertEqual(null, value);
 }
 
+static void PidControllerRuntimePublishesStablePaths()
+{
+    var suffix = $"id_{Guid.NewGuid():N}";
+    var folderName = $"pid_test_folder_{suffix}";
+    var sourcePath = $"runtime.pid_test.{suffix}.source";
+    var outputPath = $"runtime.pid_test.{suffix}.output";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, 10d), pruneMissingMembers: true);
+    HostRegistries.Data.UpsertSnapshot(outputPath, ItemExtension.CreateWithPath(outputPath, 0d), pruneMissingMembers: true);
+
+    using var runtime = new PidControllerRuntime(folderName, CreatePidDefinition("loop_a", sourcePath, outputPath));
+
+    AssertEqual($"studio.{folderName}.controller_widget.loop_a", runtime.RegistryPath);
+    AssertTrue(HostRegistries.Data.TryResolve(runtime.RegistryPath, out var root));
+    AssertEqual(runtime.RegistryPath, root?.Path);
+    AssertTrue(HostRegistries.Data.TryResolve($"{runtime.RegistryPath}.run", out var runItem));
+    AssertTrue(HostRegistries.Data.TryResolve($"{runtime.RegistryPath}.set", out var setItem));
+    AssertFalse(runItem?.Properties.Has("writable") ?? true);
+    AssertFalse(runItem?.Properties.Has("write") ?? true);
+    AssertFalse(runItem?.Properties.Has("write_path") ?? true);
+    AssertFalse(runItem?.Properties.Has("write_mode") ?? true);
+    AssertFalse(setItem?.Properties.Has("writable") ?? true);
+    AssertFalse(setItem?.Properties.Has("write") ?? true);
+    AssertFalse(setItem?.Properties.Has("write_path") ?? true);
+    AssertFalse(setItem?.Properties.Has("write_mode") ?? true);
+    AssertTrue(HostRegistries.Data.TryResolve($"{runtime.RegistryPath}.parameters.kr", out var krItem));
+    AssertTrue(krItem?.Value is double);
+}
+
+static void RegistryDirectUpdateWritesWritableChildChannel()
+{
+    var path = $"studio.pid_registry_test_{Guid.NewGuid():N}.controller_widget.loop";
+    var snapshot = ItemExtension.CreateWithPath(path, false);
+    snapshot["run"].Value = false;
+    snapshot["run"].Properties["writable"].Value = true;
+    snapshot["run"].Properties["write"].Value = false;
+    HostRegistries.Data.UpsertSnapshot(path, snapshot, DataRegistryItemMetadata.PublicData(), pruneMissingMembers: true);
+
+    AssertTrue(HostRegistries.Data.UpdateValue($"{path}.run", true));
+    AssertTrue(HostRegistries.Data.TryResolve($"{path}.run", out var runItem));
+    AssertEqual(true, runItem?.Properties["write"].Value);
+}
+
+static void PidControllerRunValueStartsAndStops()
+{
+    var suffix = $"id_{Guid.NewGuid():N}";
+    var folderName = $"pid_test_folder_{suffix}";
+    var sourcePath = $"runtime.pid_test.{suffix}.source";
+    var outputPath = $"runtime.pid_test.{suffix}.output";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, 10d), pruneMissingMembers: true);
+    HostRegistries.Data.UpsertSnapshot(outputPath, ItemExtension.CreateWithPath(outputPath, 0d), pruneMissingMembers: true);
+
+    using var runtime = new PidControllerRuntime(folderName, CreatePidDefinition("loop_b", sourcePath, outputPath));
+    StopPidTimer(runtime);
+
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.set", 90d));
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.run", true));
+    AssertPidRunState(runtime, expectedValue: true, context: "after direct run update");
+    InvokePidEvaluation(runtime);
+    if (!TryResolveNumericItemValue(outputPath, out var outputValue))
+    {
+        throw new InvalidOperationException($"PID controller did not write a numeric output. State='{runtime.CurrentStateValue}', Alert='{runtime.CurrentAlertValue}', RuntimeOutput='{runtime.CurrentOutputValue}'.");
+    }
+
+    if (outputValue <= 0.0)
+    {
+        throw new InvalidOperationException($"PID controller output should be positive after start, actual '{outputValue}'. State='{runtime.CurrentStateValue}', Alert='{runtime.CurrentAlertValue}'. {DescribePidRunItem(runtime)}");
+    }
+
+    AssertEqual("Running", runtime.CurrentStateValue);
+
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.run", false));
+    InvokePidEvaluation(runtime);
+    AssertEqual("Stopped", runtime.CurrentStateValue);
+    AssertFalse(runtime.IsRunning);
+}
+
+static void PidControllerRunWritePropertyStartsAndStops()
+{
+    var suffix = $"id_{Guid.NewGuid():N}";
+    var folderName = $"pid_test_folder_{suffix}";
+    var sourcePath = $"runtime.pid_test.{suffix}.source";
+    var outputPath = $"runtime.pid_test.{suffix}.output";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, 10d), pruneMissingMembers: true);
+    HostRegistries.Data.UpsertSnapshot(outputPath, ItemExtension.CreateWithPath(outputPath, 0d), pruneMissingMembers: true);
+
+    using var runtime = new PidControllerRuntime(
+        folderName: folderName,
+        definition: CreatePidDefinition(name: "loop_e", sourcePath: sourcePath, outputPath: outputPath));
+    StopPidTimer(runtime);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{runtime.RegistryPath}.run", out var initialRunItem));
+    AssertFalse(initialRunItem?.Properties.Has("write") ?? true);
+    AssertTrue(HostRegistries.Data.TryResolve($"{runtime.RegistryPath}.set", out var initialSetItem));
+    AssertFalse(initialSetItem?.Properties.Has("write") ?? true);
+
+    initialRunItem!.Properties["write"].Value = false;
+    initialSetItem!.Properties["write"].Value = 0d;
+
+    AssertTrue(HostRegistries.Data.TryUpdateUserProperty($"{runtime.RegistryPath}.set", "write", 90d));
+    AssertTrue(HostRegistries.Data.TryUpdateUserProperty($"{runtime.RegistryPath}.run", "write", true));
+    AssertPidRunState(runtime, expectedValue: true, context: "after run.write update");
+    InvokePidEvaluation(runtime);
+    if (!TryResolveNumericItemValue(outputPath, out var outputValue))
+    {
+        throw new InvalidOperationException($"PID controller did not write a numeric output through run.write. State='{runtime.CurrentStateValue}', Alert='{runtime.CurrentAlertValue}', RuntimeOutput='{runtime.CurrentOutputValue}'.");
+    }
+
+    if (outputValue <= 0.0)
+    {
+        throw new InvalidOperationException($"PID controller run.write output should be positive after start, actual '{outputValue}'. State='{runtime.CurrentStateValue}', Alert='{runtime.CurrentAlertValue}'. {DescribePidRunItem(runtime)}");
+    }
+
+    AssertEqual("Running", runtime.CurrentStateValue);
+
+    AssertTrue(HostRegistries.Data.TryUpdateUserProperty($"{runtime.RegistryPath}.run", "write", false));
+    InvokePidEvaluation(runtime);
+    AssertEqual("Stopped", runtime.CurrentStateValue);
+    AssertFalse(runtime.IsRunning);
+}
+
+static void PidControllerGuardsInvalidNumericInput()
+{
+    var suffix = $"id_{Guid.NewGuid():N}";
+    var folderName = $"pid_test_folder_{suffix}";
+    var sourcePath = $"runtime.pid_test.{suffix}.source";
+    var outputPath = $"runtime.pid_test.{suffix}.output";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, "invalid"), pruneMissingMembers: true);
+    HostRegistries.Data.UpsertSnapshot(outputPath, ItemExtension.CreateWithPath(outputPath, 0d), pruneMissingMembers: true);
+
+    using var runtime = new PidControllerRuntime(folderName, CreatePidDefinition("loop_c", sourcePath, outputPath));
+    StopPidTimer(runtime);
+
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.set", 30d));
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.run", true));
+    AssertPidRunState(runtime, expectedValue: true, context: "after invalid-input run update");
+    InvokePidEvaluation(runtime);
+    if (!runtime.CurrentAlertValue.Contains("Source value must be numeric", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException($"PID controller published unexpected alert '{runtime.CurrentAlertValue}' with state '{runtime.CurrentStateValue}'. {DescribePidRunItem(runtime)}");
+    }
+
+    AssertEqual("Waiting for source", runtime.CurrentStateValue);
+}
+
+static void PidControllerRejectsInvalidOwnedSetpoint()
+{
+    var suffix = $"id_{Guid.NewGuid():N}";
+    var folderName = $"pid_test_folder_{suffix}";
+    var sourcePath = $"runtime.pid_test.{suffix}.source";
+    var outputPath = $"runtime.pid_test.{suffix}.output";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, 20d), pruneMissingMembers: true);
+    HostRegistries.Data.UpsertSnapshot(outputPath, ItemExtension.CreateWithPath(outputPath, 0d), pruneMissingMembers: true);
+
+    using var runtime = new PidControllerRuntime(folderName, CreatePidDefinition("loop_owned_invalid", sourcePath, outputPath));
+    StopPidTimer(runtime);
+
+    var ownedSetpointField = typeof(PidControllerRuntime).GetField("_ownedSetpointRequest", BindingFlags.Instance | BindingFlags.NonPublic);
+    AssertTrue(ownedSetpointField is not null);
+    ownedSetpointField!.SetValue(runtime, "invalid");
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.run", true));
+    InvokePidEvaluation(runtime);
+
+    if (!runtime.CurrentAlertValue.Contains("Setpoint value must be numeric.", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException($"PID controller published unexpected owned-setpoint alert '{runtime.CurrentAlertValue}' with state '{runtime.CurrentStateValue}'.");
+    }
+
+    AssertEqual("Waiting for setpoint", runtime.CurrentStateValue);
+}
+
+static void PidControllerOwnedSetpointWriteChangesOutput()
+{
+    var suffix = $"id_{Guid.NewGuid():N}";
+    var folderName = $"pid_test_folder_{suffix}";
+    var sourcePath = $"runtime.pid_test.{suffix}.source";
+    var outputPath = $"runtime.pid_test.{suffix}.output";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, 10d), pruneMissingMembers: true);
+    HostRegistries.Data.UpsertSnapshot(outputPath, ItemExtension.CreateWithPath(outputPath, 0d), pruneMissingMembers: true);
+
+    var definition = CreatePidDefinition("loop_owned_set", sourcePath, outputPath);
+    definition.Pid.Ks = 100d;
+    definition.Pid.Tg = 1d;
+
+    using var runtime = new PidControllerRuntime(folderName, definition);
+    StopPidTimer(runtime);
+
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.set", 20d));
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.run", true));
+    InvokePidEvaluation(runtime);
+    var lowOutput = runtime.CurrentOutputValue;
+
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.set", 90d));
+    InvokePidEvaluation(runtime);
+    var highOutput = runtime.CurrentOutputValue;
+
+    if (!lowOutput.HasValue || !highOutput.HasValue)
+    {
+        throw new InvalidOperationException($"PID controller did not calculate owned-setpoint output values. Low='{lowOutput}', High='{highOutput}', State='{runtime.CurrentStateValue}', Alert='{runtime.CurrentAlertValue}'.");
+    }
+
+    if (highOutput.Value <= lowOutput.Value)
+    {
+        throw new InvalidOperationException($"PID controller output should increase after owned setpoint write. Low='{lowOutput.Value}', High='{highOutput.Value}', State='{runtime.CurrentStateValue}', Alert='{runtime.CurrentAlertValue}'.");
+    }
+}
+
+static void PidControllerDoesNotBiasOutputToSetpoint()
+{
+    var suffix = $"id_{Guid.NewGuid():N}";
+    var folderName = $"pid_test_folder_{suffix}";
+    var sourcePath = $"runtime.pid_test.{suffix}.source";
+    var outputPath = $"runtime.pid_test.{suffix}.output";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, 50d), pruneMissingMembers: true);
+    HostRegistries.Data.UpsertSnapshot(outputPath, ItemExtension.CreateWithPath(outputPath, 0d), pruneMissingMembers: true);
+
+    var definition = CreatePidDefinition("loop_no_bias", sourcePath, outputPath);
+    definition.Pid.Ks = 100d;
+    definition.Pid.Tg = 1d;
+
+    using var runtime = new PidControllerRuntime(folderName, definition);
+    StopPidTimer(runtime);
+
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.set", 50d));
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.run", true));
+    InvokePidEvaluation(runtime);
+
+    if (!TryResolveNumericItemValue(outputPath, out var outputValue))
+    {
+        throw new InvalidOperationException($"PID controller did not write a numeric no-bias output. State='{runtime.CurrentStateValue}', Alert='{runtime.CurrentAlertValue}', RuntimeOutput='{runtime.CurrentOutputValue}'.");
+    }
+
+    if (Math.Abs(outputValue) >= 0.000001)
+    {
+        throw new InvalidOperationException($"PID controller should not bias output to the setpoint when error is zero. Actual output '{outputValue}'. State='{runtime.CurrentStateValue}', Alert='{runtime.CurrentAlertValue}'.");
+    }
+}
+
+static void PidControllerClampsScaledOutput()
+{
+    var suffix = $"id_{Guid.NewGuid():N}";
+    var folderName = $"pid_test_folder_{suffix}";
+    var sourcePath = $"runtime.pid_test.{suffix}.source";
+    var outputPath = $"runtime.pid_test.{suffix}.output";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, 0d), pruneMissingMembers: true);
+    HostRegistries.Data.UpsertSnapshot(outputPath, ItemExtension.CreateWithPath(outputPath, 0d), pruneMissingMembers: true);
+
+    var definition = CreatePidDefinition("loop_d", sourcePath, outputPath);
+    definition.Pid.SetMin = 0d;
+    definition.Pid.SetMax = 100d;
+    definition.Pid.OutMin = -10d;
+    definition.Pid.OutMax = 10d;
+
+    using var runtime = new PidControllerRuntime(folderName, definition);
+    StopPidTimer(runtime);
+
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.set", 200d));
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.run", true));
+    AssertPidRunState(runtime, expectedValue: true, context: "after clamp run update");
+    InvokePidEvaluation(runtime);
+    if (!TryResolveNumericItemValue(outputPath, out var outputValue))
+    {
+        throw new InvalidOperationException($"PID controller did not write a numeric clamped output. State='{runtime.CurrentStateValue}', Alert='{runtime.CurrentAlertValue}', RuntimeOutput='{runtime.CurrentOutputValue}'.");
+    }
+
+    if (Math.Abs(outputValue - 10d) >= 0.000001)
+    {
+        throw new InvalidOperationException($"PID controller output should clamp to 10, actual '{outputValue}'. State='{runtime.CurrentStateValue}', Alert='{runtime.CurrentAlertValue}', RuntimeOutput='{runtime.CurrentOutputValue}'. {DescribePidRunItem(runtime)}");
+    }
+
+    AssertEqual("Running", runtime.CurrentStateValue);
+}
+
+static void PidControllerRejectsInvalidChrParameters()
+{
+    var suffix = $"id_{Guid.NewGuid():N}";
+    var folderName = $"pid_test_folder_{suffix}";
+    var sourcePath = $"runtime.pid_test.{suffix}.source";
+    var outputPath = $"runtime.pid_test.{suffix}.output";
+    HostRegistries.Data.UpsertSnapshot(sourcePath, ItemExtension.CreateWithPath(sourcePath, 10d), pruneMissingMembers: true);
+    HostRegistries.Data.UpsertSnapshot(outputPath, ItemExtension.CreateWithPath(outputPath, 0d), pruneMissingMembers: true);
+
+    var definition = CreatePidDefinition("loop_invalid_chr", sourcePath, outputPath);
+    definition.Pid.Ks = -1d;
+
+    using var runtime = new PidControllerRuntime(folderName, definition);
+    StopPidTimer(runtime);
+
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.set", 50d));
+    AssertTrue(HostRegistries.Data.UpdateValue($"{runtime.RegistryPath}.run", true));
+    InvokePidEvaluation(runtime);
+
+    if (!runtime.CurrentAlertValue.Contains("Ks must be greater than zero.", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException($"PID controller published unexpected CHR parameter alert '{runtime.CurrentAlertValue}' with state '{runtime.CurrentStateValue}'.");
+    }
+
+    AssertEqual("Invalid parameters", runtime.CurrentStateValue);
+}
+
+static void ProcessLogRuntimePublishesLevelInputItems()
+{
+    var logPath = $"studio.process_log_runtime_{Guid.NewGuid():N}.logs.log_control";
+    var logDirectory = Path.Combine(Path.GetTempPath(), "HornetStudioProcessLogRuntimeTests", Guid.NewGuid().ToString("N"));
+    var normalizedPath = ProcessLogRuntime.EnsurePublished(logPath, "Runtime Log", logDirectory);
+
+    AssertTrue(HostRegistries.Data.TryResolve(normalizedPath, out var logItem));
+    AssertTrue(logItem?.Value is ProcessLog);
+
+    foreach (var level in new[] { "debug", "info", "warning", "error", "fatal" })
+    {
+        var inputPath = $"{normalizedPath}.{level}";
+        AssertTrue(HostRegistries.Data.TryResolve(inputPath, out var inputItem));
+        AssertEqual(inputPath, inputItem?.Path);
+        AssertEqual(string.Empty, inputItem?.Value);
+        AssertEqual(true, inputItem?.Properties["writable"].Value);
+        AssertEqual(string.Empty, inputItem?.Properties["write"].Value);
+        AssertEqual(inputPath, inputItem?.Properties["write_path"].Value);
+    }
+
+    string? changedKey = null;
+    HostRegistries.Data.ItemChanged += (_, e) =>
+    {
+        if (string.Equals(e.Key, $"{normalizedPath}.info", StringComparison.OrdinalIgnoreCase))
+        {
+            changedKey = e.Key;
+        }
+    };
+
+    AssertTrue(HostRegistries.Data.UpdateValue($"{normalizedPath}.info", "Created from item change"));
+    AssertEqual($"{normalizedPath}.info", changedKey);
+    AssertTrue(HostRegistries.Data.TryResolve($"{normalizedPath}.info", out var afterFirstUpdateItem));
+    AssertEqual(string.Empty, afterFirstUpdateItem?.Value);
+
+    var processLog = (ProcessLog)logItem!.Value!;
+    var logsField = typeof(ProcessLogRuntime).GetField("Logs", BindingFlags.Static | BindingFlags.NonPublic);
+    var logs = logsField?.GetValue(null);
+    var logFromRuntime = logs?.GetType().GetProperty("Item")?.GetValue(logs, [normalizedPath]);
+    AssertTrue(ReferenceEquals(processLog, logFromRuntime));
+    var entry = processLog.GetEntries().LastOrDefault();
+    AssertEqual("Information", entry?.Level);
+    AssertEqual("Created from item change", entry?.Message);
+    AssertTrue(HostRegistries.Data.TryUpdateUserProperty($"{normalizedPath}.warning", "write", "Created from write property"));
+    var warningEntry = processLog.GetEntries(levelFilter: "Warning").LastOrDefault();
+    AssertEqual("Warning", warningEntry?.Level);
+    AssertEqual("Created from write property", warningEntry?.Message);
+    AssertTrue(Directory.GetFiles(logDirectory, "process-*.log").Length > 0);
+}
+
+static void ProcessLogRuntimeUpdatesLogDirectory()
+{
+    var logPath = $"studio.process_log_runtime_{Guid.NewGuid():N}.logs.log_control";
+    var rootDirectory = Path.Combine(Path.GetTempPath(), "HornetStudioProcessLogRuntimeTests", Guid.NewGuid().ToString("N"));
+    var firstLogDirectory = Path.Combine(rootDirectory, "First");
+    var secondLogDirectory = Path.Combine(rootDirectory, "Second");
+
+    try
+    {
+        var normalizedPath = ProcessLogRuntime.EnsurePublished(logPath, "Runtime Log", firstLogDirectory);
+        AssertTrue(HostRegistries.Data.TryResolve(normalizedPath, out var logItem));
+        AssertTrue(logItem?.Value is ProcessLog);
+
+        var processLog = (ProcessLog)logItem!.Value!;
+        AssertEqual(firstLogDirectory, processLog.LogDirectory);
+
+        ProcessLogRuntime.EnsurePublished(logPath, "Runtime Log", secondLogDirectory);
+        AssertEqual(secondLogDirectory, processLog.LogDirectory);
+    }
+    finally
+    {
+        if (Directory.Exists(rootDirectory))
+        {
+            try
+            {
+                Directory.Delete(rootDirectory, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+}
+
 static async Task HostItemBrokerClientReceivesLiveItems()
 {
     var port = GetAvailableTcpPort();
@@ -569,7 +1000,7 @@ static async Task HostItemBrokerClientReceivesLiveItems()
     await server.StartAsync().ConfigureAwait(false);
     try
     {
-        await using var hostClient = new HostItemBrokerClient("BrokerWidget1", IPAddress.Loopback.ToString(), port, "hornet", "hornet-studio-test");
+        await using var hostClient = new HostItemBrokerClient("ItemClient1", IPAddress.Loopback.ToString(), port, "hornet", "hornet-studio-test");
         await hostClient.ConnectAsync().ConfigureAwait(false);
 
         await using var publisher = new MqttItemClientSession(new MqttItemClientOptions
@@ -604,6 +1035,106 @@ static async Task HostItemBrokerClientReceivesLiveItems()
     }
 }
 
+static async Task HostItemBrokerClientExposesDirectReceivedRoots()
+{
+    var port = GetAvailableTcpPort();
+    var server = new MqttServerFactory().CreateMqttServer(new MqttServerOptionsBuilder()
+        .WithDefaultEndpoint()
+        .WithDefaultEndpointBoundIPAddress(IPAddress.Loopback)
+        .WithDefaultEndpointPort(port)
+        .Build());
+
+    await server.StartAsync().ConfigureAwait(false);
+    try
+    {
+        await using var hostClient = new HostItemBrokerClient(
+            name: "ItemClient1",
+            host: IPAddress.Loopback.ToString(),
+            port: port,
+            baseTopic: "hornet",
+            clientId: "hornet-studio-received-roots-test");
+        await hostClient.ConnectAsync().ConfigureAwait(false);
+
+        await using var publisher = new MqttItemClientSession(new MqttItemClientOptions
+        {
+            Host = IPAddress.Loopback.ToString(),
+            Port = port,
+            ClientId = "DummyClientReceivedRoots",
+            BaseTopic = "hornet",
+            ReconnectDelay = TimeSpan.FromMilliseconds(10),
+        });
+
+        await publisher.PublishReadAsync(ItemExtension.CreateWithPath("edm1.pressure", 12.5), retained: true).ConfigureAwait(false);
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            var roots = hostClient.GetReceivedItemRootSnapshots();
+            if (roots.TryGetValue("edm1", out var root)
+                && object.Equals(12.5f, root["pressure"].Value))
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(25)).ConfigureAwait(false);
+        }
+
+        throw new InvalidOperationException("Host client did not expose direct received MQTT roots.");
+    }
+    finally
+    {
+        await server.StopAsync().ConfigureAwait(false);
+        server.Dispose();
+    }
+}
+
+static async Task HostItemBrokerClientReceivesLiveItemsWithoutBaseTopic()
+{
+    var port = GetAvailableTcpPort();
+    var server = new MqttServerFactory().CreateMqttServer(new MqttServerOptionsBuilder()
+        .WithDefaultEndpoint()
+        .WithDefaultEndpointBoundIPAddress(IPAddress.Loopback)
+        .WithDefaultEndpointPort(port)
+        .Build());
+
+    await server.StartAsync().ConfigureAwait(false);
+    try
+    {
+        await using var hostClient = new HostItemBrokerClient("ItemClient1", IPAddress.Loopback.ToString(), port, string.Empty, "hornet-studio-test-empty-base");
+        await hostClient.ConnectAsync().ConfigureAwait(false);
+
+        await using var publisher = new MqttItemClientSession(new MqttItemClientOptions
+        {
+            Host = IPAddress.Loopback.ToString(),
+            Port = port,
+            ClientId = "DummyClientEmptyBase",
+            BaseTopic = string.Empty,
+            ReconnectDelay = TimeSpan.FromMilliseconds(10),
+        });
+
+        await publisher.PublishReadAsync(ItemExtension.CreateWithPath("edm1.temperature", 24.5), retained: true).ConfigureAwait(false);
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (hostClient.Items.GetDictionary().TryGetValue("shared", out var root)
+                && object.Equals(24.5f, root["edm1"]["temperature"].Value))
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(25)).ConfigureAwait(false);
+        }
+
+        throw new InvalidOperationException("Host client did not mirror live MQTT items without a base topic.");
+    }
+    finally
+    {
+        await server.StopAsync().ConfigureAwait(false);
+        server.Dispose();
+    }
+}
+
 static async Task HostItemBrokerClientHidesSelfPublishedItems()
 {
     var port = GetAvailableTcpPort();
@@ -616,7 +1147,7 @@ static async Task HostItemBrokerClientHidesSelfPublishedItems()
     await server.StartAsync().ConfigureAwait(false);
     try
     {
-        await using var hostClient = new HostItemBrokerClient("BrokerWidgetSelfEcho", IPAddress.Loopback.ToString(), port, "hornet", "hornet-studio-self-echo-test");
+        await using var hostClient = new HostItemBrokerClient("ItemClientSelfEcho", IPAddress.Loopback.ToString(), port, "hornet", "hornet-studio-self-echo-test");
         await hostClient.ConnectAsync().ConfigureAwait(false);
 
         await hostClient.PublishSnapshotAsync(ItemExtension.CreateWithPath("studio.self_echo.pressure", 12.5)).ConfigureAwait(false);
@@ -643,7 +1174,7 @@ static async Task HostItemBrokerClientSnapshotsAreDetached()
     await server.StartAsync().ConfigureAwait(false);
     try
     {
-        await using var hostClient = new HostItemBrokerClient("BrokerWidget1", IPAddress.Loopback.ToString(), port, "hornet", "hornet-studio-snapshot-test");
+        await using var hostClient = new HostItemBrokerClient("ItemClient1", IPAddress.Loopback.ToString(), port, "hornet", "hornet-studio-snapshot-test");
         await hostClient.ConnectAsync().ConfigureAwait(false);
 
         await using var publisher = new MqttItemClientSession(new MqttItemClientOptions
@@ -683,7 +1214,7 @@ static async Task HostItemBrokerClientPublishesLocalSnapshots()
     await server.StartAsync().ConfigureAwait(false);
     try
     {
-        await using var publisher = new HostItemBrokerClient("BrokerWidget1", IPAddress.Loopback.ToString(), port, "hornet", "hornet-studio-publish-test");
+        await using var publisher = new HostItemBrokerClient("ItemClient1", IPAddress.Loopback.ToString(), port, "hornet", "hornet-studio-publish-test");
         await publisher.ConnectAsync().ConfigureAwait(false);
 
         await using var receiver = new MqttItemClientSession(new MqttItemClientOptions
@@ -733,7 +1264,7 @@ static async Task OwnedItemBrokerHostStartsAndDisposesEndpoint()
     try
     {
         await host.StartAsync().ConfigureAwait(false);
-        await using (var hostClient = new HostItemBrokerClient("BrokerWidget1", IPAddress.Loopback.ToString(), port, "hornet", "hornet-studio-owned-test"))
+        await using (var hostClient = new HostItemBrokerClient("ItemClient1", IPAddress.Loopback.ToString(), port, "hornet", "hornet-studio-owned-test"))
         {
             await hostClient.ConnectAsync().ConfigureAwait(false);
             AssertTrue(hostClient.IsConnected);
@@ -817,6 +1348,30 @@ static ItemModel CreateFlatSourceModule(string name, double initialValue, bool s
     AddFlatSourceChannel(root, "set", initialValue, hasWriteChannel: setHasWriteChannel);
     AddFlatSourceChannel(root, "out", initialValue, hasWriteChannel: true);
     return ItemExtension.CloneWithPath(root, $"runtime.enhanced_signal_inverse_source.{name}");
+}
+
+static ControllerDefinition CreatePidDefinition(string name, string sourcePath, string outputPath, string setpointPath = "")
+{
+    return new ControllerDefinition
+    {
+        Name = name,
+        SourcePath = sourcePath,
+        OutputPath = outputPath,
+        SetpointPath = setpointPath,
+        Pid = new PidControllerDefinition
+        {
+            Ks = 1d,
+            Tu = 1d,
+            Tg = 2d,
+            DFilterTauMs = 10d,
+            SetMin = 0d,
+            SetMax = 100d,
+            OutMin = 0d,
+            OutMax = 100d,
+            ComputeIntervalMs = 20,
+            OutputIntervalMs = 20
+        }
+    };
 }
 
 static void AddFlatSourceChannel(ItemModel root, string channelName, double initialValue, bool hasWriteChannel)
@@ -908,6 +1463,76 @@ static int GetAvailableTcpPort()
     finally
     {
         listener.Stop();
+    }
+}
+
+static bool TryResolveNumericItemValue(string path, out double value)
+{
+    value = 0;
+    if (!HostRegistries.Data.TryResolve(path, out var item) || item is null || item.Value is null)
+    {
+        return false;
+    }
+
+    try
+    {
+        value = Convert.ToDouble(item.Value, System.Globalization.CultureInfo.InvariantCulture);
+        return true;
+    }
+    catch (FormatException)
+    {
+        return false;
+    }
+    catch (InvalidCastException)
+    {
+        return false;
+    }
+}
+
+static void InvokePidEvaluation(PidControllerRuntime runtime)
+{
+    var method = typeof(PidControllerRuntime).GetMethod("EvaluateController", BindingFlags.Instance | BindingFlags.NonPublic);
+    AssertTrue(method is not null);
+    method!.Invoke(runtime, null);
+}
+
+static void StopPidTimer(PidControllerRuntime runtime)
+{
+    var field = typeof(PidControllerRuntime).GetField("_timer", BindingFlags.Instance | BindingFlags.NonPublic);
+    if (field?.GetValue(runtime) is not ATimer timer)
+    {
+        throw new InvalidOperationException("PID controller timer field was not found.");
+    }
+
+    timer.Stop();
+}
+
+static string DescribePidRunItem(PidControllerRuntime runtime)
+{
+    if (!HostRegistries.Data.TryResolve($"{runtime.RegistryPath}.run", out var runItem) || runItem is null)
+    {
+        return "Run item was not resolved.";
+    }
+
+    var writeValue = runItem.Properties.Has("write")
+        ? runItem.Properties["write"].Value?.ToString() ?? "<null>"
+        : "<missing>";
+    var rootValue = HostRegistries.Data.TryResolve(runtime.RegistryPath, out var rootItem) && rootItem is not null
+        ? rootItem.Value?.ToString() ?? "<null>"
+        : "<missing>";
+    return $"RunItemPath='{runItem.Path ?? "<null>"}', RunItemValue='{runItem.Value ?? "<null>"}', RunWrite='{writeValue}', RootValue='{rootValue}', IsRunning='{runtime.IsRunning}'.";
+}
+
+static void AssertPidRunState(PidControllerRuntime runtime, bool expectedValue, string context)
+{
+    if (!HostRegistries.Data.TryResolve($"{runtime.RegistryPath}.run", out var runItem) || runItem is null)
+    {
+        throw new InvalidOperationException($"PID controller run item was not resolved {context}.");
+    }
+
+    if (!object.Equals(expectedValue, runItem.Value))
+    {
+        throw new InvalidOperationException($"PID controller run item value mismatch {context}. Expected '{expectedValue}', actual '{runItem.Value ?? "<null>"}'. {DescribePidRunItem(runtime)}");
     }
 }
 

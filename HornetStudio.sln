@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.5.11723.231
@@ -121,7 +121,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "widgets", "widgets", "{8265C1C4-CFEC-4A88-85C1-16CDB7B30692}"
 	ProjectSection(SolutionItems) = preProject
 		src\HornetStudio\docs\widgets\ApplicationExplorer.md = src\HornetStudio\docs\widgets\ApplicationExplorer.md
-		src\HornetStudio\docs\widgets\BrokerWidget.md = src\HornetStudio\docs\widgets\BrokerWidget.md
+		src\HornetStudio\docs\widgets\ItemClient.md = src\HornetStudio\docs\widgets\ItemClient.md
 		src\HornetStudio\docs\widgets\Button.md = src\HornetStudio\docs\widgets\Button.md
 		src\HornetStudio\docs\widgets\CameraControl.md = src\HornetStudio\docs\widgets\CameraControl.md
 		src\HornetStudio\docs\widgets\ChartControl.md = src\HornetStudio\docs\widgets\ChartControl.md
@@ -146,7 +146,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "descriptions", "descriptions", "{BA44C3AD-BB6E-4E83-98CC-FC5B03088AC3}"
 	ProjectSection(SolutionItems) = preProject
 		src\HornetStudio\docs\widgets\descriptions\ApplicationExplorer.md = src\HornetStudio\docs\widgets\descriptions\ApplicationExplorer.md
-		src\HornetStudio\docs\widgets\descriptions\BrokerWidget.md = src\HornetStudio\docs\widgets\descriptions\BrokerWidget.md
+		src\HornetStudio\docs\widgets\descriptions\ItemClient.md = src\HornetStudio\docs\widgets\descriptions\ItemClient.md
 		src\HornetStudio\docs\widgets\descriptions\Button.md = src\HornetStudio\docs\widgets\descriptions\Button.md
 		src\HornetStudio\docs\widgets\descriptions\CameraControl.md = src\HornetStudio\docs\widgets\descriptions\CameraControl.md
 		src\HornetStudio\docs\widgets\descriptions\ChartControl.md = src\HornetStudio\docs\widgets\descriptions\ChartControl.md
@@ -165,7 +165,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "help", "help", "{76835787-5E69-4946-81AA-583CCDD85DAA}"
 	ProjectSection(SolutionItems) = preProject
 		src\HornetStudio\docs\widgets\help\ApplicationExplorer.help.md = src\HornetStudio\docs\widgets\help\ApplicationExplorer.help.md
-		src\HornetStudio\docs\widgets\help\BrokerWidget.help.md = src\HornetStudio\docs\widgets\help\BrokerWidget.help.md
+		src\HornetStudio\docs\widgets\help\ItemClient.help.md = src\HornetStudio\docs\widgets\help\ItemClient.help.md
 		src\HornetStudio\docs\widgets\help\Button.help.md = src\HornetStudio\docs\widgets\help\Button.help.md
 		src\HornetStudio\docs\widgets\help\CameraControl.help.md = src\HornetStudio\docs\widgets\help\CameraControl.help.md
 		src\HornetStudio\docs\widgets\help\ChartControl.help.md = src\HornetStudio\docs\widgets\help\ChartControl.help.md

@@ -18,6 +18,11 @@ public sealed class PythonInteractionTargetDisplayConverter : IValueConverter
             return string.Empty;
         }
 
+        if (raw.Contains(" - ", StringComparison.Ordinal))
+        {
+            return raw;
+        }
+
         return ApplicationExplorerRuntime.GetInteractionTargetDisplayText(raw);
     }
 
@@ -194,7 +199,10 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
             _newActionName = normalized;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewActionName)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewPythonFunctionAction)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewStandardAction)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewDialogAction)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsesComboTargetSelection)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsesBrowseTargetSelection)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsFunctionPicker)));
             RefreshNewEntryOptions();
         }
     }
@@ -205,7 +213,7 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         set
         {
             var normalized = value ?? string.Empty;
-            if (!IsNewPythonFunctionAction && string.IsNullOrWhiteSpace(normalized))
+            if (UsesBrowseTargetSelection && string.IsNullOrWhiteSpace(normalized))
             {
                 normalized = "this";
             }
@@ -235,7 +243,15 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
 
     public bool IsNewPythonFunctionAction => string.Equals(NewActionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase);
 
-    public bool IsNewStandardAction => !IsNewPythonFunctionAction;
+    public bool IsNewDialogAction
+        => string.Equals(NewActionName, nameof(ItemInteractionAction.OpenDialog), StringComparison.OrdinalIgnoreCase)
+            || string.Equals(NewActionName, nameof(ItemInteractionAction.CloseDialog), StringComparison.OrdinalIgnoreCase);
+
+    public bool UsesComboTargetSelection => IsNewPythonFunctionAction || IsNewDialogAction;
+
+    public bool UsesBrowseTargetSelection => !UsesComboTargetSelection;
+
+    public bool ShowsFunctionPicker => IsNewPythonFunctionAction;
 
     protected override void OnClosed(System.EventArgs e)
     {
@@ -275,7 +291,12 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         var selectedTarget = await SelectTargetAsync(row.TargetOptions, row.TargetPath);
         if (!string.IsNullOrWhiteSpace(selectedTarget))
         {
+            DetachRow(row);
             row.TargetPath = selectedTarget;
+            RefreshRowOptions(row);
+            row.TargetPath = selectedTarget;
+            row.RaisePropertyChanged(nameof(ItemInteractionEditorRow.TargetPath));
+            AttachRow(row);
         }
 
         e.Handled = true;
@@ -283,7 +304,7 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
 
     private async void OnBrowseNewTargetClicked(object? sender, RoutedEventArgs e)
     {
-        var currentTarget = string.IsNullOrWhiteSpace(NewTargetPath) && IsNewStandardAction
+        var currentTarget = string.IsNullOrWhiteSpace(NewTargetPath) && UsesBrowseTargetSelection
             ? "this"
             : NewTargetPath;
         var selectedTarget = await SelectTargetAsync(TargetOptions, currentTarget);
@@ -446,9 +467,9 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
             TargetOptions.Add(option);
         }
 
-        if (IsNewPythonFunctionAction)
+        if (UsesComboTargetSelection)
         {
-            if (string.IsNullOrWhiteSpace(NewTargetPath) && TargetOptions.Count > 0)
+            if ((string.IsNullOrWhiteSpace(NewTargetPath) || !TargetOptions.Contains(NewTargetPath, StringComparer.Ordinal)) && TargetOptions.Count > 0)
             {
                 NewTargetPath = TargetOptions[0];
             }
@@ -478,11 +499,19 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
 
     private async Task<string?> SelectTargetAsync(IEnumerable<string> options, string currentSelection)
     {
+        if (!UsesBrowseTargetSelection)
+        {
+            return string.IsNullOrWhiteSpace(currentSelection)
+                ? options.FirstOrDefault()
+                : currentSelection;
+        }
+
         var pageName = ExtractPageName(_field?.Parameter.Path);
         var owner = this;
         var dialog = new TargetTreeSelectionDialogWindow(_viewModel, options, currentSelection, pageName);
         await dialog.ShowDialog(owner);
-        return string.IsNullOrWhiteSpace(dialog.CommittedSelection) ? null : dialog.CommittedSelection;
+        var selectedTarget = dialog.CommittedSelection;
+        return string.IsNullOrWhiteSpace(selectedTarget) ? null : selectedTarget;
     }
 
     private static string ExtractPageName(string? parameterPath)

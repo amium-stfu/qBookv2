@@ -46,7 +46,7 @@ public sealed class BrokerPublishedItemDefinition
 }
 
 /// <summary>
-/// Provides BrokerWidget publish mode constants.
+/// Provides ItemClient publish mode constants.
 /// </summary>
 public static class BrokerPublishedItemPublishModes
 {
@@ -70,7 +70,7 @@ public static class BrokerPublishedItemPublishModes
 }
 
 /// <summary>
-/// Parses and serializes BrokerWidget published item definitions.
+/// Parses and serializes ItemClient published item definitions.
 /// </summary>
 public static class BrokerPublishedItemDefinitionCodec
 {

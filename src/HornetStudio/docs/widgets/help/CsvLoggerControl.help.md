@@ -66,7 +66,8 @@ External state changes can be reflected back into the UI and runtime view.
 
 ## Runtime Notes
 
-The widget exposes runtime sub-items that can later be inspected or shown in help and monitoring surfaces.
+The widget exposes runtime sub-items below `studio.<folder_name>.logger_runtime.<logger_name>`.
+Published child items use canonical snake_case names: `record`, `output_path`, `is_recording`, `last_file`, and `status`.
 
 ## Suggested Help Window Metadata
 

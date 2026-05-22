@@ -24,13 +24,14 @@ Renders a circular status display that can expose signal state and progress-rela
 
 ## Runtime Notes
 
-The widget publishes display runtime values for color and progress related sub-items.
+The widget publishes display runtime values below `studio.<folder_name>.display_runtime.<widget_name>`.
+Runtime child item segments use strict `snake_case`: `signal_color`, `signal_run`, `progress_bar`, `progress_state`, and `progress_bar_color`.
 
 ## Source
 
-- `src/Hornetstudio.Editor/Models/PageItemModel.cs`
-- `src/Hornetstudio.Editor/Widgets/FolderEditor/`
-- `src/Hornetstudio.Editor/Widgets/Table/`
+- `src/HornetStudio.Editor/Models/PageItemModel.cs`
+- `src/HornetStudio.Editor/Widgets/CircleDisplay/`
+- `src/HornetStudio.Editor/Widgets/FolderEditor/`
 
 ## Help
 

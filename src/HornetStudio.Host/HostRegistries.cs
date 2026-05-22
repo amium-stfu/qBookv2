@@ -318,7 +318,7 @@ public interface IDataRegistry
     ItemModel UpsertSnapshot(string key, ItemModel snapshot, bool pruneMissingMembers = false);
     ItemModel UpsertSnapshot(string key, ItemModel snapshot, DataRegistryItemMetadata metadata, bool pruneMissingMembers = false);
     bool UpdateValue(string key, object? value, ulong? timestamp = null);
-    bool UpdateProperty(string key, string parameterName, object? value, ulong? timestamp = null);
+    bool UpdateProperty(string key, string parameterName, object? value, ulong? timestamp = null, bool forceChangeNotification = false);
     /// <summary>
     /// Updates a parameter through the guarded user-write path.
     /// </summary>
@@ -326,8 +326,9 @@ public interface IDataRegistry
     /// <param name="parameterName">The target parameter name.</param>
     /// <param name="value">The value to write.</param>
     /// <param name="timestamp">The optional update timestamp in Unix milliseconds.</param>
+    /// <param name="forceChangeNotification">A value indicating whether a change notification should be raised even when the converted value equals the current value.</param>
     /// <returns><see langword="true"/> when the parameter was updated; otherwise, <see langword="false"/>.</returns>
-    bool TryUpdateUserProperty(string key, string parameterName, object? value, ulong? timestamp = null);
+    bool TryUpdateUserProperty(string key, string parameterName, object? value, ulong? timestamp = null, bool forceChangeNotification = false);
     bool Remove(string key);
 }
 
@@ -499,11 +500,12 @@ public sealed class DataRegistry : IDataRegistry
             SetItemEpoch(item, timestamp.Value);
         }
 
+        ProcessLogRuntime.TryWriteInputEntry(GetEventKey(key, item), item, DataChangeKind.ValueUpdated, null, convertedValue);
         RaiseItemChanged(GetEventKey(key, item), item, DataChangeKind.ValueUpdated, timestamp: timestamp);
         return true;
     }
 
-    public bool UpdateProperty(string key, string parameterName, object? value, ulong? timestamp = null)
+    public bool UpdateProperty(string key, string parameterName, object? value, ulong? timestamp = null, bool forceChangeNotification = false)
     {
         var normalizedParameterName = HostPathSegmentNormalizer.Normalize(parameterName);
         if (!TryResolve(key, out var item) || item is null || !item.Properties.Has(normalizedParameterName))
@@ -530,6 +532,12 @@ public sealed class DataRegistry : IDataRegistry
                 SetItemEpoch(item, timestamp.Value);
             }
 
+            if (forceChangeNotification)
+            {
+                ProcessLogRuntime.TryWriteInputEntry(GetEventKey(key, item), item, DataChangeKind.PropertyUpdated, normalizedParameterName, convertedValue);
+                RaiseItemChanged(GetEventKey(key, item), item, DataChangeKind.PropertyUpdated, normalizedParameterName, timestamp);
+            }
+
             return true;
         }
 
@@ -539,11 +547,12 @@ public sealed class DataRegistry : IDataRegistry
             SetItemEpoch(item, timestamp.Value);
         }
 
+        ProcessLogRuntime.TryWriteInputEntry(GetEventKey(key, item), item, DataChangeKind.PropertyUpdated, normalizedParameterName, convertedValue);
         RaiseItemChanged(GetEventKey(key, item), item, DataChangeKind.PropertyUpdated, normalizedParameterName, timestamp);
         return true;
     }
 
-    public bool TryUpdateUserProperty(string key, string parameterName, object? value, ulong? timestamp = null)
+    public bool TryUpdateUserProperty(string key, string parameterName, object? value, ulong? timestamp = null, bool forceChangeNotification = false)
     {
         if (!HostRegistryPropertyPolicy.CanUserWriteProperty(parameterName))
         {
@@ -551,7 +560,7 @@ public sealed class DataRegistry : IDataRegistry
             return false;
         }
 
-        return UpdateProperty(key, parameterName, value, timestamp);
+        return UpdateProperty(key, parameterName, value, timestamp, forceChangeNotification);
     }
 
     public bool Remove(string key)

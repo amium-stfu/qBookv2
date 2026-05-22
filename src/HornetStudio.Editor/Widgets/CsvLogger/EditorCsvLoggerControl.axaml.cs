@@ -21,18 +21,21 @@ namespace HornetStudio.Editor.Widgets;
 
 public partial class EditorCsvLoggerControl : EditorTemplateWidget
 {
-    private const string RecordItemName = "Record";
-    private const string OutputPathItemName = "OutputPath";
-    private const string IsRecordingItemName = "IsRecording";
-    private const string LastFileItemName = "LastFile";
-    private const string StatusItemName = "Status";
+    private const string RecordItemName = "record";
+    private const string OutputPathItemName = "output_path";
+    private const string IsRecordingItemName = "is_recording";
+    private const string LastFileItemName = "last_file";
+    private const string StatusItemName = "status";
 
     private FolderItemModel? _item;
     private FolderItemModel? ItemModel => _item;
     private bool _isRecording;
     private string _registryPath = string.Empty;
+    private string _legacyRegistryPath = string.Empty;
     private string _recordRuntimePath = string.Empty;
+    private string _legacyRecordRuntimePath = string.Empty;
     private string _outputPathRuntimePath = string.Empty;
+    private string _legacyOutputPathRuntimePath = string.Empty;
     private bool _isUpdatingRuntimeSignals;
     private string _runtimeOutputPath = string.Empty;
     private string _pendingExternalOutputPath = string.Empty;
@@ -125,15 +128,21 @@ public partial class EditorCsvLoggerControl : EditorTemplateWidget
         if (!IsSupportedItem)
         {
             _registryPath = string.Empty;
+            _legacyRegistryPath = string.Empty;
             _recordRuntimePath = string.Empty;
+            _legacyRecordRuntimePath = string.Empty;
             _outputPathRuntimePath = string.Empty;
+            _legacyOutputPathRuntimePath = string.Empty;
             RemovePublishedRuntimeItems();
             return;
         }
 
         _registryPath = ItemModel?.GetLoggerRuntimeBasePath() ?? string.Empty;
+        _legacyRegistryPath = ItemModel?.GetLoggerLegacyRuntimeBasePath() ?? string.Empty;
         _recordRuntimePath = ItemModel?.GetLoggerRuntimePath(RecordItemName) ?? string.Empty;
+        _legacyRecordRuntimePath = ItemModel?.GetLoggerLegacyRuntimePath(RecordItemName) ?? string.Empty;
         _outputPathRuntimePath = ItemModel?.GetLoggerRuntimePath(OutputPathItemName) ?? string.Empty;
+        _legacyOutputPathRuntimePath = ItemModel?.GetLoggerLegacyRuntimePath(OutputPathItemName) ?? string.Empty;
 
         if (!string.Equals(previousRegistryPath, _registryPath, StringComparison.OrdinalIgnoreCase))
         {
@@ -202,6 +211,29 @@ public partial class EditorCsvLoggerControl : EditorTemplateWidget
         }
 
         _publishedRuntimeValues.Clear();
+        RemoveLegacyRuntimeItems();
+    }
+
+    private void RemoveLegacyRuntimeItems()
+    {
+        RemoveLegacyRuntimePath(_legacyRecordRuntimePath);
+        RemoveLegacyRuntimePath(_legacyOutputPathRuntimePath);
+        RemoveLegacyRuntimePath(ItemModel?.GetLoggerLegacyRuntimePath(IsRecordingItemName));
+        RemoveLegacyRuntimePath(ItemModel?.GetLoggerLegacyRuntimePath(LastFileItemName));
+        RemoveLegacyRuntimePath(ItemModel?.GetLoggerLegacyRuntimePath(StatusItemName));
+
+        if (!string.IsNullOrWhiteSpace(_legacyRegistryPath))
+        {
+            HostRegistries.Data.Remove(_legacyRegistryPath);
+        }
+    }
+
+    private static void RemoveLegacyRuntimePath(string? path)
+    {
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            HostRegistries.Data.Remove(path);
+        }
     }
 
     private void OnRegistryItemChanged(object? sender, DataChangedEventArgs e)
@@ -211,8 +243,10 @@ public partial class EditorCsvLoggerControl : EditorTemplateWidget
             return;
         }
 
-        if (!(ItemModel.LoggerRuntimeBindingMatchesRegistryChange(_recordRuntimePath, e)
-              || ItemModel.LoggerRuntimeBindingMatchesRegistryChange(_outputPathRuntimePath, e)))
+          if (!(ItemModel.LoggerRuntimeBindingMatchesRegistryChange(_recordRuntimePath, e)
+              || ItemModel.LoggerRuntimeBindingMatchesRegistryChange(_outputPathRuntimePath, e)
+              || ItemModel.LoggerRuntimeBindingMatchesRegistryChange(_legacyRecordRuntimePath, e)
+              || ItemModel.LoggerRuntimeBindingMatchesRegistryChange(_legacyOutputPathRuntimePath, e)))
         {
             return;
         }
@@ -227,7 +261,7 @@ public partial class EditorCsvLoggerControl : EditorTemplateWidget
             return;
         }
 
-        var runtimeOutputPath = ReadRuntimeString(_outputPathRuntimePath);
+        var runtimeOutputPath = ReadRuntimeString(_outputPathRuntimePath, _legacyOutputPathRuntimePath);
         if (!string.IsNullOrWhiteSpace(runtimeOutputPath)
             && !string.Equals(runtimeOutputPath, _runtimeOutputPath, StringComparison.OrdinalIgnoreCase))
         {
@@ -250,7 +284,7 @@ public partial class EditorCsvLoggerControl : EditorTemplateWidget
             }
         }
 
-        var desiredRecord = ReadRuntimeBoolean(_recordRuntimePath, _isRecording);
+        var desiredRecord = ReadRuntimeBoolean(_recordRuntimePath, _legacyRecordRuntimePath, _isRecording);
         if (desiredRecord != _isRecording)
         {
             if (desiredRecord)
@@ -327,9 +361,9 @@ public partial class EditorCsvLoggerControl : EditorTemplateWidget
         return true;
     }
 
-    private static bool ReadRuntimeBoolean(string path, bool fallback)
+    private static bool ReadRuntimeBoolean(string path, string legacyPath, bool fallback)
     {
-        if (string.IsNullOrWhiteSpace(path) || !HostRegistries.Data.TryResolve(path, out var item) || item is null)
+        if (!TryResolveRuntimeItem(path, legacyPath, out var item) || item is null)
         {
             return fallback;
         }
@@ -345,14 +379,30 @@ public partial class EditorCsvLoggerControl : EditorTemplateWidget
         };
     }
 
-    private static string ReadRuntimeString(string path)
+    private static string ReadRuntimeString(string path, string legacyPath)
     {
-        if (string.IsNullOrWhiteSpace(path) || !HostRegistries.Data.TryResolve(path, out var item) || item is null)
+        if (!TryResolveRuntimeItem(path, legacyPath, out var item) || item is null)
         {
             return string.Empty;
         }
 
         return item.Value?.ToString() ?? string.Empty;
+    }
+
+    private static bool TryResolveRuntimeItem(string path, string legacyPath, out ItemModel? item)
+    {
+        if (!string.IsNullOrWhiteSpace(path) && HostRegistries.Data.TryResolve(path, out item) && item is not null)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(legacyPath) && HostRegistries.Data.TryResolve(legacyPath, out item) && item is not null)
+        {
+            return true;
+        }
+
+        item = null;
+        return false;
     }
 
     private void OnInteractivePointerPressed(object? sender, PointerPressedEventArgs e)

@@ -46,7 +46,7 @@ public sealed class PythonClientOptions
 
     /// <summary>
     /// Optional registry root for values published by this client.
-    /// If omitted, the host falls back to PythonClients.<ClientName>.
+    /// If omitted, the host falls back to python_clients.<client_name>.
     /// </summary>
     public string? RegistryRootPath { get; init; }
 

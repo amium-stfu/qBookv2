@@ -86,24 +86,21 @@
 
             <ScrollViewer IsVisible="{Binding HasSelectedRow}" VerticalScrollBarVisibility="Auto">
               <StackPanel Spacing="12">
-                <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-                  <TextBlock VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Item" />
-                  <TextBox Grid.Column="1" Margin="10,0,0,0" IsReadOnly="True" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding SelectedRow.LocalPath}" />
+                <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                  <TextBlock VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Active" />
+                  <CheckBox Grid.Column="1" Margin="10,0,0,0" IsChecked="{Binding SelectedRow.Active, Mode=TwoWay}" VerticalAlignment="Center" />
 
                   <TextBlock Grid.Row="1" Margin="0,8,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="BrokerPath" />
                   <TextBox Grid.Row="1" Grid.Column="1" Margin="10,8,0,0" IsReadOnly="True" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding SelectedRow.BrokerPath}" />
 
-                  <TextBlock Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Active" />
-                  <CheckBox Grid.Row="2" Grid.Column="1" Margin="10,8,0,0" IsChecked="{Binding SelectedRow.Active, Mode=TwoWay}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="PublishMode" />
+                  <ComboBox Grid.Row="2" Grid.Column="1" Margin="10,8,0,0" ItemsSource="{Binding PublishModeOptions}" SelectedItem="{Binding SelectedRow.PublishMode, Mode=TwoWay}" />
 
-                  <TextBlock Grid.Row="3" Margin="0,8,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="PublishMode" />
-                  <ComboBox Grid.Row="3" Grid.Column="1" Margin="10,8,0,0" ItemsSource="{Binding PublishModeOptions}" SelectedItem="{Binding SelectedRow.PublishMode, Mode=TwoWay}" />
+                  <TextBlock Grid.Row="3" Margin="0,8,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="PublishIntervalMs" />
+                  <TextBox Grid.Row="3" Grid.Column="1" Margin="10,8,0,0" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding SelectedRow.PublishIntervalMsText, Mode=TwoWay}" />
 
-                  <TextBlock Grid.Row="4" Margin="0,8,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="PublishIntervalMs" />
-                  <TextBox Grid.Row="4" Grid.Column="1" Margin="10,8,0,0" Background="{Binding EditorBackground}" BorderBrush="{Binding BorderColor}" Foreground="{Binding EditorForeground}" Text="{Binding SelectedRow.PublishIntervalMsText, Mode=TwoWay}" />
-
-                  <TextBlock Grid.Row="5" Margin="0,8,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Writable" />
-                  <CheckBox Grid.Row="5" Grid.Column="1" Margin="10,8,0,0" IsChecked="{Binding SelectedRow.Writable, Mode=TwoWay}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="4" Margin="0,8,0,0" VerticalAlignment="Center" Foreground="{Binding PrimaryTextBrush}" Text="Writable" />
+                  <CheckBox Grid.Row="4" Grid.Column="1" Margin="10,8,0,0" IsChecked="{Binding SelectedRow.Writable, Mode=TwoWay}" VerticalAlignment="Center" />
                 </Grid>
 
                 <TextBlock FontSize="12" Foreground="#B42318" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />

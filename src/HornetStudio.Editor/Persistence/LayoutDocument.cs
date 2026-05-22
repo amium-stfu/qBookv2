@@ -21,7 +21,16 @@ public sealed class FolderDocument
 
     public string Name { get; init; } = string.Empty;
 
+    public List<FolderScreenDocument> Screens { get; init; } = [];
+
     public List<FolderItemDocument> Items { get; init; } = [];
+}
+
+public sealed class FolderScreenDocument
+{
+    public int Id { get; init; }
+
+    public string Name { get; init; } = string.Empty;
 }
 
 public sealed class FolderItemDocument
@@ -151,6 +160,23 @@ public sealed class FolderItemDocument
         init => _enhancedSignals = value ?? [];
     }
 
+    [JsonPropertyName("ControllerDefinitions")]
+    public List<ControllerDefinitionDocument> ControllerDefinitions { get; init; } = [];
+
+    public List<MonitorDefinitionDocument> MonitorDefinitions { get; init; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DefaultTimeoutMs { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DefaultLowerLimit { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DefaultUpperLimit { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DefaultInhibitMs { get; init; }
+
     public bool ApplicationAutoStart { get; init; }
 
     [JsonPropertyName("PythonEnvironments")]
@@ -163,7 +189,11 @@ public sealed class FolderItemDocument
 
     public string Unit { get; init; } = string.Empty;
 
-    public string TargetLog { get; init; } = "Logs.Host";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetLog { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AutoCreateLog { get; init; }
 
     public int RefreshRateMs { get; init; } = 1000;
 
@@ -174,6 +204,8 @@ public sealed class FolderItemDocument
     public string ChartSeriesDefinitions { get; init; } = string.Empty;
 
     public List<ItemInteractionRuleDocument> InteractionRules { get; init; } = [];
+
+    public List<ItemVisualRuleDocument> VisualRules { get; init; } = [];
 
     public string UdlClientHost { get; init; } = "192.168.178.151";
 
@@ -191,15 +223,15 @@ public sealed class FolderItemDocument
 
     public string UdlModuleExposureDefinitions { get; init; } = string.Empty;
 
-    public string BrokerHost { get; init; } = BrokerWidgetDefaults.Host;
+    public string BrokerHost { get; init; } = ItemClientDefaults.Host;
 
-    public int BrokerPort { get; init; } = BrokerWidgetDefaults.Port;
+    public int BrokerPort { get; init; } = ItemClientDefaults.Port;
 
-    public string BrokerBaseTopic { get; init; } = BrokerWidgetDefaults.BaseTopic;
+    public string BrokerBaseTopic { get; init; } = ItemClientDefaults.BaseTopic;
 
-    public string ServerClientId { get; init; } = BrokerWidgetDefaults.ClientIdDisplay;
+    public string ServerClientId { get; init; } = ItemClientDefaults.ClientIdDisplay;
 
-    public string BrokerMode { get; init; } = BrokerWidgetModes.External;
+    public string BrokerMode { get; init; } = ItemClientModes.External;
 
     public bool BrokerAutoConnect { get; init; }
 
@@ -249,6 +281,14 @@ public sealed class FolderItemDocument
 
     public int TableColumns { get; init; }
 
+    public int TableCellRow { get; init; } = 1;
+
+    public int TableCellColumn { get; init; } = 1;
+
+    public int TableCellRowSpan { get; init; } = 1;
+
+    public int TableCellColumnSpan { get; init; } = 1;
+
     public string? DisplayBackColor { get; init; }
 
     public string? SignalColor { get; init; }
@@ -289,6 +329,23 @@ public sealed class ItemInteractionRuleDocument
     public string FunctionName { get; init; } = string.Empty;
 
     public string Argument { get; init; } = string.Empty;
+}
+
+public sealed class ItemVisualRuleDocument
+{
+    public VisualRuleSourceKind SourceKind { get; init; } = VisualRuleSourceKind.MonitorRule;
+
+    public string SourcePath { get; init; } = string.Empty;
+
+    public VisualRuleTarget Target { get; init; } = VisualRuleTarget.Body;
+
+    public VisualRuleProperty Property { get; init; } = VisualRuleProperty.BodyBackColor;
+
+    public VisualRuleEffect Effect { get; init; } = VisualRuleEffect.None;
+
+    public string ActiveValue { get; init; } = string.Empty;
+
+    public string InactiveValue { get; init; } = string.Empty;
 }
 
 

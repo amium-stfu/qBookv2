@@ -27,11 +27,11 @@ public partial class EditorCircleDisplayControl : EditorTemplateWidget
 {
     private const string DefaultSignalColor = "#FFC107";
     private const string DefaultProgressBarColor = "#FFC107";
-    private const string SignalColorItemName = "SignalColor";
-    private const string SignalRunItemName = "SignalRun";
-    private const string ProgressBarItemName = "ProgressBar";
-    private const string ProgressStateItemName = "ProgressState";
-    private const string ProgressBarColorItemName = "ProgressBarColor";
+    private const string SignalColorItemName = "signal_color";
+    private const string SignalRunItemName = "signal_run";
+    private const string ProgressBarItemName = "progress_bar";
+    private const string ProgressStateItemName = "progress_state";
+    private const string ProgressBarColorItemName = "progress_bar_color";
     private const double BeaconStep = 1.6d;
     private const double BeaconSweepDegrees = 34d;
 

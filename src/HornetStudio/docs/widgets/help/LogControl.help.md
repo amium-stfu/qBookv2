@@ -6,13 +6,15 @@
 
 ## Overview
 
-The LogControl widget displays log output on a page and can be used for host or process-oriented runtime diagnostics.
+The LogControl widget displays its own custom process log on a page and can be used for process-oriented runtime diagnostics.
 
 ## Properties
 
-### TargetLog
+### Owned process log
 
-Defines the log path that should be displayed.
+Every LogControl creates a widget-owned process log.
+The generated runtime path uses `studio.<folder>.logs.<widget_identity>` and is derived internally from the page/folder context and widget identity.
+`TargetLog` and `AutoCreateLog` remain legacy load-only fields and are no longer part of the editable widget configuration.
 
 ### View
 
@@ -26,7 +28,7 @@ Common visual shell properties for layout and theme integration.
 
 ### Display log stream
 
-The widget shows entries from the selected log source.
+The widget always shows entries from its own generated process log.
 
 ### Integrate with page views
 
@@ -34,11 +36,19 @@ The widget can be shown or hidden depending on the active view.
 
 ### Process log support
 
-A related process-log variant exists for process-oriented output rendering.
+The widget publishes writable level input items below the generated log path:
+
+- `debug`
+- `info`
+- `warning`
+- `error`
+- `fatal`
+
+Changing one of these item values writes the new string value to the generated process log at the matching level.
 
 ## Runtime Notes
 
-LogControl is intended for in-page diagnostics and monitoring surfaces.
+LogControl is intended for in-page diagnostics and monitoring surfaces. It always shows its own local process log.
 
 ## Suggested Help Window Metadata
 

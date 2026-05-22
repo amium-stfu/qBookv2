@@ -12,6 +12,7 @@ using Avalonia.Threading;
 using ItemModel = Amium.Items.Item;
 using Amium.Items;
 using HornetStudio.Host;
+using HornetStudio.Logging;
 using HornetStudio.Host.Python.Client;
 using HornetStudio.Editor.Helpers;
 using HornetStudio.Editor.ViewModels;
@@ -29,14 +30,17 @@ public enum ControlKind
     LogControl,
     ChartControl,
     UdlClientControl,
-    BrokerWidget,
+    ItemClient,
     CsvLoggerControl,
     SqlLoggerControl,
     CameraControl,
     PythonClient,
     ApplicationExplorer,
     CustomSignals,
-    EnhancedSignals
+    EnhancedSignals,
+    ControllerWidget,
+    Monitor,
+    DialogWidget
 }
 
 public sealed class FolderItemModel : ObservableObject
@@ -63,11 +67,16 @@ public sealed class FolderItemModel : ObservableObject
     private const string DarkAccentForeground = "#DBEAFE";
     private const string CircleDisplayDefaultSignalColor = "#FFC107";
     private const string CircleDisplayDefaultProgressBarColor = "#FFC107";
-    private const string CircleDisplaySignalColorItemName = "SignalColor";
-    private const string CircleDisplaySignalRunItemName = "SignalRun";
-    private const string CircleDisplayProgressBarItemName = "ProgressBar";
-    private const string CircleDisplayProgressStateItemName = "ProgressState";
-    private const string CircleDisplayProgressBarColorItemName = "ProgressBarColor";
+    private const string CircleDisplaySignalColorItemName = "signal_color";
+    private const string CircleDisplaySignalRunItemName = "signal_run";
+    private const string CircleDisplayProgressBarItemName = "progress_bar";
+    private const string CircleDisplayProgressStateItemName = "progress_state";
+    private const string CircleDisplayProgressBarColorItemName = "progress_bar_color";
+    private const string CircleDisplaySignalColorText = "SignalColor";
+    private const string CircleDisplaySignalRunText = "SignalRun";
+    private const string CircleDisplayProgressBarText = "ProgressBar";
+    private const string CircleDisplayProgressStateText = "ProgressState";
+    private const string CircleDisplayProgressBarColorText = "ProgressBarColor";
     private const int FooterSubItemColumns = 2;
     private const double FooterSubItemRowSpacing = 6;
     private const double FooterSubItemDesiredHeight = 32;
@@ -146,6 +155,8 @@ public sealed class FolderItemModel : ObservableObject
     private string _applicationDefinitions = string.Empty;
     private string _customSignalDefinitions = string.Empty;
     private string _enhancedSignalDefinitions = string.Empty;
+    private string _controllerDefinitions = string.Empty;
+    private string _monitorDefinitions = string.Empty;
     private bool _applicationAutoStart;
     private string _blockedLegacyScriptPath = string.Empty;
     private DateTime _blockedLegacyScriptWriteTimeUtc;
@@ -153,12 +164,14 @@ public sealed class FolderItemModel : ObservableObject
     private string _targetParameterFormat = string.Empty;
     private string _unit = string.Empty;
     private string _targetLog = "Logs.Host";
+    private bool _autoCreateLog;
     private int _view = 1;
     private int _activeViewId = 1;
     private int _historySeconds = 120;
     private int _viewSeconds = 30;
     private string _chartSeriesDefinitions = string.Empty;
     private string _interactionRules = string.Empty;
+    private string _visualRules = string.Empty;
     private bool _enabled = true;
     private string _csvDirectory = string.Empty;
     private string _csvFilename = string.Empty;
@@ -179,11 +192,11 @@ public sealed class FolderItemModel : ObservableObject
     private bool _udlClientAutoConnect;
     private bool _udlClientDebugLogging;
     private bool _udlClientDemoEnabled;
-    private string _brokerHost = BrokerWidgetDefaults.Host;
-    private int _brokerPort = BrokerWidgetDefaults.Port;
-    private string _brokerBaseTopic = BrokerWidgetDefaults.BaseTopic;
-    private string _brokerClientId = BrokerWidgetClientId.Create();
-    private string _brokerMode = BrokerWidgetModes.External;
+    private string _brokerHost = ItemClientDefaults.Host;
+    private int _brokerPort = ItemClientDefaults.Port;
+    private string _brokerBaseTopic = ItemClientDefaults.BaseTopic;
+    private string _brokerClientId = ItemClientId.Create();
+    private string _brokerMode = ItemClientModes.External;
     private bool _brokerAutoConnect;
     private string _brokerAttachedItemPaths = string.Empty;
     private string _brokerPublishedItemPaths = string.Empty;
@@ -208,10 +221,13 @@ public sealed class FolderItemModel : ObservableObject
     private string _effectiveBodyForeground = LightPrimaryForeground;
     private string _effectiveBodyBackground = "Transparent";
     private string _effectiveDisplayBackColor = LightInnerBackground;
+    private string? _visualRuleButtonBackColorOverride;
     private string _effectiveBodyBorder = LightBorder;
     private string _effectiveFooterForeground = LightMutedForeground;
     private string _effectiveFooterBackground = "Transparent";
     private string _effectiveFooterBorder = LightBorder;
+    private DispatcherTimer? _visualRuleBlinkTimer;
+    private bool _visualRuleBlinkPhaseVisible = true;
     private DispatcherTimer? _pendingRefreshTimer;
     private DispatcherTimer? _scriptTimer;
     private int _registryRefreshQueued;
@@ -256,24 +272,31 @@ public sealed class FolderItemModel : ObservableObject
 
     public string GetLoggerRuntimeBasePath()
     {
-        if (!IsCsvLoggerControl && !IsSqlLoggerControl)
-        {
-            return string.Empty;
-        }
+        return BuildLoggerRuntimeBasePath("logger_runtime");
+    }
 
-        var folderName = TargetPathHelper.NormalizeConfiguredTargetPath(FolderName);
-        var itemName = TargetPathHelper.NormalizeConfiguredTargetPath(Name);
-        if (string.IsNullOrWhiteSpace(folderName) || string.IsNullOrWhiteSpace(itemName))
-        {
-            return string.Empty;
-        }
-
-        return $"studio.{folderName}.Loggerruntime.{itemName}";
+    public string GetLoggerLegacyRuntimeBasePath()
+    {
+        return BuildLoggerRuntimeBasePath("Loggerruntime");
     }
 
     public string GetLoggerRuntimePath(string runtimeItemName)
     {
         var basePath = GetLoggerRuntimeBasePath();
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            return string.Empty;
+        }
+
+        var normalizedRuntimeItemName = TargetPathHelper.NormalizeConfiguredTargetPath(runtimeItemName);
+        return string.IsNullOrWhiteSpace(normalizedRuntimeItemName)
+            ? basePath
+            : $"{basePath}.{normalizedRuntimeItemName}";
+    }
+
+    public string GetLoggerLegacyRuntimePath(string runtimeItemName)
+    {
+        var basePath = GetLoggerLegacyRuntimeBasePath();
         if (string.IsNullOrWhiteSpace(basePath))
         {
             return string.Empty;
@@ -299,7 +322,7 @@ public sealed class FolderItemModel : ObservableObject
             return string.Empty;
         }
 
-        return $"studio.{folderName}.Displayruntime.{itemName}";
+        return $"studio.{folderName}.display_runtime.{itemName}";
     }
 
     public string GetDisplayRuntimePath(string runtimeItemName)
@@ -370,9 +393,39 @@ public sealed class FolderItemModel : ObservableObject
             return false;
         }
 
-        return TargetPathHelper.PathsEqual(e.Key, runtimePath)
-               || TargetPathHelper.IsDescendantPath(e.Key, runtimePath)
-               || TargetPathHelper.IsDescendantPath(runtimePath, e.Key);
+        var legacyRuntimePath = runtimePath.Replace(".logger_runtime.", ".Loggerruntime.", StringComparison.OrdinalIgnoreCase);
+
+        return MatchesLoggerRuntimePath(e.Key, runtimePath)
+               || MatchesLoggerRuntimePath(e.Key, legacyRuntimePath);
+    }
+
+    private string BuildLoggerRuntimeBasePath(string runtimeSegment)
+    {
+        if (!IsCsvLoggerControl && !IsSqlLoggerControl)
+        {
+            return string.Empty;
+        }
+
+        var folderName = TargetPathHelper.NormalizeConfiguredTargetPath(FolderName);
+        var itemName = TargetPathHelper.NormalizeConfiguredTargetPath(Name);
+        if (string.IsNullOrWhiteSpace(folderName) || string.IsNullOrWhiteSpace(itemName))
+        {
+            return string.Empty;
+        }
+
+        return $"studio.{folderName}.{runtimeSegment}.{itemName}";
+    }
+
+    private static bool MatchesLoggerRuntimePath(string? changedPath, string? runtimePath)
+    {
+        if (string.IsNullOrWhiteSpace(changedPath) || string.IsNullOrWhiteSpace(runtimePath))
+        {
+            return false;
+        }
+
+        return TargetPathHelper.PathsEqual(changedPath, runtimePath)
+               || TargetPathHelper.IsDescendantPath(changedPath, runtimePath)
+               || TargetPathHelper.IsDescendantPath(runtimePath, changedPath);
     }
 
     private static bool TryResolveCircleDisplayTargetCore(string candidatePath, out ItemModel? targetItem, out ItemProperty? parameter)
@@ -1059,9 +1112,11 @@ public sealed class FolderItemModel : ObservableObject
 
     public bool IsTableControl => Kind == ControlKind.TableControl;
 
+    public bool IsDialogWidget => Kind == ControlKind.DialogWidget;
+
     public bool IsCircleDisplay => Kind == ControlKind.CircleDisplay;
 
-    public bool UsesTableLayout => Kind is ControlKind.TableControl or ControlKind.CircleDisplay;
+    public bool UsesTableLayout => Kind is ControlKind.TableControl or ControlKind.CircleDisplay or ControlKind.DialogWidget;
 
     public bool IsLogControl => Kind == ControlKind.LogControl;
 
@@ -1075,13 +1130,17 @@ public sealed class FolderItemModel : ObservableObject
 
     public bool IsUdlClientControl => Kind == ControlKind.UdlClientControl;
 
-    public bool IsBrokerWidget => Kind == ControlKind.BrokerWidget;
+    public bool IsItemClient => Kind == ControlKind.ItemClient;
 
     public bool IsApplicationExplorer => Kind == ControlKind.ApplicationExplorer;
 
     public bool IsCustomSignals => Kind == ControlKind.CustomSignals;
 
     public bool IsEnhancedSignals => Kind == ControlKind.EnhancedSignals;
+
+    public bool IsControllerWidget => Kind == ControlKind.ControllerWidget;
+
+    public bool IsMonitor => Kind == ControlKind.Monitor;
 
     // Controls, die als Child in einem Table gerendert und selektiert werden duerfen.
     public bool IsTableChildControl => Kind is ControlKind.ItemModel
@@ -1090,13 +1149,14 @@ public sealed class FolderItemModel : ObservableObject
         or ControlKind.LogControl
         or ControlKind.ChartControl
         or ControlKind.UdlClientControl
-        or ControlKind.BrokerWidget
+        or ControlKind.ItemClient
         or ControlKind.CsvLoggerControl
         or ControlKind.SqlLoggerControl
         or ControlKind.CameraControl
         or ControlKind.ApplicationExplorer
         or ControlKind.CustomSignals
-        or ControlKind.EnhancedSignals;
+        or ControlKind.EnhancedSignals
+        or ControlKind.ControllerWidget;
 
     public bool IsSelected
     {
@@ -1677,6 +1737,18 @@ public sealed class FolderItemModel : ObservableObject
         set => SetProperty(ref _enhancedSignalDefinitions, value ?? string.Empty);
     }
 
+    public string ControllerDefinitions
+    {
+        get => _controllerDefinitions;
+        set => SetProperty(ref _controllerDefinitions, value ?? string.Empty);
+    }
+
+    public string MonitorDefinitions
+    {
+        get => _monitorDefinitions;
+        set => SetProperty(ref _monitorDefinitions, value ?? string.Empty);
+    }
+
     public bool ApplicationAutoStart
     {
         get => _applicationAutoStart;
@@ -1729,6 +1801,98 @@ public sealed class FolderItemModel : ObservableObject
         get => _targetLog;
         set => SetProperty(ref _targetLog, NormalizeLogTargetPath(value));
     }
+
+    public bool AutoCreateLog
+    {
+        get => _autoCreateLog;
+        set => SetProperty(ref _autoCreateLog, value);
+    }
+
+    public string GetOwnedProcessLogPath()
+    {
+        if (!IsLogControl)
+        {
+            return string.Empty;
+        }
+
+        var folderSegment = TargetPathHelper.NormalizeConfiguredTargetPath(FolderName);
+        var relativeIdentity = TargetPathHelper.NormalizeConfiguredTargetPath(GetRelativeWidgetIdentityPath());
+        if (string.IsNullOrWhiteSpace(folderSegment) || string.IsNullOrWhiteSpace(relativeIdentity))
+        {
+            return string.Empty;
+        }
+
+        return $"studio.{folderSegment}.logs.{relativeIdentity}";
+    }
+
+    public string GetOwnedProcessLogDirectory(string? projectRootDirectory = null)
+    {
+        if (!IsLogControl)
+        {
+            return string.Empty;
+        }
+
+        var rootDirectory = string.IsNullOrWhiteSpace(projectRootDirectory)
+            ? Core.OpenedDirectory
+            : projectRootDirectory;
+        if (string.IsNullOrWhiteSpace(rootDirectory))
+        {
+            return string.Empty;
+        }
+
+        var folderSegment = TargetPathHelper.NormalizePathSegment(FolderName, "folder");
+        var logSegment = TargetPathHelper.NormalizePathSegment(Name, Id);
+        if (string.IsNullOrWhiteSpace(folderSegment) || string.IsNullOrWhiteSpace(logSegment))
+        {
+            return string.Empty;
+        }
+
+        return System.IO.Path.Combine(rootDirectory, "Logs", folderSegment, logSegment);
+    }
+
+    public string GetAutoCreatedLogPath()
+    {
+        if (IsLogControl)
+        {
+            return GetOwnedProcessLogPath();
+        }
+
+        return AutoCreateLog
+            ? NormalizeLogTargetPath(Name)
+            : TargetLog;
+    }
+
+    public void EnsureOwnedProcessLog(string? projectRootDirectory = null)
+    {
+        if (IsLogControl)
+        {
+            var ownedTargetPath = GetOwnedProcessLogPath();
+            if (string.IsNullOrWhiteSpace(ownedTargetPath))
+            {
+                return;
+            }
+
+            var logDirectory = GetOwnedProcessLogDirectory(projectRootDirectory);
+            ProcessLogRuntime.EnsurePublished(
+                ownedTargetPath,
+                string.IsNullOrWhiteSpace(Name) ? "Log" : Name.Trim(),
+                string.IsNullOrWhiteSpace(logDirectory) ? null : logDirectory);
+            return;
+        }
+
+        if (!AutoCreateLog)
+        {
+            return;
+        }
+
+        var targetPath = GetAutoCreatedLogPath();
+        if (string.IsNullOrWhiteSpace(targetPath))
+        {
+            return;
+        }
+
+        ProcessLogRuntime.EnsurePublished(targetPath, string.IsNullOrWhiteSpace(Name) ? "Log" : Name.Trim());
+    }
     public int HistorySeconds
     {
         get => _historySeconds;
@@ -1777,6 +1941,18 @@ public sealed class FolderItemModel : ObservableObject
     {
         get => _interactionRules;
         set => SetProperty(ref _interactionRules, value ?? string.Empty);
+    }
+
+    public string VisualRules
+    {
+        get => _visualRules;
+        set
+        {
+            if (SetProperty(ref _visualRules, value ?? string.Empty))
+            {
+                ApplyTheme(_isDarkThemeApplied);
+            }
+        }
     }
 
     public bool Enabled
@@ -1836,31 +2012,31 @@ public sealed class FolderItemModel : ObservableObject
     public string BrokerHost
     {
         get => _brokerHost;
-        set => SetProperty(ref _brokerHost, string.IsNullOrWhiteSpace(value) ? BrokerWidgetDefaults.Host : value.Trim());
+        set => SetProperty(ref _brokerHost, string.IsNullOrWhiteSpace(value) ? ItemClientDefaults.Host : value.Trim());
     }
 
     public int BrokerPort
     {
         get => _brokerPort;
-        set => SetProperty(ref _brokerPort, value <= 0 ? BrokerWidgetDefaults.Port : value);
+        set => SetProperty(ref _brokerPort, value <= 0 ? ItemClientDefaults.Port : value);
     }
 
     public string BrokerBaseTopic
     {
         get => _brokerBaseTopic;
-        set => SetProperty(ref _brokerBaseTopic, string.IsNullOrWhiteSpace(value) ? BrokerWidgetDefaults.BaseTopic : value.Trim());
+        set => SetProperty(ref _brokerBaseTopic, value?.Trim() ?? string.Empty);
     }
 
     public string ServerClientId
     {
         get => _brokerClientId;
-        set => SetProperty(ref _brokerClientId, BrokerWidgetClientId.Normalize(value));
+        set => SetProperty(ref _brokerClientId, ItemClientId.Normalize(value));
     }
 
     public string BrokerMode
     {
         get => _brokerMode;
-        set => SetProperty(ref _brokerMode, BrokerWidgetModes.Normalize(value));
+        set => SetProperty(ref _brokerMode, ItemClientModes.Normalize(value));
     }
 
     public bool BrokerAutoConnect
@@ -1876,7 +2052,7 @@ public sealed class FolderItemModel : ObservableObject
     }
 
     /// <summary>
-    /// Gets or sets the local HornetStudio item paths configured for future BrokerWidget publishing.
+    /// Gets or sets the local HornetStudio item paths configured for future ItemClient publishing.
     /// </summary>
     public string BrokerPublishedItemPaths
     {
@@ -2280,7 +2456,9 @@ public sealed class FolderItemModel : ObservableObject
     public string? EffectiveToolTipText => string.IsNullOrWhiteSpace(ToolTipText) ? null : ToolTipText;
 
     public string EffectiveButtonBodyBackground
-        => string.IsNullOrWhiteSpace(ButtonBodyBackground)
+        => !string.IsNullOrWhiteSpace(_visualRuleButtonBackColorOverride)
+            ? _visualRuleButtonBackColorOverride!
+            : string.IsNullOrWhiteSpace(ButtonBodyBackground)
             ? (_isDarkThemeApplied ? ThemePalette.Dark.ButtonBackColor : ThemePalette.Light.ButtonBackColor)
             : (string.Equals(ButtonBodyBackground.Trim(), "Transparent", StringComparison.OrdinalIgnoreCase)
                 ? "Transparent"
@@ -2577,7 +2755,7 @@ public sealed class FolderItemModel : ObservableObject
         ControlKind.CsvLoggerControl => 260,
         ControlKind.SqlLoggerControl => 260,
         ControlKind.CameraControl => 260,
-        ControlKind.BrokerWidget => 320,
+        ControlKind.ItemClient => 320,
         _ => 140
     };
 
@@ -2594,7 +2772,7 @@ public sealed class FolderItemModel : ObservableObject
         ControlKind.CsvLoggerControl => 120,
         ControlKind.SqlLoggerControl => 120,
         ControlKind.CameraControl => 160,
-        ControlKind.BrokerWidget => 180,
+        ControlKind.ItemClient => 180,
         _ => 72
     };
 
@@ -2707,6 +2885,7 @@ public sealed class FolderItemModel : ObservableObject
         EffectiveFooterForeground = string.IsNullOrWhiteSpace(FooterForeColor) ? EffectiveMutedForeground : FooterForeColor!;
         EffectiveFooterBackground = string.IsNullOrWhiteSpace(FooterBackColor) ? "Transparent" : FooterBackColor!;
         EffectiveFooterBorder = string.IsNullOrWhiteSpace(FooterBorderColor) ? EffectiveBorderBrush : FooterBorderColor!;
+        ApplyVisualRuleOverrides();
         RaisePropertyChanged(nameof(EffectiveBackgroundBrush));
         RaisePropertyChanged(nameof(EffectiveInnerBackgroundBrush));
         RaisePropertyChanged(nameof(EffectiveBorderBrushValue));
@@ -3027,9 +3206,10 @@ public sealed class FolderItemModel : ObservableObject
             }
 
             var targetPath = writeTargetItem.Path ?? Target?.Path ?? TargetPath;
+            var forceWriteNotification = string.Equals(parameter.Name, "write", StringComparison.OrdinalIgnoreCase);
             var updated = string.Equals(parameter.Name, "read", StringComparison.OrdinalIgnoreCase)
                 ? HostRegistries.Data.UpdateValue(targetPath, convertedValue)
-                : HostRegistries.Data.TryUpdateUserProperty(targetPath, parameter.Name, convertedValue);
+                : HostRegistries.Data.TryUpdateUserProperty(targetPath, parameter.Name, convertedValue, forceChangeNotification: forceWriteNotification);
             if (!updated)
             {
                 if (string.Equals(parameter.Name, "read", StringComparison.OrdinalIgnoreCase))
@@ -3052,6 +3232,8 @@ public sealed class FolderItemModel : ObservableObject
             error = string.Empty;
             Core.LogInfo(
                 $"[SignalWrite] result=ok item={Path} writeTarget={targetPath} writeParam={parameter.Name} value={FormatDiagnosticValue(convertedValue)} registryUpdated={updated}");
+            Core.LogInfo(
+                $"[SignalWrite] state item={Path} writeTarget={targetPath} writeParam={parameter.Name} current={FormatRegistryWriteState(targetPath, parameter.Name)} targetSameAsWriteTarget={refreshDisplayImmediately}");
             return true;
 
         }
@@ -3241,6 +3423,24 @@ public sealed class FolderItemModel : ObservableObject
                 }
 
                 return TryApplyInteractionWrite(setTarget!, rule.TargetPath, rule.Argument, out error);
+
+            case ItemInteractionAction.OpenDialog:
+                if (viewModel is null)
+                {
+                    error = "Kein ViewModel fuer OpenDialog verfuegbar.";
+                    return false;
+                }
+
+                return viewModel.OpenDialogWidget(rule.TargetPath, rule.Argument, this, out error);
+
+            case ItemInteractionAction.CloseDialog:
+                if (viewModel is null)
+                {
+                    error = "Kein ViewModel fuer CloseDialog verfuegbar.";
+                    return false;
+                }
+
+                return viewModel.CloseDialogWidget(rule.TargetPath, this, out error);
 
             case ItemInteractionAction.InvokePythonFunction:
                 return TryInvokeApplicationFunction(rule, out error);
@@ -3442,9 +3642,10 @@ public sealed class FolderItemModel : ObservableObject
             }
 
             var resolvedTargetPath = writeTargetItem.Path ?? targetItem.Path ?? targetPath ?? string.Empty;
+            var forceWriteNotification = string.Equals(writeParameter.Name, "write", StringComparison.OrdinalIgnoreCase);
             var updated = string.Equals(writeParameter.Name, "read", StringComparison.OrdinalIgnoreCase)
                 ? HostRegistries.Data.UpdateValue(resolvedTargetPath, convertedValue)
-                : HostRegistries.Data.TryUpdateUserProperty(resolvedTargetPath, writeParameter.Name, convertedValue);
+                : HostRegistries.Data.TryUpdateUserProperty(resolvedTargetPath, writeParameter.Name, convertedValue, forceChangeNotification: forceWriteNotification);
             if (!updated)
             {
                 if (string.Equals(writeParameter.Name, "read", StringComparison.OrdinalIgnoreCase))
@@ -3665,8 +3866,24 @@ public sealed class FolderItemModel : ObservableObject
 
     private void OnDataRegistryChanged(object? sender, DataChangedEventArgs e)
     {
+        var visualRulesAffected = HasMatchingVisualRuleSource(e.Key);
+        if (!visualRulesAffected && string.IsNullOrWhiteSpace(TargetPath))
+        {
+            return;
+        }
+
+        if (visualRulesAffected && Dispatcher.UIThread.CheckAccess())
+        {
+            ApplyTheme(_isDarkThemeApplied);
+        }
+
         if (string.IsNullOrWhiteSpace(TargetPath))
         {
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                QueueRegistryRefresh();
+            }
+
             return;
         }
 
@@ -3678,6 +3895,12 @@ public sealed class FolderItemModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(matchedTargetPath))
         {
+            if (!visualRulesAffected)
+            {
+                return;
+            }
+
+            RequestTargetRefresh();
             return;
         }
 
@@ -3734,6 +3957,7 @@ public sealed class FolderItemModel : ObservableObject
         Dispatcher.UIThread.Post(() =>
         {
             Interlocked.Exchange(ref _registryRefreshQueued, 0);
+            ApplyTheme(_isDarkThemeApplied);
             if (string.IsNullOrWhiteSpace(TargetPath))
             {
                 return;
@@ -4026,32 +4250,14 @@ public sealed class FolderItemModel : ObservableObject
             return null;
         }
 
-        static string NormalizeSegment(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return string.Empty;
-            }
-
-            return value.Trim().Trim('.', '/', '\\');
-        }
-
-        var folderSegment = NormalizeSegment(FolderName);
-        if (string.IsNullOrWhiteSpace(folderSegment))
-        {
-            folderSegment = "Page";
-        }
+        var folderSegment = TargetPathHelper.NormalizePathSegment(FolderName, "page");
 
         var nameSource = !string.IsNullOrWhiteSpace(Name)
             ? Name
             : (!string.IsNullOrWhiteSpace(Title) ? Title : Id);
-        var nameSegment = NormalizeSegment(nameSource);
-        if (string.IsNullOrWhiteSpace(nameSegment))
-        {
-            nameSegment = Id;
-        }
+        var nameSegment = TargetPathHelper.NormalizePathSegment(nameSource, Id);
 
-        return $"studio.{folderSegment}.Applications.Python.{nameSegment}";
+        return $"studio.{folderSegment}.applications.python.{nameSegment}";
     }
 
     private void RefreshPathRecursive()
@@ -4216,17 +4422,17 @@ public sealed class FolderItemModel : ObservableObject
         snapshot[CircleDisplaySignalColorItemName].Value = string.IsNullOrWhiteSpace(SignalColor)
             ? CircleDisplayDefaultSignalColor
             : SignalColor;
-        snapshot[CircleDisplaySignalColorItemName].Properties["text"].Value = CircleDisplaySignalColorItemName;
+        snapshot[CircleDisplaySignalColorItemName].Properties["text"].Value = CircleDisplaySignalColorText;
         snapshot[CircleDisplaySignalRunItemName].Value = SignalRun;
-        snapshot[CircleDisplaySignalRunItemName].Properties["text"].Value = CircleDisplaySignalRunItemName;
+        snapshot[CircleDisplaySignalRunItemName].Properties["text"].Value = CircleDisplaySignalRunText;
         snapshot[CircleDisplayProgressBarItemName].Value = ProgressBar;
-        snapshot[CircleDisplayProgressBarItemName].Properties["text"].Value = CircleDisplayProgressBarItemName;
+        snapshot[CircleDisplayProgressBarItemName].Properties["text"].Value = CircleDisplayProgressBarText;
         snapshot[CircleDisplayProgressStateItemName].Value = System.Math.Clamp(ProgressState, 0d, 100d);
-        snapshot[CircleDisplayProgressStateItemName].Properties["text"].Value = CircleDisplayProgressStateItemName;
+        snapshot[CircleDisplayProgressStateItemName].Properties["text"].Value = CircleDisplayProgressStateText;
         snapshot[CircleDisplayProgressBarColorItemName].Value = string.IsNullOrWhiteSpace(ProgressBarColor)
             ? CircleDisplayDefaultProgressBarColor
             : ProgressBarColor;
-        snapshot[CircleDisplayProgressBarColorItemName].Properties["text"].Value = CircleDisplayProgressBarColorItemName;
+        snapshot[CircleDisplayProgressBarColorItemName].Properties["text"].Value = CircleDisplayProgressBarColorText;
 
         HostRegistries.Data.UpsertSnapshot(runtimeBasePath, snapshot, DataRegistryItemMetadata.WidgetInternal(), pruneMissingMembers: false);
         UpsertCircleDisplayRuntimeValue(
@@ -4303,6 +4509,184 @@ public sealed class FolderItemModel : ObservableObject
         };
     }
 
+
+            private void ApplyVisualRuleOverrides()
+            {
+                _visualRuleButtonBackColorOverride = null;
+                var rules = VisualRuleCodec.ParseDefinitions(VisualRules);
+                if (rules.Count == 0 || !VisualRuleCodec.SupportsVisualRules(this))
+                {
+                    StopVisualRuleBlinkTimer();
+                    _visualRuleBlinkPhaseVisible = true;
+                    return;
+                }
+
+                var bodyMatch = ResolveVisualRuleMatch(rules, VisualRuleProperty.BodyBackColor);
+                var buttonMatch = ResolveVisualRuleMatch(rules, VisualRuleProperty.ButtonBackColor);
+                var displayMatch = ResolveVisualRuleMatch(rules, VisualRuleProperty.DisplayBackColor);
+
+                if (IsItem && bodyMatch.HasValue)
+                {
+                    EffectiveBodyBackground = bodyMatch.Value!;
+                }
+
+                if (IsButton && buttonMatch.HasValue)
+                {
+                    _visualRuleButtonBackColorOverride = buttonMatch.Value!;
+                }
+
+                if (IsCircleDisplay && displayMatch.HasValue)
+                {
+                    EffectiveDisplayBackColor = displayMatch.Value!;
+                }
+
+                var hasActiveBlink = bodyMatch.IsBlinking || buttonMatch.IsBlinking || displayMatch.IsBlinking;
+                if (hasActiveBlink)
+                {
+                    StartVisualRuleBlinkTimer();
+                }
+                else
+                {
+                    StopVisualRuleBlinkTimer();
+                    _visualRuleBlinkPhaseVisible = true;
+                }
+            }
+
+            private VisualRuleMatch ResolveVisualRuleMatch(IEnumerable<VisualRule> rules, VisualRuleProperty property)
+            {
+                var match = VisualRuleMatch.None;
+                foreach (var rule in rules)
+                {
+                    if (rule.Property != property || !VisualRuleCodec.IsSupportedProperty(this, property))
+                    {
+                        continue;
+                    }
+
+                    if (!TryGetVisualRuleState(rule, out var isActive))
+                    {
+                        continue;
+                    }
+
+                    if (isActive)
+                    {
+                        if (rule.Effect == VisualRuleEffect.Blink && !_visualRuleBlinkPhaseVisible)
+                        {
+                            match = string.IsNullOrWhiteSpace(rule.InactiveValue)
+                                ? new VisualRuleMatch(null, true)
+                                : new VisualRuleMatch(rule.InactiveValue, true);
+                            continue;
+                        }
+
+                        match = string.IsNullOrWhiteSpace(rule.ActiveValue)
+                            ? VisualRuleMatch.None
+                            : new VisualRuleMatch(rule.ActiveValue, rule.Effect == VisualRuleEffect.Blink);
+                        continue;
+                    }
+
+                    match = string.IsNullOrWhiteSpace(rule.InactiveValue)
+                        ? VisualRuleMatch.None
+                        : new VisualRuleMatch(rule.InactiveValue, false);
+                }
+
+                return match;
+            }
+
+            private bool TryGetVisualRuleState(VisualRule rule, out bool isActive)
+            {
+                isActive = false;
+                if (rule.SourceKind != VisualRuleSourceKind.MonitorRule || string.IsNullOrWhiteSpace(rule.SourcePath))
+                {
+                    return false;
+                }
+
+                if (!TryResolveTargetItem(rule.SourcePath, out var sourceItem) || sourceItem is null)
+                {
+                    return false;
+                }
+
+                switch (sourceItem.Value)
+                {
+                    case bool boolValue:
+                        isActive = boolValue;
+                        return true;
+                    case string stringValue when bool.TryParse(stringValue, out var parsedBool):
+                        isActive = parsedBool;
+                        return true;
+                    case sbyte or byte or short or ushort or int or uint or long or ulong:
+                        isActive = System.Convert.ToInt64(sourceItem.Value, CultureInfo.InvariantCulture) != 0;
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+
+            private bool HasMatchingVisualRuleSource(string? changedPath)
+            {
+                if (string.IsNullOrWhiteSpace(changedPath))
+                {
+                    return false;
+                }
+
+                foreach (var rule in VisualRuleCodec.ParseDefinitions(VisualRules))
+                {
+                    if (rule.SourceKind != VisualRuleSourceKind.MonitorRule || string.IsNullOrWhiteSpace(rule.SourcePath))
+                    {
+                        continue;
+                    }
+
+                    foreach (var candidate in TargetPathHelper.EnumerateResolutionCandidates(rule.SourcePath, FolderName))
+                    {
+                        if (TargetPathHelper.PathsEqual(changedPath, candidate)
+                            || TargetPathHelper.IsDescendantPath(changedPath, candidate)
+                            || TargetPathHelper.IsDescendantPath(candidate, changedPath))
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            private void StartVisualRuleBlinkTimer()
+            {
+                if (_visualRuleBlinkTimer is null)
+                {
+                    _visualRuleBlinkTimer = new DispatcherTimer
+                    {
+                        Interval = TimeSpan.FromSeconds(1)
+                    };
+                    _visualRuleBlinkTimer.Tick += OnVisualRuleBlinkTimerTick;
+                }
+
+                if (!_visualRuleBlinkTimer.IsEnabled)
+                {
+                    _visualRuleBlinkTimer.Start();
+                }
+            }
+
+            private void StopVisualRuleBlinkTimer()
+            {
+                if (_visualRuleBlinkTimer is null)
+                {
+                    return;
+                }
+
+                _visualRuleBlinkTimer.Stop();
+            }
+
+            private void OnVisualRuleBlinkTimerTick(object? sender, EventArgs e)
+            {
+                _visualRuleBlinkPhaseVisible = !_visualRuleBlinkPhaseVisible;
+                ApplyTheme(_isDarkThemeApplied);
+            }
+
+            private readonly record struct VisualRuleMatch(string? Value, bool IsBlinking)
+            {
+                public static VisualRuleMatch None => new(null, false);
+
+                public bool HasValue => !string.IsNullOrWhiteSpace(Value);
+            }
     private static HorizontalAlignment ParseHorizontalAlignment(string? value, HorizontalAlignment fallback)
     {
         return NormalizeAlignment(value, fallback.ToString()) switch
@@ -4486,11 +4870,12 @@ public sealed class FolderItemModel : ObservableObject
             ControlKind.LogControl => "LogControl",
             ControlKind.ChartControl => "ChartControl",
             ControlKind.UdlClientControl => "UdlClientControl",
-            ControlKind.BrokerWidget => "BrokerWidget",
+            ControlKind.ItemClient => "ItemClient",
             ControlKind.CsvLoggerControl => "CsvLoggerControl",
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
             ControlKind.ApplicationExplorer => "ApplicationExplorer",
+            ControlKind.DialogWidget => "DialogWidget",
             ControlKind.ItemModel or ControlKind.Signal => "Signal",
             _ => "Signal"
         };
@@ -4901,6 +5286,23 @@ public sealed class FolderItemModel : ObservableObject
             : $"{value} ({value.GetType().Name})";
     }
 
+    private static string FormatRegistryWriteState(string targetPath, string parameterName)
+    {
+        if (!HostRegistries.Data.TryResolve(targetPath, out var currentItem) || currentItem is null)
+        {
+            return "<missing>";
+        }
+
+        if (string.Equals(parameterName, "read", StringComparison.OrdinalIgnoreCase))
+        {
+            return FormatDiagnosticValue(currentItem.Value);
+        }
+
+        return currentItem.Properties.Has(parameterName)
+            ? FormatDiagnosticValue(currentItem.Properties[parameterName].Value)
+            : "<missing>";
+    }
+
     private static IBrush ParseBrush(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -5026,6 +5428,26 @@ public sealed class FolderItemModel : ObservableObject
         }
 
         return string.Join(".", segments);
+    }
+
+    private string GetRelativeWidgetIdentityPath()
+    {
+        var relativePath = ParentItem is not null
+            && TargetPathHelper.TryGetRelativePath(Path, ParentItem.Path, out var childRelativePath)
+            ? childRelativePath
+            : TargetPathHelper.ToPersistedLayoutTargetPath(Path, FolderName);
+
+        if (!string.IsNullOrWhiteSpace(relativePath))
+        {
+            return relativePath;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Name))
+        {
+            return Name;
+        }
+
+        return Id;
     }
 }
 

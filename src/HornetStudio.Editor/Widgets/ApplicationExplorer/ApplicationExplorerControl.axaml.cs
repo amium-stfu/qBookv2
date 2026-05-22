@@ -12,6 +12,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using HornetStudio.Editor.Controls;
+using HornetStudio.Editor.Helpers;
 using HornetStudio.Host;
 using HornetStudio.Host.Python.Client;
 using HornetStudio.Editor.Models;
@@ -967,9 +968,9 @@ public sealed class ApplicationEntryRow : INotifyPropertyChanged
 
     private static string BuildValueRegistryRootPath(FolderItemModel? ownerItem, string? envName)
     {
-        var folderName = string.IsNullOrWhiteSpace(ownerItem?.FolderName) ? "Page" : ownerItem!.FolderName.Trim();
-        var normalizedEnvName = string.IsNullOrWhiteSpace(envName) ? "PythonEnv" : envName.Trim();
-        return $"studio.{folderName}.Applications.Python.{normalizedEnvName}";
+        var folderName = TargetPathHelper.NormalizePathSegment(ownerItem?.FolderName, "page");
+        var normalizedEnvName = TargetPathHelper.NormalizePathSegment(envName, "python_env");
+        return $"studio.{folderName}.applications.python.{normalizedEnvName}";
     }
 
     private async Task RunEnvAsync(string scriptPath, string clientName, string targetPath, int startupDelayMs, CancellationToken cancellationToken)

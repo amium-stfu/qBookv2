@@ -19,7 +19,7 @@ Displays an interactive button that can execute configured actions, host command
 - Caption and footer text
 - Button text and icon
 - Button command
-- Interaction rules
+- Interaction rules including `OpenDialog(dialogWidgetId, origin = Screen, position = Center)` and `CloseDialog(dialogWidgetId)` for `DialogWidget` overlays
 - Theme-aware colors
 
 ## Runtime Notes

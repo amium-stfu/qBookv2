@@ -25,7 +25,7 @@
       <Setter Property="TextElement.Foreground" Value="{Binding Foreground}" />
     </Style>
   </UserControl.Styles>
-  <Grid DataContext="{Binding #Root}" RowDefinitions="Auto,*">
+  <Grid Background="Transparent" DataContext="{Binding #Root}" RowDefinitions="Auto,*">
     <TextBlock
         Grid.Row="0"
         Margin="0,0,0,4"
