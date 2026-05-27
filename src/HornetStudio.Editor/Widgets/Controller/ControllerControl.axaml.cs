@@ -364,6 +364,11 @@ public sealed class ControllerRow : ObservableObject
     public string TypeText => $"Type: {Definition.Type}";
 
     /// <summary>
+    /// Gets the compact controller type label shown in the row.
+    /// </summary>
+    public string TypeDisplayText => Definition.Type.ToString().ToUpperInvariant();
+
+    /// <summary>
     /// Gets the configured path summary.
     /// </summary>
     public string PathSummary => $"PV: {ValueOrPlaceholder(Definition.SourcePath)} | SET: {GetOwnedSetPath()} | OUT: {ValueOrPlaceholder(Definition.OutputPath)}";
@@ -413,6 +418,13 @@ public sealed class ControllerRow : ObservableObject
     public bool HasAlert => !string.IsNullOrWhiteSpace(AlertText);
 
     /// <summary>
+    /// Gets the row tooltip with the hidden controller details.
+    /// </summary>
+    public string DetailToolTip => HasAlert
+        ? string.Join(Environment.NewLine, [TypeText, PathSummary, ParameterSummary, StateText, $"Alert: {AlertText}"])
+        : string.Join(Environment.NewLine, [TypeText, PathSummary, ParameterSummary, StateText]);
+
+    /// <summary>
     /// Gets the row background color.
     /// </summary>
     public string RowBackground => _ownerItem.EffectiveBodyBackground;
@@ -451,6 +463,7 @@ public sealed class ControllerRow : ObservableObject
         RaisePropertyChanged(nameof(StateText));
         RaisePropertyChanged(nameof(AlertText));
         RaisePropertyChanged(nameof(HasAlert));
+        RaisePropertyChanged(nameof(DetailToolTip));
     }
 
     private static string ValueOrPlaceholder(string? value)

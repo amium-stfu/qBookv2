@@ -8,6 +8,8 @@
 
 The ControllerWidget stores PID controller definitions on the folder item and synchronizes them with host runtimes. Each PID controller reads a source value from the configured source path, reads its setpoint from an owned runtime `set` item value, computes a PID output, and writes the scaled result to the configured output target while running.
 
+In the editor, the controller list uses compact single-line rows that show the controller type, controller name, and row actions. Detailed path, parameter, state, and alert text is no longer rendered as permanently expanded multiline content in every row.
+
 ## Properties
 
 ### ControllerDefinitions

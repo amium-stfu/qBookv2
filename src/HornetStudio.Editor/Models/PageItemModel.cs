@@ -3,7 +3,9 @@ using System.Collections.Specialized;
 using System.Globalization;
 using System.IO;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Layout;
@@ -11,11 +13,14 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using ItemModel = Amium.Items.Item;
 using Amium.Items;
+using HornetStudio.Editor.Functions;
 using HornetStudio.Host;
 using HornetStudio.Logging;
 using HornetStudio.Host.Python.Client;
 using HornetStudio.Editor.Helpers;
 using HornetStudio.Editor.ViewModels;
+using HornetStudio.Editor.Widgets.Workflow;
+using Serilog.Events;
 
 namespace HornetStudio.Editor.Models;
 
@@ -40,11 +45,14 @@ public enum ControlKind
     EnhancedSignals,
     ControllerWidget,
     Monitor,
+    Functions,
     DialogWidget
 }
 
 public sealed class FolderItemModel : ObservableObject
 {
+    private static readonly ConcurrentDictionary<string, RunningDeclarativeFunctionExecution> RunningDeclarativeFunctions = new(StringComparer.OrdinalIgnoreCase);
+
     private static readonly Typeface ItemValueTypeface = new(new FontFamily("Calibri"), FontStyle.Normal, FontWeight.Bold);
     private static readonly Typeface ItemUnitTypeface = new(new FontFamily("Calibri"), FontStyle.Italic, FontWeight.Normal);
 
@@ -1142,6 +1150,8 @@ public sealed class FolderItemModel : ObservableObject
 
     public bool IsMonitor => Kind == ControlKind.Monitor;
 
+    public bool IsFunctions => Kind == ControlKind.Functions;
+
     // Controls, die als Child in einem Table gerendert und selektiert werden duerfen.
     public bool IsTableChildControl => Kind is ControlKind.ItemModel
         or ControlKind.Signal
@@ -1156,7 +1166,8 @@ public sealed class FolderItemModel : ObservableObject
         or ControlKind.ApplicationExplorer
         or ControlKind.CustomSignals
         or ControlKind.EnhancedSignals
-        or ControlKind.ControllerWidget;
+        or ControlKind.ControllerWidget
+        or ControlKind.Functions;
 
     public bool IsSelected
     {
@@ -3325,6 +3336,63 @@ public sealed class FolderItemModel : ObservableObject
         return true;
     }
 
+    /// <summary>
+    /// Tries to start one catalog function using the existing RunFunction execution path.
+    /// </summary>
+    /// <param name="functionReference">The stable catalog function reference.</param>
+    /// <param name="argument">The optional function argument.</param>
+    /// <param name="error">The resulting error message when execution could not be started.</param>
+    /// <returns><see langword="true"/> when execution was started; otherwise <see langword="false"/>.</returns>
+    public bool TryRunCatalogFunction(string? functionReference, string? argument, out string error)
+    {
+        var rule = new ItemInteractionRule
+        {
+            Action = ItemInteractionAction.RunFunction,
+            FunctionName = functionReference?.Trim() ?? string.Empty,
+            Argument = argument?.Trim() ?? string.Empty,
+            TargetPath = "this"
+        };
+
+        return TryStartRunFunction(rule, out error);
+    }
+
+    /// <summary>
+    /// Tries to request a controlled stop for one running catalog function.
+    /// </summary>
+    /// <param name="functionReference">The stable catalog function reference.</param>
+    /// <param name="error">The resulting error message when the stop request could not be sent.</param>
+    /// <returns><see langword="true"/> when the stop request was accepted; otherwise <see langword="false"/>.</returns>
+    public bool TryStopCatalogFunction(string? functionReference, out string error)
+    {
+        var rule = new ItemInteractionRule
+        {
+            Action = ItemInteractionAction.StopFunction,
+            FunctionName = functionReference?.Trim() ?? string.Empty,
+            TargetPath = "this"
+        };
+
+        return TryStopRunFunction(rule, out error);
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the specified catalog function is currently running.
+    /// </summary>
+    /// <param name="functionReference">The stable catalog function reference.</param>
+    /// <returns><see langword="true"/> when a matching declarative execution is active; otherwise <see langword="false"/>.</returns>
+    public bool IsCatalogFunctionRunning(string? functionReference)
+    {
+        var normalizedFunctionReference = FunctionRegistry.NormalizeReference(functionReference);
+        if (string.IsNullOrWhiteSpace(normalizedFunctionReference))
+        {
+            return false;
+        }
+
+        return RunningDeclarativeFunctions.Values.Any(execution => string.Equals(
+            execution.NormalizedFunctionReference,
+            normalizedFunctionReference,
+            StringComparison.OrdinalIgnoreCase));
+    }
+
     public bool TryExecuteButtonCommand(out string error)
     {
         error = string.Empty;
@@ -3445,10 +3513,298 @@ public sealed class FolderItemModel : ObservableObject
             case ItemInteractionAction.InvokePythonFunction:
                 return TryInvokeApplicationFunction(rule, out error);
 
+            case ItemInteractionAction.RunFunction:
+                return TryStartRunFunction(rule, out error);
+
+            case ItemInteractionAction.StopFunction:
+                return TryStopRunFunction(rule, out error);
+
             default:
                 error = $"Action {rule.Action} wird noch nicht unterstuetzt.";
                 return false;
         }
+    }
+
+    private bool TryStartRunFunction(ItemInteractionRule rule, out string error)
+    {
+        if (string.IsNullOrWhiteSpace(rule.FunctionName))
+        {
+            error = "No function reference configured.";
+            Core.LogWarn($"[RunFunction] item={Path} failed: {error}");
+            return false;
+        }
+
+        var folderDirectory = GetFunctionRegistryDirectory();
+        if (string.IsNullOrWhiteSpace(folderDirectory))
+        {
+            error = "Function registry directory is not available.";
+            Core.LogWarn($"[RunFunction] item={Path} function={rule.FunctionName} failed: {error}");
+            return false;
+        }
+
+        if (!FunctionRegistry.TryGetEntry(folderDirectory, rule.FunctionName, out var entry) || entry is null)
+        {
+            error = $"Function '{rule.FunctionName}' was not found.";
+            Core.LogWarn($"[RunFunction] item={Path} function={rule.FunctionName} failed: {error}");
+            return false;
+        }
+
+        if (!entry.CanRun || !entry.IsValid)
+        {
+            error = string.IsNullOrWhiteSpace(entry.StatusText)
+                ? $"Function '{rule.FunctionName}' is not runnable."
+                : entry.StatusText;
+            Core.LogWarn($"[RunFunction] item={Path} function={rule.FunctionName} failed: {error}");
+            return false;
+        }
+
+        return entry.Kind switch
+        {
+            FunctionCatalogKind.Declarative => TryStartRunDeclarativeFunction(rule.FunctionName, entry, out error),
+            FunctionCatalogKind.Python => TryStartRunPythonFunction(rule.FunctionName, rule.Argument, entry, out error),
+            _ => FailRunFunctionUnsupportedKind(rule.FunctionName, entry.Kind, out error)
+        };
+    }
+
+    private bool TryStartRunDeclarativeFunction(string functionReference, FunctionCatalogEntry entry, out string error)
+    {
+        if (!FunctionDefinitionCodec.TryLoadFromFile(entry.SourceIdentifier, out var definition, out var validation) || definition is null)
+        {
+            error = validation.Errors.FirstOrDefault()?.Message ?? $"Function '{functionReference}' could not be loaded.";
+            Core.LogWarn($"[RunFunction] item={Path} function={functionReference} failed: {error}");
+            return false;
+        }
+
+        Core.LogInfo($"[RunFunction] start item={Path} function={functionReference} source={entry.SourceIdentifier} kind={entry.Kind}");
+        var stopController = new FunctionExecutionStopController();
+        var executionKey = BuildDeclarativeFunctionExecutionKey();
+        var execution = new RunningDeclarativeFunctionExecution(
+            ExecutionKey: executionKey,
+            OwnerPath: Path,
+            FunctionReference: functionReference,
+            NormalizedFunctionReference: FunctionRegistry.NormalizeReference(functionReference),
+            StopController: stopController);
+        RunningDeclarativeFunctions[executionKey] = execution;
+        _ = ExecuteRunFunctionAsync(executionKey, execution, definition);
+        error = string.Empty;
+        return true;
+    }
+
+    private bool TryStopRunFunction(ItemInteractionRule rule, out string error)
+    {
+        if (string.IsNullOrWhiteSpace(rule.FunctionName))
+        {
+            error = "No function reference configured.";
+            Core.LogWarn($"[StopFunction] item={Path} failed: {error}");
+            return false;
+        }
+
+        var normalizedFunctionReference = FunctionRegistry.NormalizeReference(rule.FunctionName);
+        var matchingExecutions = RunningDeclarativeFunctions.Values
+            .Where(execution => string.Equals(execution.NormalizedFunctionReference, normalizedFunctionReference, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (matchingExecutions.Length == 0)
+        {
+            error = $"Function '{rule.FunctionName}' is not running.";
+            Core.LogWarn($"[StopFunction] item={Path} function={rule.FunctionName} failed: {error}");
+            return false;
+        }
+
+        if (matchingExecutions.Length > 1)
+        {
+            error = $"Function '{rule.FunctionName}' is running more than once and cannot be stopped unambiguously.";
+            Core.LogWarn($"[StopFunction] item={Path} function={rule.FunctionName} failed: {error}");
+            return false;
+        }
+
+        var execution = matchingExecutions[0];
+
+        execution.StopController.RequestStop();
+        Core.LogInfo($"[StopFunction] item={Path} function={rule.FunctionName} requested stop for owner={execution.OwnerPath}");
+        error = string.Empty;
+        return true;
+    }
+
+    private bool TryStartRunPythonFunction(string functionReference, string? argument, FunctionCatalogEntry entry, out string error)
+    {
+        var resolvedTargetPath = entry.SourceIdentifier?.Trim() ?? string.Empty;
+        var functionName = entry.Name?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(resolvedTargetPath) || string.IsNullOrWhiteSpace(functionName))
+        {
+            error = $"Function '{functionReference}' is not runnable.";
+            Core.LogWarn($"[RunFunction] item={Path} function={functionReference} failed: {error}");
+            return false;
+        }
+
+        if (!PythonClientRuntimeRegistry.TryGetClient(resolvedTargetPath, out var client) || client is null)
+        {
+            error = $"Python target '{resolvedTargetPath}' is not available.";
+            Core.LogWarn($"[RunFunction] item={Path} function={functionReference} failed: {error}");
+            return false;
+        }
+
+        Core.LogInfo($"[RunFunction] start item={Path} function={functionReference} source={resolvedTargetPath} kind={entry.Kind}");
+        _ = ExecuteRunPythonFunctionAsync(functionReference, resolvedTargetPath, functionName, client, argument);
+        error = string.Empty;
+        return true;
+    }
+
+    private bool FailRunFunctionUnsupportedKind(string functionReference, FunctionCatalogKind kind, out string error)
+    {
+        error = $"Function '{functionReference}' uses unsupported kind '{kind}'.";
+        Core.LogWarn($"[RunFunction] item={Path} function={functionReference} failed: {error}");
+        return false;
+    }
+
+    private async Task ExecuteRunPythonFunctionAsync(string functionReference, string resolvedTargetPath, string functionName, PythonClient client, string? argument)
+    {
+        try
+        {
+            var result = await client.InvokeFunctionAsync(
+                    functionName,
+                    BuildPythonInteractionArgumentPayload(argument))
+                .ConfigureAwait(false);
+
+            if (!result.Success)
+            {
+                var message = string.IsNullOrWhiteSpace(result.Message)
+                    ? $"Python function '{functionReference}' failed."
+                    : result.Message!;
+
+                if (HornetStudio.Editor.Widgets.ApplicationEntryRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var failedRow))
+                {
+                    failedRow?.SetInvocationError(HornetStudio.Editor.Widgets.ApplicationErrorDetails.FromResultPayload(failedRow.Name, message, result.Payload));
+                }
+
+                Core.LogWarn($"[RunFunction] item={Path} function={functionReference} failed: {message}");
+                return;
+            }
+
+            if (HornetStudio.Editor.Widgets.ApplicationEntryRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var successRow))
+            {
+                successRow?.ClearInvocationError();
+            }
+
+            Core.LogInfo($"[RunFunction] success item={Path} function={functionReference}");
+        }
+        catch (Exception ex)
+        {
+            if (HornetStudio.Editor.Widgets.ApplicationEntryRegistry.TryGetByInteractionTargetPath(resolvedTargetPath, out var failedRow))
+            {
+                failedRow?.SetInvocationError(ex.Message);
+            }
+
+            Core.LogWarn($"[RunFunction] item={Path} function={functionReference} threw an exception: {ex.Message}", ex);
+        }
+    }
+
+    private async Task ExecuteRunFunctionAsync(string executionKey, RunningDeclarativeFunctionExecution execution, FunctionDefinition definition)
+    {
+        try
+        {
+            var result = await FunctionExecutor.ExecuteAsync(
+                    definition,
+                    CreateRunFunctionExecutionEnvironment(execution.StopController))
+                .ConfigureAwait(false);
+
+            if (result.State == FunctionState.Done)
+            {
+                Core.LogInfo($"[RunFunction] success item={Path} function={execution.FunctionReference}");
+                return;
+            }
+
+            var message = string.IsNullOrWhiteSpace(result.ErrorMessage)
+                ? $"Function '{execution.FunctionReference}' finished with state '{result.State}'."
+                : result.ErrorMessage;
+            Core.LogWarn($"[RunFunction] item={Path} function={execution.FunctionReference} failed: {message}");
+        }
+        catch (Exception ex)
+        {
+            Core.LogWarn($"[RunFunction] item={Path} function={execution.FunctionReference} threw an exception: {ex.Message}", ex);
+        }
+        finally
+        {
+            RunningDeclarativeFunctions.TryRemove(executionKey, out _);
+        }
+    }
+
+    private FunctionExecutionEnvironment CreateRunFunctionExecutionEnvironment(FunctionExecutionStopController stopController)
+        => new()
+        {
+            SetValueAsync = ExecuteRunFunctionSetValueAsync,
+            WriteLogAsync = ExecuteRunFunctionLogAsync,
+            ResolveConditionSourceValueAsync = ResolveRunFunctionConditionSourceValueAsync,
+            StopController = stopController
+        };
+
+    private string BuildDeclarativeFunctionExecutionKey()
+        => Guid.NewGuid().ToString("N");
+
+    private sealed record RunningDeclarativeFunctionExecution(
+        string ExecutionKey,
+        string OwnerPath,
+        string FunctionReference,
+        string NormalizedFunctionReference,
+        FunctionExecutionStopController StopController);
+
+    private async ValueTask ExecuteRunFunctionSetValueAsync(FunctionSetValueStepDefinition step, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!TryResolveInteractionTarget(step.Target, out var targetItem) || targetItem is null)
+            {
+                throw new InvalidOperationException($"Target '{step.Target}' was not found.");
+            }
+
+            string resolvedValue;
+            if (!string.IsNullOrWhiteSpace(step.ValueFrom))
+            {
+                if (!TryResolveInteractionTarget(step.ValueFrom, out var sourceItem) || sourceItem is null)
+                {
+                    throw new InvalidOperationException($"Value source '{step.ValueFrom}' was not found.");
+                }
+
+                resolvedValue = sourceItem.Value?.ToString() ?? string.Empty;
+            }
+            else
+            {
+                resolvedValue = step.Value;
+            }
+
+            if (!TryApplyInteractionWrite(targetItem, step.Target, resolvedValue, out var error))
+            {
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(error)
+                    ? $"Target '{step.Target}' could not be written."
+                    : error);
+            }
+        });
+    }
+
+    private ValueTask ExecuteRunFunctionLogAsync(FunctionLogStepDefinition step, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!TryResolveRunFunctionProcessLog(step.TargetLog, out var processLog) || processLog is null)
+        {
+            throw new InvalidOperationException($"Log target '{step.TargetLog}' could not be resolved.");
+        }
+
+        processLog.WriteEntry(ToLogEventLevel(step.Level), step.Text ?? string.Empty);
+        return ValueTask.CompletedTask;
+    }
+
+    private ValueTask<FunctionConditionVariableResolutionResult> ResolveRunFunctionConditionSourceValueAsync(string sourcePath, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!TryResolveInteractionTarget(sourcePath, out var targetItem) || targetItem is null)
+        {
+            return ValueTask.FromResult(new FunctionConditionVariableResolutionResult(false, null));
+        }
+
+        return ValueTask.FromResult(new FunctionConditionVariableResolutionResult(true, targetItem.Value));
     }
 
     private bool TryInvokeApplicationFunction(ItemInteractionRule rule, out string error)
@@ -3513,6 +3869,74 @@ public sealed class FolderItemModel : ObservableObject
             Core.LogWarn($"[ApplicationExplorer] Python-Funktion '{rule.FunctionName}' in '{resolvedTargetPath}' wurde mit Ausnahme beendet: {error}", ex);
             return false;
         }
+    }
+
+    private string GetFunctionRegistryDirectory()
+    {
+        if (string.IsNullOrWhiteSpace(FolderLayoutPath))
+        {
+            return string.Empty;
+        }
+
+        var layoutDirectory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(FolderLayoutPath));
+        return string.IsNullOrWhiteSpace(layoutDirectory)
+            ? string.Empty
+            : layoutDirectory;
+    }
+
+    private bool TryResolveRunFunctionProcessLog(string? targetLog, out ProcessLog? resolved)
+    {
+        resolved = null;
+        if (string.IsNullOrWhiteSpace(targetLog))
+        {
+            return false;
+        }
+
+        var normalized = NormalizeLogTargetPath(targetLog);
+        foreach (var candidate in EnumerateProcessLogResolutionCandidates(normalized, FolderName))
+        {
+            if (HostRegistries.Data.TryResolve(candidate, out var item) && item?.Value is ProcessLog processLog)
+            {
+                resolved = processLog;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> EnumerateProcessLogResolutionCandidates(string normalizedTargetLog, string? folderName)
+    {
+        if (string.IsNullOrWhiteSpace(normalizedTargetLog))
+        {
+            yield break;
+        }
+
+        yield return normalizedTargetLog;
+
+        var normalizedFolder = TargetPathHelper.NormalizeConfiguredTargetPath(folderName);
+        if (string.IsNullOrWhiteSpace(normalizedFolder))
+        {
+            yield break;
+        }
+
+        if (normalizedTargetLog.StartsWith("logs.", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return $"studio.{normalizedFolder}.{normalizedTargetLog}";
+        }
+    }
+
+    private static LogEventLevel ToLogEventLevel(MonitorLogLevel level)
+    {
+        return level switch
+        {
+            MonitorLogLevel.Debug => LogEventLevel.Debug,
+            MonitorLogLevel.Info => LogEventLevel.Information,
+            MonitorLogLevel.Warning => LogEventLevel.Warning,
+            MonitorLogLevel.Error => LogEventLevel.Error,
+            MonitorLogLevel.Fatal => LogEventLevel.Fatal,
+            _ => LogEventLevel.Warning
+        };
     }
 
     public IReadOnlyList<string> GetApplicationInteractionTargets()
@@ -4875,6 +5299,7 @@ public sealed class FolderItemModel : ObservableObject
             ControlKind.SqlLoggerControl => "SqlLoggerControl",
             ControlKind.CameraControl => "CameraControl",
             ControlKind.ApplicationExplorer => "ApplicationExplorer",
+            ControlKind.Functions => "Functions",
             ControlKind.DialogWidget => "DialogWidget",
             ControlKind.ItemModel or ControlKind.Signal => "Signal",
             _ => "Signal"

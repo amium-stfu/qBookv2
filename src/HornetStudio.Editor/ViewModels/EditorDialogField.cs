@@ -2,10 +2,13 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using Avalonia.Media;
+using HornetStudio.Editor.Functions;
 using HornetStudio.Host;
 using HornetStudio.Host.Python.Client;
+using HornetStudio.Editor.Widgets;
 using ItemModel = Amium.Items.Item;
 using Amium.Items;
 using HornetStudio.Editor.Helpers;
@@ -693,7 +696,7 @@ public sealed class EditorDialogField : ObservableObject
             row.TargetOptions.Add(row.TargetPath);
         }
 
-        foreach (var option in GetInteractionFunctionOptions(row.TargetPath))
+        foreach (var option in GetInteractionFunctionOptions(row.ActionName, row.TargetPath))
         {
             row.FunctionOptions.Add(option);
         }
@@ -744,17 +747,46 @@ public sealed class EditorDialogField : ObservableObject
     }
 
     public IReadOnlyList<string> GetInteractionTargetOptions(string? actionName)
-        => string.Equals(actionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase)
+        => string.Equals(actionName, nameof(ItemInteractionAction.RunFunction), StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionName, nameof(ItemInteractionAction.StopFunction), StringComparison.OrdinalIgnoreCase)
+            ? Array.Empty<string>()
+            : string.Equals(actionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase)
             ? InteractionApplicationOptions.ToArray()
             : string.Equals(actionName, nameof(ItemInteractionAction.OpenDialog), StringComparison.OrdinalIgnoreCase)
                 || string.Equals(actionName, nameof(ItemInteractionAction.CloseDialog), StringComparison.OrdinalIgnoreCase)
                 ? InteractionDialogOptions.ToArray()
                 : InteractionTargetOptions.ToArray();
 
-    public IReadOnlyList<string> GetInteractionFunctionOptions(string? targetPath)
-        => string.IsNullOrWhiteSpace(targetPath)
+    public IReadOnlyList<string> GetInteractionFunctionOptions(string? actionName, string? targetPath)
+    {
+        if (string.Equals(actionName, nameof(ItemInteractionAction.RunFunction), StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionName, nameof(ItemInteractionAction.StopFunction), StringComparison.OrdinalIgnoreCase))
+        {
+            return GetRunFunctionOptions()
+                .Select(static option => option.Reference)
+                .ToArray();
+        }
+
+        return string.IsNullOrWhiteSpace(targetPath)
             ? Array.Empty<string>()
             : PythonClientRuntimeRegistry.GetFunctionNames(HornetStudio.Editor.Widgets.ApplicationExplorerRuntime.ResolveInteractionTargetPath(null, targetPath));
+    }
+
+    public IReadOnlyList<FunctionPickerOption> GetRunFunctionOptions()
+    {
+        var folderDirectory = ResolveOwnerFolderDirectory();
+        if (string.IsNullOrWhiteSpace(folderDirectory))
+        {
+            return Array.Empty<FunctionPickerOption>();
+        }
+
+        return FunctionRegistry.EnumerateEntries(folderDirectory)
+            .Where(static entry => entry.CanRun && entry.IsValid)
+            .Select(CreateRunFunctionOption)
+            .DistinctBy(static option => FunctionRegistry.NormalizeReference(option.Reference), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static option => option.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
 
     public void RefreshInteractionRuleRowOptions(ItemInteractionEditorRow row)
     {
@@ -773,6 +805,10 @@ public sealed class EditorDialogField : ObservableObject
                 row.TargetPath = fallbackTarget;
             }
         }
+        else if (!row.ShowsTargetSelection)
+        {
+            row.TargetPath = "this";
+        }
 
         if (!string.IsNullOrWhiteSpace(row.TargetPath) && !row.TargetOptions.Contains(row.TargetPath))
         {
@@ -780,7 +816,7 @@ public sealed class EditorDialogField : ObservableObject
         }
 
         row.FunctionOptions.Clear();
-        foreach (var option in GetInteractionFunctionOptions(row.TargetPath))
+        foreach (var option in GetInteractionFunctionOptions(row.ActionName, row.TargetPath))
         {
             row.FunctionOptions.Add(option);
         }
@@ -789,6 +825,69 @@ public sealed class EditorDialogField : ObservableObject
         {
             row.FunctionOptions.Add(row.FunctionName);
         }
+
+        if (row.IsRunFunctionAction)
+        {
+            row.SetRunFunctionOptions(GetRunFunctionOptions(), row.FunctionName);
+        }
+        else
+        {
+            row.SetRunFunctionOptions(Array.Empty<FunctionPickerOption>(), null);
+        }
+    }
+
+    private static FunctionPickerOption CreateRunFunctionOption(FunctionCatalogEntry entry)
+        => new()
+        {
+            Reference = entry.Reference,
+            DisplayText = entry.Kind switch
+            {
+                FunctionCatalogKind.Declarative => $"YAML / {GetReferenceName(entry.Reference, entry.Name)}",
+                FunctionCatalogKind.Python => BuildPythonDisplayText(entry),
+                _ => entry.Reference
+            }
+        };
+
+    private static string BuildPythonDisplayText(FunctionCatalogEntry entry)
+    {
+        var segments = (entry.SourceIdentifier ?? string.Empty)
+            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(static segment => !string.IsNullOrWhiteSpace(segment))
+            .ToList();
+
+        if (segments.Count > 0 && (string.Equals(segments[0], "python-env", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(segments[0], "interaction", StringComparison.OrdinalIgnoreCase)))
+        {
+            segments.RemoveAt(0);
+        }
+
+        for (var index = 0; index < segments.Count; index++)
+        {
+            var value = segments[index];
+            if (value.Contains('.', StringComparison.Ordinal))
+            {
+                segments[index] = value.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).LastOrDefault() ?? value;
+            }
+        }
+
+        segments.Add(string.IsNullOrWhiteSpace(entry.Name) ? GetReferenceName(entry.Reference, entry.Name) : entry.Name.Trim());
+        return segments.Count == 0
+            ? $"Python / {entry.Reference}"
+            : $"Python / {string.Join(" / ", segments)}";
+    }
+
+    private static string GetReferenceName(string? reference, string? fallbackName)
+    {
+        var normalizedReference = FunctionRegistry.NormalizeReference(reference);
+        var separatorIndex = normalizedReference.IndexOf(':');
+        if (separatorIndex >= 0 && separatorIndex < normalizedReference.Length - 1)
+        {
+            return normalizedReference[(separatorIndex + 1)..].Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(fallbackName)
+            ? normalizedReference
+            : fallbackName.Trim();
     }
 
     private void SyncChartSeriesValueFromEntries()
@@ -940,7 +1039,7 @@ public sealed class EditorDialogField : ObservableObject
             row.TargetOptions.Add(row.TargetPath);
         }
 
-        foreach (var option in GetInteractionFunctionOptions(row.TargetPath))
+        foreach (var option in GetInteractionFunctionOptions(row.ActionName, row.TargetPath))
         {
             row.FunctionOptions.Add(option);
         }
@@ -951,6 +1050,21 @@ public sealed class EditorDialogField : ObservableObject
         }
 
         return row;
+    }
+
+    private string ResolveOwnerFolderDirectory()
+    {
+        var layoutPath = OwnerItem?.FolderLayoutPath;
+        if (!string.IsNullOrWhiteSpace(layoutPath))
+        {
+            var layoutDirectory = Path.GetDirectoryName(Path.GetFullPath(layoutPath));
+            if (!string.IsNullOrWhiteSpace(layoutDirectory))
+            {
+                return layoutDirectory;
+            }
+        }
+
+        return OwnerWorkspaceDirectory;
     }
 
     public List<AttachItemEditorRow> CreateAttachItemSnapshot()

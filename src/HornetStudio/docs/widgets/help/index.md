@@ -41,5 +41,6 @@ A later help window can resolve content using:
 - `TableControl.help.md`
 - `UdlClientControl.help.md`
 - `ValueInput.help.md`
+- `Functions.help.md`
 
 The split between summary and help files is intended to keep overview pages short while still supporting a later in-app help window with richer property and function details.

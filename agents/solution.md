@@ -22,10 +22,15 @@
 
 ## Widget System
 
+- `src/HornetStudio/docs/manual/` contains handbook-style chapters that are intended to serve both future in-app help and a later PDF handout from shared Markdown sources.
+- When changing core concepts, registry behavior, or user-visible workflows that are described at handbook level, update the relevant pages under `src/HornetStudio/docs/manual/` in the same change.
+- Keep the manual focused on cross-topic guidance; prefer linking or summarizing technical source documents instead of duplicating long technical reference content.
 - When changing widget code under `UiEditor/Widgets/**`, update the matching widget Markdown documentation under `HornetStudio/docs/widgets/` in the same change. Use one Markdown file per widget type and keep the file name aligned with the persisted widget `Type` value so the documentation can be loaded later inside the application.
 - For widget selection, use shorter separate description files instead of full `.md` help files, as the complete Markdown help can appear overloaded.
 - When changing widget code under `UiEditor/Widgets/**`, update the matching short selection description file under `HornetStudio/docs/widgets/descriptions/` in the same change. Use one Markdown file per widget type and keep the file name aligned with the persisted widget `Type` value so the picker can load the concise description later.
 - When changing widget code under `UiEditor/Widgets/**`, update the matching detailed help file under `HornetStudio/docs/widgets/help/` in the same change. Use one help Markdown file per widget type and keep the file name aligned with the persisted widget `Type` using the pattern `<Type>.help.md` so the help content can later be loaded inside a help window.
+- Keep the documentation roles explicit: `docs/manual/` for cross-topic handbook chapters, `docs/widgets/descriptions/` for short picker text, and `docs/widgets/help/` for detailed widget help.
+- Keep in-app help content and any future PDF handout aligned by treating the shared Markdown files under `src/HornetStudio/docs/` as the maintained source instead of creating parallel long-form copies.
 - Remove mixed target/property patterns in widgets: controls should register all required control items, including colors, for external access, and redundant methods should be removed.
 
 ## UI and Theme

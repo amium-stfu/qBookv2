@@ -8,16 +8,17 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using HornetStudio.Editor.Controls;
 using HornetStudio.Editor.Helpers;
 using HornetStudio.Editor.Models;
 using HornetStudio.Editor.ViewModels;
+using HornetStudio.Editor.Widgets.Common;
 using HornetStudio.Host.Python.Client;
 
 namespace HornetStudio.Editor.Widgets;
 
 public partial class MonitorEditorDialogWindow : Window
 {
-    private TextBox? _formulaEditorTextBox;
     private readonly MainWindowViewModel? _mainWindowViewModel;
     private readonly FolderItemModel _ownerItem = new();
     private IReadOnlyList<string> _sourceOptions = Array.Empty<string>();
@@ -28,7 +29,6 @@ public partial class MonitorEditorDialogWindow : Window
         ViewModel = new MonitorEditorDialogViewModel(null, new FolderItemModel(), null, Array.Empty<string>());
         DataContext = ViewModel;
         InitializeComponent();
-        _formulaEditorTextBox = this.FindControl<TextBox>("FormulaEditorTextBox");
     }
 
     public MonitorEditorDialogWindow(MainWindowViewModel? mainWindowViewModel, FolderItemModel ownerItem, MonitorDefinition? definition, IEnumerable<string> sourceOptions, IEnumerable<string> targetLogOptions)
@@ -115,43 +115,9 @@ public partial class MonitorEditorDialogWindow : Window
         };
     }
 
-    private void OnAddVariableClicked(object? sender, RoutedEventArgs e)
-    {
-        ViewModel.AddVariable();
-        e.Handled = true;
-    }
-
     private void OnAddActionClicked(object? sender, RoutedEventArgs e)
     {
         ViewModel.AddAction();
-        e.Handled = true;
-    }
-
-    private async void OnPickVariableSourceClicked(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { CommandParameter: CustomSignalVariableEntryViewModel variable })
-        {
-            return;
-        }
-
-        var dialog = new TargetTreeSelectionDialogWindow(_mainWindowViewModel, _sourceOptions, variable.SourcePath, _ownerItem.FolderName);
-        await dialog.ShowDialog(this);
-        if (!string.IsNullOrWhiteSpace(dialog.CommittedSelection))
-        {
-            variable.SourcePath = dialog.CommittedSelection;
-        }
-
-        e.Handled = true;
-    }
-
-    private void OnRemoveVariableClicked(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { CommandParameter: CustomSignalVariableEntryViewModel variable })
-        {
-            return;
-        }
-
-        ViewModel.RemoveVariable(variable);
         e.Handled = true;
     }
 
@@ -166,22 +132,14 @@ public partial class MonitorEditorDialogWindow : Window
         e.Handled = true;
     }
 
-    private void OnInsertFormulaTokenClicked(object? sender, RoutedEventArgs e)
+    private async void OnConditionVariableSourcePickRequested(object? sender, ConditionVariablePickerRequestedEventArgs e)
     {
-        if (sender is not Button { CommandParameter: FormulaInsertButtonDefinition token })
+        var dialog = new TargetTreeSelectionDialogWindow(_mainWindowViewModel, _sourceOptions, e.Variable.SourcePath, _ownerItem.FolderName);
+        await dialog.ShowDialog(this);
+        if (!string.IsNullOrWhiteSpace(dialog.CommittedSelection))
         {
-            return;
+            e.Variable.SourcePath = dialog.CommittedSelection;
         }
-
-        var caretIndex = _formulaEditorTextBox?.CaretIndex ?? ViewModel.FormulaText.Length;
-        var nextCaretIndex = ViewModel.InsertFormulaToken(token.Token, caretIndex, token.CaretBacktrack);
-        if (_formulaEditorTextBox is not null)
-        {
-            _formulaEditorTextBox.Focus();
-            _formulaEditorTextBox.CaretIndex = Math.Clamp(nextCaretIndex, 0, _formulaEditorTextBox.Text?.Length ?? 0);
-        }
-
-        e.Handled = true;
     }
 
     private void OnSaveClicked(object? sender, RoutedEventArgs e)
@@ -217,13 +175,10 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
     private string _lowerLimit = string.Empty;
     private string _upperLimit = string.Empty;
     private string _inhibitMsText = string.Empty;
-    private string _formulaText = string.Empty;
     private string _eventIdText = "0";
     private string _eventText = string.Empty;
     private string _selectedLogLevel = MonitorLogLevel.Warning.ToString();
     private string _errorMessage = string.Empty;
-    private string _formulaStatusMessage = string.Empty;
-    private string _formulaStatusBrush = "#5E6777";
 
     public MonitorEditorDialogViewModel(MainWindowViewModel? mainWindowViewModel, FolderItemModel ownerItem, MonitorDefinition? definition, IEnumerable<string> targetLogOptions)
     {
@@ -241,16 +196,27 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
         ButtonBackground = mainWindowViewModel?.EditPanelButtonBackground ?? "#F8FAFC";
         ButtonBorderBrush = mainWindowViewModel?.EditPanelButtonBorderBrush ?? "#CBD5E1";
         ButtonForeground = mainWindowViewModel?.PrimaryTextBrush ?? "#111827";
+        ConditionEditor = new BooleanConditionEditorViewModel(
+            formulaText: definition?.CustomFormula,
+            variables: definition?.CustomVariables.Select(static variable => new BooleanConditionVariableDefinition
+            {
+                Name = variable.Name,
+                SourcePath = variable.SourcePath
+            }),
+            reservedVariableNames: ["value", "source"],
+            reservedPreviewVariables: new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["value"] = 1d,
+                ["source"] = 1d
+            });
+        ConditionEditor.PropertyChanged += OnConditionEditorPropertyChanged;
         TargetLogOptions = targetLogOptions.ToArray();
-        Variables.CollectionChanged += OnVariablesCollectionChanged;
         Actions.CollectionChanged += OnActionsCollectionChanged;
-        OperatorButtons = CreateOperatorButtons();
 
         if (definition is null)
         {
             Name = GenerateNextRuleName();
             EventIdText = GenerateNextEventId().ToString(CultureInfo.InvariantCulture);
-            UpdateFormulaValidation();
             return;
         }
 
@@ -262,14 +228,9 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
         LowerLimit = definition.LowerLimit;
         UpperLimit = definition.UpperLimit;
         InhibitMsText = definition.InhibitMs > 0 ? definition.InhibitMs.ToString(CultureInfo.InvariantCulture) : string.Empty;
-        FormulaText = definition.CustomFormula;
         EventIdText = definition.EventId.ToString(CultureInfo.InvariantCulture);
         EventText = definition.EventText;
         SelectedLogLevel = definition.LogLevel.ToString();
-        foreach (var variable in definition.CustomVariables)
-        {
-            AddVariable(variable.Name, variable.SourcePath);
-        }
 
         foreach (var action in definition.Actions)
         {
@@ -280,8 +241,6 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
         {
             AddAction(definition.TargetLog);
         }
-
-        UpdateFormulaValidation();
     }
 
     public string DialogBackground { get; }
@@ -316,20 +275,11 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
 
     public IReadOnlyList<string> AvailableLogLevelOptions => LogLevelOptions;
 
-    public ObservableCollection<CustomSignalVariableEntryViewModel> Variables { get; } = [];
+    public BooleanConditionEditorViewModel ConditionEditor { get; }
+
+    public ObservableCollection<ConditionVariableEntryViewModel> Variables => ConditionEditor.Variables;
 
     public ObservableCollection<MonitorActionEntryViewModel> Actions { get; } = [];
-
-    public IReadOnlyList<FormulaInsertButtonDefinition> OperatorButtons { get; }
-
-    public IReadOnlyList<FormulaInsertButtonDefinition> VariableButtons =>
-    [
-        .. Variables
-            .Where(static variable => !string.IsNullOrWhiteSpace(variable.Name))
-            .Select(variable => new FormulaInsertButtonDefinition(variable.Name.Trim(), $"{{{variable.Name.Trim()}}}"))
-    ];
-
-    public string ExampleText => "Examples: ({A} > 10) AND {Enabled}   or   !{Fault}";
 
     public string FormulaPanelBackground => SectionContentBackground;
 
@@ -408,14 +358,8 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
 
     public string FormulaText
     {
-        get => _formulaText;
-        set
-        {
-            if (SetProperty(ref _formulaText, value ?? string.Empty))
-            {
-                UpdateFormulaValidation();
-            }
-        }
+        get => ConditionEditor.FormulaText;
+        set => ConditionEditor.FormulaText = value ?? string.Empty;
     }
 
     public string EventIdText
@@ -462,14 +406,14 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
 
     public string FormulaStatusMessage
     {
-        get => _formulaStatusMessage;
-        private set => SetProperty(ref _formulaStatusMessage, value ?? string.Empty);
+        get => ConditionEditor.FormulaStatusMessage;
+        private set { }
     }
 
     public string FormulaStatusBrush
     {
-        get => _formulaStatusBrush;
-        private set => SetProperty(ref _formulaStatusBrush, value ?? SecondaryTextBrush);
+        get => ConditionEditor.FormulaStatusBrush;
+        private set { }
     }
 
     public bool ShowFormulaStatus => IsCustomMode && !string.IsNullOrWhiteSpace(FormulaStatusMessage);
@@ -480,26 +424,17 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
 
     public void AddVariable()
     {
-        AddVariable(GenerateNextVariableName(), string.Empty);
+        ConditionEditor.AddVariable();
     }
 
     public void AddVariable(string? name, string? sourcePath)
     {
-        var variable = new CustomSignalVariableEntryViewModel(name ?? string.Empty, sourcePath ?? string.Empty);
-        variable.PropertyChanged += OnVariablePropertyChanged;
-        Variables.Add(variable);
+        ConditionEditor.AddVariable(name, sourcePath);
     }
 
-    public void RemoveVariable(CustomSignalVariableEntryViewModel variable)
+    public void RemoveVariable(ConditionVariableEntryViewModel variable)
     {
-        if (!Variables.Remove(variable))
-        {
-            return;
-        }
-
-        variable.PropertyChanged -= OnVariablePropertyChanged;
-        RaisePropertyChanged(nameof(VariableButtons));
-        UpdateFormulaValidation();
+        ConditionEditor.RemoveVariable(variable);
     }
 
     public void AddAction()
@@ -536,12 +471,7 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
     }
 
     public int InsertFormulaToken(string token, int caretIndex, int caretBacktrack = 0)
-    {
-        var formula = FormulaText ?? string.Empty;
-        var insertIndex = Math.Clamp(caretIndex, 0, formula.Length);
-        FormulaText = formula.Insert(insertIndex, token);
-        return Math.Clamp(insertIndex + token.Length + caretBacktrack, 0, FormulaText.Length);
-    }
+        => ConditionEditor.InsertFormulaToken(token, caretIndex, caretBacktrack);
 
     public bool TryBuildDefinition(out MonitorDefinition definition, out string errorMessage)
     {
@@ -631,10 +561,16 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
             return false;
         }
 
-        if (!TryBuildVariables(out var variables, out errorMessage))
+        if (!ConditionEditor.TryBuildVariables(out var conditionVariables, out errorMessage))
         {
             return false;
         }
+
+        var variables = conditionVariables.Select(static variable => new MonitorVariableDefinition
+        {
+            Name = variable.Name,
+            SourcePath = variable.SourcePath
+        }).ToList();
 
         if (!TryBuildActions(out var actions, out errorMessage))
         {
@@ -650,7 +586,7 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
                 return false;
             }
 
-            if (!CustomSignalFormulaEngine.TryEvaluateBooleanExpression(customFormula, CreatePreviewVariables(variables), out _, out var formulaError))
+            if (!ConditionEditor.TryValidate(out var formulaError))
             {
                 errorMessage = formulaError;
                 return false;
@@ -707,49 +643,10 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
             .Where(candidate => !string.Equals(candidate.Name, _originalName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private string GenerateNextVariableName()
-    {
-        for (var offset = 0; offset < 26; offset++)
-        {
-            var candidate = ((char)('A' + offset)).ToString();
-            if (Variables.All(variable => !string.Equals(variable.Name, candidate, StringComparison.OrdinalIgnoreCase)))
-            {
-                return candidate;
-            }
-        }
-
-        var suffix = 1;
-        while (true)
-        {
-            for (var offset = 0; offset < 26; offset++)
-            {
-                var candidate = $"{(char)('A' + offset)}{suffix}";
-                if (Variables.All(variable => !string.Equals(variable.Name, candidate, StringComparison.OrdinalIgnoreCase)))
-                {
-                    return candidate;
-                }
-            }
-
-            suffix++;
-        }
-    }
-
-    private void OnVariablesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        RaisePropertyChanged(nameof(VariableButtons));
-        UpdateFormulaValidation();
-    }
-
     private void OnActionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         RaisePropertyChanged(nameof(HasActions));
         RaisePropertyChanged(nameof(HasNoActions));
-    }
-
-    private void OnVariablePropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        RaisePropertyChanged(nameof(VariableButtons));
-        UpdateFormulaValidation();
     }
 
     private void OnActionPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -776,49 +673,6 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
 
         var resolvedTargetPath = ApplicationExplorerRuntime.ResolveInteractionTargetPath(_ownerItem, action.TargetPath);
         action.SetFunctionOptions(PythonClientRuntimeRegistry.GetFunctionNames(resolvedTargetPath));
-    }
-
-    private bool TryBuildVariables(out List<MonitorVariableDefinition> variables, out string errorMessage)
-    {
-        variables = [];
-        errorMessage = string.Empty;
-
-        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "value", "source" };
-        foreach (var variable in Variables)
-        {
-            var name = (variable.Name ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                errorMessage = "Variable name is required.";
-                return false;
-            }
-
-            if (!IsValidVariableName(name))
-            {
-                errorMessage = $"Variable name '{name}' is invalid.";
-                return false;
-            }
-
-            if (!usedNames.Add(name))
-            {
-                errorMessage = $"Variable name '{name}' is used more than once.";
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(variable.SourcePath))
-            {
-                errorMessage = $"Variable '{name}' requires a source path.";
-                return false;
-            }
-
-            variables.Add(new MonitorVariableDefinition
-            {
-                Name = name,
-                SourcePath = TargetPathHelper.NormalizeConfiguredTargetPath(variable.SourcePath)
-            });
-        }
-
-        return true;
     }
 
     private bool TryBuildActions(out List<MonitorActionDefinition> actions, out string errorMessage)
@@ -890,86 +744,22 @@ public sealed class MonitorEditorDialogViewModel : ObservableObject
 
     private void UpdateFormulaValidation()
     {
-        if (!IsCustomMode)
-        {
-            FormulaStatusMessage = string.Empty;
-            FormulaStatusBrush = SecondaryTextBrush;
-            RaisePropertyChanged(nameof(ShowFormulaStatus));
-            return;
-        }
-
-        if (!TryBuildVariables(out var variables, out var variableError))
-        {
-            FormulaStatusMessage = variableError;
-            FormulaStatusBrush = "#B42318";
-            RaisePropertyChanged(nameof(ShowFormulaStatus));
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(FormulaText))
-        {
-            FormulaStatusMessage = "Formula is required in Custom mode.";
-            FormulaStatusBrush = "#B42318";
-            RaisePropertyChanged(nameof(ShowFormulaStatus));
-            return;
-        }
-
-        if (CustomSignalFormulaEngine.TryEvaluateBooleanExpression(FormulaText.Trim(), CreatePreviewVariables(variables), out _, out var errorMessage))
-        {
-            FormulaStatusMessage = "Formula looks valid.";
-            FormulaStatusBrush = "#027A48";
-        }
-        else
-        {
-            FormulaStatusMessage = errorMessage;
-            FormulaStatusBrush = "#B42318";
-        }
-
+        RaisePropertyChanged(nameof(FormulaText));
+        RaisePropertyChanged(nameof(Variables));
+        RaisePropertyChanged(nameof(FormulaStatusMessage));
+        RaisePropertyChanged(nameof(FormulaStatusBrush));
         RaisePropertyChanged(nameof(ShowFormulaStatus));
     }
 
-    private static Dictionary<string, object?> CreatePreviewVariables(IEnumerable<MonitorVariableDefinition> variables)
+    private void OnConditionEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        var dictionary = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        if (e.PropertyName is nameof(BooleanConditionEditorViewModel.FormulaText)
+            or nameof(BooleanConditionEditorViewModel.FormulaStatusMessage)
+            or nameof(BooleanConditionEditorViewModel.FormulaStatusBrush)
+            or nameof(BooleanConditionEditorViewModel.VariableButtons))
         {
-            ["value"] = 1d,
-            ["source"] = 1d
-        };
-
-        foreach (var variable in variables)
-        {
-            dictionary[variable.Name] = 1d;
+            UpdateFormulaValidation();
         }
-
-        return dictionary;
-    }
-
-    private static bool IsValidVariableName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name) || !char.IsLetter(name[0]))
-        {
-            return false;
-        }
-
-        return name.All(character => char.IsLetterOrDigit(character) || character == '_');
-    }
-
-    private static IReadOnlyList<FormulaInsertButtonDefinition> CreateOperatorButtons()
-    {
-        return
-        [
-            new FormulaInsertButtonDefinition("AND", " && ", tooltip: "Logical AND"),
-            new FormulaInsertButtonDefinition("OR", " || ", tooltip: "Logical OR"),
-            new FormulaInsertButtonDefinition("NOT", "!", tooltip: "Logical NOT"),
-            new FormulaInsertButtonDefinition("=", " == ", tooltip: "Equal"),
-            new FormulaInsertButtonDefinition("!=", " != ", tooltip: "Not equal"),
-            new FormulaInsertButtonDefinition(">", " > ", tooltip: "Greater than"),
-            new FormulaInsertButtonDefinition("<", " < ", tooltip: "Less than"),
-            new FormulaInsertButtonDefinition(">=", " >= ", tooltip: "Greater or equal"),
-            new FormulaInsertButtonDefinition("<=", " <= ", tooltip: "Less or equal"),
-            new FormulaInsertButtonDefinition("(", "(", tooltip: "Open bracket"),
-            new FormulaInsertButtonDefinition(")", ")", tooltip: "Close bracket")
-        ];
     }
 
     private static bool TryParseRequiredPositiveInt(string raw, int minValue, out int value, out string errorMessage)

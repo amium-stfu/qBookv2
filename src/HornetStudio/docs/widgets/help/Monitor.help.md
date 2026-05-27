@@ -92,7 +92,7 @@ For Custom mode:
 
 - Variables point to runtime items and are referenced as `{VariableName}` inside the formula.
 - The top-level source field is hidden in this mode.
-- Formula buttons provide direct insert tokens such as `AND`, `OR`, comparisons, and brackets with tooltips.
+- The shared boolean condition editor provides variable rows, source picking, token buttons, and live validation.
 - Actions are transition-based; the widget does not repeat log lines while a rule remains active.
 - Use the `Actions` tab to configure several log writes for the same trigger when different logs should receive the same state change.
 - Use `SetValue` when a monitor transition should update a runtime item once.

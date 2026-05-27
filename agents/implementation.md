@@ -14,6 +14,13 @@
 
 ## Workflow
 
+- At the start of `IMPLEMENT`, check whether `docs/workitems/active.md` exists.
+- Resolve `docs/workitems/active.md` relative to the repository root that contains root `AGENTS.md`, not relative to the current editor file, project file, or solution folder.
+- If `docs/workitems/active.md` exists, read it before making implementation decisions.
+- When `docs/workitems/active.md` contains valid repository-relative workitem and implementation handoff paths, use the referenced handoff as the primary execution source.
+- If the user provides explicit implementation instructions in the current request, those instructions take priority over the active handoff unless they conflict with it.
+- If the current request conflicts with the active handoff, stop and ask for clarification before changing files.
+- If `docs/workitems/active.md` is missing, malformed, or references missing paths, do not infer the intended workitem; ask for clarification before using a handoff-driven workflow.
 - For larger changes, create a short plan first and wait for confirmation unless the user explicitly requests implementation.
 - Do not start implementation without explicit request or confirmation.
 - Keep refactorings small and understandable.

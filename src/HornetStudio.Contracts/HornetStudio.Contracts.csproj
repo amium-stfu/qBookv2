@@ -6,4 +6,8 @@
     <AssemblyName>HornetStudio.Contracts</AssemblyName>
     <RootNamespace>HornetStudio.Contracts</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="artifacts\**\*.cs" />
+  </ItemGroup>
 </Project>

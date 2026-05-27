@@ -2,11 +2,14 @@ using ItemModel = Amium.Items.Item;
 using Amium.Items;
 using Amium.Item.Client;
 using Avalonia.Media;
+using HornetStudio.Editor.Functions;
 using HornetStudio.Editor.Models;
 using HornetStudio.Editor.Persistence;
 using HornetStudio.Editor.ViewModels;
 using HornetStudio.Editor.Widgets;
+using HornetStudio.Editor.Widgets.Workflow;
 using HornetStudio.Host;
+using HornetStudio.Host.Python.Client;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -26,13 +29,53 @@ var tests = new (string Name, Action Run)[]
     ("Monitor editor rejects WriteLog actions without target", MonitorEditorRejectsWriteLogActionWithoutTarget),
     ("Monitor YAML control definition writes monitor definitions", MonitorYamlControlDefinitionWritesMonitorDefinitions),
     ("Project UI YAML loader imports monitor definitions", ProjectUiYamlLoaderImportsMonitorDefinitions),
+    ("Workflow codec parses YAML steps", WorkflowCodecParsesYamlSteps),
+    ("Workflow codec rejects missing name", WorkflowCodecRejectsMissingName),
+    ("Workflow codec parses IfThenElse variables", WorkflowCodecParsesIfThenElseVariables),
+    ("Workflow codec parses While", WorkflowCodecParsesWhile),
+    ("Workflow codec rejects While without positive delay guard", WorkflowCodecRejectsWhileWithoutPositiveDelayGuard),
+    ("Workflow codec parses SetValue valueFrom", WorkflowCodecParsesSetValueValueFrom),
+    ("Workflow codec serializes SetValue valueFrom", WorkflowCodecSerializesSetValueValueFrom),
+    ("Workflow editor row roundtrips SetValue valueFrom", WorkflowEditorRowRoundtripsSetValueValueFrom),
+    ("Workflow editor creates While default delay guard", WorkflowEditorCreatesWhileDefaultDelayGuard),
+    ("Workflow editor converter edits While steps", WorkflowEditorConverterEditsWhileSteps),
+    ("Workflow executor SetValue resolves valueFrom", WorkflowExecutorSetValueResolvesValueFrom),
+    ("Workflow executor SetValue fails unresolved valueFrom", WorkflowExecutorSetValueFailsUnresolvedValueFrom),
+    ("Interaction rule codec roundtrip preserves RunFunction", InteractionRuleCodecRoundtripPreservesRunFunction),
+    ("Interaction rule codec roundtrip preserves StopFunction", InteractionRuleCodecRoundtripPreservesStopFunction),
+    ("Function registry creates declarative entries", FunctionRegistryCreatesDeclarativeEntries),
+    ("Function registry combines declarative and Python entries", FunctionRegistryCombinesDeclarativeAndPythonEntries),
+    ("Function registry surfaces invalid declarative files", FunctionRegistrySurfacesInvalidDeclarativeFiles),
+    ("Function registry resolves stable references", FunctionRegistryResolvesStableReferences),
+    ("Function registry resolves Python stable references", FunctionRegistryResolvesPythonStableReferences),
+    ("RunFunction options include runnable Python entries", RunFunctionOptionsIncludeRunnablePythonEntries),
+    ("RunFunction editor keeps argument visible", RunFunctionEditorKeepsArgumentVisible),
+    ("Function registry resolves yaml alias", FunctionRegistryResolvesYamlAlias),
+    ("RunFunction picker uses display labels", RunFunctionPickerUsesDisplayLabels),
+    ("RunFunction picker keeps missing reference visible", RunFunctionPickerKeepsMissingReferenceVisible),
+    ("Workflow editor converter creates editable rows", WorkflowEditorConverterCreatesEditableRows),
+    ("Boolean condition editor adds variables", BooleanConditionEditorAddsVariables),
+    ("Workflow editor converter edits IfThenElse steps", WorkflowEditorConverterEditsIfThenElseSteps),
+    ("Workflow row condition editing commits cloned state", WorkflowRowConditionEditingCommitsClonedState),
+    ("Workflow executor runs steps in order", WorkflowExecutorRunsStepsInOrder),
+    ("Workflow executor resolves step local condition variables", WorkflowExecutorResolvesStepLocalConditionVariables),
+    ("Workflow executor runs While until condition becomes false", WorkflowExecutorRunsWhileUntilConditionBecomesFalse),
+    ("Workflow executor controlled stop completes as done", WorkflowExecutorControlledStopCompletesAsDone),
+    ("StopFunction editor uses RunFunction picker behavior", StopFunctionEditorUsesRunFunctionPickerBehavior),
+    ("Workflow executor fails missing condition variable source", WorkflowExecutorFailsMissingConditionVariableSource),
+    ("Workflow executor reports cancellation state transitions", WorkflowExecutorReportsCancellationStateTransitions),
+    ("Workflow executor fails missing explicit log target", WorkflowExecutorFailsMissingExplicitLogTarget),
+    ("Runtime YAML loader maps workflow widget controls", RuntimeYamlLoaderMapsWorkflowWidgetControls),
+    ("CreateItem applies workflow widget defaults", CreateItemAppliesWorkflowWidgetDefaults),
     ("VisualRule codec roundtrip", VisualRuleCodecRoundtrip),
     ("VisualRule source path display hides technical monitor prefix", VisualRuleSourcePathDisplayHidesTechnicalMonitorPrefix),
     ("VisualRule layout document roundtrip", VisualRuleLayoutDocumentRoundtrip),
     ("Project UI YAML loader keeps screen definitions scalar compatible", ProjectUiYamlLoaderKeepsScreenDefinitionsScalarCompatible),
     ("Runtime YAML loader maps dialog widget controls", RuntimeYamlLoaderMapsDialogWidgetControls),
     ("Dialog interaction rules persist dialog widget ids", DialogInteractionRulesPersistDialogWidgetIds),
+    ("StopFunction interaction rules persist function name", StopFunctionInteractionRulesPersistFunctionName),
     ("Dialog widget picker only lists dialog widgets", DialogWidgetPickerOnlyListsDialogWidgets),
+    ("CreateItem applies requested caption visibility defaults", CreateItemAppliesRequestedCaptionVisibilityDefaults),
     ("OpenDialog keeps one overlay per dialog widget", OpenDialogKeepsOneOverlayPerDialogWidget),
     ("OpenDialog applies default placement", OpenDialogAppliesDefaultPlacement),
     ("OpenDialog preserves dialog grid child placement", OpenDialogPreservesDialogGridChildPlacement),
@@ -256,6 +299,1391 @@ static void FolderIdentityDefaultsUseSnakeCase()
 
     AssertEqual("folder_1", method.Invoke(null, [1]));
     AssertEqual("folder_2", method.Invoke(null, [2]));
+}
+
+static void WorkflowCodecParsesYamlSteps()
+{
+    var raw = """
+name: startup_sequence
+steps:
+  - type: Log
+    targetLog: Logs.process
+    level: Warning
+    text: Starting
+  - type: SetValue
+    target: studio.main.pump.enable
+    value: true
+  - type: IfThenElse
+    condition: temperature > 20
+    then:
+      - type: Delay
+        milliseconds: 50
+    else:
+      - type: Log
+        targetLog: Logs.audit
+        text: Below limit
+""";
+
+    AssertTrue(FunctionDefinitionCodec.TryParse(raw, "startup_sequence.yaml", out var definition, out var validation));
+    AssertTrue(validation.IsValid);
+    AssertTrue(definition is not null);
+    AssertEqual("startup_sequence", definition!.Name);
+    AssertEqual(3, definition.Steps.Count);
+    AssertEqual(FunctionStepType.Log, definition.Steps[0].Type);
+    AssertEqual(FunctionStepType.SetValue, definition.Steps[1].Type);
+    AssertEqual(FunctionStepType.IfThenElse, definition.Steps[2].Type);
+
+    var conditional = (FunctionIfThenElseStepDefinition)definition.Steps[2];
+    AssertEqual("temperature > 20", conditional.Condition);
+    AssertEqual(1, conditional.Then.Count);
+    AssertEqual(1, conditional.Else.Count);
+}
+
+static void WorkflowCodecRejectsMissingName()
+{
+    var raw = """
+steps:
+  - type: Delay
+    milliseconds: 1
+""";
+
+    AssertFalse(FunctionDefinitionCodec.TryParse(raw, "invalid.yaml", out _, out var validation));
+    AssertFalse(validation.IsValid);
+    AssertTrue(validation.Errors.Any(error => error.Path == "function.name"));
+}
+
+static void WorkflowCodecParsesIfThenElseVariables()
+{
+    var raw = string.Join(
+        "\n",
+        [
+            "name: conditional_startup",
+            "steps:",
+            "  - type: IfThenElse",
+            "    condition: \"{A} == true\"",
+            "    variables:",
+            "      - name: A",
+            "        sourcePath: custom_signals_1.ready",
+            "    then:",
+            "      - type: Log",
+            "        targetLog: Logs.process",
+            "        text: Ready"
+        ]);
+
+    AssertTrue(FunctionDefinitionCodec.TryParse(raw, "conditional_startup.yaml", out var definition, out var validation));
+    AssertTrue(validation.IsValid);
+    AssertTrue(definition is not null);
+
+    AssertTrue(definition!.Steps.Single() is FunctionIfThenElseStepDefinition);
+    var conditional = (FunctionIfThenElseStepDefinition)definition.Steps.Single();
+    AssertEqual(1, conditional.Variables.Count);
+    AssertEqual("A", conditional.Variables[0].Name);
+    AssertEqual("custom_signals_1.ready", conditional.Variables[0].SourcePath);
+
+    var serialized = FunctionDefinitionCodec.Serialize(definition);
+    AssertTrue(serialized.Contains("variables:", StringComparison.Ordinal));
+    AssertTrue(serialized.Contains("sourcePath: custom_signals_1.ready", StringComparison.Ordinal));
+}
+
+static void WorkflowCodecParsesWhile()
+{
+    var raw = string.Join(
+        "\n",
+        [
+            "name: while_test",
+            "steps:",
+            "  - type: While",
+            "    condition: \"{Enabled} == true\"",
+            "    variables:",
+            "      - name: Enabled",
+            "        sourcePath: custom_signals_1.enabled",
+            "    steps:",
+            "      - type: Delay",
+            "        milliseconds: 100",
+            "      - type: Log",
+            "        targetLog: Logs.process",
+            "        text: Tick"
+        ]);
+
+    AssertTrue(FunctionDefinitionCodec.TryParse(raw, "while_test.yaml", out var definition, out var validation));
+    AssertTrue(validation.IsValid);
+    AssertTrue(definition is not null);
+    AssertEqual(1, definition!.Steps.Count);
+    AssertTrue(definition.Steps[0] is FunctionWhileStepDefinition);
+
+    var loop = (FunctionWhileStepDefinition)definition.Steps[0];
+    AssertEqual("{Enabled} == true", loop.Condition);
+    AssertEqual(1, loop.Variables.Count);
+    AssertEqual("Enabled", loop.Variables[0].Name);
+    AssertEqual("custom_signals_1.enabled", loop.Variables[0].SourcePath);
+    AssertEqual(2, loop.Steps.Count);
+    AssertEqual(FunctionStepType.Delay, loop.Steps[0].Type);
+    AssertEqual(FunctionStepType.Log, loop.Steps[1].Type);
+
+    var serialized = FunctionDefinitionCodec.Serialize(definition);
+    AssertTrue(serialized.Contains("type: While", StringComparison.Ordinal));
+    AssertTrue(serialized.Contains("milliseconds: 100", StringComparison.Ordinal));
+    AssertTrue(serialized.Contains("text: Tick", StringComparison.Ordinal));
+}
+
+static void WorkflowCodecRejectsWhileWithoutPositiveDelayGuard()
+{
+    var raw = string.Join(
+        "\n",
+        [
+            "name: invalid_while",
+            "steps:",
+            "  - type: While",
+            "    condition: enabled == true",
+            "    steps:",
+            "      - type: Log",
+            "        targetLog: Logs.process",
+            "        text: Busy"
+        ]);
+
+    AssertFalse(FunctionDefinitionCodec.TryParse(raw, "invalid_while.yaml", out _, out var validation));
+    AssertFalse(validation.IsValid);
+    AssertTrue(validation.Errors.Any(error => error.Message.Contains("positive Delay step", StringComparison.Ordinal)));
+}
+
+static void InteractionRuleCodecRoundtripPreservesRunFunction()
+{
+    var serialized = ItemInteractionRuleCodec.SerializeDefinitions(
+    [
+        new ItemInteractionRule
+        {
+            Event = ItemInteractionEvent.BodyLeftClick,
+            Action = ItemInteractionAction.RunFunction,
+            TargetPath = "this",
+            FunctionName = "declarative:start_up",
+            Argument = string.Empty
+        }
+    ]);
+
+    AssertEqual("BodyLeftClick|RunFunction|this|declarative:start_up|", serialized);
+
+    var parsed = ItemInteractionRuleCodec.ParseDefinitions(serialized);
+    AssertEqual(1, parsed.Count);
+    AssertEqual(ItemInteractionAction.RunFunction, parsed[0].Action);
+    AssertEqual("this", parsed[0].TargetPath);
+    AssertEqual("declarative:start_up", parsed[0].FunctionName);
+    AssertEqual(string.Empty, parsed[0].Argument);
+}
+
+static void InteractionRuleCodecRoundtripPreservesStopFunction()
+{
+    var serialized = ItemInteractionRuleCodec.SerializeDefinitions(
+    [
+        new ItemInteractionRule
+        {
+            Event = ItemInteractionEvent.BodyRightClick,
+            Action = ItemInteractionAction.StopFunction,
+            TargetPath = "this",
+            FunctionName = "declarative:loop_runner",
+            Argument = string.Empty
+        }
+    ]);
+
+    AssertEqual("BodyRightClick|StopFunction|this|declarative:loop_runner|", serialized);
+
+    var parsed = ItemInteractionRuleCodec.ParseDefinitions(serialized);
+    AssertEqual(1, parsed.Count);
+    AssertEqual(ItemInteractionAction.StopFunction, parsed[0].Action);
+    AssertEqual("this", parsed[0].TargetPath);
+    AssertEqual("declarative:loop_runner", parsed[0].FunctionName);
+}
+
+static void WorkflowExecutorResolvesStepLocalConditionVariables()
+{
+    var executedLogs = new List<string>();
+    var definition = new FunctionDefinition
+    {
+        Name = "conditional_startup",
+        Steps =
+        [
+            new FunctionIfThenElseStepDefinition
+            {
+                Condition = "{A} == true && {GlobalFlag} == true",
+                Variables =
+                [
+                    new BooleanConditionVariableDefinition
+                    {
+                        Name = "A",
+                        SourcePath = "custom_signals_1.ready"
+                    }
+                ],
+                Then =
+                [
+                    new FunctionLogStepDefinition
+                    {
+                        TargetLog = "Logs.process",
+                        Text = "then"
+                    }
+                ],
+                Else =
+                [
+                    new FunctionLogStepDefinition
+                    {
+                        TargetLog = "Logs.process",
+                        Text = "else"
+                    }
+                ]
+            }
+        ]
+    };
+
+    var result = FunctionExecutor.ExecuteAsync(
+            definition,
+            new FunctionExecutionEnvironment
+            {
+                ConditionVariables = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["GlobalFlag"] = true
+                },
+                ResolveConditionSourceValueAsync = (sourcePath, _) => ValueTask.FromResult(
+                    string.Equals(sourcePath, "custom_signals_1.ready", StringComparison.Ordinal)
+                        ? new FunctionConditionVariableResolutionResult(true, true)
+                        : new FunctionConditionVariableResolutionResult(false, null)),
+                WriteLogAsync = (step, _) =>
+                {
+                    executedLogs.Add(step.Text);
+                    return ValueTask.CompletedTask;
+                }
+            })
+        .GetAwaiter()
+        .GetResult();
+
+    AssertEqual(FunctionState.Done, result.State);
+    AssertEqual(1, executedLogs.Count);
+    AssertEqual("then", executedLogs[0]);
+}
+
+static void WorkflowExecutorFailsMissingConditionVariableSource()
+{
+    var definition = new FunctionDefinition
+    {
+        Name = "conditional_startup",
+        Steps =
+        [
+            new FunctionIfThenElseStepDefinition
+            {
+                Condition = "{A} == true",
+                Variables =
+                [
+                    new BooleanConditionVariableDefinition
+                    {
+                        Name = "A",
+                        SourcePath = "custom_signals_1.missing"
+                    }
+                ],
+                Then =
+                [
+                    new FunctionLogStepDefinition
+                    {
+                        TargetLog = "Logs.process",
+                        Text = "then"
+                    }
+                ]
+            }
+        ]
+    };
+
+    var result = FunctionExecutor.ExecuteAsync(
+            definition,
+            new FunctionExecutionEnvironment
+            {
+                ResolveConditionSourceValueAsync = (_, _) => ValueTask.FromResult(new FunctionConditionVariableResolutionResult(false, null)),
+                WriteLogAsync = static (_, _) => ValueTask.CompletedTask
+            })
+        .GetAwaiter()
+        .GetResult();
+
+    AssertEqual(FunctionState.Failed, result.State);
+    AssertTrue(result.ErrorMessage.Contains("could not be resolved", StringComparison.Ordinal));
+}
+
+static void WorkflowExecutorRunsWhileUntilConditionBecomesFalse()
+{
+    var executedLogs = new List<string>();
+    var evaluations = 0;
+    var definition = new FunctionDefinition
+    {
+        Name = "loop_test",
+        Steps =
+        [
+            new FunctionWhileStepDefinition
+            {
+                Condition = "loop == true",
+                Steps =
+                [
+                    new FunctionDelayStepDefinition
+                    {
+                        Milliseconds = 1
+                    },
+                    new FunctionLogStepDefinition
+                    {
+                        TargetLog = "Logs.process",
+                        Text = "tick"
+                    }
+                ]
+            }
+        ]
+    };
+
+    var result = FunctionExecutor.ExecuteAsync(
+            definition,
+            new FunctionExecutionEnvironment
+            {
+                EvaluateConditionAsync = (_, _, _) => ValueTask.FromResult(evaluations++ < 2),
+                WriteLogAsync = (step, _) =>
+                {
+                    executedLogs.Add(step.Text);
+                    return ValueTask.CompletedTask;
+                }
+            })
+        .GetAwaiter()
+        .GetResult();
+
+    AssertEqual(FunctionState.Done, result.State);
+    AssertEqual(2, executedLogs.Count);
+    AssertEqual("tick", executedLogs[0]);
+    AssertEqual("tick", executedLogs[1]);
+}
+
+static void WorkflowExecutorControlledStopCompletesAsDone()
+{
+    var executedLogs = new List<string>();
+    var stopController = new FunctionExecutionStopController();
+    var definition = new FunctionDefinition
+    {
+        Name = "controlled_stop_test",
+        Steps =
+        [
+            new FunctionWhileStepDefinition
+            {
+                Condition = "true",
+                Steps =
+                [
+                    new FunctionDelayStepDefinition
+                    {
+                        Milliseconds = 1
+                    },
+                    new FunctionLogStepDefinition
+                    {
+                        TargetLog = "Logs.process",
+                        Text = "tick"
+                    }
+                ]
+            }
+        ]
+    };
+
+    var stopRequested = false;
+    var result = FunctionExecutor.ExecuteAsync(
+            definition,
+            new FunctionExecutionEnvironment
+            {
+                StopController = stopController,
+                WriteLogAsync = (step, _) =>
+                {
+                    executedLogs.Add(step.Text);
+
+                    if (!stopRequested)
+                    {
+                        stopRequested = true;
+                        stopController.RequestStop();
+                    }
+
+                    return ValueTask.CompletedTask;
+                }
+            })
+        .GetAwaiter()
+        .GetResult();
+
+    AssertEqual(FunctionState.Done, result.State);
+    AssertEqual(1, executedLogs.Count);
+    AssertEqual("tick", executedLogs[0]);
+}
+
+static void FunctionRegistryCreatesDeclarativeEntries()
+{
+    var rootDirectory = CreateTempDirectory();
+    try
+    {
+        var functionsDirectory = FunctionDefinitionCodec.GetFunctionDirectory(rootDirectory);
+        Directory.CreateDirectory(functionsDirectory);
+        var legacyDirectory = Path.Combine(rootDirectory, "Scripts", "Workflows");
+        Directory.CreateDirectory(legacyDirectory);
+
+        File.WriteAllText(Path.Combine(functionsDirectory, "alpha.yaml"), """
+name: Alpha Sequence
+steps:
+  - type: Delay
+    milliseconds: 10
+""");
+
+        File.WriteAllText(Path.Combine(legacyDirectory, "alpha.yaml"), """
+name: Legacy Alpha
+steps:
+  - type: Delay
+    milliseconds: 20
+""");
+
+        File.WriteAllText(Path.Combine(legacyDirectory, "beta.yaml"), """
+name: Beta Sequence
+steps:
+  - type: Log
+    targetLog: Logs.process
+    text: Ready
+""");
+
+        var entries = FunctionRegistry.EnumerateEntries(rootDirectory);
+        AssertEqual(2, entries.Count);
+
+        var alphaEntry = entries.Single(entry => entry.Reference == "yaml:alpha");
+        AssertEqual("Alpha Sequence", alphaEntry.Name);
+        AssertEqual(FunctionCatalogKind.Declarative, alphaEntry.Kind);
+        AssertEqual(FunctionCatalogSource.FunctionsDirectory, alphaEntry.Source);
+        AssertEqual("Scripts/Functions", alphaEntry.DisplaySource);
+        AssertEqual(true, alphaEntry.CanEdit);
+        AssertEqual(true, alphaEntry.CanDelete);
+        AssertEqual(true, alphaEntry.CanRun);
+        AssertEqual(true, alphaEntry.IsValid);
+
+        var betaEntry = entries.Single(entry => entry.Reference == "yaml:beta");
+        AssertEqual(FunctionCatalogSource.LegacyWorkflowDirectory, betaEntry.Source);
+        AssertEqual("Scripts/Workflows (legacy)", betaEntry.DisplaySource);
+    }
+    finally
+    {
+        if (Directory.Exists(rootDirectory))
+        {
+            Directory.Delete(rootDirectory, recursive: true);
+        }
+    }
+}
+
+static void FunctionRegistrySurfacesInvalidDeclarativeFiles()
+{
+    var rootDirectory = CreateTempDirectory();
+    try
+    {
+        var functionsDirectory = FunctionDefinitionCodec.GetFunctionDirectory(rootDirectory);
+        Directory.CreateDirectory(functionsDirectory);
+        File.WriteAllText(Path.Combine(functionsDirectory, "broken.yaml"), "steps: []");
+
+        var entries = FunctionRegistry.EnumerateEntries(rootDirectory);
+        AssertEqual(1, entries.Count);
+
+        var brokenEntry = entries[0];
+        AssertEqual("yaml:broken", brokenEntry.Reference);
+        AssertEqual("broken", brokenEntry.Name);
+        AssertEqual(false, brokenEntry.IsValid);
+        AssertEqual(true, brokenEntry.CanEdit);
+        AssertEqual(true, brokenEntry.CanDelete);
+        AssertEqual(false, brokenEntry.CanRun);
+        AssertTrue(!string.IsNullOrWhiteSpace(brokenEntry.StatusText));
+    }
+    finally
+    {
+        if (Directory.Exists(rootDirectory))
+        {
+            Directory.Delete(rootDirectory, recursive: true);
+        }
+    }
+}
+
+static void FunctionRegistryCombinesDeclarativeAndPythonEntries()
+{
+    var rootDirectory = CreateTempDirectory();
+    const string targetPath = "interaction:demo.owner:runtime";
+    var client = CreatePythonClientForRegistryTests("demo_client", ["send_status", "send_status", "  ping  "]);
+
+    try
+    {
+        var functionsDirectory = FunctionDefinitionCodec.GetFunctionDirectory(rootDirectory);
+        Directory.CreateDirectory(functionsDirectory);
+        File.WriteAllText(Path.Combine(functionsDirectory, "alpha.yaml"), """
+name: Alpha Sequence
+steps:
+  - type: Delay
+    milliseconds: 10
+""");
+
+        PythonClientRuntimeRegistry.Register(targetPath, "Demo Client", client);
+
+        var entries = FunctionRegistry.EnumerateEntries(rootDirectory);
+        AssertEqual(3, entries.Count);
+
+        var alphaEntry = entries.Single(entry => entry.Reference == "yaml:alpha");
+        AssertEqual(FunctionCatalogKind.Declarative, alphaEntry.Kind);
+
+        var pingEntry = entries.Single(entry => entry.Reference == "python:interaction:demo.owner:runtime:ping");
+        AssertEqual("ping", pingEntry.Name);
+        AssertEqual(FunctionCatalogKind.Python, pingEntry.Kind);
+        AssertEqual(FunctionCatalogSource.PythonApplication, pingEntry.Source);
+        AssertEqual(targetPath, pingEntry.SourceIdentifier);
+        AssertEqual("Applications/Python", pingEntry.DisplaySource);
+        AssertEqual(false, pingEntry.CanEdit);
+        AssertEqual(false, pingEntry.CanDelete);
+        AssertEqual(true, pingEntry.CanRun);
+        AssertEqual(true, pingEntry.IsValid);
+
+        var statusEntry = entries.Single(entry => entry.Reference == "python:interaction:demo.owner:runtime:send_status");
+        AssertEqual("send_status", statusEntry.Name);
+    }
+    finally
+    {
+        PythonClientRuntimeRegistry.Unregister(targetPath);
+
+        if (Directory.Exists(rootDirectory))
+        {
+            Directory.Delete(rootDirectory, recursive: true);
+        }
+    }
+}
+
+static void FunctionRegistryResolvesStableReferences()
+{
+    var rootDirectory = CreateTempDirectory();
+    try
+    {
+        var functionsDirectory = FunctionDefinitionCodec.GetFunctionDirectory(rootDirectory);
+        Directory.CreateDirectory(functionsDirectory);
+        File.WriteAllText(Path.Combine(functionsDirectory, "alpha.yaml"), """
+name: Alpha Sequence
+steps:
+  - type: Delay
+    milliseconds: 10
+""");
+
+        AssertTrue(FunctionRegistry.TryGetEntry(rootDirectory, "declarative:alpha", out var entry));
+        AssertTrue(entry is not null);
+        AssertEqual("Alpha Sequence", entry!.Name);
+        AssertEqual(FunctionCatalogKind.Declarative, entry.Kind);
+        AssertEqual(true, entry.CanRun);
+        AssertEqual("yaml:alpha", entry.Reference);
+    }
+    finally
+    {
+        if (Directory.Exists(rootDirectory))
+        {
+            Directory.Delete(rootDirectory, recursive: true);
+        }
+    }
+}
+
+static void FunctionRegistryResolvesPythonStableReferences()
+{
+    var rootDirectory = CreateTempDirectory();
+    const string targetPath = "interaction:demo.folder:python";
+    var client = CreatePythonClientForRegistryTests("python_lookup", ["status_report"]);
+
+    try
+    {
+        PythonClientRuntimeRegistry.Register(targetPath, "Python Lookup", client);
+
+        AssertTrue(FunctionRegistry.TryGetEntry(rootDirectory, "python:interaction:demo.folder:python:status_report", out var entry));
+        AssertTrue(entry is not null);
+        AssertEqual("status_report", entry!.Name);
+        AssertEqual(FunctionCatalogKind.Python, entry.Kind);
+        AssertEqual(true, entry.CanRun);
+    }
+    finally
+    {
+        PythonClientRuntimeRegistry.Unregister(targetPath);
+
+        if (Directory.Exists(rootDirectory))
+        {
+            Directory.Delete(rootDirectory, recursive: true);
+        }
+    }
+}
+
+static void RunFunctionOptionsIncludeRunnablePythonEntries()
+{
+    var rootDirectory = CreateTempDirectory();
+    const string targetPath = "interaction:demo.folder:python";
+    var client = CreatePythonClientForRegistryTests("python_runfunction", ["status_report"]);
+
+    try
+    {
+        var functionsDirectory = FunctionDefinitionCodec.GetFunctionDirectory(rootDirectory);
+        Directory.CreateDirectory(functionsDirectory);
+        File.WriteAllText(Path.Combine(functionsDirectory, "alpha.yaml"), """
+name: Alpha Sequence
+steps:
+  - type: Delay
+    milliseconds: 10
+""");
+
+        PythonClientRuntimeRegistry.Register(targetPath, "Python RunFunction", client);
+
+        var definition = new EditorDialogBindingDefinition(
+            "InteractionRules",
+            "Interaction Rules",
+            EditorPropertyType.InteractionRuleList,
+            static _ => string.Empty);
+        var field = new EditorDialogField(definition, new ItemProperty("InteractionRules", string.Empty, "page.button.InteractionRules"));
+        var workspaceDirectoryProperty = typeof(EditorDialogField).GetProperty(
+            nameof(EditorDialogField.OwnerWorkspaceDirectory),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("OwnerWorkspaceDirectory property was not found.");
+        workspaceDirectoryProperty.SetValue(field, rootDirectory);
+
+        var options = field.GetInteractionFunctionOptions(nameof(ItemInteractionAction.RunFunction), "this");
+        AssertEqual(2, options.Count);
+        AssertTrue(options.Contains("yaml:alpha"));
+        AssertTrue(options.Contains("python:interaction:demo.folder:python:status_report"));
+    }
+    finally
+    {
+        PythonClientRuntimeRegistry.Unregister(targetPath);
+
+        if (Directory.Exists(rootDirectory))
+        {
+            Directory.Delete(rootDirectory, recursive: true);
+        }
+    }
+}
+
+static void FunctionRegistryResolvesYamlAlias()
+{
+    var rootDirectory = CreateTempDirectory();
+    try
+    {
+        var functionsDirectory = FunctionDefinitionCodec.GetFunctionDirectory(rootDirectory);
+        Directory.CreateDirectory(functionsDirectory);
+        File.WriteAllText(Path.Combine(functionsDirectory, "alpha.yaml"), """
+name: Alpha Sequence
+steps:
+  - type: Delay
+    milliseconds: 10
+""");
+
+        AssertTrue(FunctionRegistry.TryGetEntry(rootDirectory, "yaml:alpha", out var yamlEntry));
+        AssertTrue(yamlEntry is not null);
+        AssertEqual("yaml:alpha", yamlEntry!.Reference);
+
+        AssertTrue(FunctionRegistry.TryGetEntry(rootDirectory, "declarative:alpha", out var declarativeEntry));
+        AssertTrue(declarativeEntry is not null);
+        AssertEqual("yaml:alpha", declarativeEntry!.Reference);
+        AssertTrue(FunctionRegistry.ReferencesEqual("yaml:alpha", "declarative:alpha"));
+    }
+    finally
+    {
+        if (Directory.Exists(rootDirectory))
+        {
+            Directory.Delete(rootDirectory, recursive: true);
+        }
+    }
+}
+
+static void RunFunctionPickerUsesDisplayLabels()
+{
+    var rootDirectory = CreateTempDirectory();
+    const string targetPath = "python-env:main.application_explorer_1:raw";
+    var client = CreatePythonClientForRegistryTests("python_display", ["start_loop"]);
+
+    try
+    {
+        var functionsDirectory = FunctionDefinitionCodec.GetFunctionDirectory(rootDirectory);
+        Directory.CreateDirectory(functionsDirectory);
+        File.WriteAllText(Path.Combine(functionsDirectory, "new_workflow.yaml"), """
+name: New Workflow
+steps:
+  - type: Delay
+    milliseconds: 10
+""");
+
+        PythonClientRuntimeRegistry.Register(targetPath, "Python Display", client);
+
+        var definition = new EditorDialogBindingDefinition(
+            "InteractionRules",
+            "Interaction Rules",
+            EditorPropertyType.InteractionRuleList,
+            static _ => string.Empty);
+        var field = new EditorDialogField(definition, new ItemProperty("InteractionRules", string.Empty, "page.button.InteractionRules"));
+        var workspaceDirectoryProperty = typeof(EditorDialogField).GetProperty(
+            nameof(EditorDialogField.OwnerWorkspaceDirectory),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("OwnerWorkspaceDirectory property was not found.");
+        workspaceDirectoryProperty.SetValue(field, rootDirectory);
+
+        var options = field.GetRunFunctionOptions();
+        var yamlOption = options.Single(option => option.Reference == "yaml:new_workflow");
+        AssertEqual("YAML / new_workflow", yamlOption.DisplayText);
+
+        var pythonOption = options.Single(option => option.Reference == "python:python-env:main.application_explorer_1:raw:start_loop");
+        AssertEqual("Python / application_explorer_1 / raw / start_loop", pythonOption.DisplayText);
+    }
+    finally
+    {
+        PythonClientRuntimeRegistry.Unregister(targetPath);
+
+        if (Directory.Exists(rootDirectory))
+        {
+            Directory.Delete(rootDirectory, recursive: true);
+        }
+    }
+}
+
+static void RunFunctionPickerKeepsMissingReferenceVisible()
+{
+    var row = new ItemInteractionEditorRow
+    {
+        ActionName = nameof(ItemInteractionAction.RunFunction),
+        FunctionName = "declarative:missing_function"
+    };
+
+    row.SetRunFunctionOptions(
+    [
+        new FunctionPickerOption
+        {
+            Reference = "yaml:existing_function",
+            DisplayText = "YAML / existing_function"
+        }
+    ],
+    row.FunctionName);
+
+    AssertEqual(2, row.RunFunctionOptions.Count);
+    AssertEqual("Missing / declarative:missing_function", row.RunFunctionOptions.Last().DisplayText);
+    AssertEqual("declarative:missing_function", row.SelectedRunFunctionOption?.Reference);
+}
+
+static void RunFunctionEditorKeepsArgumentVisible()
+{
+    var definition = new EditorDialogBindingDefinition(
+        "InteractionRules",
+        "Interaction Rules",
+        EditorPropertyType.InteractionRuleList,
+        static _ => string.Empty);
+    var field = new EditorDialogField(definition, new ItemProperty("InteractionRules", string.Empty, "page.button.InteractionRules"));
+    var row = new ItemInteractionEditorRow
+    {
+        ActionName = nameof(ItemInteractionAction.RunFunction),
+        TargetPath = "this",
+        Argument = "payload"
+    };
+
+    field.RefreshInteractionRuleRowOptions(row);
+
+    AssertTrue(row.ShowsArgumentEditor);
+    AssertEqual("payload", row.Argument);
+}
+
+static void StopFunctionEditorUsesRunFunctionPickerBehavior()
+{
+    var row = new ItemInteractionEditorRow
+    {
+        ActionName = nameof(ItemInteractionAction.StopFunction),
+        FunctionName = "declarative:missing_function"
+    };
+
+    row.SetRunFunctionOptions(
+    [
+        new FunctionPickerOption
+        {
+            Reference = "yaml:existing_function",
+            DisplayText = "YAML / existing_function"
+        }
+    ],
+    row.FunctionName);
+
+    AssertTrue(row.IsRunFunctionAction);
+    AssertFalse(row.ShowsTargetSelection);
+    AssertTrue(row.ShowsFunctionPicker);
+    AssertEqual(2, row.RunFunctionOptions.Count);
+    AssertEqual("Missing / declarative:missing_function", row.RunFunctionOptions.Last().DisplayText);
+    AssertEqual("declarative:missing_function", row.SelectedRunFunctionOption?.Reference);
+}
+
+static string CreateTempDirectory()
+{
+    var directory = Path.Combine(Path.GetTempPath(), $"hornetstudio_editor_tests_{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    return directory;
+}
+
+static PythonClient CreatePythonClientForRegistryTests(string clientName, IReadOnlyList<string> functionNames)
+{
+    var client = new PythonClient(new PythonClientOptions
+    {
+        Name = clientName,
+        ClientType = "test",
+        ScriptPath = Path.Combine(Path.GetTempPath(), $"{clientName}.py")
+    });
+
+    var functionsField = typeof(PythonClient).GetField("_functions", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("PythonClient function registry field was not found.");
+    var functions = functionsField.GetValue(client) as System.Collections.Concurrent.ConcurrentDictionary<string, PythonFunctionInfo>
+        ?? throw new InvalidOperationException("PythonClient function registry field has an unexpected type.");
+
+    foreach (var functionName in functionNames)
+    {
+        if (string.IsNullOrWhiteSpace(functionName))
+        {
+            continue;
+        }
+
+        var normalizedName = functionName.Trim();
+        functions[normalizedName] = new PythonFunctionInfo(normalizedName, string.Empty, string.Empty);
+    }
+
+    return client;
+}
+
+static void WorkflowEditorConverterCreatesEditableRows()
+{
+    var definition = new FunctionDefinition
+    {
+        Name = "editor_test",
+        Steps =
+        [
+            new FunctionSetValueStepDefinition
+            {
+                Target = "studio.main.pump.enable",
+                Value = "true"
+            },
+            new FunctionDelayStepDefinition
+            {
+                Milliseconds = 250
+            },
+            new FunctionLogStepDefinition
+            {
+                TargetLog = "Logs.process",
+                Level = MonitorLogLevel.Warning,
+                Text = "Started"
+            }
+        ]
+    };
+
+    var rows = FunctionEditorDefinitionConverter.CreateRows(definition);
+    AssertEqual(3, rows.Count);
+    AssertEqual(FunctionStepType.SetValue, rows[0].StepType);
+    AssertEqual("studio.main.pump.enable", rows[0].Target);
+    AssertEqual(FunctionStepType.Delay, rows[1].StepType);
+    AssertEqual("250", rows[1].MillisecondsText);
+    AssertEqual(FunctionStepType.Log, rows[2].StepType);
+    AssertEqual("Logs.process", rows[2].TargetLog);
+    AssertEqual(MonitorLogLevel.Warning.ToString(), rows[2].LevelText);
+}
+
+static void WorkflowEditorCreatesWhileDefaultDelayGuard()
+{
+    var row = FunctionStepEditorRow.CreateNew(FunctionStepType.While);
+
+    AssertEqual(FunctionStepType.While, row.StepType);
+    AssertEqual(1, row.WhileRows.Count);
+    AssertEqual(FunctionStepType.Delay, row.WhileRows[0].StepType);
+    AssertEqual("100", row.WhileRows[0].MillisecondsText);
+    AssertTrue(row.WhileRows[0].RequiresPositiveDelay);
+}
+
+static void WorkflowEditorConverterEditsIfThenElseSteps()
+{
+    var definition = new FunctionDefinition
+    {
+        Name = "editor_preserve",
+        Steps =
+        [
+            new FunctionLogStepDefinition
+            {
+                TargetLog = "Logs.process",
+                Text = "Before"
+            },
+            new FunctionIfThenElseStepDefinition
+            {
+                Condition = "{A} > 20",
+                Variables =
+                [
+                    new BooleanConditionVariableDefinition
+                    {
+                        Name = "A",
+                        SourcePath = "custom_signals_1.temperature"
+                    }
+                ],
+                Then =
+                [
+                    new FunctionDelayStepDefinition
+                    {
+                        Milliseconds = 25
+                    }
+                ],
+                Else =
+                [
+                    new FunctionLogStepDefinition
+                    {
+                        TargetLog = "Logs.audit",
+                        Level = MonitorLogLevel.Error,
+                        Text = "Too cold"
+                    }
+                ]
+            },
+            new FunctionSetValueStepDefinition
+            {
+                Target = "studio.main.pump.enable",
+                Value = "false"
+            }
+        ]
+    };
+
+    var rows = FunctionEditorDefinitionConverter.CreateRows(definition).ToArray();
+    AssertEqual(3, rows.Length);
+    AssertFalse(rows[1].IsPreserved);
+    AssertEqual(FunctionStepType.IfThenElse, rows[1].StepType);
+    AssertEqual("{A} > 20", rows[1].ConditionEditor.FormulaText);
+    AssertEqual(1, rows[1].ConditionEditor.Variables.Count);
+    AssertEqual("A", rows[1].ConditionEditor.Variables[0].Name);
+    AssertEqual(1, rows[1].ThenRows.Count);
+    AssertEqual(1, rows[1].ElseRows.Count);
+
+    rows[0].Text = "Changed";
+    rows[1].ConditionEditor.FormulaText = "{A} >= 25";
+    rows[1].ConditionEditor.Variables[0].SourcePath = "custom_signals_1.temperature_filtered";
+    rows[1].ThenRows.Add(FunctionStepEditorRow.CreateNew(FunctionStepType.Log));
+    rows[1].ThenRows[1].TargetLog = "Logs.audit";
+    rows[1].ThenRows[1].Text = "Then 2";
+    rows[2].Value = "true";
+
+    AssertTrue(FunctionEditorDefinitionConverter.TryBuildDefinition("editor_preserve", rows, out var rebuilt, out var errorMessage));
+    AssertEqual(string.Empty, errorMessage);
+    AssertTrue(rebuilt is not null);
+    AssertEqual(3, rebuilt!.Steps.Count);
+    AssertEqual(FunctionStepType.IfThenElse, rebuilt.Steps[1].Type);
+
+    var conditional = (FunctionIfThenElseStepDefinition)rebuilt.Steps[1];
+    AssertEqual("{A} >= 25", conditional.Condition);
+    AssertEqual(1, conditional.Variables.Count);
+    AssertEqual("custom_signals_1.temperature_filtered", conditional.Variables[0].SourcePath);
+    AssertEqual(2, conditional.Then.Count);
+    AssertEqual(1, conditional.Else.Count);
+    AssertEqual(25, ((FunctionDelayStepDefinition)conditional.Then[0]).Milliseconds);
+    AssertEqual("Then 2", ((FunctionLogStepDefinition)conditional.Then[1]).Text);
+    AssertEqual("Too cold", ((FunctionLogStepDefinition)conditional.Else[0]).Text);
+    AssertEqual("Changed", ((FunctionLogStepDefinition)rebuilt.Steps[0]).Text);
+    AssertEqual("true", ((FunctionSetValueStepDefinition)rebuilt.Steps[2]).Value);
+}
+
+static void WorkflowEditorConverterEditsWhileSteps()
+{
+    var definition = new FunctionDefinition
+    {
+        Name = "editor_while",
+        Steps =
+        [
+            new FunctionWhileStepDefinition
+            {
+                Condition = "{Enabled} == true",
+                Variables =
+                [
+                    new BooleanConditionVariableDefinition
+                    {
+                        Name = "Enabled",
+                        SourcePath = "custom_signals_1.enabled"
+                    }
+                ],
+                Steps =
+                [
+                    new FunctionDelayStepDefinition
+                    {
+                        Milliseconds = 100
+                    },
+                    new FunctionLogStepDefinition
+                    {
+                        TargetLog = "Logs.audit",
+                        Text = "initial"
+                    }
+                ]
+            }
+        ]
+    };
+
+    var rows = FunctionEditorDefinitionConverter.CreateRows(definition).ToArray();
+    AssertEqual(1, rows.Length);
+    AssertEqual(FunctionStepType.While, rows[0].StepType);
+    AssertEqual("{Enabled} == true", rows[0].ConditionEditor.FormulaText);
+    AssertEqual(2, rows[0].WhileRows.Count);
+    AssertTrue(rows[0].WhileRows[0].RequiresPositiveDelay);
+    AssertEqual(FunctionStepType.Log, rows[0].WhileRows[1].StepType);
+
+    rows[0].ConditionEditor.FormulaText = "{Enabled} != false";
+    rows[0].WhileRows.Move(0, 1);
+    rows[0].WhileRows[1].MillisecondsText = "25";
+    rows[0].WhileRows[0].Text = "initial-updated";
+    rows[0].WhileRows.Add(FunctionStepEditorRow.CreateNew(FunctionStepType.Log));
+    rows[0].WhileRows[2].TargetLog = "Logs.process";
+    rows[0].WhileRows[2].Text = "tail";
+
+    AssertTrue(FunctionEditorDefinitionConverter.TryBuildDefinition("editor_while", rows, out var rebuilt, out var errorMessage));
+    AssertEqual(string.Empty, errorMessage);
+    AssertTrue(rebuilt is not null);
+    AssertTrue(rebuilt!.Steps[0] is FunctionWhileStepDefinition);
+
+    var loop = (FunctionWhileStepDefinition)rebuilt.Steps[0];
+    AssertEqual("{Enabled} != false", loop.Condition);
+    AssertEqual(3, loop.Steps.Count);
+    AssertEqual(FunctionStepType.Log, loop.Steps[0].Type);
+    AssertEqual("initial-updated", ((FunctionLogStepDefinition)loop.Steps[0]).Text);
+    AssertEqual(FunctionStepType.Delay, loop.Steps[1].Type);
+    AssertEqual(25, ((FunctionDelayStepDefinition)loop.Steps[1]).Milliseconds);
+    AssertEqual(FunctionStepType.Log, loop.Steps[2].Type);
+    AssertEqual("tail", ((FunctionLogStepDefinition)loop.Steps[2]).Text);
+}
+
+static void BooleanConditionEditorAddsVariables()
+{
+    var editor = new HornetStudio.Editor.Widgets.Common.BooleanConditionEditorViewModel();
+
+    editor.AddVariable();
+    editor.AddVariable();
+
+    AssertEqual(2, editor.Variables.Count);
+    AssertEqual("A", editor.Variables[0].Name);
+    AssertEqual("B", editor.Variables[1].Name);
+    AssertEqual(2, editor.VariableButtons.Count);
+    AssertEqual("{A}", editor.VariableButtons[0].Token);
+    AssertEqual("{B}", editor.VariableButtons[1].Token);
+}
+
+static void WorkflowRowConditionEditingCommitsClonedState()
+{
+    var row = FunctionStepEditorRow.FromStep(
+        new FunctionIfThenElseStepDefinition
+        {
+            Condition = "{A} > 20",
+            Variables =
+            [
+                new BooleanConditionVariableDefinition
+                {
+                    Name = "A",
+                    SourcePath = "custom_signals_1.temperature"
+                }
+            ],
+            Then =
+            [
+                new FunctionDelayStepDefinition
+                {
+                    Milliseconds = 100
+                }
+            ]
+        });
+
+    var clone = row.CreateConditionEditorClone();
+    clone.FormulaText = "{B} >= 25";
+    clone.Variables.Clear();
+    clone.AddVariable("B", "custom_signals_1.temperature_filtered");
+
+    AssertEqual("{A} > 20", row.ConditionEditor.FormulaText);
+    AssertEqual("Condition", row.ConditionButtonText);
+    AssertEqual("Condition: {A} > 20", row.ConditionSummary);
+
+    AssertTrue(clone.TryBuildVariables(out var committedVariables, out var errorMessage));
+    AssertEqual(string.Empty, errorMessage);
+
+    row.ApplyCondition(clone.FormulaText, committedVariables);
+
+    AssertEqual("{B} >= 25", row.ConditionEditor.FormulaText);
+    AssertEqual(1, row.ConditionEditor.Variables.Count);
+    AssertEqual("B", row.ConditionEditor.Variables[0].Name);
+    AssertEqual("custom_signals_1.temperature_filtered", row.ConditionEditor.Variables[0].SourcePath);
+    AssertEqual("Condition: {B} >= 25", row.ConditionSummary);
+    AssertEqual("Then: 1", row.ThenSummary);
+    AssertEqual("Else: 0", row.ElseSummary);
+}
+
+static void WorkflowExecutorRunsStepsInOrder()
+{
+    var visited = new List<string>();
+    var definition = new FunctionDefinition
+    {
+        Name = "startup_sequence",
+        Steps =
+        [
+            new FunctionLogStepDefinition
+            {
+                TargetLog = "Logs.process",
+                Level = MonitorLogLevel.Info,
+                Text = "Start"
+            },
+            new FunctionSetValueStepDefinition
+            {
+                Target = "studio.main.pump.enable",
+                Value = "true"
+            },
+            new FunctionIfThenElseStepDefinition
+            {
+                Condition = "temperature > 20",
+                Then =
+                [
+                    new FunctionDelayStepDefinition
+                    {
+                        Milliseconds = 1
+                    },
+                    new FunctionLogStepDefinition
+                    {
+                        TargetLog = "Logs.audit",
+                        Text = "Then"
+                    }
+                ]
+            }
+        ]
+    };
+
+    var result = FunctionExecutor.ExecuteAsync(
+            definition,
+            new FunctionExecutionEnvironment
+            {
+                ConditionVariables = new Dictionary<string, object?>
+                {
+                    ["temperature"] = 21
+                },
+                EvaluateConditionAsync = (condition, variables, _) =>
+                {
+                    visited.Add($"condition:{condition}:{variables["temperature"]}");
+                    return ValueTask.FromResult(true);
+                },
+                WriteLogAsync = (step, _) =>
+                {
+                    visited.Add($"log:{step.TargetLog}:{step.Text}");
+                    return ValueTask.CompletedTask;
+                },
+                SetValueAsync = (step, _) =>
+                {
+                    visited.Add($"set:{step.Target}:{step.Value}");
+                    return ValueTask.CompletedTask;
+                }
+            })
+        .GetAwaiter()
+        .GetResult();
+
+    AssertEqual(FunctionState.Done, result.State);
+    AssertEqual(4, visited.Count);
+    AssertEqual("log:Logs.process:Start", visited[0]);
+    AssertEqual("set:studio.main.pump.enable:true", visited[1]);
+    AssertEqual("condition:temperature > 20:21", visited[2]);
+    AssertEqual("log:Logs.audit:Then", visited[3]);
+}
+
+static void WorkflowExecutorReportsCancellationStateTransitions()
+{
+    var states = new List<FunctionState>();
+    using var cts = new CancellationTokenSource();
+    var definition = new FunctionDefinition
+    {
+        Name = "cancel_me",
+        Steps =
+        [
+            new FunctionDelayStepDefinition
+            {
+                Milliseconds = 200
+            }
+        ]
+    };
+
+    var executionTask = FunctionExecutor.ExecuteAsync(
+        definition,
+        new FunctionExecutionEnvironment
+        {
+            StatusChanged = status => states.Add(status.State)
+        },
+        cts.Token);
+
+    cts.CancelAfter(20);
+    var result = executionTask.GetAwaiter().GetResult();
+
+    AssertEqual(FunctionState.Canceled, result.State);
+    AssertTrue(states.Contains(FunctionState.Running));
+    AssertTrue(states.Contains(FunctionState.Stopping));
+    AssertTrue(states.Contains(FunctionState.Canceled));
+}
+
+static void WorkflowExecutorFailsMissingExplicitLogTarget()
+{
+    var result = FunctionExecutor.ExecuteAsync(
+            new FunctionDefinition
+            {
+                Name = "invalid_log",
+                Steps =
+                [
+                    new FunctionLogStepDefinition
+                    {
+                        TargetLog = string.Empty,
+                        Text = "Missing target"
+                    }
+                ]
+            },
+            new FunctionExecutionEnvironment
+            {
+                WriteLogAsync = (_, _) => ValueTask.CompletedTask
+            })
+        .GetAwaiter()
+        .GetResult();
+
+    AssertEqual(FunctionState.Failed, result.State);
+    AssertTrue(result.ErrorMessage.Contains("explicit target log", StringComparison.Ordinal));
+}
+
+static void WorkflowCodecParsesSetValueValueFrom()
+{
+    var raw = """
+name: read_source
+steps:
+  - type: SetValue
+    target: pump.enable
+    valueFrom: sensor.status
+""";
+
+    AssertTrue(FunctionDefinitionCodec.TryParse(raw, "read_source.yaml", out var definition, out var validation));
+    AssertTrue(validation.IsValid);
+    AssertTrue(definition is not null);
+
+    var step = (FunctionSetValueStepDefinition)definition!.Steps.Single();
+    AssertEqual("pump.enable", step.Target);
+    AssertEqual(string.Empty, step.Value);
+    AssertEqual("sensor.status", step.ValueFrom);
+}
+
+static void WorkflowCodecSerializesSetValueValueFrom()
+{
+    var definition = new FunctionDefinition
+    {
+        Name = "read_source",
+        Steps =
+        [
+            new FunctionSetValueStepDefinition
+            {
+                Target = "pump.enable",
+                ValueFrom = "sensor.status"
+            }
+        ]
+    };
+
+    var serialized = FunctionDefinitionCodec.Serialize(definition);
+
+    AssertTrue(serialized.Contains("valueFrom: sensor.status", StringComparison.Ordinal));
+    AssertFalse(serialized.Contains("value:", StringComparison.Ordinal));
+
+    AssertTrue(FunctionDefinitionCodec.TryParse(serialized, "read_source.yaml", out var roundtripped, out var validation));
+    AssertTrue(validation.IsValid);
+    var roundtrippedStep = (FunctionSetValueStepDefinition)roundtripped!.Steps.Single();
+    AssertEqual("sensor.status", roundtrippedStep.ValueFrom);
+    AssertEqual(string.Empty, roundtrippedStep.Value);
+}
+
+static void WorkflowEditorRowRoundtripsSetValueValueFrom()
+{
+    var original = new FunctionSetValueStepDefinition
+    {
+        Target = "pump.enable",
+        ValueFrom = "sensor.status"
+    };
+
+    var row = FunctionStepEditorRow.FromStep(original);
+    AssertEqual("pump.enable", row.Target);
+    AssertEqual(string.Empty, row.Value);
+    AssertEqual("sensor.status", row.ValueFrom);
+    AssertTrue(row.Summary.Contains("from", StringComparison.OrdinalIgnoreCase));
+
+    AssertTrue(FunctionEditorDefinitionConverter.TryBuildDefinition("read_source", [row], out var definition, out var errorMessage));
+    AssertTrue(string.IsNullOrEmpty(errorMessage));
+    var built = (FunctionSetValueStepDefinition)definition!.Steps.Single();
+    AssertEqual("pump.enable", built.Target);
+    AssertEqual("sensor.status", built.ValueFrom);
+    AssertEqual(string.Empty, built.Value);
+}
+
+static void WorkflowExecutorSetValueResolvesValueFrom()
+{
+    var writtenTarget = string.Empty;
+    var writtenValue = string.Empty;
+
+    var definition = new FunctionDefinition
+    {
+        Name = "copy_value",
+        Steps =
+        [
+            new FunctionSetValueStepDefinition
+            {
+                Target = "pump.enable",
+                ValueFrom = "sensor.status"
+            }
+        ]
+    };
+
+    var mockSourceValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["sensor.status"] = "true"
+    };
+
+    var result = FunctionExecutor.ExecuteAsync(
+            definition,
+            new FunctionExecutionEnvironment
+            {
+                SetValueAsync = (step, _) =>
+                {
+                    string resolved;
+                    if (!string.IsNullOrWhiteSpace(step.ValueFrom))
+                    {
+                        if (!mockSourceValues.TryGetValue(step.ValueFrom, out var sourceValue))
+                        {
+                            throw new InvalidOperationException($"Value source '{step.ValueFrom}' was not found.");
+                        }
+
+                        resolved = sourceValue;
+                    }
+                    else
+                    {
+                        resolved = step.Value;
+                    }
+
+                    writtenTarget = step.Target;
+                    writtenValue = resolved;
+                    return ValueTask.CompletedTask;
+                }
+            })
+        .GetAwaiter()
+        .GetResult();
+
+    AssertEqual(FunctionState.Done, result.State);
+    AssertEqual("pump.enable", writtenTarget);
+    AssertEqual("true", writtenValue);
+}
+
+static void WorkflowExecutorSetValueFailsUnresolvedValueFrom()
+{
+    var definition = new FunctionDefinition
+    {
+        Name = "copy_missing",
+        Steps =
+        [
+            new FunctionSetValueStepDefinition
+            {
+                Target = "pump.enable",
+                ValueFrom = "sensor.missing"
+            }
+        ]
+    };
+
+    var result = FunctionExecutor.ExecuteAsync(
+            definition,
+            new FunctionExecutionEnvironment
+            {
+                SetValueAsync = (step, _) =>
+                {
+                    if (!string.IsNullOrWhiteSpace(step.ValueFrom))
+                    {
+                        throw new InvalidOperationException($"Value source '{step.ValueFrom}' was not found.");
+                    }
+
+                    return ValueTask.CompletedTask;
+                }
+            })
+        .GetAwaiter()
+        .GetResult();
+
+    AssertEqual(FunctionState.Failed, result.State);
+    AssertTrue(result.ErrorMessage.Contains("sensor.missing", StringComparison.Ordinal));
 }
 
 static void CustomSignalEditorDefaultsToSnakeCaseName()
@@ -721,6 +2149,64 @@ Controls:
     AssertEqual(5, item.TableColumns);
 }
 
+static void RuntimeYamlLoaderMapsWorkflowWidgetControls()
+{
+    var yamlPath = Path.Combine(AppContext.BaseDirectory, "workflow_widget_import_test.yaml");
+    File.WriteAllText(
+        yamlPath,
+        """
+Caption: 'main'
+Controls:
+  -
+    Type: 'WorkflowWidget'
+    Screen: '1'
+    Enabled: true
+    Identity:
+      Name: 'workflow_widget_1'
+      Text: 'workflow_widget_1'
+      Path: 'workflow_widget_1'
+      Id: 'workflow-widget-1'
+    Bounds:
+      X: 16
+      Y: 20
+      Width: 440
+      Height: 240
+""");
+
+    var layout = ProjectUiLayoutLoader.LoadYaml(yamlPath, "main");
+    var workflowNode = layout.Layout.Children.Single(child => string.Equals(child.Type, "WorkflowWidget", StringComparison.OrdinalIgnoreCase));
+
+    var method = typeof(HornetStudio.ViewModels.MainWindowViewModel).GetMethod("GetControlKindFromUiType", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("GetControlKindFromUiType was not found.");
+    }
+
+    AssertEqual(ControlKind.Functions, method.Invoke(null, ["WorkflowWidget"]));
+
+    var applyMethod = typeof(MainWindowViewModel).GetMethod("ApplyKnownUiProperties", BindingFlags.NonPublic | BindingFlags.Static);
+    if (applyMethod is null)
+    {
+        throw new InvalidOperationException("ApplyKnownUiProperties was not found.");
+    }
+
+    var item = new FolderItemModel { Kind = ControlKind.Functions };
+    applyMethod.Invoke(null, [item, workflowNode.Properties, "main", "WorkflowWidget"]);
+    AssertEqual("workflow-widget-1", item.Id);
+}
+
+static void CreateItemAppliesWorkflowWidgetDefaults()
+{
+    var viewModel = new MainWindowViewModel();
+    var item = viewModel.CreateItem(ControlKind.Functions, 0, 0, 120, 120);
+
+    AssertEqual(ControlKind.Functions, item.Kind);
+    AssertEqual("Functions", item.Name);
+    AssertEqual("No functions discovered", item.Footer);
+    AssertTrue(item.Width >= 420);
+    AssertTrue(item.Height >= 220);
+}
+
 static void DialogInteractionRulesPersistDialogWidgetIds()
 {
     var method = typeof(MainWindowViewModel).GetMethod("BuildYamlControlDefinition", BindingFlags.NonPublic | BindingFlags.Static);
@@ -752,6 +2238,40 @@ static void DialogInteractionRulesPersistDialogWidgetIds()
     AssertEqual("dialog-widget-1", interactionRules![0]?["TargetPath"]?.GetValue<string>());
 }
 
+static void StopFunctionInteractionRulesPersistFunctionName()
+{
+    var method = typeof(MainWindowViewModel).GetMethod("BuildYamlControlDefinition", BindingFlags.NonPublic | BindingFlags.Static);
+    if (method is null)
+    {
+        throw new InvalidOperationException("BuildYamlControlDefinition was not found.");
+    }
+
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Button,
+        Name = "button_1",
+        InteractionRules = ItemInteractionRuleCodec.SerializeDefinitions(
+        [
+            new ItemInteractionRule
+            {
+                Event = ItemInteractionEvent.BodyLeftClick,
+                Action = ItemInteractionAction.StopFunction,
+                TargetPath = "this",
+                FunctionName = "yaml:new_workflow",
+                Argument = string.Empty
+            }
+        ])
+    };
+    item.SetHierarchy("main", parentItem: null);
+
+    var node = (JsonObject?)method.Invoke(null, [item]);
+    var interactionRules = node?["InteractionRules"] as JsonArray;
+    AssertTrue(interactionRules is not null);
+    AssertEqual("StopFunction", interactionRules![0]?["Action"]?.GetValue<string>());
+    AssertEqual("yaml:new_workflow", interactionRules[0]?["FunctionName"]?.GetValue<string>());
+    AssertEqual("this", interactionRules[0]?["TargetPath"]?.GetValue<string>());
+}
+
 static void DialogWidgetPickerOnlyListsDialogWidgets()
 {
     var viewModel = new MainWindowViewModel();
@@ -780,6 +2300,25 @@ static void DialogWidgetPickerOnlyListsDialogWidgets()
     var options = ((IEnumerable<string>?)method.Invoke(viewModel, [button]))?.ToArray() ?? [];
     AssertEqual(1, options.Length);
     AssertTrue(!string.IsNullOrWhiteSpace(options[0]));
+}
+
+static void CreateItemAppliesRequestedCaptionVisibilityDefaults()
+{
+    var viewModel = new MainWindowViewModel();
+
+    var signal = viewModel.CreateItem(ControlKind.Signal, 0, 0, 200, 72);
+    var button = viewModel.CreateItem(ControlKind.Button, 0, 0, 200, 72);
+    var table = viewModel.CreateItem(ControlKind.TableControl, 0, 0, 260, 220);
+    var chart = viewModel.CreateItem(ControlKind.ChartControl, 0, 0, 520, 260);
+    var itemClient = viewModel.CreateItem(ControlKind.ItemClient, 0, 0, 420, 190);
+    var dialog = viewModel.CreateItem(ControlKind.DialogWidget, 0, 0, 420, 260);
+
+    AssertFalse(signal.BodyCaptionVisible);
+    AssertFalse(button.CaptionVisible);
+    AssertFalse(table.BodyCaptionVisible);
+    AssertFalse(chart.BodyCaptionVisible);
+    AssertFalse(itemClient.BodyCaptionVisible);
+    AssertFalse(dialog.BodyCaptionVisible);
 }
 
 static void OpenDialogKeepsOneOverlayPerDialogWidget()

@@ -6,6 +6,8 @@ This root file is the authoritative entry point for repository agent behavior.
 
 - If a `MODE` is specified, it has absolute priority for the current request.
 - Mode commands are recognized only when they appear as the first non-empty token of the user message.
+- When a `MODE` is recognized, first read and apply this root file, the referenced mode module, any task-relevant support modules, and `agents/solution.md` before answering or changing files.
+- Do not answer from the short mode summary alone when a mode has a referenced module.
 - Bracketed mode commands are the most stable syntax and should be preferred.
 - Short `#` mode commands are supported only as exact command tokens.
 - Plain aliases without `#` are not supported.

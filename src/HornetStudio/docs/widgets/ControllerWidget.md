@@ -14,7 +14,7 @@ Manages PID controller definitions and publishes each controller as runtime item
 - Owned runtime setpoint control through the direct value of each controller `set` item
 - Runtime start and stop control through the direct value of each controller `run` item
 - Scaled and clamped output writes to a configured target path
-- Visible controller state and alert feedback in the widget row
+- Compact controller list rows that keep type, name, and edit actions directly visible
 
 ## Key Configuration
 

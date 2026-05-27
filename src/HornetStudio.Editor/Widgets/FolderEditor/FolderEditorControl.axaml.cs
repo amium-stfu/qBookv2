@@ -587,6 +587,7 @@ public partial class FolderEditorControl : UserControl
             CreateWidgetSelectionItem(ControlKind.EnhancedSignals, "EnhancedSignals", "Extended signal processing and mapping widget.", "EnhancedSignals.md", "EnhancedSignals.help.md"),
             CreateWidgetSelectionItem(ControlKind.ControllerWidget, "ControllerWidget", "PID controller definitions with runtime publication.", "ControllerWidget.md", "ControllerWidget.help.md"),
             CreateWidgetSelectionItem(ControlKind.Monitor, "Monitor", "Threshold, timeout, and expression-based state monitoring.", "Monitor.md", "Monitor.help.md"),
+            CreateWidgetSelectionItem(ControlKind.Functions, "Functions", "Folder-local YAML function discovery and editor widget.", "Functions.md", "Functions.help.md"),
             CreateWidgetSelectionItem(ControlKind.DialogWidget, "DialogWidget", "Internal overlay dialog definition.", "DialogWidget.md", "DialogWidget.help.md")
         };
 
@@ -1155,6 +1156,13 @@ public partial class FolderEditorControl : UserControl
                 item.ShowFooter = true;
                 break;
 
+            case ControlKind.Functions:
+                item.ControlCaption = "Functions";
+                item.BodyCaption = "Folder functions";
+                item.Footer = "Refresh to discover functions";
+                item.ShowFooter = true;
+                break;
+
             case ControlKind.DialogWidget:
                 item.ControlCaption = "DialogWidget";
                 item.BodyCaption = "Dialog content";
@@ -1185,7 +1193,7 @@ public partial class FolderEditorControl : UserControl
             ControlKind.UdlClientControl => 420,
             ControlKind.ItemClient => 420,
             ControlKind.ApplicationExplorer => 420,
-            ControlKind.CustomSignals or ControlKind.EnhancedSignals or ControlKind.ControllerWidget or ControlKind.Monitor or ControlKind.DialogWidget => 420,
+            ControlKind.CustomSignals or ControlKind.EnhancedSignals or ControlKind.ControllerWidget or ControlKind.Monitor or ControlKind.Functions or ControlKind.DialogWidget => 420,
             _ => 260
         };
     }
@@ -1211,7 +1219,7 @@ public partial class FolderEditorControl : UserControl
             ControlKind.UdlClientControl => 190,
             ControlKind.ItemClient => 190,
             ControlKind.ApplicationExplorer => 220,
-            ControlKind.CustomSignals or ControlKind.EnhancedSignals or ControlKind.ControllerWidget or ControlKind.Monitor => 240,
+            ControlKind.CustomSignals or ControlKind.EnhancedSignals or ControlKind.ControllerWidget or ControlKind.Monitor or ControlKind.Functions => 240,
             ControlKind.DialogWidget => 260,
             _ => 120
         };

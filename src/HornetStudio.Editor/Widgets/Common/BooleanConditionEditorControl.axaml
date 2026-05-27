@@ -1,0 +1,199 @@
+<UserControl
+    x:Class="HornetStudio.Editor.Controls.BooleanConditionEditorControl"
+    x:Name="Root"
+    x:CompileBindings="False"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:common="using:HornetStudio.Editor.Widgets.Common"
+    xmlns:controls="using:HornetStudio.Editor.Controls">
+  <UserControl.Styles>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="{Binding #Root.ButtonBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.ButtonBorderBrush}" />
+      <Setter Property="Foreground" Value="{Binding #Root.ButtonForeground}" />
+    </Style>
+
+    <Style Selector="Button.icon-button">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{Binding #Root.ButtonBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.ButtonBorderBrush}" />
+      <Setter Property="Foreground" Value="{Binding #Root.ButtonForeground}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="{Binding #Root.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.BorderColor}" />
+      <Setter Property="Foreground" Value="{Binding #Root.EditorForeground}" />
+      <Setter Property="CaretBrush" Value="{Binding #Root.EditorForeground}" />
+      <Setter Property="SelectionBrush" Value="{Binding #Root.ParameterHoverColor}" />
+      <Setter Property="SelectionForegroundBrush" Value="{Binding #Root.EditorForeground}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field:pointerover">
+      <Setter Property="Background" Value="{Binding #Root.EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding #Root.EditorForeground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field:focus">
+      <Setter Property="Background" Value="{Binding #Root.EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding #Root.EditorForeground}" />
+      <Setter Property="CaretBrush" Value="{Binding #Root.EditorForeground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field /template/ Border">
+      <Setter Property="Background" Value="{Binding #Root.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.BorderColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding #Root.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field:focus /template/ Border">
+      <Setter Property="Background" Value="{Binding #Root.EditorBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.ParameterHoverColor}" />
+    </Style>
+
+    <Style Selector="TextBox.template-field /template/ ScrollViewer">
+      <Setter Property="Background" Value="{Binding #Root.EditorBackground}" />
+      <Setter Property="Foreground" Value="{Binding #Root.EditorForeground}" />
+    </Style>
+
+    <Style Selector="Button.token-button">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Width" Value="48" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Background" Value="{Binding #Root.ButtonBackground}" />
+      <Setter Property="BorderBrush" Value="{Binding #Root.ButtonBorderBrush}" />
+      <Setter Property="Foreground" Value="{Binding #Root.ButtonForeground}" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Spacing="10">
+    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+      <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding #Root.PrimaryTextBrush}" Text="Variables" />
+      <Button Grid.Column="1"
+              Width="40"
+              Height="40"
+              Classes="dialog-button"
+              ToolTip.Tip="Add variable"
+              Click="OnAddVariableClicked">
+        <controls:ThemeSvgIcon Width="22"
+                                Height="22"
+                                IconPath="avares://HornetStudio.Editor/EditorIcons/circle-plus-solid-full.svg"
+                                TintColor="{Binding #Root.ButtonForeground}" />
+      </Button>
+    </Grid>
+
+    <ItemsControl ItemsSource="{Binding #Root.Editor.Variables}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="common:ConditionVariableEntryViewModel">
+          <Grid ColumnDefinitions="92,*,40,40" Margin="0,10,0,8">
+            <TextBox Classes="template-field" Text="{Binding Name, Mode=TwoWay}" />
+            <TextBox Grid.Column="1" Margin="8,0,0,0" Classes="template-field" Text="{Binding SourcePath, Mode=TwoWay}" />
+            <Button Grid.Column="2"
+                    Margin="8,0,0,0"
+                    Classes="icon-button"
+                    ToolTip.Tip="Pick variable source"
+                    Click="OnPickVariableSourceClicked"
+                    CommandParameter="{Binding .}">
+              <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg" TintColor="{Binding ButtonForeground, RelativeSource={RelativeSource AncestorType=controls:BooleanConditionEditorControl}}" />
+            </Button>
+            <Button Grid.Column="3"
+                    Margin="8,0,0,0"
+                    Classes="icon-button"
+                    ToolTip.Tip="Delete variable"
+                    Click="OnRemoveVariableClicked"
+                    CommandParameter="{Binding .}">
+              <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/trash.svg" TintColor="{Binding ButtonForeground, RelativeSource={RelativeSource AncestorType=controls:BooleanConditionEditorControl}}" />
+            </Button>
+          </Grid>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <TextBlock FontSize="11" Foreground="{Binding #Root.SecondaryTextBrush}" Text="Use short variable names like A, B or Speed and pick the source path for each variable." TextWrapping="Wrap" />
+
+    <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding #Root.PrimaryTextBrush}" Text="Formula" />
+
+    <Grid ColumnDefinitions="*,260" VerticalAlignment="Top">
+      <Grid RowDefinitions="Auto,*">
+        <ItemsControl ItemsSource="{Binding #Root.Editor.VariableButtons}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="common:FormulaInsertButtonDefinition">
+              <Button Margin="0,0,6,6"
+                      Classes="token-button"
+                      Content="{Binding Label}"
+                      ToolTip.Tip="{Binding ToolTip}"
+                      Click="OnInsertFormulaTokenClicked"
+                      CommandParameter="{Binding .}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Border Grid.Row="1"
+                Margin="0,8,0,0"
+                Background="{Binding #Root.SectionBackground}"
+                BorderBrush="{Binding #Root.BorderColor}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="0">
+          <TextBox x:Name="FormulaEditorTextBox"
+                   Classes="template-field condition-focus-formula-field"
+                   AcceptsReturn="True"
+                   MinHeight="150"
+                   TextWrapping="Wrap"
+                   VerticalContentAlignment="Top"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Padding="12"
+                   Text="{Binding #Root.Editor.FormulaText, Mode=TwoWay}" />
+        </Border>
+      </Grid>
+
+      <ItemsControl Grid.Column="1" Margin="12,42,0,0" ItemsSource="{Binding #Root.Editor.OperatorButtons}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <UniformGrid Columns="5" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="common:FormulaInsertButtonDefinition">
+            <Button Margin="0,0,4,4"
+                    Classes="token-button"
+                    Content="{Binding Label}"
+                    ToolTip.Tip="{Binding ToolTip}"
+                    Click="OnInsertFormulaTokenClicked"
+                    CommandParameter="{Binding .}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Grid>
+
+    <TextBlock FontSize="11" Foreground="{Binding #Root.SecondaryTextBrush}" Text="{Binding #Root.Editor.ExampleText}" TextWrapping="Wrap" />
+    <TextBlock FontSize="11" Foreground="{Binding #Root.Editor.FormulaStatusBrush}" Text="{Binding #Root.Editor.FormulaStatusMessage}" TextWrapping="Wrap" IsVisible="{Binding #Root.HasEditor}" />
+  </StackPanel>
+</UserControl>

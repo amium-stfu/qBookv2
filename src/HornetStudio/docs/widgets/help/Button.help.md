@@ -66,6 +66,7 @@ The widget can execute a configured host command or legacy Python script command
 
 Mouse release events can trigger configured interaction rules instead of or in addition to command behavior.
 Dialog-oriented rules can use `OpenDialog(dialogWidgetId, origin = Screen, position = Center)` and `CloseDialog(dialogWidgetId)` with a `DialogWidget` id to control the internal overlay host.
+Declarative and registered Python functions can be executed through `RunFunction`, which stores a stable registry reference such as `yaml:start_up` or `python:interaction:demo.owner:runtime:write_host_log` and resolves it through the shared folder-local `FunctionRegistry` at click time. The picker shows concise display labels such as `YAML / start_up` or `Python / application_explorer_1 / raw / write_host_log`, but those labels are not persisted or executed directly. Legacy `declarative:<name>` values remain supported and resolve to the same YAML entry. The optional `Argument` field is forwarded to Python functions with the same JSON-or-plain-text payload behavior as `InvokePythonFunction` and is currently ignored by declarative functions.
 
 ### Respect edit mode
 
@@ -77,7 +78,7 @@ The Action tab includes a `Visual` section for Monitor-backed `ButtonBackColor` 
 
 ## Runtime Notes
 
-The widget separates editor interaction from runtime activation and integrates with the common interaction rule pipeline.
+The widget separates editor interaction from runtime activation and integrates with the common interaction rule pipeline. `RunFunction` executes declarative YAML steps through the shared function executor, dispatches registered Python entries through the existing Python client runtime, logs start and completion states, and does not require a placed `Functions` widget.
 
 ## Suggested Help Window Metadata
 

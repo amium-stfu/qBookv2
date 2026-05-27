@@ -1,0 +1,88 @@
+<Window
+    x:Class="HornetStudio.Editor.Widgets.Common.BooleanConditionEditorDialogWindow"
+    x:Name="Root"
+    x:CompileBindings="False"
+    x:DataType="common:BooleanConditionEditorDialogWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:common="using:HornetStudio.Editor.Widgets.Common"
+    xmlns:controls="using:HornetStudio.Editor.Controls"
+    Width="980"
+    MinWidth="900"
+    MinHeight="620"
+    MaxHeight="860"
+    SizeToContent="Height"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    Title="Condition"
+    Background="{Binding DialogBackground}">
+  <Window.Styles>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="{Binding ButtonBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground, ElementName=Root}" />
+    </Style>
+  </Window.Styles>
+
+  <controls:EditorShellControl
+      Margin="16"
+      ShellBackground="{Binding DialogBackground}"
+      ShellBorderBrush="{Binding BorderColor}"
+      ShellBorderThickness="1"
+      ShellCornerRadius="10"
+      ShellPadding="14"
+      ShowHeader="True"
+      ShowFooter="True"
+      HeaderPadding="0,0,0,10">
+    <controls:EditorShellControl.HeaderContent>
+      <StackPanel Spacing="10">
+        <StackPanel>
+          <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Condition" />
+          <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="Edit the condition in a dedicated dialog and commit changes only on Save." TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Border IsVisible="{Binding HasErrorMessage}"
+                Padding="10,8"
+                Background="#FEE2E2"
+                BorderBrush="#B91C1C"
+                BorderThickness="1"
+                CornerRadius="8">
+          <TextBlock Foreground="#B91C1C" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+      </StackPanel>
+    </controls:EditorShellControl.HeaderContent>
+
+    <controls:EditorShellControl.BodyContent>
+      <Border Background="{Binding SectionBackground}"
+              BorderBrush="{Binding BorderColor}"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="12">
+        <controls:BooleanConditionEditorControl Editor="{Binding Editor}"
+                                               SectionBackground="{Binding SectionBackground}"
+                                               BorderColor="{Binding BorderColor}"
+                                               PrimaryTextBrush="{Binding PrimaryTextBrush}"
+                                               SecondaryTextBrush="{Binding SecondaryTextBrush}"
+                                               EditorBackground="{Binding EditorBackground}"
+                                               EditorForeground="{Binding EditorForeground}"
+                                               ButtonBackground="{Binding ButtonBackground}"
+                                               ButtonBorderBrush="{Binding ButtonBorderBrush}"
+                                               ButtonForeground="{Binding ButtonForeground}"
+                                               ParameterHoverColor="{Binding ParameterHoverColor}"
+                                               VariableSourcePickRequested="OnConditionVariableSourcePickRequested" />
+      </Border>
+    </controls:EditorShellControl.BodyContent>
+
+    <controls:EditorShellControl.FooterContent>
+      <StackPanel Spacing="10">
+        <Border Height="1" Background="{Binding BorderColor}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+          <Button Classes="dialog-button" Content="Cancel" Click="OnCancelClicked" />
+          <Button Classes="dialog-button" Content="Save" Click="OnSaveClicked" />
+        </StackPanel>
+      </StackPanel>
+    </controls:EditorShellControl.FooterContent>
+  </controls:EditorShellControl>
+</Window>

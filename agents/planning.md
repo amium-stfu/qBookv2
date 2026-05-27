@@ -7,6 +7,8 @@
 - Instead, list the open questions in a concise, structured way and stop after clarification is requested.
 - `PLAN` always creates or reuses a matching folder under `docs/workitems/<yyyy.MM.dd.HHmm>-<slug>/`.
 - `PLAN` always creates a dedicated implementation handoff in `handoffs/`.
+- After successfully creating or reusing the workitem and creating the handoff, `PLAN` always overwrites `docs/workitems/active.md`.
+- `PLAN` must not modify `docs/workitems/active.md` when planning stops because required information is missing.
 - Never overwrite an existing handoff file. Create a new timestamped file instead.
 - Keep the handoff concise, self-contained, and optimized for a new chat with minimal context.
 - Do not create a separate `plan.md` file unless the user explicitly asks for one.
@@ -18,12 +20,38 @@
 
 - `docs/workitems/<yyyy.MM.dd.HHmm>-<slug>/handoffs/<yyyy.MM.dd.HHmm>-implementation-handoff.md`
 
+## Required Active Workitem File
+
+- `docs/workitems/active.md`
+
+## Active Workitem Requirements
+
+- Keep `docs/workitems/active.md` minimal and optimized for handoff between planning and implementation tools.
+- Overwrite the file on every successful `PLAN`.
+- Store repository-relative paths only.
+- Include the active workitem folder path.
+- Include the active implementation handoff path.
+- The active implementation handoff path must point to the handoff created by the current successful `PLAN`.
+
+## Required Active Workitem Structure
+
+```md
+# Active Workitem
+
+## Workitem
+docs/workitems/<yyyy.MM.dd.HHmm>-<slug>/
+
+## Implementation Handoff
+docs/workitems/<yyyy.MM.dd.HHmm>-<slug>/handoffs/<yyyy.MM.dd.HHmm>-implementation-handoff.md
+```
+
 ## PLAN Requirements
 
 - First validate that no major planning blockers remain.
 - If blockers exist, output only the open questions needed to proceed.
 - Create or reuse the workitem before presenting the completed plan.
 - Put the planning detail into the implementation handoff.
+- Update `docs/workitems/active.md` only after the handoff has been created successfully.
 - Keep the chat response short and avoid duplicating the handoff content.
 - Use a separate `plans/` folder or `plan.md` file only when explicitly requested.
 

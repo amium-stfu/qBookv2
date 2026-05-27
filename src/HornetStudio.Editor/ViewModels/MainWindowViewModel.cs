@@ -2073,6 +2073,8 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             case ControlKind.Monitor:
                 control["MonitorDefinitions"] = MonitorDefinitionCodec.ToJsonArray(item.MonitorDefinitions, item.FolderName);
                 break;
+            case ControlKind.Functions:
+                break;
         }
 
         if (control.Count > 0)
@@ -2134,6 +2136,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.EnhancedSignals => "EnhancedSignals",
             ControlKind.ControllerWidget => "ControllerWidget",
             ControlKind.Monitor => "Monitor",
+            ControlKind.Functions => "Functions",
             ControlKind.DialogWidget => "DialogWidget",
             ControlKind.ItemModel or ControlKind.Signal => "Signal",
             _ => "Signal"
@@ -2310,7 +2313,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ["Argument"] = rule.Argument
             };
 
-            jsonRule["FunctionName"] = rule.Action == ItemInteractionAction.InvokePythonFunction
+            jsonRule["FunctionName"] = IsInteractionFunctionNameAction(rule.Action)
                 ? rule.FunctionName
                 : string.Empty;
 
@@ -2355,7 +2358,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                     var functionName = GetJsonNodeText(ruleObject["FunctionName"]);
                     var argument = GetJsonNodeText(ruleObject["Argument"]);
 
-                    if (actionKind != ItemInteractionAction.InvokePythonFunction)
+                    if (!IsInteractionFunctionNameAction(actionKind))
                     {
                         argument = string.IsNullOrWhiteSpace(argument) ? functionName : argument;
                         functionName = string.Empty;
@@ -2593,6 +2596,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.EnhancedSignals => "EnhancedSignals",
             ControlKind.ControllerWidget => "ControllerWidget",
             ControlKind.Monitor => "Monitor",
+            ControlKind.Functions => "Functions",
             ControlKind.DialogWidget => "DialogWidget",
             ControlKind.ItemModel or ControlKind.Signal => "Signal",
             _ => "Signal"
@@ -3057,6 +3061,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             {
                 Kind = ControlKind.Button,
                 ControlCaption = string.Empty,
+                CaptionVisible = false,
                 BodyCaption = "Button",
                 BodyCaptionVisible = false,
                 Footer = "Action button",
@@ -3070,7 +3075,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Width = Math.Max(width, 140),
                 Height = Math.Max(height, 56)
             },
-            ControlKind.Signal => CreateDefaultItem(x, y, width, height),
+            ControlKind.Signal => CreateDefaultSignalItem(x, y, width, height),
             ControlKind.ItemModel => CreateDefaultItem(x, y, width, height),
             ControlKind.WidgetList => new FolderItemModel
             {
@@ -3093,6 +3098,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Kind = ControlKind.TableControl,
                 ControlCaption = string.Empty,
                 BodyCaption = "TableControl",
+                BodyCaptionVisible = false,
                 Footer = string.Empty,
                 X = x,
                 Y = y,
@@ -3178,6 +3184,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Kind = ControlKind.ChartControl,
                 ControlCaption = string.Empty,
                 BodyCaption = "Chart",
+                BodyCaptionVisible = false,
                 Footer = "Live numeric trend",
                 X = x,
                 Y = y,
@@ -3214,7 +3221,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Name = "ItemClient",
                 ControlCaption = string.Empty,
                 BodyCaption = "Item Client",
-                BodyCaptionVisible = true,
+                BodyCaptionVisible = false,
                 ShowFooter = true,
                 Footer = "Disconnected",
                 BrokerHost = ItemClientDefaults.Host,
@@ -3319,13 +3326,28 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 Height = Math.Max(height, 220),
                 ContainerBorderWidth = 0
             },
+            ControlKind.Functions => new FolderItemModel
+            {
+                Kind = ControlKind.Functions,
+                Name = "Functions",
+                ControlCaption = "Functions",
+                BodyCaption = string.Empty,
+                BodyCaptionVisible = false,
+                ShowFooter = true,
+                Footer = "No functions discovered",
+                X = x,
+                Y = y,
+                Width = Math.Max(width, 420),
+                Height = Math.Max(height, 220),
+                ContainerBorderWidth = 0
+            },
             ControlKind.DialogWidget => new FolderItemModel
             {
                 Kind = ControlKind.DialogWidget,
                 Name = "DialogWidget",
                 ControlCaption = "DialogWidget",
                 BodyCaption = "Dialog content",
-                BodyCaptionVisible = true,
+                BodyCaptionVisible = false,
                 ShowFooter = true,
                 Footer = "Internal dialog overlay",
                 TableRows = 3,
@@ -3340,6 +3362,13 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
         };
 
         item.View = SelectedFolder.ActualViewId;
+        return item;
+    }
+
+    private static FolderItemModel CreateDefaultSignalItem(double x, double y, double width, double height)
+    {
+        var item = CreateDefaultItem(x, y, width, height);
+        item.BodyCaptionVisible = false;
         return item;
     }
 
@@ -6258,6 +6287,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlKind.EnhancedSignals => 420,
                 ControlKind.ControllerWidget => 420,
                 ControlKind.Monitor => 420,
+                ControlKind.Functions => 420,
                 ControlKind.DialogWidget => 420,
                 _ => 140
             }),
@@ -6279,6 +6309,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlKind.EnhancedSignals => 180,
                 ControlKind.ControllerWidget => 180,
                 ControlKind.Monitor => 180,
+                ControlKind.Functions => 180,
                 ControlKind.DialogWidget => 260,
                 _ => 72
             })
@@ -6309,6 +6340,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
                 ControlKind.EnhancedSignals => "EnhancedSignals",
                 ControlKind.ControllerWidget => "ControllerWidget",
                 ControlKind.Monitor => "Monitor",
+                ControlKind.Functions => "Functions",
                 ControlKind.DialogWidget => "DialogWidget",
                 ControlKind.ItemModel or ControlKind.Signal => "Signal",
                 _ => "Signal"
@@ -6420,6 +6452,11 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ItemInteractionAction.OpenDialog or ItemInteractionAction.CloseDialog => ExtractDialogWidgetId(targetPath),
             _ => TargetPathHelper.NormalizeConfiguredTargetPath(targetPath)
         };
+
+    private static bool IsInteractionFunctionNameAction(ItemInteractionAction action)
+        => action is ItemInteractionAction.InvokePythonFunction
+            or ItemInteractionAction.RunFunction
+            or ItemInteractionAction.StopFunction;
 
     internal static (string Kind, string Parameter) SplitPropertyFormat(string? format)
     {
@@ -6714,6 +6751,7 @@ public class MainWindowViewModel : ObservableObject, IEditorUiHost
             ControlKind.EnhancedSignals => "enhanced_signals",
             ControlKind.ControllerWidget => "controller_widget",
             ControlKind.Monitor => "monitor",
+            ControlKind.Functions => "workflow_widget",
             ControlKind.DialogWidget => "dialog_widget",
             ControlKind.ItemModel or ControlKind.Signal => "signal",
             _ => "signal"

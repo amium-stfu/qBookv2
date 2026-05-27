@@ -10,12 +10,29 @@ Use this file only as Copilot-specific routing and execution context. Do not tre
 
 - Interpret these instructions as persistent workspace rules, even if a task only references a single file.
 - Follow root `AGENTS.md` first.
-- For mode behavior, follow `agents/modes.md` and the mode-specific modules referenced there.
+- For mode behavior, use the mode routing table in root `AGENTS.md` and then read the mode-specific modules referenced there.
 - For HornetStudio-specific rules, follow `agents/solution.md`.
 - Prefer precise edits in existing files over broad rewrites.
 - If multiple rules apply, follow the most specific rule for the affected area.
 - If a referenced path or project convention appears stale, search the repository before changing code.
 - For larger implementation work, use a new chat or a dedicated handoff when the task would otherwise accumulate too much context.
+
+## Mode Routing
+
+- Recognize mode commands only when they are the first non-empty token of the user message, following the rules in root `AGENTS.md`.
+- Supported short mode commands include `#ask`, `#struct`, `#plan`, `#todo`, `#impl`, `#fix`, `#debug`, `#clean`, `#build`, and `#publish`.
+- When a mode is recognized, read root `AGENTS.md`, the referenced mode module, any task-relevant supporting modules, and `agents/solution.md` before answering or changing files.
+- Do not answer from this Copilot instructions file alone when a mode has a referenced module.
+
+## Active Workitem Handoff
+
+- Treat `docs/workitems/active.md` as the repository-relative pointer from planning to implementation.
+- The path is relative to the workspace root that contains root `AGENTS.md`; do not resolve it relative to the current editor file, project file, or solution folder.
+- For `#impl` / `IMPLEMENT`, read `docs/workitems/active.md` before making implementation decisions.
+- If `docs/workitems/active.md` exists and contains a workitem path and an implementation handoff path, read the referenced handoff and use it as the primary execution source.
+- If `docs/workitems/active.md` is missing, malformed, or points to missing files, stop and ask for clarification instead of searching for a different active handoff.
+- If the current user request gives explicit implementation instructions, those instructions take priority over the active handoff unless they conflict with it.
+- If the current request conflicts with the active handoff, stop and ask which source should be followed.
 
 ## Scope Rules
 

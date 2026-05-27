@@ -27,6 +27,7 @@ Monitors item values and state conditions, publishes rule-based runtime status e
 - `Default` mode evaluates configured lower and upper limits
 - `Custom` mode evaluates a boolean formula built only from rule variables
 - The direct source picker is available only in `Default` mode; `Custom` mode uses variable source pickers inside the formula section
+- `Custom` mode now uses the shared boolean condition editor with variable rows, source picking, token buttons, and live validation
 - Actions run on `OnActivated` and `OnCleared` transitions and execute in configured order
 - `WriteLog` uses a log target, `SetValue` uses an item target plus argument, and `InvokeFunction` uses an application target, function name, and optional argument
 - Widget identity that defines the published runtime path root

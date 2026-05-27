@@ -299,149 +299,18 @@
                         BorderThickness="1"
                         CornerRadius="8"
                         IsVisible="{Binding IsCustomMode}">
-                  <StackPanel Spacing="10">
-                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                      <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Variables" />
-                        <Button Grid.Column="1"
-                              Width="40"
-                              Height="40"
-                              Classes="dialog-button"
-                              Background="{Binding ButtonBackground}"
-                              BorderBrush="{Binding ButtonBorderBrush}"
-                              Foreground="{Binding ButtonForeground}"
-                              ToolTip.Tip="Add variable"
-                              Click="OnAddVariableClicked">
-                        <controls:ThemeSvgIcon Width="22"
-                                                Height="22"
-                                                IconPath="avares://HornetStudio.Editor/EditorIcons/circle-plus-solid-full.svg"
-                                                TintColor="{Binding ButtonForeground}" />
-                      </Button>
-                    </Grid>
-
-                    <ItemsControl ItemsSource="{Binding Variables}">
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="widgets:CustomSignalVariableEntryViewModel">
-                          <Grid ColumnDefinitions="92,*,40,40" Margin="0,10,0,8">
-                            <TextBox Classes="template-field"
-                                     Background="{Binding #Root.DataContext.EditorBackground}"
-                                     BorderBrush="{Binding #Root.DataContext.BorderColor}"
-                                     Foreground="{Binding #Root.DataContext.EditorForeground}"
-                                     Text="{Binding Name, Mode=TwoWay}" />
-                            <TextBox Grid.Column="1"
-                                     Margin="8,0,0,0"
-                                     Classes="template-field"
-                                     Background="{Binding #Root.DataContext.EditorBackground}"
-                                     BorderBrush="{Binding #Root.DataContext.BorderColor}"
-                                     Foreground="{Binding #Root.DataContext.EditorForeground}"
-                                     Text="{Binding SourcePath, Mode=TwoWay}" />
-                            <Button Grid.Column="2"
-                                    Margin="8,0,0,0"
-                                    Classes="icon-button"
-                                    Background="{Binding #Root.DataContext.ButtonBackground}"
-                                    BorderBrush="{Binding #Root.DataContext.ButtonBorderBrush}"
-                                    Foreground="{Binding #Root.DataContext.ButtonForeground}"
-                                    ToolTip.Tip="Pick variable source"
-                                    Click="OnPickVariableSourceClicked"
-                                    CommandParameter="{Binding .}">
-                              <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg" TintColor="{Binding #Root.DataContext.ButtonForeground}" />
-                            </Button>
-                            <Button Grid.Column="3"
-                                    Margin="8,0,0,0"
-                                    Classes="icon-button"
-                                    Background="{Binding #Root.DataContext.ButtonBackground}"
-                                    BorderBrush="{Binding #Root.DataContext.ButtonBorderBrush}"
-                                    Foreground="{Binding #Root.DataContext.ButtonForeground}"
-                                    ToolTip.Tip="Delete variable"
-                                    Click="OnRemoveVariableClicked"
-                                    CommandParameter="{Binding .}">
-                              <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/trash.svg" TintColor="{Binding #Root.DataContext.ButtonForeground}" />
-                            </Button>
-                          </Grid>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="Use short variable names like A, B or Speed and pick the source path for each variable." TextWrapping="Wrap" />
-                  </StackPanel>
-                </Border>
-
-                <Border Padding="12"
-                        Background="{Binding SectionBackground}"
-                        BorderBrush="{Binding BorderColor}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        IsVisible="{Binding IsCustomMode}">
-                  <StackPanel Spacing="10">
-                    <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Formula" />
-
-                    <Grid ColumnDefinitions="*,260" VerticalAlignment="Top">
-                      <Grid RowDefinitions="Auto,*">
-                        <ItemsControl ItemsSource="{Binding VariableButtons}">
-                          <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                              <WrapPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                          </ItemsControl.ItemsPanel>
-                          <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="widgets:FormulaInsertButtonDefinition">
-                                    <Button Margin="0,0,6,6"
-                                      Classes="token-button"
-                                      Background="{Binding #Root.DataContext.TokenButtonBackground}"
-                                      BorderBrush="{Binding #Root.DataContext.TokenButtonBorderBrush}"
-                                      Foreground="{Binding #Root.DataContext.TokenButtonForeground}"
-                                      Content="{Binding Label}"
-                                      ToolTip.Tip="{Binding ToolTip}"
-                                      Click="OnInsertFormulaTokenClicked"
-                                      CommandParameter="{Binding .}" />
-                            </DataTemplate>
-                          </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <Border Grid.Row="1"
-                                Margin="0,8,0,0"
-                                Background="{Binding FormulaPanelBackground}"
-                                BorderBrush="{Binding BorderColor}"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="0">
-                          <TextBox x:Name="FormulaEditorTextBox"
-                                   AcceptsReturn="True"
-                                   MinHeight="150"
-                                   TextWrapping="Wrap"
-                                   VerticalContentAlignment="Top"
-                                   Background="Transparent"
-                                   BorderThickness="0"
-                                   Foreground="{Binding EditorForeground}"
-                                   Padding="12"
-                                   Text="{Binding FormulaText, Mode=TwoWay}" />
-                        </Border>
-                      </Grid>
-
-                      <ItemsControl Grid.Column="1" Margin="12,42,0,0" ItemsSource="{Binding OperatorButtons}">
-                        <ItemsControl.ItemsPanel>
-                          <ItemsPanelTemplate>
-                            <UniformGrid Columns="5" />
-                          </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate x:DataType="widgets:FormulaInsertButtonDefinition">
-                                <Button Margin="0,0,4,4"
-                                  Classes="token-button"
-                                  Background="{Binding #Root.DataContext.TokenButtonBackground}"
-                                  BorderBrush="{Binding #Root.DataContext.TokenButtonBorderBrush}"
-                                  Foreground="{Binding #Root.DataContext.TokenButtonForeground}"
-                                  Content="{Binding Label}"
-                                    ToolTip.Tip="{Binding ToolTip}"
-                                    Click="OnInsertFormulaTokenClicked"
-                                    CommandParameter="{Binding .}" />
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                    </Grid>
-
-                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="{Binding ExampleText}" TextWrapping="Wrap" />
-                    <TextBlock FontSize="11" Foreground="{Binding FormulaStatusBrush}" Text="{Binding FormulaStatusMessage}" TextWrapping="Wrap" IsVisible="{Binding ShowFormulaStatus}" />
-                  </StackPanel>
+                  <controls:BooleanConditionEditorControl Editor="{Binding ConditionEditor}"
+                                                         SectionBackground="{Binding FormulaPanelBackground}"
+                                                         BorderColor="{Binding BorderColor}"
+                                                         PrimaryTextBrush="{Binding PrimaryTextBrush}"
+                                                         SecondaryTextBrush="{Binding SecondaryTextBrush}"
+                                                         EditorBackground="{Binding EditorBackground}"
+                                                         EditorForeground="{Binding EditorForeground}"
+                                                         ButtonBackground="{Binding ButtonBackground}"
+                                                         ButtonBorderBrush="{Binding ButtonBorderBrush}"
+                                                         ButtonForeground="{Binding ButtonForeground}"
+                                                         ParameterHoverColor="{Binding ParameterHoverColor}"
+                                                         VariableSourcePickRequested="OnConditionVariableSourcePickRequested" />
                 </Border>
               </StackPanel>
             </TabItem>

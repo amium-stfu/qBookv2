@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <Compile Include="IEditorUiHost.cs" />
+    <Compile Include="Functions\**\*.cs" />
     <Compile Include="Widgets\**\*.cs" />
     <Compile Include="Helpers\**\*.cs" />
     <Compile Include="Converters\**\*.cs" />

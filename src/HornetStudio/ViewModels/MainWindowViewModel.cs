@@ -2081,6 +2081,7 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
         var isChartControl = kind == ControlKind.ChartControl;
         var isCircleDisplay = kind == ControlKind.CircleDisplay;
         var isItemClient = kind == ControlKind.ItemClient;
+        var isFunctions = kind == ControlKind.Functions;
         var item = new FolderItemModel
         {
             Kind = kind,
@@ -2090,8 +2091,8 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
             Footer = isButton ? "Action" : type,
             X = node.X ?? defaultX,
             Y = node.Y ?? defaultY,
-            Width = node.Width ?? (isButton ? 320 : (kind == ControlKind.LogControl ? 420 : (isChartControl ? 520 : (isItemClient ? 420 : (isCircleDisplay ? 280 : 260))))),
-            Height = node.Height ?? (isButton ? 96 : (kind == ControlKind.LogControl ? 260 : (isChartControl ? 260 : (isWidgetList ? 220 : (isItemClient ? 190 : (isCircleDisplay ? 280 : 84)))))),
+            Width = node.Width ?? (isButton ? 320 : (kind == ControlKind.LogControl ? 420 : (isChartControl ? 520 : (isItemClient ? 420 : (isFunctions ? 420 : (isCircleDisplay ? 280 : 260)))))),
+            Height = node.Height ?? (isButton ? 96 : (kind == ControlKind.LogControl ? 260 : (isChartControl ? 260 : (isWidgetList ? 220 : (isItemClient ? 190 : (isFunctions ? 220 : (isCircleDisplay ? 280 : 84))))))),
             IsAutoHeight = isWidgetList,
             UiNodeType = string.IsNullOrWhiteSpace(type) ? GetDefaultUiType(kind) : type,
             UiProperties = CloneJsonObject(node.Properties)
@@ -2213,6 +2214,13 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
         if (string.Equals(type, "Monitor", StringComparison.OrdinalIgnoreCase))
         {
             return ControlKind.Monitor;
+        }
+
+        if (string.Equals(type, "Functions", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "WorkflowWidget", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "Workflow", StringComparison.OrdinalIgnoreCase))
+        {
+            return ControlKind.Functions;
         }
 
         if (string.Equals(type, "DialogWidget", StringComparison.OrdinalIgnoreCase))
@@ -2343,6 +2351,10 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
     {
         // Normalize to full path for mapping consistency.
         var fullPath = Path.GetFullPath(e.FullPath);
+        if (!IsWatchedFolderLayoutFile(fullPath))
+        {
+            return;
+        }
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -2368,6 +2380,10 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
     private void OnBookFileDeleted(object sender, FileSystemEventArgs e)
     {
         var fullPath = Path.GetFullPath(e.FullPath);
+        if (!IsWatchedFolderLayoutFile(fullPath))
+        {
+            return;
+        }
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -2387,6 +2403,12 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
     {
         var oldFullPath = Path.GetFullPath(e.OldFullPath);
         var newFullPath = Path.GetFullPath(e.FullPath);
+        var oldIsFolderLayout = IsWatchedFolderLayoutFile(oldFullPath);
+        var newIsFolderLayout = IsWatchedFolderLayoutFile(newFullPath);
+        if (!oldIsFolderLayout && !newIsFolderLayout)
+        {
+            return;
+        }
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -2396,9 +2418,26 @@ public sealed class MainWindowViewModel : HornetStudio.Editor.ViewModels.MainWin
                 return;
             }
 
-            _watchedPages.Remove(oldFullPath);
-            _ = HandleBookFileUpsertAsync(newFullPath);
+            if (oldIsFolderLayout)
+            {
+                _watchedPages.Remove(oldFullPath);
+            }
+
+            if (newIsFolderLayout)
+            {
+                _ = HandleBookFileUpsertAsync(newFullPath);
+                return;
+            }
+
+            UpdatePagesFromWatchedPages(ProjectPath);
         });
+    }
+
+    private static bool IsWatchedFolderLayoutFile(string fullPath)
+    {
+        var fileName = Path.GetFileName(fullPath);
+        return string.Equals(fileName, FolderLayoutFileName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fileName, LegacyFolderLayoutFileName, StringComparison.OrdinalIgnoreCase);
     }
 
     private bool ShouldIgnoreWatcherUpsert(string fullPath, DateTime now)

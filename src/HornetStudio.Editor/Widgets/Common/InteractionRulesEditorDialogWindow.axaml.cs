@@ -52,6 +52,7 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
     private string _newTargetPath = "this";
     private string _newFunctionName = string.Empty;
     private string _newArgument = string.Empty;
+    private FunctionPickerOption? _selectedNewRunFunctionOption;
 
     public new event PropertyChangedEventHandler? PropertyChanged;
 
@@ -100,6 +101,8 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
     public ObservableCollection<string> ActionOptions { get; }
 
     public ObservableCollection<string> TargetOptions { get; }
+
+    public ObservableCollection<FunctionPickerOption> NewRunFunctionOptions { get; } = [];
 
     public string DialogBackground
     {
@@ -199,10 +202,14 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
             _newActionName = normalized;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewActionName)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewPythonFunctionAction)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewRunFunctionAction)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewDialogAction)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsTargetSelection)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsesComboTargetSelection)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsesBrowseTargetSelection)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsFunctionPicker)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsLegacyFunctionPicker)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsArgumentEditor)));
             RefreshNewEntryOptions();
         }
     }
@@ -213,7 +220,7 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         set
         {
             var normalized = value ?? string.Empty;
-            if (UsesBrowseTargetSelection && string.IsNullOrWhiteSpace(normalized))
+            if (ShowsTargetSelection && string.IsNullOrWhiteSpace(normalized))
             {
                 normalized = "this";
             }
@@ -232,7 +239,32 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
     public string NewFunctionName
     {
         get => _newFunctionName;
-        set => SetAndRaise(ref _newFunctionName, value ?? string.Empty, nameof(NewFunctionName));
+        set
+        {
+            var normalized = value ?? string.Empty;
+            if (_newFunctionName == normalized)
+            {
+                return;
+            }
+
+            _newFunctionName = normalized;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewFunctionName)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedNewRunFunctionOption)));
+        }
+    }
+
+    public FunctionPickerOption? SelectedNewRunFunctionOption
+    {
+        get => _selectedNewRunFunctionOption;
+        set
+        {
+            if (!ReferenceEquals(_selectedNewRunFunctionOption, value))
+            {
+                _selectedNewRunFunctionOption = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedNewRunFunctionOption)));
+                NewFunctionName = value?.Reference ?? string.Empty;
+            }
+        }
     }
 
     public string NewArgument
@@ -243,15 +275,25 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
 
     public bool IsNewPythonFunctionAction => string.Equals(NewActionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase);
 
+    public bool IsNewRunFunctionAction
+        => string.Equals(NewActionName, nameof(ItemInteractionAction.RunFunction), StringComparison.OrdinalIgnoreCase)
+            || string.Equals(NewActionName, nameof(ItemInteractionAction.StopFunction), StringComparison.OrdinalIgnoreCase);
+
     public bool IsNewDialogAction
         => string.Equals(NewActionName, nameof(ItemInteractionAction.OpenDialog), StringComparison.OrdinalIgnoreCase)
             || string.Equals(NewActionName, nameof(ItemInteractionAction.CloseDialog), StringComparison.OrdinalIgnoreCase);
 
+    public bool ShowsTargetSelection => !IsNewRunFunctionAction;
+
     public bool UsesComboTargetSelection => IsNewPythonFunctionAction || IsNewDialogAction;
 
-    public bool UsesBrowseTargetSelection => !UsesComboTargetSelection;
+    public bool UsesBrowseTargetSelection => ShowsTargetSelection && !UsesComboTargetSelection;
 
-    public bool ShowsFunctionPicker => IsNewPythonFunctionAction;
+    public bool ShowsFunctionPicker => IsNewPythonFunctionAction || IsNewRunFunctionAction;
+
+    public bool ShowsLegacyFunctionPicker => IsNewPythonFunctionAction;
+
+    public bool ShowsArgumentEditor => true;
 
     protected override void OnClosed(System.EventArgs e)
     {
@@ -489,12 +531,55 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
             return;
         }
 
-        var functionOptions = _field.GetInteractionFunctionOptions(NewTargetPath);
+        if (!ShowsTargetSelection)
+        {
+            NewTargetPath = "this";
+        }
+
+        var functionOptions = _field.GetInteractionFunctionOptions(NewActionName, NewTargetPath);
+
+        NewRunFunctionOptions.Clear();
+        if (IsNewRunFunctionAction)
+        {
+            foreach (var option in _field.GetRunFunctionOptions())
+            {
+                NewRunFunctionOptions.Add(option);
+            }
+
+            var selectedOption = NewRunFunctionOptions.FirstOrDefault(option => HornetStudio.Editor.Functions.FunctionRegistry.ReferencesEqual(option.Reference, NewFunctionName));
+            if (selectedOption is null && !string.IsNullOrWhiteSpace(NewFunctionName))
+            {
+                selectedOption = new FunctionPickerOption
+                {
+                    Reference = NewFunctionName.Trim(),
+                    DisplayText = $"Missing / {NewFunctionName.Trim()}"
+                };
+                NewRunFunctionOptions.Add(selectedOption);
+            }
+
+            if (selectedOption is null)
+            {
+                selectedOption = NewRunFunctionOptions.FirstOrDefault();
+            }
+
+            _selectedNewRunFunctionOption = selectedOption;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedNewRunFunctionOption)));
+            NewFunctionName = selectedOption?.Reference ?? NewFunctionName;
+            return;
+        }
+
         var functionCombo = this.FindControl<ComboBox>("NewFunctionComboBox");
         if (functionCombo is not null)
         {
             functionCombo.ItemsSource = functionOptions;
         }
+
+        if (!string.IsNullOrWhiteSpace(NewFunctionName) && functionOptions.Contains(NewFunctionName, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        NewFunctionName = functionOptions.FirstOrDefault() ?? NewFunctionName;
     }
 
     private async Task<string?> SelectTargetAsync(IEnumerable<string> options, string currentSelection)

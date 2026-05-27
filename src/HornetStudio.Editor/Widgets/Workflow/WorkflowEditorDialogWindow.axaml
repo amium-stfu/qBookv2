@@ -1,0 +1,447 @@
+<Window
+  x:Class="HornetStudio.Editor.Widgets.FunctionEditorDialogWindow"
+  x:Name="Root"
+  x:CompileBindings="False"
+  x:DataType="widgets:FunctionEditorDialogWindow"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:controls="using:HornetStudio.Editor.Controls"
+  xmlns:workflow="using:HornetStudio.Editor.Widgets.Workflow"
+  xmlns:widgets="using:HornetStudio.Editor.Widgets"
+    Width="1220"
+    MinWidth="1080"
+    MinHeight="320"
+    MaxHeight="860"
+    SizeToContent="Height"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    Title="Function Editor"
+    Background="{Binding DialogBackground}">
+  <Window.Resources>
+    <DataTemplate x:Key="FunctionStepRowTemplate" x:DataType="workflow:FunctionStepEditorRow">
+      <Border Margin="0,0,0,10"
+              Padding="10"
+              Background="{Binding EditorDialogSectionContentBackground, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+              BorderBrush="{Binding BorderColor, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+              BorderThickness="1"
+              CornerRadius="8">
+        <StackPanel Spacing="8">
+          <Grid ColumnDefinitions="120,360,34,140,*,34,Auto,Auto,Auto">
+            <ComboBox Classes="dialog-field"
+                      HorizontalAlignment="Stretch"
+                      IsVisible="{Binding !IsPreserved}"
+                      ItemsSource="{Binding StepTypeOptions, ElementName=Root}"
+                      SelectedItem="{Binding StepType, Mode=TwoWay}" />
+            <TextBox Classes="dialog-field"
+                     HorizontalAlignment="Stretch"
+                     IsVisible="{Binding IsPreserved}"
+                     IsReadOnly="True"
+                     Text="{Binding StepType}" />
+
+            <TextBox Grid.Column="1" Margin="10,0,0,0"
+                     Classes="dialog-field step-focus-target-field"
+                     IsVisible="{Binding ShowsSetValueFields}"
+                     Text="{Binding Target, Mode=TwoWay}"
+                     Watermark="Target path" />
+            <Button Grid.Column="2" Margin="4,0,0,0"
+                    Classes="icon-button"
+                    IsVisible="{Binding ShowsSetValueFields}"
+                    VerticalAlignment="Center"
+                    CommandParameter="{Binding}"
+                    ToolTip.Tip="Browse target"
+                    Click="OnBrowseStepTargetClicked">
+              <controls:ThemeSvgIcon Width="14" Height="14"
+                                     IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg"
+                                     TintColor="{Binding ButtonForeground, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}" />
+            </Button>
+            <TextBox Grid.Column="4" Margin="8,0,0,0"
+                     Classes="dialog-field"
+                     IsVisible="{Binding ShowsSetValueFields}"
+                     Text="{Binding Value, Mode=TwoWay}"
+                     Watermark="{Binding ValueWatermark}" />
+            <Button Grid.Column="5" Margin="4,0,0,0"
+                    Classes="icon-button"
+                    IsVisible="{Binding ShowsSetValueFields}"
+                    VerticalAlignment="Center"
+                    CommandParameter="{Binding}"
+                    ToolTip.Tip="Browse source item"
+                    Click="OnBrowseStepValueFromClicked">
+              <controls:ThemeSvgIcon Width="14" Height="14"
+                                     IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg"
+                                     TintColor="{Binding ButtonForeground, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}" />
+            </Button>
+
+            <Grid Grid.Column="1" Margin="10,0,0,0"
+                  HorizontalAlignment="Left"
+                  IsVisible="{Binding ShowsDelayFields}"
+                  ColumnDefinitions="120,Auto">
+              <TextBox Classes="dialog-field step-focus-delay-field"
+                       Text="{Binding MillisecondsText, Mode=TwoWay}"
+                       Watermark="Milliseconds" />
+              <TextBlock Grid.Column="1" Margin="8,0,0,0"
+                         VerticalAlignment="Center"
+                         FontSize="12"
+                         Foreground="{Binding SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                         Text="ms" />
+            </Grid>
+
+            <ComboBox Grid.Column="1" Margin="10,0,0,0"
+                      Classes="dialog-field step-focus-log-target-field"
+                      IsVisible="{Binding ShowsLogFields}"
+                      ItemsSource="{Binding LogTargetOptions, ElementName=Root}"
+                      SelectedItem="{Binding TargetLog, Mode=TwoWay}" />
+            <ComboBox Grid.Column="3" Margin="8,0,0,0"
+                      Classes="dialog-field"
+                      IsVisible="{Binding ShowsLogFields}"
+                      ItemsSource="{Binding LogLevelOptions, ElementName=Root}"
+                      SelectedItem="{Binding LevelText, Mode=TwoWay}" />
+            <TextBox Grid.Column="4" Margin="8,0,0,0"
+                     Classes="dialog-field"
+                     IsVisible="{Binding ShowsLogFields}"
+                     Text="{Binding Text, Mode=TwoWay}"
+                     Watermark="Log text" />
+
+            <Button Grid.Column="1" Margin="10,0,0,0"
+                    HorizontalAlignment="Left"
+                    Classes="dialog-button step-focus-condition-button"
+                    IsVisible="{Binding ShowsIfThenElseFields}"
+                    CommandParameter="{Binding}"
+                    Content="{Binding ConditionButtonText}"
+                    Click="OnEditConditionClicked" />
+            <Button Grid.Column="1" Margin="10,0,0,0"
+                    HorizontalAlignment="Left"
+                    Classes="dialog-button step-focus-condition-button"
+                    IsVisible="{Binding ShowsWhileFields}"
+                    CommandParameter="{Binding}"
+                    Content="{Binding ConditionButtonText}"
+                    Click="OnEditConditionClicked" />
+            <WrapPanel Grid.Column="4" Margin="8,0,0,0"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding ShowsIfThenElseFields}"
+                       Orientation="Horizontal">
+              <TextBlock Margin="0,0,12,0"
+                         FontSize="12"
+                         Foreground="{Binding SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                         Text="{Binding ConditionSummary}" />
+              <TextBlock Margin="0,0,12,0"
+                         FontSize="12"
+                         Foreground="{Binding SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                         Text="{Binding ThenSummary}" />
+              <TextBlock Margin="0,0,0,0"
+                         FontSize="12"
+                         Foreground="{Binding SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                         Text="{Binding ElseSummary}" />
+            </WrapPanel>
+
+            <WrapPanel Grid.Column="4" Margin="8,0,0,0"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding ShowsWhileFields}"
+                       Orientation="Horizontal">
+              <TextBlock Margin="0,0,12,0"
+                         FontSize="12"
+                         Foreground="{Binding SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                         Text="{Binding ConditionSummary}" />
+              <TextBlock Margin="0,0,0,0"
+                         FontSize="12"
+                         Foreground="{Binding SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                         Text="{Binding WhileSummary}" />
+            </WrapPanel>
+
+            <Button Grid.Column="6" Margin="8,0,0,0" Classes="icon-button" CommandParameter="{Binding}" ToolTip.Tip="Move step up" Click="OnMoveUpStepClicked">
+              <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/caret-up.svg" TintColor="{Binding ButtonForeground, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}" />
+            </Button>
+            <Button Grid.Column="7" Margin="8,0,0,0" Classes="icon-button" CommandParameter="{Binding}" ToolTip.Tip="Move step down" Click="OnMoveDownStepClicked">
+              <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/caret-down.svg" TintColor="{Binding ButtonForeground, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}" />
+            </Button>
+            <Button Grid.Column="8" Margin="8,0,0,0" Classes="icon-button" CommandParameter="{Binding}" ToolTip.Tip="Remove step" Click="OnRemoveStepClicked">
+              <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/trash.svg" TintColor="{Binding ButtonForeground, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}" />
+            </Button>
+          </Grid>
+
+          <StackPanel IsVisible="{Binding ShowsIfThenElseFields}" Spacing="8">
+            <Border Background="{Binding EditorDialogSectionContentBackground, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                    BorderBrush="{Binding BorderColor, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="10">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,160,Auto">
+                  <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}" Text="If Block" />
+                  <ComboBox Grid.Column="1" Margin="8,0,0,0" Width="160" Classes="dialog-field" ItemsSource="{Binding StepTypeOptions, ElementName=Root}" SelectedItem="{Binding NewThenStepType, Mode=TwoWay}" />
+                  <Button Grid.Column="2" Margin="8,0,0,0" Classes="dialog-button" Content="Add" CommandParameter="{Binding}" Tag="Then" Click="OnAddBranchStepClicked" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding ThenRows}" ItemTemplate="{StaticResource FunctionStepRowTemplate}" />
+              </StackPanel>
+            </Border>
+
+            <Border Background="{Binding EditorDialogSectionContentBackground, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                    BorderBrush="{Binding BorderColor, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="10">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,160,Auto">
+                  <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}" Text="Else Block" />
+                  <ComboBox Grid.Column="1" Margin="8,0,0,0" Width="160" Classes="dialog-field" ItemsSource="{Binding StepTypeOptions, ElementName=Root}" SelectedItem="{Binding NewElseStepType, Mode=TwoWay}" />
+                  <Button Grid.Column="2" Margin="8,0,0,0" Classes="dialog-button" Content="Add" CommandParameter="{Binding}" Tag="Else" Click="OnAddBranchStepClicked" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding ElseRows}" ItemTemplate="{StaticResource FunctionStepRowTemplate}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <StackPanel IsVisible="{Binding ShowsWhileFields}" Spacing="8">
+            <Border Background="{Binding EditorDialogSectionContentBackground, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                    BorderBrush="{Binding BorderColor, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="10">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,160,Auto">
+                  <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}" Text="While Body" />
+                  <ComboBox Grid.Column="1" Margin="8,0,0,0" Width="160" Classes="dialog-field" ItemsSource="{Binding StepTypeOptions, ElementName=Root}" SelectedItem="{Binding NewWhileStepType, Mode=TwoWay}" />
+                  <Button Grid.Column="2" Margin="8,0,0,0" Classes="dialog-button" Content="Add" CommandParameter="{Binding}" Tag="While" Click="OnAddBranchStepClicked" />
+                </Grid>
+                <TextBlock FontSize="11"
+                           Foreground="{Binding SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                           Text="Each While body requires at least one positive Delay step. The required delay may be moved within the body." 
+                           TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding WhileRows}" ItemTemplate="{StaticResource FunctionStepRowTemplate}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <Border IsVisible="{Binding IsPreserved}"
+                  Padding="10,8"
+                  Background="{Binding DialogBackground, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                  BorderBrush="{Binding BorderColor, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}"
+                  BorderThickness="1"
+                  CornerRadius="6">
+            <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush, RelativeSource={RelativeSource AncestorType=widgets:FunctionEditorDialogWindow}}" Text="{Binding Summary}" TextWrapping="Wrap" />
+          </Border>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+  </Window.Resources>
+  <Window.Styles>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="{Binding ButtonBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground, ElementName=Root}" />
+    </Style>
+    <Style Selector="Button.icon-button">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{Binding ButtonBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor, ElementName=Root}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="TextBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor, ElementName=Root}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CaretBrush" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="SelectionBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+      <Setter Property="SelectionForegroundBrush" Value="{Binding InputForeground, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field:pointerover">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field:focus">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field:pointerover">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field:focus">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="CaretBrush" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field /template/ Border">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field:focus /template/ Border">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field /template/ Border">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field:pointerover /template/ Border">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field:focus /template/ Border">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ParameterHoverColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field /template/ ScrollViewer">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+    </Style>
+    <Style Selector="TextBox.dialog-field:readonly /template/ Border">
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field /template/ ToggleButton">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field /template/ PathIcon">
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field /template/ Path">
+      <Setter Property="Fill" Value="{Binding InputForeground, ElementName=Root}" />
+    </Style>
+  </Window.Styles>
+
+  <controls:EditorShellControl
+      Margin="16"
+      ShellBackground="{Binding DialogBackground}"
+      ShellBorderBrush="{Binding BorderColor}"
+      ShellBorderThickness="1"
+      ShellCornerRadius="10"
+      ShellPadding="14"
+      ShowHeader="True"
+      ShowFooter="True"
+      HeaderPadding="0,0,0,10">
+    <controls:EditorShellControl.HeaderContent>
+      <StackPanel Spacing="10">
+        <StackPanel>
+          <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush}" Text="Function Editor" />
+          <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="Create or edit declarative function steps including nested IfThenElse and While branches." TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Border IsVisible="{Binding HasErrorMessage}"
+                Padding="10,8"
+                Background="#FEE2E2"
+                BorderBrush="#B91C1C"
+                BorderThickness="1"
+                CornerRadius="8">
+          <TextBlock Foreground="#B91C1C" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        </Border>
+      </StackPanel>
+    </controls:EditorShellControl.HeaderContent>
+
+    <controls:EditorShellControl.BodyContent>
+      <Grid MinWidth="1080" RowDefinitions="Auto,Auto,*">
+        <StackPanel Grid.Row="0" Spacing="4">
+          <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{Binding SectionHeaderForeground}" Text="Metadata" />
+          <Border Height="1" Background="{Binding SectionBorderBrush}" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+          Margin="0,14,0,0"
+                Background="{Binding EditorDialogSectionContentBackground}"
+                BorderBrush="{Binding BorderColor}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="10">
+          <Grid ColumnDefinitions="*,280" RowDefinitions="Auto,Auto,Auto">
+            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush}" Text="Name" />
+            <TextBlock Grid.Column="1" Margin="12,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush}" Text="File" />
+
+            <TextBox Grid.Row="1"
+                     Margin="0,6,0,0"
+                     Classes="dialog-field"
+                     Text="{Binding FunctionName, Mode=TwoWay}" />
+            <TextBox Grid.Row="1"
+                     Grid.Column="1"
+                     Margin="12,6,0,0"
+                     Classes="dialog-field"
+                     IsReadOnly="{Binding IsFileNameReadOnly}"
+                     Text="{Binding FileNameStem, Mode=TwoWay}" />
+
+            <TextBlock Grid.Row="2"
+                       Margin="0,8,0,0"
+                       FontSize="11"
+                       Foreground="{Binding SecondaryTextBrush}"
+                       Text="The display name is stored inside YAML as 'name'." />
+            <TextBlock Grid.Row="2"
+                       Grid.Column="1"
+                       Margin="12,8,0,0"
+                       FontSize="11"
+                       Foreground="{Binding SecondaryTextBrush}"
+                       Text="{Binding FileNameDescription}" TextWrapping="Wrap" />
+          </Grid>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="0,14,0,0" RowDefinitions="Auto,*">
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+            <StackPanel Spacing="4">
+              <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{Binding SectionHeaderForeground}" Text="Configured Steps" />
+              <Border Height="1" Background="{Binding SectionBorderBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <ComboBox Width="160"
+                        Classes="dialog-field"
+                        ItemsSource="{Binding StepTypeOptions}"
+                        SelectedItem="{Binding NewStepType, Mode=TwoWay}" />
+              <Button Classes="dialog-button" Content="Add Step" Click="OnAddStepClicked" />
+            </StackPanel>
+          </Grid>
+
+          <Border Grid.Row="1"
+                  Margin="0,8,0,0"
+                  Background="{Binding EditorDialogSectionContentBackground}"
+                  BorderBrush="{Binding BorderColor}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="10">
+            <ScrollViewer x:Name="ConfiguredStepsScrollViewer" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+              <StackPanel>
+                <TextBlock IsVisible="{Binding HasNoRows}"
+                           FontSize="12"
+                           Foreground="{Binding SecondaryTextBrush}"
+                           Text="No function steps configured yet." />
+
+                <ItemsControl x:Name="ConfiguredStepsItemsControl" ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource FunctionStepRowTemplate}" />
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </Grid>
+    </controls:EditorShellControl.BodyContent>
+
+    <controls:EditorShellControl.FooterContent>
+      <StackPanel Spacing="10">
+        <Border Height="1" Background="{Binding SectionBorderBrush}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+          <Button Classes="dialog-button" Content="Save" Click="OnSaveClicked" />
+          <Button Classes="dialog-button" Content="Cancel" Click="OnCancelClicked" />
+        </StackPanel>
+      </StackPanel>
+    </controls:EditorShellControl.FooterContent>
+  </controls:EditorShellControl>
+</Window>

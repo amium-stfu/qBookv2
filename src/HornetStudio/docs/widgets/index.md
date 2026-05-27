@@ -31,6 +31,7 @@ This folder contains one Markdown document per widget type.
 - `SqlLoggerControl.md`
 - `TableControl.md`
 - `UdlClientControl.md`
+- `Functions.md`
 
 This naming scheme is intended to make later in-app document lookup straightforward.
 
