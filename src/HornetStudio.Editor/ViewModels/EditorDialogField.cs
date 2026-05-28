@@ -16,6 +16,17 @@ using HornetStudio.Editor.Models;
 
 namespace HornetStudio.Editor.ViewModels;
 
+public sealed class SetValueTargetDescriptor
+{
+    public string TargetPath { get; init; } = string.Empty;
+
+    public SetValueTargetKind TargetKind { get; init; }
+
+    public bool IsWritable { get; init; }
+
+    public string ValuePropertyName { get; init; } = string.Empty;
+}
+
 public sealed class EditorDialogField : ObservableObject
 {
     private bool _isReadOnly;
@@ -114,6 +125,7 @@ public sealed class EditorDialogField : ObservableObject
 
     private readonly Dictionary<string, string> _chartTargetPathByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _chartTargetNameByPath = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, SetValueTargetDescriptor> _interactionSetValueTargets = new(StringComparer.OrdinalIgnoreCase);
 
     private string _toolTipText = string.Empty;
     private string _newChartTargetPath = string.Empty;
@@ -491,6 +503,8 @@ public sealed class EditorDialogField : ObservableObject
             NewInteractionTargetPath = "this";
         }
 
+        RebuildInteractionSetValueTargetDescriptors();
+
         RebuildInteractionRuleEntries();
     }
 
@@ -623,6 +637,11 @@ public sealed class EditorDialogField : ObservableObject
         foreach (var rule in ItemInteractionRuleCodec.ParseDefinitions(Value))
         {
             InteractionRuleEntries.Add(CreateInteractionRuleEntry(rule.Event.ToString(), rule.Action.ToString(), rule.TargetPath, rule.FunctionName, rule.Argument));
+        }
+
+        foreach (var row in InteractionRuleEntries)
+        {
+            RefreshSetValueMetadata(row);
         }
 
         RaisePropertyChanged(nameof(StructuredEditorSummary));
@@ -772,6 +791,67 @@ public sealed class EditorDialogField : ObservableObject
             : PythonClientRuntimeRegistry.GetFunctionNames(HornetStudio.Editor.Widgets.ApplicationExplorerRuntime.ResolveInteractionTargetPath(null, targetPath));
     }
 
+    public SetValueTargetDescriptor GetSetValueTargetDescriptor(string? targetPath)
+    {
+        var normalizedTargetPath = string.IsNullOrWhiteSpace(targetPath)
+            ? "this"
+            : TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
+
+        if (TryResolveInteractionTargetDescriptor(normalizedTargetPath, out var descriptor))
+        {
+            _interactionSetValueTargets[normalizedTargetPath] = descriptor;
+            return descriptor;
+        }
+
+        if (_interactionSetValueTargets.TryGetValue(normalizedTargetPath, out descriptor))
+        {
+            return descriptor;
+        }
+
+        return new SetValueTargetDescriptor
+        {
+            TargetPath = normalizedTargetPath,
+            TargetKind = SetValueTargetKind.Unknown,
+            IsWritable = true,
+            ValuePropertyName = string.Empty
+        };
+    }
+
+    public IReadOnlyList<string> GetCompatibleSetValueSourceOptions(string? targetPath)
+    {
+        var targetDescriptor = GetSetValueTargetDescriptor(targetPath);
+        var descriptors = InteractionTargetOptions
+            .Where(static option => !string.IsNullOrWhiteSpace(option))
+            .Select(GetSetValueTargetDescriptor)
+            .Append(targetDescriptor)
+            .GroupBy(static descriptor => descriptor.TargetPath, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group.First());
+
+        return descriptors
+            .Where(descriptor => targetDescriptor.TargetKind == SetValueTargetKind.Unknown
+                                 || descriptor.TargetKind == SetValueTargetKind.Unknown
+                                 || descriptor.TargetKind == targetDescriptor.TargetKind)
+            .Select(descriptor => descriptor.TargetPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public bool IsCompatibleSetValueSourcePath(string? targetPath, string? sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            return false;
+        }
+
+        var targetDescriptor = GetSetValueTargetDescriptor(targetPath);
+        var sourceDescriptor = GetSetValueTargetDescriptor(sourcePath);
+
+        return targetDescriptor.TargetKind == SetValueTargetKind.Unknown
+               || sourceDescriptor.TargetKind == SetValueTargetKind.Unknown
+               || sourceDescriptor.TargetKind == targetDescriptor.TargetKind;
+    }
+
     public IReadOnlyList<FunctionPickerOption> GetRunFunctionOptions()
     {
         var folderDirectory = ResolveOwnerFolderDirectory();
@@ -834,19 +914,55 @@ public sealed class EditorDialogField : ObservableObject
         {
             row.SetRunFunctionOptions(Array.Empty<FunctionPickerOption>(), null);
         }
+
+        row.SetSetValueSourceOptions(GetCompatibleSetValueSourceOptions(row.TargetPath));
+
+        RefreshSetValueMetadata(row);
     }
 
     private static FunctionPickerOption CreateRunFunctionOption(FunctionCatalogEntry entry)
-        => new()
+    {
+        var displayText = entry.Kind switch
+        {
+            FunctionCatalogKind.Declarative => $"YAML / {GetReferenceName(entry.Reference, entry.Name)}",
+            FunctionCatalogKind.Python => BuildPythonDisplayText(entry),
+            _ => entry.Reference
+        };
+
+        return new FunctionPickerOption
         {
             Reference = entry.Reference,
-            DisplayText = entry.Kind switch
-            {
-                FunctionCatalogKind.Declarative => $"YAML / {GetReferenceName(entry.Reference, entry.Name)}",
-                FunctionCatalogKind.Python => BuildPythonDisplayText(entry),
-                _ => entry.Reference
-            }
+            DisplayText = displayText
         };
+    }
+
+    public void RefreshSetValueMetadata(ItemInteractionEditorRow row)
+    {
+        if (!row.IsSetValueAction)
+        {
+            row.SetValueTargetKind = SetValueTargetKind.Unknown;
+            row.SetValueSummary = string.Empty;
+            row.SetValueValidationMessage = string.Empty;
+            return;
+        }
+
+        var descriptor = GetSetValueTargetDescriptor(row.TargetPath);
+        row.SetValueTargetKind = descriptor.TargetKind;
+        row.SetValueSummary = SetValueOperationCodec.GetSummary(row.Argument, descriptor.TargetKind);
+
+        var parsed = SetValueOperationCodec.Parse(row.Argument);
+        if (!parsed.IsValid)
+        {
+            row.SetValueValidationMessage = parsed.ErrorMessage;
+            return;
+        }
+
+        var validation = SetValueOperationCodec.Validate(
+            operation: parsed.Operation,
+            targetKind: descriptor.TargetKind,
+            isCompatibleSourcePath: sourcePath => IsCompatibleSetValueSourcePath(row.TargetPath, sourcePath));
+        row.SetValueValidationMessage = validation.IsValid ? string.Empty : validation.ErrorMessage;
+    }
 
     private static string BuildPythonDisplayText(FunctionCatalogEntry entry)
     {
@@ -1049,8 +1165,152 @@ public sealed class EditorDialogField : ObservableObject
             row.FunctionOptions.Add(row.FunctionName);
         }
 
+        RefreshSetValueMetadata(row);
+
         return row;
     }
+
+    private void RebuildInteractionSetValueTargetDescriptors()
+    {
+        _interactionSetValueTargets.Clear();
+
+        foreach (var targetPath in InteractionTargetOptions.Where(static option => !string.IsNullOrWhiteSpace(option)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var normalizedPath = TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
+            if (string.IsNullOrWhiteSpace(normalizedPath))
+            {
+                continue;
+            }
+
+            if (!TryResolveInteractionTargetDescriptor(normalizedPath, out var descriptor))
+            {
+                descriptor = new SetValueTargetDescriptor
+                {
+                    TargetPath = normalizedPath,
+                    TargetKind = SetValueTargetKind.Unknown,
+                    IsWritable = true,
+                    ValuePropertyName = string.Empty
+                };
+            }
+
+            _interactionSetValueTargets[normalizedPath] = descriptor;
+        }
+    }
+
+    private bool TryResolveInteractionTargetDescriptor(string targetPath, out SetValueTargetDescriptor descriptor)
+    {
+        descriptor = new SetValueTargetDescriptor
+        {
+            TargetPath = targetPath,
+            TargetKind = SetValueTargetKind.Unknown,
+            IsWritable = true,
+            ValuePropertyName = string.Empty
+        };
+
+        if (!TryResolveRegistryTargetItem(targetPath, out var item) || item is null)
+        {
+            return false;
+        }
+
+        var parameter = item.Properties.Has("write")
+            ? item.Properties["write"]
+            : item.Properties.Has("read")
+                ? item.Properties["read"]
+                : item.Properties.GetDictionary()
+                    .Where(static entry => HostRegistryPropertyPolicy.CanShowInUserPicker(entry.Key))
+                    .OrderBy(static entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(static entry => entry.Value)
+                    .FirstOrDefault();
+
+        var declaredType = item.Properties.Has("type")
+            ? item.Properties["type"].Value?.ToString()
+            : null;
+        var sampleValue = parameter?.Value ?? item.Value;
+        var sampleType = parameter?.Value?.GetType();
+        if (sampleValue is null && TryResolveSiblingReadValue(targetPath, out var siblingReadValue))
+        {
+            sampleValue = siblingReadValue;
+            sampleType = siblingReadValue?.GetType();
+        }
+
+        descriptor = new SetValueTargetDescriptor
+        {
+            TargetPath = targetPath,
+            TargetKind = SetValueOperationCodec.ClassifyTargetKind(declaredType, sampleType, sampleValue),
+            IsWritable = !item.Properties.Has("writable") || ToBooleanLikeValue(item.Properties["writable"].Value),
+            ValuePropertyName = parameter?.Name ?? string.Empty
+        };
+        return true;
+    }
+
+    private bool TryResolveSiblingReadValue(string targetPath, out object? value)
+    {
+        value = null;
+        var normalizedPath = TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
+        if (!normalizedPath.EndsWith(".set", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var readPath = normalizedPath[..^".set".Length] + ".read";
+        if (!TryResolveRegistryTargetItem(readPath, out var readItem) || readItem is null)
+        {
+            return false;
+        }
+
+        value = readItem.Properties.Has("read")
+            ? readItem.Properties["read"].Value
+            : readItem.Value;
+        return value is not null;
+    }
+
+    private bool TryResolveRegistryTargetItem(string targetPath, out ItemModel? item)
+    {
+        if (string.Equals(targetPath, "this", StringComparison.OrdinalIgnoreCase))
+        {
+            item = OwnerItem?.Target;
+            return item is not null;
+        }
+
+        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath, OwnerItem?.FolderName))
+        {
+            if (HostRegistries.Data.TryResolve(candidatePath, out item) && item is not null)
+            {
+                return true;
+            }
+        }
+
+        foreach (var candidatePath in TargetPathHelper.EnumerateItemBrokerRuntimeCandidates(targetPath))
+        {
+            if (HostRegistries.Data.TryResolve(candidatePath, out item) && item is not null)
+            {
+                return true;
+            }
+        }
+
+        item = null;
+        return false;
+    }
+
+    private static bool ToBooleanLikeValue(object? value)
+        => value switch
+        {
+            bool boolValue => boolValue,
+            string text when bool.TryParse(text, out var parsedBool) => parsedBool,
+            string text when long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedLong) => parsedLong != 0,
+            byte numeric => numeric != 0,
+            sbyte numeric => numeric != 0,
+            short numeric => numeric != 0,
+            ushort numeric => numeric != 0,
+            int numeric => numeric != 0,
+            uint numeric => numeric != 0,
+            long numeric => numeric != 0,
+            ulong numeric => numeric != 0,
+            float numeric => Math.Abs(numeric) > float.Epsilon,
+            double numeric => Math.Abs(numeric) > double.Epsilon,
+            decimal numeric => numeric != 0,
+            _ => false
+        };
 
     private string ResolveOwnerFolderDirectory()
     {

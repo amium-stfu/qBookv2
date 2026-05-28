@@ -12,6 +12,11 @@ namespace HornetStudio.Host;
 public sealed class EnhancedSignalRuntime : IDisposable
 {
     private static readonly string[] ForwardedChannelNames = ["read", "set", "out", "command"];
+    private const string BoolTypeName = "bool";
+    private const string FloatTypeName = "float";
+    private const string IntTypeName = "int";
+    private const string ObjectTypeName = "object";
+    private const string StringTypeName = "string";
 
     private readonly ExtendedSignalDefinition _definition;
     private readonly ExtendedSignalModule _module;
@@ -2373,10 +2378,12 @@ public sealed class EnhancedSignalRuntime : IDisposable
 
         var kalman = _module["kalman"];
         kalman.Properties["text"].Value = $"{_definition.Name} Kalman";
+        kalman.Properties["type"].Value = ObjectTypeName;
         if (!kalman.Has("write"))
         {
             kalman.AddItem("write");
             kalman["write"].Properties["text"].Value = "Kalman Write";
+            kalman["write"].Properties["type"].Value = StringTypeName;
             kalman["write"].Value = string.Empty;
         }
 
@@ -2413,18 +2420,19 @@ public sealed class EnhancedSignalRuntime : IDisposable
 
         var dynamic = _module["dynamic"];
         dynamic.Properties["text"].Value = $"{_definition.Name} Dynamic";
-        EnsureDynamicValueItem(dynamic, "active", "Dynamic Active");
-        EnsureDynamicValueItem(dynamic, "slope", "Dynamic Slope");
-        EnsureDynamicValueItem(dynamic, "residual", "Dynamic Residual");
-        EnsureDynamicValueItem(dynamic, "raw_angle_deg", "Dynamic Raw Angle Deg");
-        EnsureDynamicValueItem(dynamic, "angle_deg", "Dynamic Angle Deg");
-        EnsureDynamicValueItem(dynamic, "relative_change", "Dynamic Relative Change");
-        EnsureDynamicValueItem(dynamic, "reference_value", "Dynamic Reference Value");
-        EnsureDynamicValueItem(dynamic, "effective_reference_value", "Dynamic Effective Reference Value");
-        EnsureDynamicValueItem(dynamic, "noise_reference_value", "Dynamic Noise Reference Value");
-        EnsureDynamicValueItem(dynamic, "normalization_mode", "Dynamic Normalization Mode");
-        EnsureDynamicValueItem(dynamic, "residual_weight", "Dynamic Residual Weight");
-        EnsureDynamicValueItem(dynamic, "remaining_hold_ms", "Dynamic Remaining Hold Ms");
+        dynamic.Properties["type"].Value = ObjectTypeName;
+        EnsureDynamicValueItem(dynamic, "active", "Dynamic Active", BoolTypeName);
+        EnsureDynamicValueItem(dynamic, "slope", "Dynamic Slope", FloatTypeName);
+        EnsureDynamicValueItem(dynamic, "residual", "Dynamic Residual", FloatTypeName);
+        EnsureDynamicValueItem(dynamic, "raw_angle_deg", "Dynamic Raw Angle Deg", FloatTypeName);
+        EnsureDynamicValueItem(dynamic, "angle_deg", "Dynamic Angle Deg", FloatTypeName);
+        EnsureDynamicValueItem(dynamic, "relative_change", "Dynamic Relative Change", FloatTypeName);
+        EnsureDynamicValueItem(dynamic, "reference_value", "Dynamic Reference Value", FloatTypeName);
+        EnsureDynamicValueItem(dynamic, "effective_reference_value", "Dynamic Effective Reference Value", FloatTypeName);
+        EnsureDynamicValueItem(dynamic, "noise_reference_value", "Dynamic Noise Reference Value", FloatTypeName);
+        EnsureDynamicValueItem(dynamic, "normalization_mode", "Dynamic Normalization Mode", StringTypeName);
+        EnsureDynamicValueItem(dynamic, "residual_weight", "Dynamic Residual Weight", FloatTypeName);
+        EnsureDynamicValueItem(dynamic, "remaining_hold_ms", "Dynamic Remaining Hold Ms", IntTypeName);
         return dynamic;
     }
 
@@ -2437,20 +2445,22 @@ public sealed class EnhancedSignalRuntime : IDisposable
 
         var adjustment = _module["adjustment"];
         adjustment.Properties["text"].Value = $"{_definition.Name} Adjustment";
+        adjustment.Properties["type"].Value = ObjectTypeName;
         if (!adjustment.Has("write"))
         {
             adjustment.AddItem("write");
             adjustment["write"].Properties["text"].Value = "Adjustment Write";
+            adjustment["write"].Properties["type"].Value = StringTypeName;
             adjustment["write"].Value = string.Empty;
         }
 
-        EnsureAdjustmentValueItem(adjustment, "enabled", "Adjustment Enabled");
-        EnsureAdjustmentValueItem(adjustment, "mapping_mode", "Adjustment Mapping Mode");
-        EnsureAdjustmentValueItem(adjustment, "offset", "Adjustment Offset");
-        EnsureAdjustmentValueItem(adjustment, "gain", "Adjustment Gain");
-        EnsureAdjustmentValueItem(adjustment, "spline_interpolation_mode", "Adjustment Spline Interpolation Mode");
-        EnsureAdjustmentValueItem(adjustment, "supports_inverse_mapping", "Adjustment Supports Inverse Mapping");
-        EnsureAdjustmentValueItem(adjustment, "spline", "Adjustment Spline Points");
+        EnsureAdjustmentValueItem(adjustment, "enabled", "Adjustment Enabled", BoolTypeName);
+        EnsureAdjustmentValueItem(adjustment, "mapping_mode", "Adjustment Mapping Mode", StringTypeName);
+        EnsureAdjustmentValueItem(adjustment, "offset", "Adjustment Offset", FloatTypeName);
+        EnsureAdjustmentValueItem(adjustment, "gain", "Adjustment Gain", FloatTypeName);
+        EnsureAdjustmentValueItem(adjustment, "spline_interpolation_mode", "Adjustment Spline Interpolation Mode", StringTypeName);
+        EnsureAdjustmentValueItem(adjustment, "supports_inverse_mapping", "Adjustment Supports Inverse Mapping", BoolTypeName);
+        EnsureAdjustmentValueItem(adjustment, "spline", "Adjustment Spline Points", StringTypeName);
         return adjustment;
     }
 
@@ -2463,11 +2473,12 @@ public sealed class EnhancedSignalRuntime : IDisposable
 
         var statistics = _module["statistics"];
         statistics.Properties["text"].Value = $"{_definition.Name} Statistics";
+        statistics.Properties["type"].Value = ObjectTypeName;
         EnsureStatisticsExtremaItem(statistics, "min", "Statistics Min", "Statistics Min Timestamp");
         EnsureStatisticsExtremaItem(statistics, "max", "Statistics Max", "Statistics Max Timestamp");
-        EnsureStatisticsValueItem(statistics, "average", "Statistics Average");
-        EnsureStatisticsValueItem(statistics, "std_dev", "Statistics StdDev");
-        EnsureStatisticsValueItem(statistics, "integral", "Statistics Integral");
+        EnsureStatisticsValueItem(statistics, "average", "Statistics Average", FloatTypeName);
+        EnsureStatisticsValueItem(statistics, "std_dev", "Statistics StdDev", FloatTypeName);
+        EnsureStatisticsValueItem(statistics, "integral", "Statistics Integral", FloatTypeName);
         EnsureStatisticsResetItem(statistics);
         return statistics;
     }
@@ -2495,26 +2506,30 @@ public sealed class EnhancedSignalRuntime : IDisposable
         statisticsBranch["reset"].Value = false;
     }
 
-    private static void EnsureDynamicValueItem(ItemModel dynamic, string itemName, string text)
+    private static void EnsureDynamicValueItem(ItemModel dynamic, string itemName, string text, string targetType)
     {
         if (dynamic.Has(itemName))
         {
+            dynamic[itemName].Properties["type"].Value = targetType;
             return;
         }
 
         dynamic.AddItem(itemName);
         dynamic[itemName].Properties["text"].Value = text;
+        dynamic[itemName].Properties["type"].Value = targetType;
     }
 
-    private static void EnsureAdjustmentValueItem(ItemModel adjustment, string itemName, string text)
+    private static void EnsureAdjustmentValueItem(ItemModel adjustment, string itemName, string text, string targetType)
     {
         if (adjustment.Has(itemName))
         {
+            adjustment[itemName].Properties["type"].Value = targetType;
             return;
         }
 
         adjustment.AddItem(itemName);
         adjustment[itemName].Properties["text"].Value = text;
+        adjustment[itemName].Properties["type"].Value = targetType;
     }
 
     private static void EnsureStatisticsExtremaItem(ItemModel statistics, string itemName, string text, string timeStampText)
@@ -2523,37 +2538,48 @@ public sealed class EnhancedSignalRuntime : IDisposable
         {
             statistics.AddItem(itemName);
             statistics[itemName].Properties["text"].Value = text;
+            statistics[itemName].Properties["type"].Value = FloatTypeName;
+        }
+        else
+        {
+            statistics[itemName].Properties["type"].Value = FloatTypeName;
         }
 
         if (statistics[itemName].Has("timestamp"))
         {
+            statistics[itemName]["timestamp"].Properties["type"].Value = IntTypeName;
             return;
         }
 
         statistics[itemName].AddItem("timestamp");
         statistics[itemName]["timestamp"].Properties["text"].Value = timeStampText;
+        statistics[itemName]["timestamp"].Properties["type"].Value = IntTypeName;
     }
 
-    private static void EnsureStatisticsValueItem(ItemModel statistics, string itemName, string text)
+    private static void EnsureStatisticsValueItem(ItemModel statistics, string itemName, string text, string targetType)
     {
         if (statistics.Has(itemName))
         {
+            statistics[itemName].Properties["type"].Value = targetType;
             return;
         }
 
         statistics.AddItem(itemName);
         statistics[itemName].Properties["text"].Value = text;
+        statistics[itemName].Properties["type"].Value = targetType;
     }
 
     private static void EnsureStatisticsResetItem(ItemModel statistics)
     {
         if (statistics.Has("reset"))
         {
+            statistics["reset"].Properties["type"].Value = BoolTypeName;
             return;
         }
 
         statistics.AddItem("reset");
         statistics["reset"].Properties["text"].Value = "Statistics Reset";
+        statistics["reset"].Properties["type"].Value = BoolTypeName;
         statistics["reset"].Value = false;
     }
 
@@ -2579,13 +2605,23 @@ public sealed class EnhancedSignalRuntime : IDisposable
 
     private static void EnsureKalmanValueItem(ItemModel kalman, string itemName, string text)
     {
+        var targetType = itemName switch
+        {
+            "adaptive_q_active" or "dynamic_trigger_active" => BoolTypeName,
+            "adaptive_q_hold_remaining_ms" => IntTypeName,
+            "dynamic_normalization_mode" => StringTypeName,
+            _ => FloatTypeName
+        };
+
         if (kalman.Has(itemName))
         {
+            kalman[itemName].Properties["type"].Value = targetType;
             return;
         }
 
         kalman.AddItem(itemName);
         kalman[itemName].Properties["text"].Value = text;
+        kalman[itemName].Properties["type"].Value = targetType;
     }
 
     private bool TryParseAdjustmentWrite(ItemModel writeItem, out string action, out double targetValue, out string error)

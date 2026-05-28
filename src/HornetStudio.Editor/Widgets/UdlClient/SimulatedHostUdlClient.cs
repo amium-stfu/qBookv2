@@ -13,6 +13,9 @@ namespace HornetStudio.Editor.Widgets;
 
 public sealed class SimulatedHostUdlClient : IHostUdlClient
 {
+    private const string FloatTypeName = "float";
+    private const string IntTypeName = "int";
+
     private sealed class ModuleRuntimeState
     {
         public required UdlDemoModuleDefinition Definition { get; init; }
@@ -402,22 +405,24 @@ public sealed class SimulatedHostUdlClient : IHostUdlClient
         module.Properties["text"].Value = definition.Name.Trim();
         module.Properties["unit"].Value = string.Empty;
 
-        AddChannel(module, "read", hasWriteChannel: true);
-        AddChannel(module, "set", hasWriteChannel: true);
-        AddChannel(module, "out", hasWriteChannel: true);
-        AddChannel(module, "state", hasWriteChannel: true);
-        AddChannel(module, "alert");
+        AddChannel(module, "read", FloatTypeName, hasWriteChannel: true);
+        AddChannel(module, "set", FloatTypeName, hasWriteChannel: true);
+        AddChannel(module, "out", FloatTypeName, hasWriteChannel: true);
+        AddChannel(module, "state", IntTypeName, hasWriteChannel: true);
+        AddChannel(module, "alert", IntTypeName);
         return module;
     }
 
     private static ItemModel GetChannel(ItemModel module, string name) => module[name];
 
-    private static void AddChannel(ItemModel module, string name, bool hasWriteChannel = false)
+    private static void AddChannel(ItemModel module, string name, string targetType, bool hasWriteChannel = false)
     {
-        module[name] = new ItemModel(
+        var channel = new ItemModel(
             name,
             path: module.Path,
             hasWriteChannel: hasWriteChannel);
+        channel.Properties["type"].Value = targetType;
+        module[name] = channel;
     }
 
     private static void AddItem(ItemModel parent, string name)

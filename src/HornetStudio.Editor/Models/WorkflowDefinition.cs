@@ -139,13 +139,16 @@ public sealed class FunctionSetValueStepDefinition : FunctionStepDefinition
     public string Target { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the literal value to write when <see cref="ValueFrom"/> is not configured.
+    /// Gets or sets the persisted SetValue payload.
+    /// This may contain a legacy literal scalar value or a structured SetValue operation encoded with the <c>sv1:</c> prefix.
+    /// When <see cref="ValueFrom"/> is configured, that legacy source path still takes precedence for backward compatibility.
     /// </summary>
     public string Value { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the source item path whose current value is read at runtime and written to <see cref="Target"/>.
-    /// When non-empty, this takes precedence over <see cref="Value"/>.
+    /// When non-empty, this legacy compatibility field takes precedence over <see cref="Value"/>.
+    /// Newly edited structured SetValue steps should persist through <see cref="Value"/> instead of this field.
     /// </summary>
     public string ValueFrom { get; set; } = string.Empty;
 }

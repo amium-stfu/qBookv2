@@ -53,6 +53,11 @@ public sealed class FolderItemModel : ObservableObject
 {
     private static readonly ConcurrentDictionary<string, RunningDeclarativeFunctionExecution> RunningDeclarativeFunctions = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Occurs when the catalog function execution state changes.
+    /// </summary>
+    public static event EventHandler? CatalogFunctionExecutionStateChanged;
+
     private static readonly Typeface ItemValueTypeface = new(new FontFamily("Calibri"), FontStyle.Normal, FontWeight.Bold);
     private static readonly Typeface ItemUnitTypeface = new(new FontFamily("Calibri"), FontStyle.Italic, FontWeight.Normal);
 
@@ -3393,6 +3398,26 @@ public sealed class FolderItemModel : ObservableObject
             StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Gets a value indicating whether the specified catalog function has a pending stop request.
+    /// </summary>
+    /// <param name="functionReference">The stable catalog function reference.</param>
+    /// <returns><see langword="true"/> when a matching declarative execution is stopping; otherwise <see langword="false"/>.</returns>
+    public bool IsCatalogFunctionStopping(string? functionReference)
+    {
+        var normalizedFunctionReference = FunctionRegistry.NormalizeReference(functionReference);
+        if (string.IsNullOrWhiteSpace(normalizedFunctionReference))
+        {
+            return false;
+        }
+
+        return RunningDeclarativeFunctions.Values.Any(execution => string.Equals(
+                execution.NormalizedFunctionReference,
+                normalizedFunctionReference,
+                StringComparison.OrdinalIgnoreCase)
+            && execution.StopController.IsStopRequested);
+    }
+
     public bool TryExecuteButtonCommand(out string error)
     {
         error = string.Empty;
@@ -3490,7 +3515,7 @@ public sealed class FolderItemModel : ObservableObject
                     return false;
                 }
 
-                return TryApplyInteractionWrite(setTarget!, rule.TargetPath, rule.Argument, out error);
+                return TryExecuteSetValueInteraction(rule, setTarget!, out error);
 
             case ItemInteractionAction.OpenDialog:
                 if (viewModel is null)
@@ -3585,6 +3610,7 @@ public sealed class FolderItemModel : ObservableObject
             NormalizedFunctionReference: FunctionRegistry.NormalizeReference(functionReference),
             StopController: stopController);
         RunningDeclarativeFunctions[executionKey] = execution;
+        RaiseCatalogFunctionExecutionStateChanged();
         _ = ExecuteRunFunctionAsync(executionKey, execution, definition);
         error = string.Empty;
         return true;
@@ -3621,6 +3647,7 @@ public sealed class FolderItemModel : ObservableObject
         var execution = matchingExecutions[0];
 
         execution.StopController.RequestStop();
+        RaiseCatalogFunctionExecutionStateChanged();
         Core.LogInfo($"[StopFunction] item={Path} function={rule.FunctionName} requested stop for owner={execution.OwnerPath}");
         error = string.Empty;
         return true;
@@ -3725,7 +3752,10 @@ public sealed class FolderItemModel : ObservableObject
         }
         finally
         {
-            RunningDeclarativeFunctions.TryRemove(executionKey, out _);
+            if (RunningDeclarativeFunctions.TryRemove(executionKey, out _))
+            {
+                RaiseCatalogFunctionExecutionStateChanged();
+            }
         }
     }
 
@@ -3740,6 +3770,9 @@ public sealed class FolderItemModel : ObservableObject
 
     private string BuildDeclarativeFunctionExecutionKey()
         => Guid.NewGuid().ToString("N");
+
+    private static void RaiseCatalogFunctionExecutionStateChanged()
+        => CatalogFunctionExecutionStateChanged?.Invoke(sender: null, e: EventArgs.Empty);
 
     private sealed record RunningDeclarativeFunctionExecution(
         string ExecutionKey,
@@ -3760,19 +3793,61 @@ public sealed class FolderItemModel : ObservableObject
                 throw new InvalidOperationException($"Target '{step.Target}' was not found.");
             }
 
-            string resolvedValue;
             if (!string.IsNullOrWhiteSpace(step.ValueFrom))
             {
-                if (!TryResolveInteractionTarget(step.ValueFrom, out var sourceItem) || sourceItem is null)
+                var legacyOperation = new SetValueOperation
                 {
-                    throw new InvalidOperationException($"Value source '{step.ValueFrom}' was not found.");
+                    Kind = SetValueOperationKind.SetFromItem,
+                    SourcePath = step.ValueFrom,
+                    IsLegacyLiteral = false
+                };
+
+                if (!TryResolveRunFunctionSetValueValue(legacyOperation, step.Target, targetItem, out var legacyResolvedValue, out var legacyError))
+                {
+                    throw new InvalidOperationException(legacyError);
                 }
 
-                resolvedValue = sourceItem.Value?.ToString() ?? string.Empty;
+                if (!TryApplyInteractionWrite(targetItem, step.Target, legacyResolvedValue, out var legacyWriteError))
+                {
+                    throw new InvalidOperationException(string.IsNullOrWhiteSpace(legacyWriteError)
+                        ? $"Target '{step.Target}' could not be written."
+                        : legacyWriteError);
+                }
+
+                return;
             }
-            else
+
+            var parsedOperation = SetValueOperationCodec.Parse(step.Value);
+            if (!parsedOperation.IsValid)
             {
-                resolvedValue = step.Value;
+                throw new InvalidOperationException(parsedOperation.ErrorMessage);
+            }
+
+            if (parsedOperation.Operation.IsLegacyLiteral)
+            {
+                if (!TryApplyInteractionWrite(targetItem, step.Target, parsedOperation.Operation.LiteralValue, out var legacyLiteralError))
+                {
+                    throw new InvalidOperationException(string.IsNullOrWhiteSpace(legacyLiteralError)
+                        ? $"Target '{step.Target}' could not be written."
+                        : legacyLiteralError);
+                }
+
+                return;
+            }
+
+            var targetKind = GetInteractionSetValueTargetKind(step.Target, targetItem);
+            var validation = SetValueOperationCodec.Validate(
+                parsedOperation.Operation,
+                targetKind,
+                isCompatibleSourcePath: sourcePath => IsCompatibleInteractionSourcePath(sourcePath, targetKind));
+            if (!validation.IsValid)
+            {
+                throw new InvalidOperationException(validation.ErrorMessage);
+            }
+
+            if (!TryResolveRunFunctionSetValueValue(parsedOperation.Operation, step.Target, targetItem, out var resolvedValue, out var resolveError))
+            {
+                throw new InvalidOperationException(resolveError);
             }
 
             if (!TryApplyInteractionWrite(targetItem, step.Target, resolvedValue, out var error))
@@ -3783,6 +3858,9 @@ public sealed class FolderItemModel : ObservableObject
             }
         });
     }
+
+    private bool TryResolveRunFunctionSetValueValue(SetValueOperation operation, string? targetPath, ItemModel targetItem, out object? resolvedValue, out string error)
+        => TryResolveSetValueOperationValue(operation, targetPath, targetItem, out resolvedValue, out error);
 
     private ValueTask ExecuteRunFunctionLogAsync(FunctionLogStepDefinition step, CancellationToken cancellationToken)
     {
@@ -4038,6 +4116,223 @@ public sealed class FolderItemModel : ObservableObject
         return ResolveInteractionReadParameter(targetPath, targetItem);
     }
 
+    private bool TryExecuteSetValueInteraction(ItemInteractionRule rule, ItemModel targetItem, out string error)
+    {
+        var parsedOperation = SetValueOperationCodec.Parse(rule.Argument);
+        if (!parsedOperation.IsValid)
+        {
+            error = parsedOperation.ErrorMessage;
+            Core.LogInfo($"[SetValue] result=invalid item={Path} target={rule.TargetPath} error={error}");
+            return false;
+        }
+
+        if (parsedOperation.Operation.IsLegacyLiteral)
+        {
+            return TryApplyInteractionWrite(targetItem, rule.TargetPath, parsedOperation.Operation.LiteralValue, out error);
+        }
+
+        var targetKind = GetInteractionSetValueTargetKind(rule.TargetPath, targetItem);
+        var validation = SetValueOperationCodec.Validate(
+            parsedOperation.Operation,
+            targetKind,
+            isCompatibleSourcePath: sourcePath => IsCompatibleInteractionSourcePath(sourcePath, targetKind));
+        if (!validation.IsValid)
+        {
+            error = validation.ErrorMessage;
+            Core.LogInfo($"[SetValue] result=blocked item={Path} target={rule.TargetPath} operation={parsedOperation.Operation.Kind} error={error}");
+            return false;
+        }
+
+        if (!TryResolveSetValueOperationValue(parsedOperation.Operation, rule.TargetPath, targetItem, out var resolvedValue, out error))
+        {
+            Core.LogInfo($"[SetValue] result=failed item={Path} target={rule.TargetPath} operation={parsedOperation.Operation.Kind} error={error}");
+            return false;
+        }
+
+        return TryApplyInteractionWrite(targetItem, rule.TargetPath, resolvedValue, out error);
+    }
+
+    private bool TryResolveSetValueOperationValue(SetValueOperation operation, string? targetPath, ItemModel targetItem, out object? resolvedValue, out string error)
+    {
+        resolvedValue = null;
+        error = string.Empty;
+
+        var targetKind = GetInteractionSetValueTargetKind(targetPath, targetItem);
+        var writeParameter = ResolveInteractionWriteParameter(targetPath, targetItem);
+        var readParameter = ResolveInteractionReadParameter(targetPath, targetItem);
+        var currentValue = writeParameter?.Value ?? readParameter?.Value;
+        if (currentValue is null && TryResolveSetValueSiblingReadValue(targetPath, out var siblingReadValue))
+        {
+            currentValue = siblingReadValue;
+        }
+
+        switch (operation.Kind)
+        {
+            case SetValueOperationKind.SetLiteral:
+                resolvedValue = operation.LiteralValue;
+                return true;
+
+            case SetValueOperationKind.SetFromItem:
+                if (!TryResolveInteractionTarget(operation.SourcePath, out var sourceItem) || sourceItem is null)
+                {
+                    error = $"Value source '{operation.SourcePath}' was not found.";
+                    return false;
+                }
+
+                resolvedValue = ResolveInteractionReadParameter(operation.SourcePath, sourceItem)?.Value ?? sourceItem.Value?.ToString() ?? string.Empty;
+                return true;
+
+            case SetValueOperationKind.IncrementBy:
+            {
+                object? numericResolvedValue;
+                string numericError;
+                var success = TryResolveNumericOperationValue(currentValue, operation.LiteralValue, false, out numericResolvedValue, out numericError);
+                resolvedValue = numericResolvedValue;
+                error = numericError;
+                return success;
+            }
+
+            case SetValueOperationKind.DecrementBy:
+            {
+                object? numericResolvedValue;
+                string numericError;
+                var success = TryResolveNumericOperationValue(currentValue, operation.LiteralValue, true, out numericResolvedValue, out numericError);
+                resolvedValue = numericResolvedValue;
+                error = numericError;
+                return success;
+            }
+
+            case SetValueOperationKind.IncrementOne:
+            {
+                object? numericResolvedValue;
+                string numericError;
+                var success = TryResolveNumericOperationValue(currentValue, "1", false, out numericResolvedValue, out numericError);
+                resolvedValue = numericResolvedValue;
+                error = numericError;
+                return success;
+            }
+
+            case SetValueOperationKind.DecrementOne:
+            {
+                object? numericResolvedValue;
+                string numericError;
+                var success = TryResolveNumericOperationValue(currentValue, "1", true, out numericResolvedValue, out numericError);
+                resolvedValue = numericResolvedValue;
+                error = numericError;
+                return success;
+            }
+
+            case SetValueOperationKind.AppendText:
+            {
+                var currentText = currentValue?.ToString() ?? string.Empty;
+                var appendedText = operation.LiteralValue ?? string.Empty;
+                var separator = operation.Separator ?? string.Empty;
+                var shouldInsertSeparator = !string.IsNullOrEmpty(separator)
+                    && !string.IsNullOrEmpty(currentText)
+                    && !string.IsNullOrEmpty(appendedText);
+                resolvedValue = shouldInsertSeparator
+                    ? string.Concat(currentText, separator, appendedText)
+                    : string.Concat(currentText, appendedText);
+                return true;
+            }
+
+            case SetValueOperationKind.SetTrue:
+                resolvedValue = true;
+                return true;
+
+            case SetValueOperationKind.SetFalse:
+                resolvedValue = false;
+                return true;
+
+            default:
+                error = targetKind == SetValueTargetKind.Unknown
+                    ? "The target type is unknown and this operation cannot be applied."
+                    : $"SetValue operation '{operation.Kind}' is not supported.";
+                return false;
+        }
+    }
+
+    private bool TryResolveNumericOperationValue(object? currentValue, string? literalDelta, bool subtract, out object? resolvedValue, out string error)
+    {
+        resolvedValue = null;
+        error = string.Empty;
+
+        if (!TryConvertToDouble(currentValue, out var numericCurrentValue))
+        {
+            error = "The current target value is not numeric.";
+            return false;
+        }
+
+        if (!SetValueOperationCodec.TryParseNumericLiteral(literalDelta, out var numericDelta))
+        {
+            error = "The numeric SetValue delta is invalid.";
+            return false;
+        }
+
+        resolvedValue = subtract
+            ? numericCurrentValue - numericDelta
+            : numericCurrentValue + numericDelta;
+        return true;
+    }
+
+    private SetValueTargetKind GetInteractionSetValueTargetKind(string? targetPath, ItemModel targetItem)
+    {
+        var writeParameter = ResolveInteractionWriteParameter(targetPath, targetItem);
+        var readParameter = ResolveInteractionReadParameter(targetPath, targetItem);
+        var declaredType = targetItem.Properties.Has("type")
+            ? targetItem.Properties["type"].Value?.ToString()
+            : null;
+        var targetValue = writeParameter?.Value ?? readParameter?.Value;
+        var targetType = writeParameter?.Value?.GetType() ?? readParameter?.Value?.GetType();
+        if (targetValue is null && TryResolveSetValueSiblingReadValue(targetPath, out var siblingReadValue))
+        {
+            targetValue = siblingReadValue;
+            targetType = siblingReadValue?.GetType();
+        }
+
+        return SetValueOperationCodec.ClassifyTargetKind(declaredType, targetType, targetValue);
+    }
+
+    private bool TryResolveSetValueSiblingReadValue(string? targetPath, out object? value)
+    {
+        value = null;
+        var normalizedPath = TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
+        if (!normalizedPath.EndsWith(".set", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var readPath = normalizedPath[..^".set".Length] + ".read";
+        if (!TryResolveInteractionTarget(readPath, out var readItem) || readItem is null)
+        {
+            return false;
+        }
+
+        value = ResolveInteractionReadParameter(readPath, readItem)?.Value ?? readItem.Value;
+        return value is not null;
+    }
+
+    private bool IsCompatibleInteractionSourcePath(string? sourcePath, SetValueTargetKind targetKind)
+    {
+        if (!TryResolveInteractionTarget(sourcePath, out var sourceItem) || sourceItem is null)
+        {
+            return false;
+        }
+
+        var sourceReadParameter = ResolveInteractionReadParameter(sourcePath, sourceItem);
+        var declaredType = sourceItem.Properties.Has("type")
+            ? sourceItem.Properties["type"].Value?.ToString()
+            : null;
+        var sourceKind = SetValueOperationCodec.ClassifyTargetKind(
+            declaredType,
+            sourceReadParameter?.Value?.GetType(),
+            sourceReadParameter?.Value ?? sourceItem.Value);
+
+        return targetKind == SetValueTargetKind.Unknown
+               || sourceKind == SetValueTargetKind.Unknown
+               || sourceKind == targetKind;
+    }
+
     private bool TryApplyInteractionWrite(ItemModel targetItem, string? targetPath, object? rawValue, out string error)
     {
         if (!IsDeclaredWritable(targetItem))
@@ -4057,7 +4352,13 @@ public sealed class FolderItemModel : ObservableObject
 
         try
         {
-            var convertedValue = ConvertEditorValue(rawValue, writeParameter.Value?.GetType() ?? readParameter?.Value?.GetType());
+            var declaredTargetType = targetItem.Properties.Has("type")
+                ? targetItem.Properties["type"].Value?.ToString()
+                : null;
+            var effectiveTargetType = writeParameter.Value?.GetType()
+                                      ?? readParameter?.Value?.GetType()
+                                      ?? TargetValueTypes.ToClrType(TargetValueTypes.Parse(declaredTargetType));
+            var convertedValue = ConvertEditorValue(rawValue, effectiveTargetType);
             if (!string.Equals(writeParameter.Name, "read", StringComparison.OrdinalIgnoreCase)
                 && !HostRegistryPropertyPolicy.CanUserWriteProperty(writeParameter.Name))
             {
@@ -4118,6 +4419,52 @@ public sealed class FolderItemModel : ObservableObject
             decimal numeric => numeric != 0,
             _ => false
         };
+
+    private static bool TryConvertToDouble(object? value, out double numericValue)
+    {
+        switch (value)
+        {
+            case byte byteValue:
+                numericValue = byteValue;
+                return true;
+            case sbyte sbyteValue:
+                numericValue = sbyteValue;
+                return true;
+            case short shortValue:
+                numericValue = shortValue;
+                return true;
+            case ushort ushortValue:
+                numericValue = ushortValue;
+                return true;
+            case int intValue:
+                numericValue = intValue;
+                return true;
+            case uint uintValue:
+                numericValue = uintValue;
+                return true;
+            case long longValue:
+                numericValue = longValue;
+                return true;
+            case ulong ulongValue:
+                numericValue = ulongValue;
+                return true;
+            case float floatValue:
+                numericValue = floatValue;
+                return true;
+            case double doubleValue:
+                numericValue = doubleValue;
+                return true;
+            case decimal decimalValue:
+                numericValue = (double)decimalValue;
+                return true;
+            case string textValue when SetValueOperationCodec.TryParseNumericLiteral(textValue, out var parsedNumericValue):
+                numericValue = parsedNumericValue;
+                return true;
+            default:
+                numericValue = 0d;
+                return false;
+        }
+    }
 
     public void ApplyWidgetListDefaultsToChild(FolderItemModel item)
     {

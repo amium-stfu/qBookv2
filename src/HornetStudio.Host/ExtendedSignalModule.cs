@@ -13,22 +13,27 @@ public sealed class ExtendedSignalModule : ItemModel
     private const string AlertItemName = "alert";
     private const string CommandItemName = "command";
     private const string ConfigItemName = "config";
+    private const string BoolTypeName = "bool";
+    private const string FloatTypeName = "float";
+    private const string ObjectTypeName = "object";
+    private const string StringTypeName = "string";
 
     public ExtendedSignalModule(string name, string? path = null)
         : base(name, path: path)
     {
         Properties["kind"].Value = "ExtendedSignalModule";
         Properties["text"].Value = name;
+        Properties["type"].Value = FloatTypeName;
         Properties["unit"].Value = string.Empty;
 
-        AddChannel(RawItemName);
-        AddChannel(ReadItemName, hasWriteChannel: true);
-        AddChannel(SetItemName, hasWriteChannel: true);
-        AddChannel(OutItemName, hasWriteChannel: true);
-        AddChannel(StateItemName, hasWriteChannel: true);
-        AddChannel(AlertItemName);
-        AddChannel(CommandItemName, hasWriteChannel: true);
-        AddItem(ConfigItemName);
+        AddChannel(RawItemName, FloatTypeName);
+        AddChannel(ReadItemName, FloatTypeName, hasWriteChannel: true);
+        AddChannel(SetItemName, FloatTypeName, hasWriteChannel: true);
+        AddChannel(OutItemName, FloatTypeName, hasWriteChannel: true);
+        AddChannel(StateItemName, StringTypeName, hasWriteChannel: true);
+        AddChannel(AlertItemName, StringTypeName);
+        AddChannel(CommandItemName, BoolTypeName, hasWriteChannel: true);
+        AddItemWithType(ConfigItemName, ObjectTypeName);
     }
 
     public ItemModel Raw => this[RawItemName];
@@ -47,11 +52,20 @@ public sealed class ExtendedSignalModule : ItemModel
 
     public ItemModel Config => this[ConfigItemName];
 
-    private void AddChannel(string name, bool hasWriteChannel = false)
+    private void AddChannel(string name, string targetType, bool hasWriteChannel = false)
     {
-        this[name] = new ItemModel(
+        var channel = new ItemModel(
             name,
             path: Path,
             hasWriteChannel: hasWriteChannel);
+        channel.Properties["type"].Value = targetType;
+        this[name] = channel;
+    }
+
+    private void AddItemWithType(string name, string targetType)
+    {
+        var item = new ItemModel(name, path: Path);
+        item.Properties["type"].Value = targetType;
+        this[name] = item;
     }
 }

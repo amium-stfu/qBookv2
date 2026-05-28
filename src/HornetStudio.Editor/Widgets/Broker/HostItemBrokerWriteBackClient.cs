@@ -317,14 +317,24 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
     }
 
     internal static string ResolveWriteRequestTargetPath(Amium.Items.Item localItem, string localPath)
+        => ResolveWriteRequestTargetPath(
+            localItem: localItem,
+            localPath: localPath,
+            tryResolveItem: static path => HostRegistries.Data.TryResolve(path, out Amium.Items.Item? resolvedItem) ? resolvedItem : null);
+
+    internal static string ResolveWriteRequestTargetPath(
+        Amium.Items.Item localItem,
+        string localPath,
+        Func<string, Amium.Items.Item?>? tryResolveItem)
     {
         if (localItem.Properties.Has("write"))
         {
             return localItem.Path ?? localPath;
         }
 
-        var writeTargetPath = ResolveValueWriteTargetPath(localItem, localPath);
-        return HostRegistries.Data.TryResolve(writeTargetPath, out var writeTargetItem) && writeTargetItem?.Properties.Has("write") == true
+        var writeTargetPath = ResolveValueWriteTargetPath(localItem, localPath, tryResolveItem);
+        var writeTargetItem = tryResolveItem?.Invoke(writeTargetPath);
+        return writeTargetItem?.Properties.Has("write") == true
             ? writeTargetItem.Path ?? writeTargetPath
             : writeTargetPath;
     }
@@ -347,13 +357,22 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
         => string.Equals(parameterName, "write", StringComparison.OrdinalIgnoreCase);
 
     internal static string ResolveValueWriteTargetPath(Amium.Items.Item sourceItem, string fallbackPath)
+        => ResolveValueWriteTargetPath(
+            sourceItem: sourceItem,
+            fallbackPath: fallbackPath,
+            tryResolveItem: static path => HostRegistries.Data.TryResolve(path, out Amium.Items.Item? resolvedItem) ? resolvedItem : null);
+
+    internal static string ResolveValueWriteTargetPath(
+        Amium.Items.Item sourceItem,
+        string fallbackPath,
+        Func<string, Amium.Items.Item?>? tryResolveItem)
     {
         if (sourceItem.Properties.Has("write"))
         {
             return sourceItem.Path ?? fallbackPath;
         }
 
-        if (TryResolveDeclaredWriteTarget(sourceItem, out var declaredTarget))
+        if (TryResolveDeclaredWriteTarget(sourceItem, out var declaredTarget, tryResolveItem))
         {
             return declaredTarget.Path ?? fallbackPath;
         }
@@ -361,7 +380,10 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
         return sourceItem.Path ?? fallbackPath;
     }
 
-    private static bool TryResolveDeclaredWriteTarget(Amium.Items.Item sourceItem, out Amium.Items.Item writeTargetItem)
+    private static bool TryResolveDeclaredWriteTarget(
+        Amium.Items.Item sourceItem,
+        out Amium.Items.Item writeTargetItem,
+        Func<string, Amium.Items.Item?>? tryResolveItem)
     {
         writeTargetItem = null!;
         if (sourceItem.Properties.Has("write"))
@@ -381,7 +403,8 @@ public sealed class HostItemBrokerWriteBackClient : IDisposable, IAsyncDisposabl
             return false;
         }
 
-        if (!HostRegistries.Data.TryResolve(writePath, out Amium.Items.Item? resolvedItem) || resolvedItem is null)
+        var resolvedItem = tryResolveItem?.Invoke(writePath);
+        if (resolvedItem is null)
         {
             return false;
         }

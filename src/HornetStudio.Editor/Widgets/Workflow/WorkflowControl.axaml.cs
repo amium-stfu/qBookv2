@@ -30,8 +30,8 @@ public partial class FunctionsControl : EditorTemplateControl
             Interval = TimeSpan.FromMilliseconds(250)
         };
         _runningStateTimer.Tick += OnRunningStateTimerTick;
-        AttachedToVisualTree += (_, _) => RefreshFunctions();
-        DetachedFromVisualTree += (_, _) => StopRunningStateTimer();
+        AttachedToVisualTree += OnAttachedToVisualTree;
+        DetachedFromVisualTree += OnDetachedFromVisualTree;
         DataContextChanged += OnDataContextChanged;
     }
 
@@ -40,6 +40,23 @@ public partial class FunctionsControl : EditorTemplateControl
     private FolderItemModel? Item => DataContext as FolderItemModel;
 
     private MainWindowViewModel? ViewModel => TopLevel.GetTopLevel(this)?.DataContext as MainWindowViewModel;
+
+    private void OnAttachedToVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        FolderItemModel.CatalogFunctionExecutionStateChanged += OnCatalogFunctionExecutionStateChanged;
+        RefreshFunctions();
+    }
+
+    private void OnDetachedFromVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        FolderItemModel.CatalogFunctionExecutionStateChanged -= OnCatalogFunctionExecutionStateChanged;
+        StopRunningStateTimer();
+    }
+
+    private void OnCatalogFunctionExecutionStateChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(ApplyRunningState);
+    }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
@@ -330,7 +347,8 @@ public partial class FunctionsControl : EditorTemplateControl
             : Path.GetFileName(sourceIdentifier);
         var normalizedReference = FunctionRegistry.NormalizeReference(entry.Reference);
         var isRunning = item?.IsCatalogFunctionRunning(entry.Reference) == true;
-        var isStopping = isRunning && _stopRequestedReferences.Contains(normalizedReference);
+        var isStopping = isRunning
+            && (_stopRequestedReferences.Contains(normalizedReference) || item?.IsCatalogFunctionStopping(entry.Reference) == true);
         var kindBadgeBackground = entry.Kind == FunctionCatalogKind.Python
             ? item?.EffectiveBodyBackground ?? "#E5E7EB"
             : entry.IsValid
@@ -378,7 +396,8 @@ public partial class FunctionsControl : EditorTemplateControl
                 _stopRequestedReferences.Remove(normalizedReference);
             }
 
-            var isStopping = isRunning && _stopRequestedReferences.Contains(normalizedReference);
+            var isStopping = isRunning
+                && (_stopRequestedReferences.Contains(normalizedReference) || item?.IsCatalogFunctionStopping(row.Reference) == true);
             row.UpdateExecutionState(isRunning: isRunning, isStopping: isStopping);
             hasRunningEntry |= isRunning;
         }

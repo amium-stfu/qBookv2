@@ -19,6 +19,14 @@ public sealed class FunctionStepEditorRow : ObservableObject
     private string _target = string.Empty;
     private string _value = string.Empty;
     private string _valueFrom = string.Empty;
+    private string _setValueSummary = string.Empty;
+    private string _setValueValidationMessage = string.Empty;
+    private SetValueTargetKind _setValueTargetKind;
+    private SetValueInlineOperationOption? _selectedSetValueOperation;
+    private string _setValueLiteralArgument = string.Empty;
+    private string _setValueSeparator = string.Empty;
+    private string _setValueSourcePath = string.Empty;
+    private bool _isSynchronizingSetValueInlineState;
     private string _millisecondsText = string.Empty;
     private string _targetLog = string.Empty;
     private string _levelText = MonitorLogLevel.Info.ToString();
@@ -100,10 +108,9 @@ public sealed class FunctionStepEditorRow : ObservableObject
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(_value) && !string.IsNullOrWhiteSpace(_valueFrom))
+            if (StepType == FunctionStepType.SetValue && !_isSynchronizingSetValueInlineState)
             {
-                _valueFrom = string.Empty;
-                RaisePropertyChanged(nameof(ValueFrom));
+                RefreshSetValueInlineState();
             }
 
             RaiseComputedPropertiesChanged();
@@ -124,6 +131,11 @@ public sealed class FunctionStepEditorRow : ObservableObject
                 return;
             }
 
+            if (StepType == FunctionStepType.SetValue && !_isSynchronizingSetValueInlineState)
+            {
+                RefreshSetValueInlineState();
+            }
+
             RaiseComputedPropertiesChanged();
         }
     }
@@ -133,6 +145,156 @@ public sealed class FunctionStepEditorRow : ObservableObject
     /// Shows the configured source path when <see cref="ValueFrom"/> is set.
     /// </summary>
     public string ValueWatermark => string.IsNullOrWhiteSpace(ValueFrom) ? "Value" : $"From: {ValueFrom}";
+
+    /// <summary>
+    /// Gets or sets the user-facing SetValue operation summary.
+    /// </summary>
+    public string SetValueSummary
+    {
+        get => _setValueSummary;
+        set => SetProperty(ref _setValueSummary, value ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Gets or sets the SetValue validation message.
+    /// </summary>
+    public string SetValueValidationMessage
+    {
+        get => _setValueValidationMessage;
+        set
+        {
+            if (SetProperty(ref _setValueValidationMessage, value ?? string.Empty))
+            {
+                RaisePropertyChanged(nameof(HasSetValueValidationError));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the SetValue operation is currently invalid.
+    /// </summary>
+    public bool HasSetValueValidationError => !string.IsNullOrWhiteSpace(SetValueValidationMessage);
+
+    /// <summary>
+    /// Gets or sets the detected SetValue target kind.
+    /// </summary>
+    public SetValueTargetKind SetValueTargetKind
+    {
+        get => _setValueTargetKind;
+        set
+        {
+            if (SetProperty(ref _setValueTargetKind, value))
+            {
+                RaisePropertyChanged(nameof(SetValueLiteralWatermark));
+                RefreshSetValueInlineState();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the inline literal editor should be shown for SetValue.
+    /// </summary>
+    public bool ShowsSetValueLiteralEditor
+        => ShowsSetValueFields
+            && SelectedSetValueOperation?.UsesSourceItem != true
+            && SelectedSetValueOperation?.Kind is not SetValueOperationKind.SetTrue
+            && SelectedSetValueOperation?.Kind is not SetValueOperationKind.SetFalse;
+
+    /// <summary>
+    /// Gets a value indicating whether the inline separator editor should be shown for SetValue.
+    /// </summary>
+    public bool ShowsSetValueSeparatorEditor
+        => ShowsSetValueFields
+            && SelectedSetValueOperation?.Kind == SetValueOperationKind.AppendText
+            && SetValueTargetKind == SetValueTargetKind.String;
+
+    /// <summary>
+    /// Gets a value indicating whether the inline source picker should be shown for SetValue.
+    /// </summary>
+    public bool ShowsSetValueSourceEditor => ShowsSetValueFields && SelectedSetValueOperation?.UsesSourceItem == true;
+
+    /// <summary>
+    /// Gets the inline SetValue literal watermark for the detected target kind.
+    /// </summary>
+    public string SetValueLiteralWatermark => SetValueTargetKind switch
+    {
+        SetValueTargetKind.Numeric => "12.5",
+        SetValueTargetKind.Boolean => "true",
+        _ => "Value"
+    };
+
+    /// <summary>
+    /// Gets or sets the selected inline SetValue operation.
+    /// </summary>
+    public SetValueInlineOperationOption? SelectedSetValueOperation
+    {
+        get => _selectedSetValueOperation;
+        set
+        {
+            if (!SetProperty(ref _selectedSetValueOperation, value))
+            {
+                return;
+            }
+
+            RaisePropertyChanged(nameof(ShowsSetValueLiteralEditor));
+            RaisePropertyChanged(nameof(ShowsSetValueSeparatorEditor));
+            RaisePropertyChanged(nameof(ShowsSetValueSourceEditor));
+            SyncValueFromInlineSetValueState();
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the inline SetValue literal argument.
+    /// </summary>
+    public string SetValueLiteralArgument
+    {
+        get => _setValueLiteralArgument;
+        set
+        {
+            if (!SetProperty(ref _setValueLiteralArgument, value ?? string.Empty))
+            {
+                return;
+            }
+
+            SyncValueFromInlineSetValueState();
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the inline SetValue separator.
+    /// </summary>
+    public string SetValueSeparator
+    {
+        get => _setValueSeparator;
+        set
+        {
+            if (!SetProperty(ref _setValueSeparator, value ?? string.Empty))
+            {
+                return;
+            }
+
+            SyncValueFromInlineSetValueState();
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the inline SetValue source item path.
+    /// </summary>
+    public string SetValueSourcePath
+    {
+        get => _setValueSourcePath;
+        set
+        {
+            var normalizedValue = value ?? string.Empty;
+            if (!SetProperty(ref _setValueSourcePath, normalizedValue))
+            {
+                return;
+            }
+
+            EnsureCurrentSetValueSourceOption();
+            SyncValueFromInlineSetValueState();
+        }
+    }
 
     /// <summary>
     /// Gets or sets the Delay milliseconds text.
@@ -221,6 +383,16 @@ public sealed class FunctionStepEditorRow : ObservableObject
     /// Gets the editable While body rows.
     /// </summary>
     public ObservableCollection<FunctionStepEditorRow> WhileRows { get; } = [];
+
+    /// <summary>
+    /// Gets the available inline SetValue operations.
+    /// </summary>
+    public ObservableCollection<SetValueInlineOperationOption> SetValueOperationOptions { get; } = [];
+
+    /// <summary>
+    /// Gets the available SetValue source item options.
+    /// </summary>
+    public ObservableCollection<string> SetValueSourceOptions { get; } = [];
 
     /// <summary>
     /// Gets or sets the selected step type for newly added Then branch rows.
@@ -357,12 +529,7 @@ public sealed class FunctionStepEditorRow : ObservableObject
 
         return step switch
         {
-            FunctionSetValueStepDefinition setValue => new FunctionStepEditorRow(FunctionStepType.SetValue, preservedStep: null)
-            {
-                Target = setValue.Target,
-                Value = setValue.Value,
-                ValueFrom = setValue.ValueFrom
-            },
+            FunctionSetValueStepDefinition setValue => CreateSetValueRow(setValue),
             FunctionDelayStepDefinition delay => new FunctionStepEditorRow(FunctionStepType.Delay, preservedStep: null)
             {
                 MillisecondsText = delay.Milliseconds.ToString(CultureInfo.InvariantCulture)
@@ -387,7 +554,11 @@ public sealed class FunctionStepEditorRow : ObservableObject
     public static FunctionStepEditorRow CreateNew(FunctionStepType stepType)
     {
         var row = new FunctionStepEditorRow(stepType, preservedStep: null);
-        if (stepType == FunctionStepType.Delay)
+        if (stepType == FunctionStepType.SetValue)
+        {
+            row.RefreshSetValueInlineState();
+        }
+        else if (stepType == FunctionStepType.Delay)
         {
             row.MillisecondsText = "1000";
         }
@@ -439,6 +610,87 @@ public sealed class FunctionStepEditorRow : ObservableObject
         RaiseComputedPropertiesChanged();
     }
 
+    /// <summary>
+    /// Replaces the available SetValue source options and keeps the current source visible.
+    /// </summary>
+    /// <param name="options">The available source options.</param>
+    public void SetSetValueSourceOptions(IEnumerable<string> options)
+    {
+        SetValueSourceOptions.Clear();
+        foreach (var option in options.Where(static option => !string.IsNullOrWhiteSpace(option)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            SetValueSourceOptions.Add(option);
+        }
+
+        EnsureCurrentSetValueSourceOption();
+    }
+
+    /// <summary>
+    /// Refreshes the inline SetValue editor state from the persisted row values.
+    /// </summary>
+    public void RefreshSetValueInlineState()
+    {
+        var selectedKind = _selectedSetValueOperation?.Kind;
+
+        SetValueOperationOptions.Clear();
+        foreach (var option in SetValueOperationCodec.GetInlineOperationOptions(SetValueTargetKind))
+        {
+            SetValueOperationOptions.Add(option);
+        }
+
+        var persistedOperation = BuildPersistedSetValueOperation();
+        var parsed = persistedOperation is null
+            ? SetValueOperationCodec.Parse(Value)
+            : new SetValueOperationParseResult
+            {
+                IsValid = true,
+                IsStructured = true,
+                Operation = persistedOperation
+            };
+
+        var inlineOperation = parsed.IsValid
+            ? SetValueOperationCodec.ToInlineEditorOperation(parsed.Operation, SetValueTargetKind)
+            : new SetValueOperation
+            {
+                Kind = SetValueOperationKind.SetLiteral,
+                LiteralValue = Value,
+                IsLegacyLiteral = true
+            };
+
+        _isSynchronizingSetValueInlineState = true;
+        _setValueLiteralArgument = inlineOperation.LiteralValue ?? string.Empty;
+        _setValueSeparator = inlineOperation.Separator ?? string.Empty;
+        _setValueSourcePath = inlineOperation.SourcePath ?? string.Empty;
+        var preferredKind = SetValueOperationOptions.Any(option => option.Kind == inlineOperation.Kind)
+            ? inlineOperation.Kind
+            : selectedKind is not null && SetValueOperationOptions.Any(option => option.Kind == selectedKind)
+                ? selectedKind.Value
+                : SetValueOperationOptions.FirstOrDefault()?.Kind ?? SetValueOperationKind.SetLiteral;
+        _selectedSetValueOperation = SetValueOperationOptions.FirstOrDefault(option => option.Kind == preferredKind);
+        EnsureCurrentSetValueSourceOption();
+        _isSynchronizingSetValueInlineState = false;
+
+        SetValueSummary = parsed.IsValid
+            ? SetValueOperationCodec.GetSummary(parsed.Operation, SetValueTargetKind)
+            : SetValueOperationCodec.GetSummary(Value, SetValueTargetKind);
+
+        if (SetValueTargetKind == SetValueTargetKind.Boolean
+            && string.IsNullOrWhiteSpace(Value)
+            && string.IsNullOrWhiteSpace(ValueFrom)
+            && _selectedSetValueOperation is not null)
+        {
+            SyncValueFromInlineSetValueState();
+        }
+
+        RaisePropertyChanged(nameof(SetValueLiteralArgument));
+        RaisePropertyChanged(nameof(SetValueSeparator));
+        RaisePropertyChanged(nameof(SetValueSourcePath));
+        RaisePropertyChanged(nameof(SelectedSetValueOperation));
+        RaisePropertyChanged(nameof(ShowsSetValueLiteralEditor));
+        RaisePropertyChanged(nameof(ShowsSetValueSeparatorEditor));
+        RaisePropertyChanged(nameof(ShowsSetValueSourceEditor));
+    }
+
     private string BuildSummary()
     {
         if (IsPreserved)
@@ -454,9 +706,7 @@ public sealed class FunctionStepEditorRow : ObservableObject
 
         return StepType switch
         {
-            FunctionStepType.SetValue => string.IsNullOrWhiteSpace(ValueFrom)
-                ? $"Set {BuildInlineText(Target, "target")} = {BuildInlineText(Value, "value")}"
-                : $"Set {BuildInlineText(Target, "target")} = from {BuildInlineText(ValueFrom, "source")}",
+            FunctionStepType.SetValue => $"Set {BuildInlineText(Target, "target")} -> {BuildInlineText(SetValueSummary, "value")}",
             FunctionStepType.Delay => RequiresPositiveDelay
                 ? $"Delay {BuildInlineText(MillisecondsText, "1")} ms (loop guard)"
                 : $"Delay {BuildInlineText(MillisecondsText, "0")} ms",
@@ -480,11 +730,15 @@ public sealed class FunctionStepEditorRow : ObservableObject
     private void RaiseComputedPropertiesChanged()
     {
         RaisePropertyChanged(nameof(ShowsSetValueFields));
+        RaisePropertyChanged(nameof(ShowsSetValueLiteralEditor));
+        RaisePropertyChanged(nameof(ShowsSetValueSeparatorEditor));
+        RaisePropertyChanged(nameof(ShowsSetValueSourceEditor));
         RaisePropertyChanged(nameof(ShowsDelayFields));
         RaisePropertyChanged(nameof(ShowsLogFields));
         RaisePropertyChanged(nameof(ShowsIfThenElseFields));
         RaisePropertyChanged(nameof(ShowsWhileFields));
         RaisePropertyChanged(nameof(ValueWatermark));
+        RaisePropertyChanged(nameof(SetValueLiteralWatermark));
         RaisePropertyChanged(nameof(Summary));
         RaisePropertyChanged(nameof(ConditionSummary));
         RaisePropertyChanged(nameof(ConditionButtonText));
@@ -494,6 +748,17 @@ public sealed class FunctionStepEditorRow : ObservableObject
         RaisePropertyChanged(nameof(HasElseRows));
         RaisePropertyChanged(nameof(WhileSummary));
         RaisePropertyChanged(nameof(HasWhileRows));
+    }
+
+    private static FunctionStepEditorRow CreateSetValueRow(FunctionSetValueStepDefinition setValue)
+    {
+        var row = new FunctionStepEditorRow(FunctionStepType.SetValue, preservedStep: null)
+        {
+            Target = setValue.Target
+        };
+
+        row.ApplySetValueDefinition(setValue.Value, setValue.ValueFrom);
+        return row;
     }
 
     private static FunctionStepEditorRow CreateConditionalRow(FunctionIfThenElseStepDefinition conditional)
@@ -636,6 +901,79 @@ public sealed class FunctionStepEditorRow : ObservableObject
     {
         var text = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
         return BuildExcerpt(text, 40);
+    }
+
+    private void ApplySetValueDefinition(string? value, string? valueFrom)
+    {
+        _isSynchronizingSetValueInlineState = true;
+        _value = value ?? string.Empty;
+        _valueFrom = valueFrom ?? string.Empty;
+        _isSynchronizingSetValueInlineState = false;
+
+        RefreshSetValueInlineState();
+        RaisePropertyChanged(nameof(Value));
+        RaisePropertyChanged(nameof(ValueFrom));
+        RaiseComputedPropertiesChanged();
+    }
+
+    private SetValueOperation? BuildPersistedSetValueOperation()
+    {
+        if (!string.IsNullOrWhiteSpace(ValueFrom))
+        {
+            return new SetValueOperation
+            {
+                Kind = SetValueOperationKind.SetFromItem,
+                SourcePath = ValueFrom,
+                IsLegacyLiteral = false
+            };
+        }
+
+        var parsed = SetValueOperationCodec.Parse(Value);
+        return parsed.IsValid ? parsed.Operation : null;
+    }
+
+    private void SyncValueFromInlineSetValueState()
+    {
+        if (_isSynchronizingSetValueInlineState || StepType != FunctionStepType.SetValue || SelectedSetValueOperation is null)
+        {
+            return;
+        }
+
+        var serializedValue = SetValueOperationCodec.Serialize(new SetValueOperation
+        {
+            Kind = SelectedSetValueOperation.Kind,
+            LiteralValue = SetValueLiteralArgument,
+            Separator = SelectedSetValueOperation.Kind == SetValueOperationKind.AppendText ? SetValueSeparator : string.Empty,
+            SourcePath = SetValueSourcePath,
+            IsLegacyLiteral = false
+        });
+
+        if (string.Equals(_value, serializedValue, StringComparison.Ordinal)
+            && string.IsNullOrWhiteSpace(_valueFrom))
+        {
+            return;
+        }
+
+        _isSynchronizingSetValueInlineState = true;
+        _value = serializedValue;
+        _valueFrom = string.Empty;
+        _isSynchronizingSetValueInlineState = false;
+
+        SetValueSummary = SetValueOperationCodec.GetSummary(serializedValue, SetValueTargetKind);
+        RaisePropertyChanged(nameof(Value));
+        RaisePropertyChanged(nameof(ValueFrom));
+        RaiseComputedPropertiesChanged();
+    }
+
+    private void EnsureCurrentSetValueSourceOption()
+    {
+        if (string.IsNullOrWhiteSpace(SetValueSourcePath)
+            || SetValueSourceOptions.Contains(SetValueSourcePath, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        SetValueSourceOptions.Add(SetValueSourcePath);
     }
 
     private static string BuildExcerpt(string? value, int maxLength)
@@ -794,11 +1132,25 @@ public static class FunctionEditorDefinitionConverter
                     return false;
                 }
 
+                var setValueSourcePath = row.SelectedSetValueOperation?.UsesSourceItem == true
+                    ? row.SetValueSourcePath?.Trim() ?? string.Empty
+                    : string.Empty;
+                var setValueValue = row.Value ?? string.Empty;
+                if (row.SelectedSetValueOperation?.UsesSourceItem == true)
+                {
+                    setValueValue = SetValueOperationCodec.Serialize(new SetValueOperation
+                    {
+                        Kind = SetValueOperationKind.SetFromItem,
+                        SourcePath = setValueSourcePath,
+                        IsLegacyLiteral = false
+                    });
+                }
+
                 step = new FunctionSetValueStepDefinition
                 {
                     Target = row.Target.Trim(),
-                    Value = row.Value ?? string.Empty,
-                    ValueFrom = row.ValueFrom ?? string.Empty
+                    Value = setValueValue,
+                    ValueFrom = string.Empty
                 };
                 return true;
 

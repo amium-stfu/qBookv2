@@ -23,6 +23,10 @@ namespace HornetStudio.Editor.Widgets;
 
 public partial class CustomSignalsControl : EditorTemplateControl
 {
+    private const string BoolTargetTypeName = "bool";
+    private const string FloatTargetTypeName = "float";
+    private const string StringTargetTypeName = "string";
+
     public static readonly DirectProperty<CustomSignalsControl, bool> HasNoSignalsProperty =
         AvaloniaProperty.RegisterDirect<CustomSignalsControl, bool>(nameof(HasNoSignals), control => control.HasNoSignals);
 
@@ -278,6 +282,7 @@ public partial class CustomSignalsControl : EditorTemplateControl
         item.Properties["unit"].Value = definition.Unit;
         item.Properties["format"].Value = definition.Format;
         item.Properties["mode"].Value = definition.Mode.ToString();
+        item.Properties["type"].Value = GetRegistryType(definition.DataType);
         item.Properties["writable"].Value = definition.Mode == CustomSignalMode.Input && definition.IsWritable;
         item.Properties["write_path"].Value = definition.Mode == CustomSignalMode.Input ? definition.WritePath : string.Empty;
         item.Properties["write_mode"].Value = definition.WriteMode.ToString();
@@ -299,10 +304,21 @@ public partial class CustomSignalsControl : EditorTemplateControl
         item.Properties["title"].Value = $"{definition.Name} Trigger";
         item.Properties["text"].Value = "Trigger";
         item.Properties["mode"].Value = definition.Mode.ToString();
+        item.Properties["type"].Value = BoolTargetTypeName;
         item.Properties["writable"].Value = true;
         item.Properties["owner"].Value = ownerItem.Name ?? string.Empty;
         item.Properties["value"].Value = false;
         HostRegistries.Data.UpsertSnapshot(triggerPath, item, DataRegistryItemMetadata.PublicCommand());
+    }
+
+    private static string GetRegistryType(CustomSignalDataType dataType)
+    {
+        return dataType switch
+        {
+            CustomSignalDataType.Boolean => BoolTargetTypeName,
+            CustomSignalDataType.Text => StringTargetTypeName,
+            _ => FloatTargetTypeName
+        };
     }
 
     private object? EvaluateValue(FolderItemModel ownerItem, CustomSignalDefinition definition, string registryPath, bool preserveInputValues)

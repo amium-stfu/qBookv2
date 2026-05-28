@@ -4,7 +4,7 @@ Central folder-local function catalog for declarative YAML entries with transiti
 
 - Lists function entries in compact rows with consistent type badges, quiet state text, and row actions
 - Adds, edits, and deletes declarative YAML functions from the widget UI
-- Runs runnable entries and toggles the same row action to Stop for the matching running declarative entry
+- Runs runnable entries and reflects matching declarative executions started from widget rows or Button Interaction Rules
 - Validates YAML structure and marks invalid declarative entries
 - Keeps function definitions outside `Folder.yaml`
 - Supports declarative steps: `Log`, `SetValue`, `Delay`, `IfThenElse`, `While`, and `StopFunction`

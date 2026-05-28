@@ -104,7 +104,7 @@
             <ItemsControl ItemsSource="{Binding Rows}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="viewModels:ItemInteractionEditorRow">
-                  <Grid ColumnDefinitions="160,170,260,220,150,Auto" Margin="0,0,0,8">
+                  <Grid ColumnDefinitions="160,170,260,220,*,Auto" RowDefinitions="Auto,Auto" Margin="0,0,0,8" HorizontalAlignment="Stretch">
                     <ComboBox Classes="dialog-field" ItemsSource="{Binding EventOptions}" SelectedItem="{Binding EventName, Mode=TwoWay}" />
                     <ComboBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding ActionName, Mode=TwoWay}" />
                     <Grid Grid.Column="2" Margin="8,0,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding UsesBrowseTargetSelection}">
@@ -121,7 +121,7 @@
                       </ComboBox.ItemTemplate>
                     </ComboBox>
                     <TextBox Grid.Column="2" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding !ShowsTargetSelection}" IsEnabled="False" Text="-" />
-                    <ComboBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding IsRunFunctionAction}" ItemsSource="{Binding RunFunctionOptions}" SelectedItem="{Binding SelectedRunFunctionOption, Mode=TwoWay}">
+                    <ComboBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding ShowsRunFunctionPicker}" ItemsSource="{Binding RunFunctionOptions}" SelectedItem="{Binding SelectedRunFunctionOption, Mode=TwoWay}">
                       <ComboBox.ItemTemplate>
                         <DataTemplate>
                           <TextBlock Text="{Binding DisplayText}" />
@@ -129,9 +129,26 @@
                       </ComboBox.ItemTemplate>
                     </ComboBox>
                     <ComboBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding ShowsLegacyFunctionPicker}" ItemsSource="{Binding FunctionOptions}" SelectedItem="{Binding FunctionName, Mode=TwoWay}" />
-                    <TextBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding !ShowsFunctionPicker}" IsEnabled="False" Text="-" />
+                    <ComboBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding ShowsSetValueFunctionPicker}" ItemsSource="{Binding SetValueOperationOptions}" SelectedItem="{Binding SelectedSetValueOperation, Mode=TwoWay}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding DisplayText}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBox Grid.Column="3" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding ShowsFunctionPlaceholder}" IsEnabled="False" Text="-" />
                     <TextBox Grid.Column="4" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding ShowsArgumentEditor}" Text="{Binding Argument, Mode=TwoWay}" Watermark="Argument" />
-                    <TextBox Grid.Column="4" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding !ShowsArgumentEditor}" IsEnabled="False" Text="-" />
+                    <Grid Grid.Column="4" Margin="8,0,0,0" ColumnDefinitions="*,140" IsVisible="{Binding ShowsSetValueLiteralEditor}">
+                      <TextBox Classes="dialog-field" Text="{Binding SetValueLiteralArgument, Mode=TwoWay}" Watermark="{Binding SetValueLiteralWatermark}" ToolTip.Tip="{Binding SetValueValidationMessage}" />
+                      <TextBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding ShowsSetValueSeparatorEditor}" Text="{Binding SetValueSeparator, Mode=TwoWay}" Watermark="Separator" ToolTip.Tip="Optional separator used between current and appended text" />
+                    </Grid>
+                    <Grid Grid.Column="4" Margin="8,0,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsSetValueSourceEditor}">
+                      <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding SetValueSourcePath, Mode=OneWay}" Watermark="Source item" ToolTip.Tip="{Binding SetValueValidationMessage}" />
+                      <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" ToolTip.Tip="Browse source items" Click="OnBrowseRowSetValueSourceClicked">
+                        <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
+                      </Button>
+                    </Grid>
+                    <TextBlock Grid.Row="1" Grid.Column="4" Margin="8,4,0,0" FontSize="11" Foreground="#FCA5A5" Text="{Binding SetValueValidationMessage}" TextWrapping="Wrap" IsVisible="{Binding HasSetValueValidationError}" />
                     <Button Grid.Column="5" Margin="8,0,0,0" Classes="dialog-button" Content="Remove" Click="OnRemoveClicked" />
                   </Grid>
                 </DataTemplate>
@@ -146,7 +163,7 @@
             <Border Height="1" Background="{Binding SectionBorderBrush, ElementName=Root}" />
           </StackPanel>
 
-          <Grid ColumnDefinitions="160,170,260,220,150,Auto" RowDefinitions="Auto,Auto">
+          <Grid ColumnDefinitions="160,170,260,220,*,Auto" RowDefinitions="Auto,Auto,Auto" HorizontalAlignment="Stretch">
             <TextBlock Grid.Row="0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Event" />
             <TextBlock Grid.Row="0" Grid.Column="1" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Action" />
             <TextBlock Grid.Row="0" Grid.Column="2" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Target" />
@@ -169,7 +186,7 @@
               </ComboBox.ItemTemplate>
             </ComboBox>
             <TextBox Grid.Row="1" Grid.Column="2" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding !ShowsTargetSelection}" IsEnabled="False" Text="-" />
-            <ComboBox Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding IsNewRunFunctionAction}" ItemsSource="{Binding NewRunFunctionOptions}" SelectedItem="{Binding SelectedNewRunFunctionOption, Mode=TwoWay}">
+             <ComboBox Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding ShowsNewRunFunctionPicker}" ItemsSource="{Binding NewRunFunctionOptions}" SelectedItem="{Binding SelectedNewRunFunctionOption, Mode=TwoWay}">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
                   <TextBlock Text="{Binding DisplayText}" />
@@ -177,10 +194,27 @@
               </ComboBox.ItemTemplate>
             </ComboBox>
             <ComboBox x:Name="NewFunctionComboBox" Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding ShowsLegacyFunctionPicker}" SelectedItem="{Binding NewFunctionName, Mode=TwoWay}" />
-            <TextBox Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding !ShowsFunctionPicker}" IsEnabled="False" Text="-" />
+             <ComboBox Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding ShowsNewSetValueFunctionPicker}" ItemsSource="{Binding NewSetValueOperationOptions}" SelectedItem="{Binding SelectedNewSetValueOperation, Mode=TwoWay}">
+               <ComboBox.ItemTemplate>
+                 <DataTemplate>
+                   <TextBlock Text="{Binding DisplayText}" />
+                 </DataTemplate>
+               </ComboBox.ItemTemplate>
+             </ComboBox>
+             <TextBox Grid.Row="1" Grid.Column="3" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding ShowsNewFunctionPlaceholder}" IsEnabled="False" Text="-" />
             <TextBox Grid.Row="1" Grid.Column="4" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding ShowsArgumentEditor}" Text="{Binding NewArgument, Mode=TwoWay}" Watermark="Argument" />
-            <TextBox Grid.Row="1" Grid.Column="4" Margin="8,6,0,0" Classes="dialog-field" IsVisible="{Binding !ShowsArgumentEditor}" IsEnabled="False" Text="-" />
-            <Button Grid.Row="1" Grid.Column="5" Margin="8,6,0,0" Classes="dialog-button" Content="Add" Click="OnAddClicked" />
+              <Grid Grid.Row="1" Grid.Column="4" Margin="8,6,0,0" ColumnDefinitions="*,140" IsVisible="{Binding ShowsNewSetValueLiteralEditor}">
+                <TextBox Classes="dialog-field" Text="{Binding NewSetValueLiteralArgument, Mode=TwoWay}" Watermark="{Binding NewSetValueLiteralWatermark}" ToolTip.Tip="{Binding NewSetValueValidationMessage}" />
+                <TextBox Grid.Column="1" Margin="8,0,0,0" Classes="dialog-field" IsVisible="{Binding ShowsNewSetValueSeparatorEditor}" Text="{Binding NewSetValueSeparator, Mode=TwoWay}" Watermark="Separator" ToolTip.Tip="Optional separator used between current and appended text" />
+              </Grid>
+             <Grid Grid.Row="1" Grid.Column="4" Margin="8,6,0,0" ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsNewSetValueSourceEditor}">
+               <TextBox Classes="dialog-field" IsReadOnly="True" Text="{Binding NewSetValueSourcePath, Mode=OneWay}" Watermark="Source item" ToolTip.Tip="{Binding NewSetValueValidationMessage}" />
+               <Button Grid.Column="1" Margin="8,0,0,0" Classes="dialog-button" ToolTip.Tip="Browse source items" Click="OnBrowseNewSetValueSourceClicked">
+                 <controls:ThemeSvgIcon Width="14" Height="14" IconPath="avares://HornetStudio.Editor/EditorIcons/list.svg" TintColor="{Binding PrimaryTextBrush, ElementName=Root}" />
+               </Button>
+             </Grid>
+             <TextBlock Grid.Row="2" Grid.Column="4" Margin="8,4,0,0" FontSize="11" Foreground="#FCA5A5" Text="{Binding NewSetValueValidationMessage}" TextWrapping="Wrap" IsVisible="{Binding HasNewSetValueValidationError}" />
+            <Button Grid.Row="1" Grid.Column="5" Margin="8,6,0,0" Classes="dialog-button" Content="Add" IsEnabled="{Binding CanAdd}" Click="OnAddClicked" />
           </Grid>
         </StackPanel>
       </StackPanel>
@@ -191,7 +225,7 @@
       <StackPanel Spacing="10">
         <Border Height="1" Background="{Binding SectionBorderBrush, ElementName=Root}" />
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-          <Button Classes="dialog-button" Content="Save" Click="OnSaveClicked" />
+          <Button Classes="dialog-button" Content="Save" IsEnabled="{Binding CanSave}" Click="OnSaveClicked" />
           <Button Classes="dialog-button" Content="Cancel" Click="OnCancelClicked" />
         </StackPanel>
       </StackPanel>

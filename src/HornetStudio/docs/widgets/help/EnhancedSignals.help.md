@@ -44,6 +44,10 @@ The widget listens for data registry changes and updates its visible signal rows
 
 Enhanced signal definitions can define `IsWritable`, `WriteMode`, and `WritePath`. Generic UI controls can then write through the published enhanced signal while the runtime routes the value to its configured backend path or request channel.
 
+### Published type metadata
+
+Published enhanced signal channels expose canonical registry `type` metadata on the actual child items, including numeric channels such as `read` and `set`, textual status fields, boolean controls, and integer timing counters used by diagnostics and statistics.
+
 ## Migration Note
 
 Use EnhancedSignals instead of deprecated FilteredSignals patterns.

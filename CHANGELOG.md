@@ -4,8 +4,10 @@
 
 - Added an initial `src/HornetStudio/docs/manual/` handbook structure, documented the host-registry interaction model for shared help/PDF source content, and updated repository documentation maintenance rules for manual, widget description, and widget help pages.
 - Changed the Functions widget catalog to use compact rows with consistent `YAML`/`Python` type badges, quiet status text, a scrollable list body, and a single `Run`/`Stop` row action toggle.
+- Fixed the Functions widget row state so declarative functions started or stopped through Button Interaction Rules update the matching `Running`/`Stopping` display.
 - Added the first WorkflowWidget editor flow with dialog-based create/edit/delete actions for workflow YAML files, flat `Log`/`SetValue`/`Delay` step editing, read-only preservation of existing `IfThenElse` steps, and updated widget help text.
 - Replaced the unfinished dialog-screen model with `DialogWidget` overlays targeted by `OpenDialog(dialogWidgetId, origin = Screen, position = Center)` and `CloseDialog(dialogWidgetId)`.
+- Fixed Item client host-write priority so declarative YAML `SetValue` writes and Python host-value writes to resolved writable targets are not reverted by stale broker `read` or property state.
 - Fixed Item client writable publish definitions so recent local Host writes keep short-term priority over conflicting retained or echoed MQTT state, while external non-retained MQTT `write` requests remain allowed.
 - Changed `VisualRules` version 1 to a constrained widget-specific surface: `Signal` and `Item` now expose only `BodyBackColor`, `Button` exposes only `ButtonBackColor`, `CircleDisplay` exposes only `DisplayBackColor`, unsupported widgets no longer show a Visual editor, and legacy body `Background` rules continue to load for compatible widgets.
 - Changed LogControl-owned process log files to use a project-local `Logs/<folder>/<widget>/` directory when the project root can be resolved.

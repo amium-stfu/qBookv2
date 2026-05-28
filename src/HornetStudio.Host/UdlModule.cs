@@ -12,6 +12,8 @@ namespace HornetStudio.Host
         private const string OutItemName = "out";
         private const string StateItemName = "state";
         private const string AlertItemName = "alert";
+        private const string FloatTypeName = "float";
+        private const string IntTypeName = "int";
 
         public UdlModule(string name, string? path = null)
             : base(name, path: path)
@@ -20,11 +22,11 @@ namespace HornetStudio.Host
             Properties["text"].Value = name;
             Properties["unit"].Value = string.Empty;
 
-            AddChannel(ReadItemName, hasWriteChannel: true);
-            AddChannel(SetItemName, hasWriteChannel: true);
-            AddChannel(OutItemName, hasWriteChannel: true);
-            AddChannel(StateItemName, hasWriteChannel: true);
-            AddChannel(AlertItemName);
+            AddChannel(ReadItemName, FloatTypeName, hasWriteChannel: true);
+            AddChannel(SetItemName, FloatTypeName, hasWriteChannel: true);
+            AddChannel(OutItemName, FloatTypeName, hasWriteChannel: true);
+            AddChannel(StateItemName, IntTypeName, hasWriteChannel: true);
+            AddChannel(AlertItemName, IntTypeName);
         }
 
         public ItemModel Read => this[ReadItemName];
@@ -35,6 +37,11 @@ namespace HornetStudio.Host
 
         public void EnsureWriteMetadata()
         {
+            EnsureChannelType(Read, FloatTypeName);
+            EnsureChannelType(Set, FloatTypeName);
+            EnsureChannelType(Out, FloatTypeName);
+            EnsureChannelType(State, IntTypeName);
+            EnsureChannelType(Alert, IntTypeName);
             EnsureWriteChannel(Read);
             EnsureWriteChannel(Set);
             EnsureWriteChannel(Out);
@@ -43,12 +50,19 @@ namespace HornetStudio.Host
             RemoveLegacyCommand();
         }
 
-        private void AddChannel(string name, bool hasWriteChannel = false)
+        private void AddChannel(string name, string targetType, bool hasWriteChannel = false)
         {
-            this[name] = new ItemModel(
+            var channel = new ItemModel(
                 name,
                 path: Path,
                 hasWriteChannel: hasWriteChannel);
+            EnsureChannelType(channel, targetType);
+            this[name] = channel;
+        }
+
+        private static void EnsureChannelType(ItemModel channel, string targetType)
+        {
+            channel.Properties["type"].Value = targetType;
         }
 
         private static void EnsureWriteChannel(ItemModel channel)

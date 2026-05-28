@@ -4,6 +4,7 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
+using HornetStudio.Editor.Helpers;
 using HornetStudio.Editor.Models;
 using HornetStudio.Editor.ViewModels;
 
@@ -52,7 +53,15 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
     private string _newTargetPath = "this";
     private string _newFunctionName = string.Empty;
     private string _newArgument = string.Empty;
+    private string _newSetValueSummary = string.Empty;
+    private string _newSetValueValidationMessage = string.Empty;
     private FunctionPickerOption? _selectedNewRunFunctionOption;
+    private SetValueInlineOperationOption? _selectedNewSetValueOperation;
+    private string _newSetValueLiteralArgument = string.Empty;
+    private string _newSetValueSeparator = string.Empty;
+    private string _newSetValueSourcePath = string.Empty;
+    private SetValueTargetKind _newSetValueTargetKind;
+    private bool _isSynchronizingNewSetValueInlineState;
 
     public new event PropertyChangedEventHandler? PropertyChanged;
 
@@ -204,12 +213,20 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewPythonFunctionAction)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewRunFunctionAction)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewDialogAction)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsNewSetValueAction)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsTargetSelection)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsesComboTargetSelection)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsesBrowseTargetSelection)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsFunctionPicker)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsLegacyFunctionPicker)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewRunFunctionPicker)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueFunctionPicker)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewFunctionPlaceholder)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsArgumentEditor)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueEditor)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueLiteralEditor)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueSeparatorEditor)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueSourceEditor)));
             RefreshNewEntryOptions();
         }
     }
@@ -233,6 +250,7 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
             _newTargetPath = normalized;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewTargetPath)));
             RefreshNewEntryFunctionOptions();
+            RefreshNewSetValueMetadata();
         }
     }
 
@@ -253,6 +271,22 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         }
     }
 
+    public SetValueTargetKind NewSetValueTargetKind
+    {
+        get => _newSetValueTargetKind;
+        private set
+        {
+            if (_newSetValueTargetKind == value)
+            {
+                return;
+            }
+
+            _newSetValueTargetKind = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewSetValueTargetKind)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewSetValueLiteralWatermark)));
+        }
+    }
+
     public FunctionPickerOption? SelectedNewRunFunctionOption
     {
         get => _selectedNewRunFunctionOption;
@@ -270,10 +304,53 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
     public string NewArgument
     {
         get => _newArgument;
-        set => SetAndRaise(ref _newArgument, value ?? string.Empty, nameof(NewArgument));
+        set
+        {
+            if (_newArgument == (value ?? string.Empty))
+            {
+                return;
+            }
+
+            _newArgument = value ?? string.Empty;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewArgument)));
+
+            if (!_isSynchronizingNewSetValueInlineState)
+            {
+                RefreshNewSetValueMetadata();
+            }
+        }
     }
 
+    public string NewSetValueSummary
+    {
+        get => _newSetValueSummary;
+        private set => SetAndRaise(ref _newSetValueSummary, value, nameof(NewSetValueSummary));
+    }
+
+    public string NewSetValueValidationMessage
+    {
+        get => _newSetValueValidationMessage;
+        private set
+        {
+            if (_newSetValueValidationMessage == value)
+            {
+                return;
+            }
+
+            _newSetValueValidationMessage = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewSetValueValidationMessage)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasNewSetValueValidationError)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanAdd)));
+        }
+    }
+
+    public ObservableCollection<SetValueInlineOperationOption> NewSetValueOperationOptions { get; } = [];
+
+    public ObservableCollection<string> NewSetValueSourceOptions { get; } = [];
+
     public bool IsNewPythonFunctionAction => string.Equals(NewActionName, nameof(ItemInteractionAction.InvokePythonFunction), StringComparison.OrdinalIgnoreCase);
+
+    public bool IsNewSetValueAction => string.Equals(NewActionName, nameof(ItemInteractionAction.SetValue), StringComparison.OrdinalIgnoreCase);
 
     public bool IsNewRunFunctionAction
         => string.Equals(NewActionName, nameof(ItemInteractionAction.RunFunction), StringComparison.OrdinalIgnoreCase)
@@ -293,7 +370,112 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
 
     public bool ShowsLegacyFunctionPicker => IsNewPythonFunctionAction;
 
-    public bool ShowsArgumentEditor => true;
+    public bool ShowsNewRunFunctionPicker => IsNewRunFunctionAction;
+
+    public bool ShowsNewSetValueFunctionPicker => IsNewSetValueAction;
+
+    public bool ShowsArgumentEditor => !IsNewSetValueAction;
+
+    public bool ShowsNewSetValueEditor => IsNewSetValueAction;
+
+    public bool ShowsNewFunctionPlaceholder => !ShowsFunctionPicker && !IsNewSetValueAction;
+
+    public bool ShowsNewSetValueLiteralEditor
+        => IsNewSetValueAction
+            && SelectedNewSetValueOperation?.UsesSourceItem != true
+            && SelectedNewSetValueOperation?.Kind is not SetValueOperationKind.SetTrue
+            && SelectedNewSetValueOperation?.Kind is not SetValueOperationKind.SetFalse;
+
+    public bool ShowsNewSetValueSeparatorEditor
+        => IsNewSetValueAction
+            && SelectedNewSetValueOperation?.Kind == SetValueOperationKind.AppendText
+            && NewSetValueTargetKind == SetValueTargetKind.String;
+
+    public bool ShowsNewSetValueSourceEditor => IsNewSetValueAction && SelectedNewSetValueOperation?.UsesSourceItem == true;
+
+    public bool HasNewSetValueValidationError => !string.IsNullOrWhiteSpace(NewSetValueValidationMessage);
+
+    public bool CanAdd => !HasNewSetValueValidationError;
+
+    public bool CanSave => Rows.All(static row => !row.HasSetValueValidationError);
+
+    public string NewSetValueLiteralWatermark => NewSetValueTargetKind switch
+    {
+        SetValueTargetKind.Numeric => "12.5",
+        SetValueTargetKind.Boolean => "true",
+        _ => "Value"
+    };
+
+    public SetValueInlineOperationOption? SelectedNewSetValueOperation
+    {
+        get => _selectedNewSetValueOperation;
+        set
+        {
+            if (ReferenceEquals(_selectedNewSetValueOperation, value))
+            {
+                return;
+            }
+
+            _selectedNewSetValueOperation = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedNewSetValueOperation)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueLiteralEditor)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueSeparatorEditor)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueSourceEditor)));
+            SyncNewArgumentFromInlineState();
+        }
+    }
+
+    public string NewSetValueLiteralArgument
+    {
+        get => _newSetValueLiteralArgument;
+        set
+        {
+            var normalized = value ?? string.Empty;
+            if (_newSetValueLiteralArgument == normalized)
+            {
+                return;
+            }
+
+            _newSetValueLiteralArgument = normalized;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewSetValueLiteralArgument)));
+            SyncNewArgumentFromInlineState();
+        }
+    }
+
+    public string NewSetValueSeparator
+    {
+        get => _newSetValueSeparator;
+        set
+        {
+            var normalized = value ?? string.Empty;
+            if (_newSetValueSeparator == normalized)
+            {
+                return;
+            }
+
+            _newSetValueSeparator = normalized;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewSetValueSeparator)));
+            SyncNewArgumentFromInlineState();
+        }
+    }
+
+    public string NewSetValueSourcePath
+    {
+        get => _newSetValueSourcePath;
+        set
+        {
+            var normalized = value ?? string.Empty;
+            if (_newSetValueSourcePath == normalized)
+            {
+                return;
+            }
+
+            _newSetValueSourcePath = normalized;
+            EnsureCurrentNewSetValueSourceOption();
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewSetValueSourcePath)));
+            SyncNewArgumentFromInlineState();
+        }
+    }
 
     protected override void OnClosed(System.EventArgs e)
     {
@@ -308,6 +490,13 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
 
     private void OnAddClicked(object? sender, RoutedEventArgs e)
     {
+        RefreshNewSetValueMetadata();
+        if (!CanAdd)
+        {
+            e.Handled = true;
+            return;
+        }
+
         var row = new ItemInteractionEditorRow
         {
             EventName = string.IsNullOrWhiteSpace(NewEventName) ? "BodyLeftClick" : NewEventName,
@@ -320,6 +509,7 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         AttachRow(row);
 
         Rows.Add(row);
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSave)));
         e.Handled = true;
     }
 
@@ -359,12 +549,81 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         e.Handled = true;
     }
 
+    private async void OnEditRowSetValueClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: ItemInteractionEditorRow row })
+        {
+            return;
+        }
+
+        var targetPath = string.IsNullOrWhiteSpace(row.TargetPath)
+            ? "this"
+            : TargetPathHelper.NormalizeConfiguredTargetPath(row.TargetPath);
+
+        var descriptor = _field?.GetSetValueTargetDescriptor(targetPath) ?? new SetValueTargetDescriptor
+        {
+            TargetPath = targetPath,
+            TargetKind = SetValueTargetKind.Unknown,
+            IsWritable = true,
+            ValuePropertyName = string.Empty
+        };
+        var sourceOptions = _field?.GetCompatibleSetValueSourceOptions(targetPath) ?? row.TargetOptions;
+        var dialog = new SetValueOperationEditorDialogWindow(
+            _viewModel,
+            descriptor.TargetPath,
+            descriptor.TargetKind,
+            row.Argument,
+            sourceOptions);
+        var result = await dialog.ShowDialog<string?>(this);
+        if (result is not null)
+        {
+            row.Argument = result;
+            RefreshRowOptions(row);
+        }
+
+        e.Handled = true;
+    }
+
+    private async void OnBrowseRowSetValueSourceClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: ItemInteractionEditorRow row })
+        {
+            return;
+        }
+
+        var currentTarget = string.IsNullOrWhiteSpace(row.SetValueSourcePath)
+            ? row.SetValueSourceOptions.FirstOrDefault() ?? string.Empty
+            : row.SetValueSourcePath;
+        var selectedTarget = await SelectTargetAsync(row.SetValueSourceOptions, currentTarget, usesBrowseSelection: true);
+        if (!string.IsNullOrWhiteSpace(selectedTarget))
+        {
+            row.SetValueSourcePath = selectedTarget;
+        }
+
+        e.Handled = true;
+    }
+
+    private async void OnBrowseNewSetValueSourceClicked(object? sender, RoutedEventArgs e)
+    {
+        var currentTarget = string.IsNullOrWhiteSpace(NewSetValueSourcePath)
+            ? NewSetValueSourceOptions.FirstOrDefault() ?? string.Empty
+            : NewSetValueSourcePath;
+        var selectedTarget = await SelectTargetAsync(NewSetValueSourceOptions, currentTarget, usesBrowseSelection: true);
+        if (!string.IsNullOrWhiteSpace(selectedTarget))
+        {
+            NewSetValueSourcePath = selectedTarget;
+        }
+
+        e.Handled = true;
+    }
+
     private void OnRemoveClicked(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: ItemInteractionEditorRow row })
         {
             DetachRow(row);
             Rows.Remove(row);
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSave)));
         }
 
         e.Handled = true;
@@ -372,6 +631,13 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
 
     private void OnSaveClicked(object? sender, RoutedEventArgs e)
     {
+        RefreshAllSetValueValidation();
+        if (!CanSave)
+        {
+            e.Handled = true;
+            return;
+        }
+
         _field?.ApplyInteractionRuleEntries(Rows);
         Close();
         e.Handled = true;
@@ -479,6 +745,19 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         {
             RefreshRowOptions(row);
         }
+
+        if (e.PropertyName is nameof(ItemInteractionEditorRow.Argument)
+            or nameof(ItemInteractionEditorRow.SetValueValidationMessage)
+            or nameof(ItemInteractionEditorRow.ActionName)
+            or nameof(ItemInteractionEditorRow.TargetPath))
+        {
+            if (e.PropertyName == nameof(ItemInteractionEditorRow.Argument))
+            {
+                _field?.RefreshSetValueMetadata(row);
+            }
+
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSave)));
+        }
     }
 
     private void RefreshRowOptions(ItemInteractionEditorRow row)
@@ -522,6 +801,7 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         }
 
         RefreshNewEntryFunctionOptions();
+        RefreshNewSetValueMetadata();
     }
 
     private void RefreshNewEntryFunctionOptions()
@@ -582,9 +862,157 @@ public partial class InteractionRulesEditorDialogWindow : Window, INotifyPropert
         NewFunctionName = functionOptions.FirstOrDefault() ?? NewFunctionName;
     }
 
-    private async Task<string?> SelectTargetAsync(IEnumerable<string> options, string currentSelection)
+    private void RefreshNewSetValueMetadata()
     {
-        if (!UsesBrowseTargetSelection)
+        if (!IsNewSetValueAction)
+        {
+            NewSetValueTargetKind = SetValueTargetKind.Unknown;
+            NewSetValueOperationOptions.Clear();
+            NewSetValueSourceOptions.Clear();
+            NewSetValueSummary = string.Empty;
+            NewSetValueValidationMessage = string.Empty;
+            return;
+        }
+
+        var descriptor = _field?.GetSetValueTargetDescriptor(NewTargetPath) ?? new SetValueTargetDescriptor
+        {
+            TargetPath = string.IsNullOrWhiteSpace(NewTargetPath) ? "this" : NewTargetPath,
+            TargetKind = SetValueTargetKind.Unknown,
+            IsWritable = true,
+            ValuePropertyName = string.Empty
+        };
+        NewSetValueTargetKind = descriptor.TargetKind;
+        RefreshNewSetValueInlineState();
+        NewSetValueSummary = SetValueOperationCodec.GetSummary(NewArgument, descriptor.TargetKind);
+
+        var parsed = SetValueOperationCodec.Parse(NewArgument);
+        if (!parsed.IsValid)
+        {
+            NewSetValueValidationMessage = parsed.ErrorMessage;
+            return;
+        }
+
+        var validation = SetValueOperationCodec.Validate(
+            operation: parsed.Operation,
+            targetKind: descriptor.TargetKind,
+            isCompatibleSourcePath: sourcePath => _field?.IsCompatibleSetValueSourcePath(NewTargetPath, sourcePath)
+                ?? TargetOptions.Contains(sourcePath, StringComparer.OrdinalIgnoreCase));
+        NewSetValueValidationMessage = validation.IsValid ? string.Empty : validation.ErrorMessage;
+    }
+
+    private void RefreshAllSetValueValidation()
+    {
+        if (_field is null)
+        {
+            return;
+        }
+
+        foreach (var row in Rows)
+        {
+            _field.RefreshSetValueMetadata(row);
+        }
+
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSave)));
+    }
+
+    private void RefreshNewSetValueInlineState()
+    {
+        var selectedKind = _selectedNewSetValueOperation?.Kind;
+
+        NewSetValueOperationOptions.Clear();
+        foreach (var option in SetValueOperationCodec.GetInlineOperationOptions(NewSetValueTargetKind))
+        {
+            NewSetValueOperationOptions.Add(option);
+        }
+
+        NewSetValueSourceOptions.Clear();
+        foreach (var option in (_field?.GetCompatibleSetValueSourceOptions(NewTargetPath) ?? TargetOptions)
+                     .Where(static option => !string.IsNullOrWhiteSpace(option))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            NewSetValueSourceOptions.Add(option);
+        }
+
+        var parsed = SetValueOperationCodec.Parse(NewArgument);
+        var inlineOperation = parsed.IsValid
+            ? SetValueOperationCodec.ToInlineEditorOperation(parsed.Operation, NewSetValueTargetKind)
+            : new SetValueOperation
+            {
+                Kind = SetValueOperationKind.SetLiteral,
+                LiteralValue = NewArgument,
+                IsLegacyLiteral = true
+            };
+
+        _isSynchronizingNewSetValueInlineState = true;
+        _newSetValueLiteralArgument = inlineOperation.LiteralValue ?? string.Empty;
+        _newSetValueSeparator = inlineOperation.Separator ?? string.Empty;
+        _newSetValueSourcePath = inlineOperation.SourcePath ?? string.Empty;
+        var preferredKind = NewSetValueOperationOptions.Any(option => option.Kind == inlineOperation.Kind)
+            ? inlineOperation.Kind
+            : selectedKind is not null && NewSetValueOperationOptions.Any(option => option.Kind == selectedKind)
+                ? selectedKind.Value
+                : NewSetValueOperationOptions.FirstOrDefault()?.Kind ?? SetValueOperationKind.SetLiteral;
+        _selectedNewSetValueOperation = NewSetValueOperationOptions.FirstOrDefault(option => option.Kind == preferredKind);
+        EnsureCurrentNewSetValueSourceOption();
+        _isSynchronizingNewSetValueInlineState = false;
+
+        if (NewSetValueTargetKind == SetValueTargetKind.Boolean
+            && string.IsNullOrWhiteSpace(NewArgument)
+            && _selectedNewSetValueOperation is not null)
+        {
+            SyncNewArgumentFromInlineState();
+        }
+
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewSetValueLiteralArgument)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewSetValueSeparator)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NewSetValueSourcePath)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedNewSetValueOperation)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueLiteralEditor)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueSeparatorEditor)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsNewSetValueSourceEditor)));
+    }
+
+    private void SyncNewArgumentFromInlineState()
+    {
+        if (_isSynchronizingNewSetValueInlineState || !IsNewSetValueAction || SelectedNewSetValueOperation is null)
+        {
+            return;
+        }
+
+        var serializedArgument = SetValueOperationCodec.Serialize(new SetValueOperation
+        {
+            Kind = SelectedNewSetValueOperation.Kind,
+            LiteralValue = NewSetValueLiteralArgument,
+            Separator = SelectedNewSetValueOperation.Kind == SetValueOperationKind.AppendText ? NewSetValueSeparator : string.Empty,
+            SourcePath = NewSetValueSourcePath,
+            IsLegacyLiteral = false
+        });
+
+        if (string.Equals(NewArgument, serializedArgument, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _isSynchronizingNewSetValueInlineState = true;
+        NewArgument = serializedArgument;
+        _isSynchronizingNewSetValueInlineState = false;
+        RefreshNewSetValueMetadata();
+    }
+
+    private void EnsureCurrentNewSetValueSourceOption()
+    {
+        if (string.IsNullOrWhiteSpace(NewSetValueSourcePath)
+            || NewSetValueSourceOptions.Contains(NewSetValueSourcePath, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        NewSetValueSourceOptions.Add(NewSetValueSourcePath);
+    }
+
+    private async Task<string?> SelectTargetAsync(IEnumerable<string> options, string currentSelection, bool usesBrowseSelection = false)
+    {
+        if (!usesBrowseSelection && !UsesBrowseTargetSelection)
         {
             return string.IsNullOrWhiteSpace(currentSelection)
                 ? options.FirstOrDefault()

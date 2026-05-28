@@ -26,6 +26,24 @@ That means:
 - update paths should target host-registered items
 - UI-specific lookup layers should reflect the host state instead of replacing it
 
+## Target Metadata Convention
+
+Writable or UI-addressable registry targets should publish semantic metadata through a dedicated `type` property.
+
+- `type` describes the target value semantics used for validation, compatible source filtering, and editor behavior.
+- `format` remains a separate display-oriented property and should not be used as the primary semantic type.
+- Known canonical `type` values are `unknown`, `string`, `bool`, `int`, `long`, `float`, `double`, `decimal`, `epoch`, `bits`, and `object`.
+- New targets created or published by HornetStudio runtime code should include `type` when they are intended to be writable.
+- Legacy or external targets may still omit `type`; consumers should then fall back to runtime value inference.
+
+For current UDL modules, the channel mapping is:
+
+- `read.type = float`
+- `set.type = float`
+- `out.type = float`
+- `state.type = int`
+- `alert.type = int`
+
 ## Function Registry Relationship
 
 `FunctionRegistry` is not presented here as a child registry owned by items.

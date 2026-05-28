@@ -25,6 +25,7 @@ Provides structured enhanced signal definitions and publishes them as runtime-ac
 
 The widget rebuilds and refreshes published runtimes when the stored definitions or naming context change.
 Published enhanced signals can expose a default request-based write endpoint through their internal `Set` channel or a custom configured target path.
+Published enhanced signal channels also expose canonical registry `type` metadata on numeric, boolean, textual, and timing/status child items so downstream target selection can resolve value handling consistently.
 
 ## Source
 

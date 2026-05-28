@@ -1,0 +1,102 @@
+<Window
+    x:Class="HornetStudio.Editor.Widgets.SetValueOperationEditorDialogWindow"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HornetStudio.Editor.Controls"
+    Width="680"
+    MinWidth="620"
+    MinHeight="360"
+    MaxHeight="760"
+    SizeToContent="Height"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner"
+    Title="Edit SetValue"
+    Background="{Binding DialogBackground, ElementName=Root}">
+  <Window.Styles>
+    <Style Selector="Button.dialog-button">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="{Binding ButtonBackground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding ButtonBorderBrush, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding ButtonForeground, ElementName=Root}" />
+    </Style>
+    <Style Selector="ComboBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor, ElementName=Root}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="TextBox.dialog-field">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Background" Value="{Binding InputBackground, ElementName=Root}" />
+      <Setter Property="Foreground" Value="{Binding InputForeground, ElementName=Root}" />
+      <Setter Property="BorderBrush" Value="{Binding BorderColor, ElementName=Root}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+  </Window.Styles>
+  <controls:EditorShellControl
+      Margin="16"
+      ShellBackground="{Binding DialogBackground, ElementName=Root}"
+      ShellBorderBrush="{Binding BorderColor, ElementName=Root}"
+      ShellBorderThickness="1"
+      ShellCornerRadius="10"
+      ShellPadding="14"
+      ShowHeader="True"
+      ShowFooter="True"
+      HeaderPadding="0,0,0,10">
+    <controls:EditorShellControl.HeaderContent>
+      <StackPanel>
+        <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="Edit SetValue" />
+        <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Configure a validated SetValue operation for the selected interaction target." TextWrapping="Wrap" />
+      </StackPanel>
+    </controls:EditorShellControl.HeaderContent>
+    <controls:EditorShellControl.BodyContent>
+      <StackPanel Spacing="10">
+        <Border Padding="10" Background="{Binding EditorDialogSectionContentBackground, ElementName=Root}" BorderBrush="{Binding BorderColor, ElementName=Root}" BorderThickness="1" CornerRadius="8">
+          <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto">
+            <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Target" />
+            <TextBlock Grid.Column="1" Margin="10,0,0,0" FontSize="12" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding TargetPath}" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="1" Margin="0,6,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Detected type" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Margin="10,6,0,0" FontSize="12" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding TargetKindText}" />
+            <TextBlock Grid.Row="2" Margin="0,6,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Preview" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Margin="10,6,0,0" FontSize="12" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding PreviewSummary}" TextWrapping="Wrap" />
+          </Grid>
+        </Border>
+        <Border Padding="10" Background="{Binding EditorDialogSectionContentBackground, ElementName=Root}" BorderBrush="{Binding BorderColor, ElementName=Root}" BorderThickness="1" CornerRadius="8">
+          <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="150,*">
+            <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Mode" />
+            <ComboBox Grid.Column="1" Margin="10,0,0,0" Classes="dialog-field" ItemsSource="{Binding OperationOptions}" SelectedItem="{Binding SelectedOperationOption, Mode=TwoWay}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding DisplayName}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Grid.Row="1" Margin="0,8,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Literal value" IsVisible="{Binding ShowsLiteralValue}" />
+            <TextBox Grid.Row="1" Grid.Column="1" Margin="10,8,0,0" Classes="dialog-field" IsVisible="{Binding ShowsLiteralValue}" Text="{Binding LiteralValue, Mode=TwoWay}" Watermark="{Binding LiteralWatermark}" />
+            <TextBlock Grid.Row="2" Margin="0,8,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Separator" IsVisible="{Binding ShowsSeparatorValue}" />
+            <TextBox Grid.Row="2" Grid.Column="1" Margin="10,8,0,0" Classes="dialog-field" IsVisible="{Binding ShowsSeparatorValue}" Text="{Binding SeparatorValue, Mode=TwoWay}" Watermark="Separator" />
+            <TextBlock Grid.Row="3" Margin="0,8,0,0" FontSize="12" Foreground="{Binding SecondaryTextBrush, ElementName=Root}" Text="Source item" IsVisible="{Binding ShowsSourcePicker}" />
+            <ComboBox Grid.Row="3" Grid.Column="1" Margin="10,8,0,0" Classes="dialog-field" IsVisible="{Binding ShowsSourcePicker}" ItemsSource="{Binding SourceOptions}" SelectedItem="{Binding SelectedSourcePath, Mode=TwoWay}" />
+            <Border Grid.Row="4" Grid.ColumnSpan="2" Margin="0,8,0,0" IsVisible="{Binding HasValidationError}" Padding="10" Background="#33DC2626" BorderBrush="#DC2626" BorderThickness="1" CornerRadius="6">
+              <TextBlock FontSize="12" Foreground="{Binding PrimaryTextBrush, ElementName=Root}" Text="{Binding ValidationMessage}" TextWrapping="Wrap" />
+            </Border>
+          </Grid>
+        </Border>
+      </StackPanel>
+    </controls:EditorShellControl.BodyContent>
+    <controls:EditorShellControl.FooterContent>
+      <StackPanel Spacing="10">
+        <Border Height="1" Background="{Binding BorderColor, ElementName=Root}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+          <Button Classes="dialog-button" Content="Save" IsEnabled="{Binding CanSave}" Click="OnSaveClicked" />
+          <Button Classes="dialog-button" Content="Cancel" Click="OnCancelClicked" />
+        </StackPanel>
+      </StackPanel>
+    </controls:EditorShellControl.FooterContent>
+  </controls:EditorShellControl>
+</Window>

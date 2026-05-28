@@ -152,6 +152,7 @@ Buttons can now reference runnable registry entries through `RunFunction` withou
 - Shows each row as a compact catalog entry with type badge, trimmed name/source text, quiet compact state, and row actions
 - Shows declarative entries as `YAML` and Python entries as `Python` using consistent type badges
 - Shows `Ready` for valid entries, `Invalid` for invalid entries, `Running` while a row-level execution is active, and `Stopping` after a stop request was sent
+- Updates the same row state when a function is started or stopped through Button Interaction Rules
 - Exposes source, file, reference, and validation details through the row tooltip
 - Shows Python rows as read-only entries without `Edit` or `Delete`
 - Exposes runnable Python rows to `RunFunction` when the target client and function metadata are available

@@ -44,6 +44,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Host UDL client creates flat channels", () => RunSync(HostUdlClientCreatesFlatChannels)),
     ("Python client registry paths normalize to snake_case", PythonClientRegistryPathsNormalizeToSnakeCase),
     ("Enhanced signal runtime publishes snake_case write paths", () => RunSync(EnhancedSignalRuntimePublishesSnakeCaseWritePaths)),
+    ("Enhanced signal runtime publishes type metadata", () => RunSync(EnhancedSignalRuntimePublishesTypeMetadata)),
     ("Enhanced signal set write forwards inverse adjustment", () => RunSync(EnhancedSignalSetWriteForwardsInverseAdjustment)),
     ("Enhanced signal prefers child read over source container text", () => RunSync(EnhancedSignalPrefersChildReadOverSourceContainerText)),
     ("Enhanced signal ignores nonnumeric source text for numeric conversion", () => RunSync(EnhancedSignalIgnoresNonnumericSourceTextForNumericConversion)),
@@ -508,6 +509,80 @@ static void EnhancedSignalRuntimePublishesSnakeCaseWritePaths()
 
     AssertTrue(HostRegistries.Data.TryGet(rootPath, out var root));
     AssertFalse(EnumerateItemPaths(root!).Any(static path => path.Split('.').Any(static segment => !IsSnakeCaseSegment(segment))));
+}
+
+static void EnhancedSignalRuntimePublishesTypeMetadata()
+{
+    var definition = new ExtendedSignalDefinition
+    {
+        Name = "enhanced_signal_types",
+        SourcePath = "runtime.enhanced_signal_source_types.read",
+        KalmanEnabled = true,
+        KalmanDynamicQEnabled = true,
+        DynamicFilter = new ExtendedSignalDynamicFilterDefinition
+        {
+            Enabled = true
+        },
+        Statistics = new ExtendedSignalStatisticsDefinition
+        {
+            Enabled = true,
+            PublishMin = true,
+            PublishAverage = true
+        },
+        Adjustment = new ExtendedSignalAdjustmentDefinition
+        {
+            Enabled = true,
+            SupportsInverseMapping = true
+        }
+    };
+
+    using var runtime = new EnhancedSignalRuntime("enhanced_signal_runtime_test", definition);
+    var rootPath = runtime.RegistryPath;
+
+    AssertTrue(HostRegistries.Data.TryResolve(rootPath, out var root));
+    AssertEqual("float", root?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.read", out var read));
+    AssertEqual("float", read?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.state", out var state));
+    AssertEqual("string", state?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.command", out var command));
+    AssertEqual("bool", command?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.dynamic.active", out var dynamicActive));
+    AssertEqual("bool", dynamicActive?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.dynamic.normalization_mode", out var dynamicNormalizationMode));
+    AssertEqual("string", dynamicNormalizationMode?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.dynamic.remaining_hold_ms", out var dynamicRemainingHold));
+    AssertEqual("int", dynamicRemainingHold?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.kalman.dynamic_trigger_active", out var kalmanDynamicTrigger));
+    AssertEqual("bool", kalmanDynamicTrigger?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.kalman.dynamic_normalization_mode", out var kalmanDynamicNormalization));
+    AssertEqual("string", kalmanDynamicNormalization?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.adjustment.offset", out var adjustmentOffset));
+    AssertEqual("float", adjustmentOffset?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.adjustment.enabled", out var adjustmentEnabled));
+    AssertEqual("bool", adjustmentEnabled?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.adjustment.mapping_mode", out var adjustmentMappingMode));
+    AssertEqual("string", adjustmentMappingMode?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.statistics.average", out var statisticsAverage));
+    AssertEqual("float", statisticsAverage?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.statistics.min.timestamp", out var statisticsTimestamp));
+    AssertEqual("int", statisticsTimestamp?.Properties["type"].Value);
+
+    AssertTrue(HostRegistries.Data.TryResolve($"{rootPath}.statistics.reset", out var statisticsReset));
+    AssertEqual("bool", statisticsReset?.Properties["type"].Value);
 }
 
 static void EnhancedSignalSetWriteForwardsInverseAdjustment()

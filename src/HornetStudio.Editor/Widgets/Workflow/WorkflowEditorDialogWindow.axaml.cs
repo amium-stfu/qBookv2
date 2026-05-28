@@ -9,11 +9,14 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Amium.Items;
 using HornetStudio.Editor.Controls;
+using HornetStudio.Editor.Helpers;
 using HornetStudio.Editor.Models;
 using HornetStudio.Editor.ViewModels;
 using HornetStudio.Editor.Widgets.Common;
 using HornetStudio.Editor.Widgets.Workflow;
+using HornetStudio.Host;
 
 namespace HornetStudio.Editor.Widgets;
 
@@ -34,6 +37,7 @@ public partial class FunctionEditorDialogWindow : Window, INotifyPropertyChanged
     private readonly string _functionDirectory;
     private readonly string? _existingFilePath;
     private readonly IReadOnlyList<string> _targetOptions;
+    private readonly Dictionary<string, SetValueTargetDescriptor> _setValueTargetDescriptors = new(StringComparer.OrdinalIgnoreCase);
     private string _dialogBackground = "#E3E5EE";
     private string _borderColor = "#D5D9E0";
     private string _primaryTextBrush = "#111827";
@@ -95,6 +99,11 @@ public partial class FunctionEditorDialogWindow : Window, INotifyPropertyChanged
         InitializeComponent();
         DataContext = this;
         AttachToViewModel(viewModel);
+        foreach (var row in Rows)
+        {
+            AttachRow(row);
+        }
+
         RefreshRowState();
     }
 
@@ -268,6 +277,11 @@ public partial class FunctionEditorDialogWindow : Window, INotifyPropertyChanged
 
     protected override void OnClosed(EventArgs e)
     {
+        foreach (var row in Rows)
+        {
+            DetachRow(row);
+        }
+
         AttachToViewModel(null);
         base.OnClosed(e);
     }
@@ -283,6 +297,7 @@ public partial class FunctionEditorDialogWindow : Window, INotifyPropertyChanged
         if (!string.IsNullOrWhiteSpace(selectedTarget))
         {
             row.Target = selectedTarget;
+            RefreshSetValueMetadata(row);
         }
 
         e.Handled = true;
@@ -295,11 +310,14 @@ public partial class FunctionEditorDialogWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        var selectedSource = await SelectTargetAsync(row.ValueFrom);
+        var currentSelection = string.IsNullOrWhiteSpace(row.SetValueSourcePath)
+            ? row.SetValueSourceOptions.FirstOrDefault() ?? string.Empty
+            : row.SetValueSourcePath;
+        var selectedSource = await SelectTargetAsync(currentSelection, row.SetValueSourceOptions);
         if (!string.IsNullOrWhiteSpace(selectedSource))
         {
-            row.ValueFrom = selectedSource;
-            row.Value = string.Empty;
+            row.SetValueSourcePath = selectedSource;
+            RefreshSetValueMetadata(row);
         }
 
         e.Handled = true;
@@ -308,6 +326,7 @@ public partial class FunctionEditorDialogWindow : Window, INotifyPropertyChanged
     private void OnAddStepClicked(object? sender, RoutedEventArgs e)
     {
         var newRow = FunctionStepEditorRow.CreateNew(NewStepType);
+        AttachRow(newRow);
         Rows.Add(newRow);
         ErrorMessage = string.Empty;
         RefreshRowState();
@@ -356,6 +375,7 @@ public partial class FunctionEditorDialogWindow : Window, INotifyPropertyChanged
             : string.Equals(branchName, "While", StringComparison.OrdinalIgnoreCase)
                 ? row.NewWhileStepType
                 : row.NewThenStepType);
+        AttachRow(newRow);
         branchCollection.Add(newRow);
         ErrorMessage = string.Empty;
         RefreshRowState();
@@ -409,6 +429,14 @@ public partial class FunctionEditorDialogWindow : Window, INotifyPropertyChanged
     private void OnSaveClicked(object? sender, RoutedEventArgs e)
     {
         ErrorMessage = string.Empty;
+        RefreshAllSetValueMetadata();
+
+        if (RowsContainSetValueValidationErrors(Rows))
+        {
+            ErrorMessage = "Fix SetValue validation errors before saving.";
+            e.Handled = true;
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(_functionDirectory))
         {
@@ -499,11 +527,371 @@ public partial class FunctionEditorDialogWindow : Window, INotifyPropertyChanged
         SectionHeaderForeground = viewModel?.EditorDialogSectionHeaderForeground ?? "#111827";
     }
 
-    private async Task<string?> SelectTargetAsync(string currentSelection)
+    private async Task<string?> SelectTargetAsync(string currentSelection, IEnumerable<string>? options = null)
     {
-        var dialog = new TargetTreeSelectionDialogWindow(_viewModel, _targetOptions, currentSelection, _ownerItem.FolderName ?? string.Empty);
+        var dialog = new TargetTreeSelectionDialogWindow(_viewModel, options ?? _targetOptions, currentSelection, _ownerItem.FolderName ?? string.Empty);
         await dialog.ShowDialog(this);
         return string.IsNullOrWhiteSpace(dialog.CommittedSelection) ? currentSelection : dialog.CommittedSelection;
+    }
+
+    private void AttachRow(FunctionStepEditorRow row)
+    {
+        RefreshSetValueOptions(row);
+        row.PropertyChanged += OnRowPropertyChanged;
+
+        foreach (var nestedRow in row.ThenRows)
+        {
+            AttachRow(nestedRow);
+        }
+
+        foreach (var nestedRow in row.ElseRows)
+        {
+            AttachRow(nestedRow);
+        }
+
+        foreach (var nestedRow in row.WhileRows)
+        {
+            AttachRow(nestedRow);
+        }
+    }
+
+    private void DetachRow(FunctionStepEditorRow row)
+    {
+        row.PropertyChanged -= OnRowPropertyChanged;
+
+        foreach (var nestedRow in row.ThenRows)
+        {
+            DetachRow(nestedRow);
+        }
+
+        foreach (var nestedRow in row.ElseRows)
+        {
+            DetachRow(nestedRow);
+        }
+
+        foreach (var nestedRow in row.WhileRows)
+        {
+            DetachRow(nestedRow);
+        }
+    }
+
+    private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not FunctionStepEditorRow row)
+        {
+            return;
+        }
+
+        if (e.PropertyName is nameof(FunctionStepEditorRow.Target)
+            or nameof(FunctionStepEditorRow.StepType)
+            or nameof(FunctionStepEditorRow.Value)
+            or nameof(FunctionStepEditorRow.ValueFrom)
+            or nameof(FunctionStepEditorRow.SetValueSourcePath)
+            or nameof(FunctionStepEditorRow.SelectedSetValueOperation)
+            or nameof(FunctionStepEditorRow.SetValueLiteralArgument)
+            or nameof(FunctionStepEditorRow.SetValueSeparator))
+        {
+            RefreshSetValueMetadata(row);
+        }
+    }
+
+    private void RefreshRowState()
+    {
+        RefreshAllSetValueMetadata();
+        RaisePropertyChanged(nameof(HasNoRows));
+    }
+
+    private void RefreshAllSetValueMetadata()
+    {
+        foreach (var row in EnumerateRows(Rows))
+        {
+            RefreshSetValueMetadata(row);
+        }
+    }
+
+    private void RefreshSetValueOptions(FunctionStepEditorRow row)
+    {
+        row.SetSetValueSourceOptions(GetCompatibleSetValueSourceOptions(row.Target));
+        RefreshSetValueMetadata(row);
+    }
+
+    private void RefreshSetValueMetadata(FunctionStepEditorRow row)
+    {
+        if (!row.ShowsSetValueFields)
+        {
+            row.SetValueTargetKind = SetValueTargetKind.Unknown;
+            row.SetValueSummary = string.Empty;
+            row.SetValueValidationMessage = string.Empty;
+            return;
+        }
+
+        row.SetSetValueSourceOptions(GetCompatibleSetValueSourceOptions(row.Target));
+
+        var descriptor = GetSetValueTargetDescriptor(row.Target);
+        row.SetValueTargetKind = descriptor.TargetKind;
+
+        var persistedValue = !string.IsNullOrWhiteSpace(row.ValueFrom)
+            ? SetValueOperationCodec.Serialize(new SetValueOperation
+            {
+                Kind = SetValueOperationKind.SetFromItem,
+                SourcePath = row.ValueFrom,
+                IsLegacyLiteral = false
+            })
+            : row.Value;
+        row.SetValueSummary = SetValueOperationCodec.GetSummary(persistedValue, descriptor.TargetKind);
+
+        var parsed = !string.IsNullOrWhiteSpace(row.ValueFrom)
+            ? new SetValueOperationParseResult
+            {
+                IsValid = true,
+                IsStructured = true,
+                Operation = new SetValueOperation
+                {
+                    Kind = SetValueOperationKind.SetFromItem,
+                    SourcePath = row.ValueFrom,
+                    IsLegacyLiteral = false
+                }
+            }
+            : SetValueOperationCodec.Parse(row.Value);
+        if (!parsed.IsValid)
+        {
+            row.SetValueValidationMessage = parsed.ErrorMessage;
+            return;
+        }
+
+        var validation = SetValueOperationCodec.Validate(
+            operation: parsed.Operation,
+            targetKind: descriptor.TargetKind,
+            isCompatibleSourcePath: sourcePath => IsCompatibleSetValueSourcePath(row.Target, sourcePath));
+        row.SetValueValidationMessage = validation.IsValid ? string.Empty : validation.ErrorMessage;
+    }
+
+    private SetValueTargetDescriptor GetSetValueTargetDescriptor(string? targetPath)
+    {
+        var normalizedTargetPath = string.IsNullOrWhiteSpace(targetPath)
+            ? "this"
+            : TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
+
+        if (TryResolveSetValueTargetDescriptor(normalizedTargetPath, out var descriptor))
+        {
+            _setValueTargetDescriptors[normalizedTargetPath] = descriptor;
+            return descriptor;
+        }
+
+        if (_setValueTargetDescriptors.TryGetValue(normalizedTargetPath, out descriptor))
+        {
+            return descriptor;
+        }
+
+        return new SetValueTargetDescriptor
+        {
+            TargetPath = normalizedTargetPath,
+            TargetKind = SetValueTargetKind.Unknown,
+            IsWritable = true,
+            ValuePropertyName = string.Empty
+        };
+    }
+
+    private IReadOnlyList<string> GetCompatibleSetValueSourceOptions(string? targetPath)
+    {
+        var targetDescriptor = GetSetValueTargetDescriptor(targetPath);
+        return _targetOptions
+            .Where(static option => !string.IsNullOrWhiteSpace(option))
+            .Select(GetSetValueTargetDescriptor)
+            .Append(targetDescriptor)
+            .Where(descriptor => targetDescriptor.TargetKind == SetValueTargetKind.Unknown
+                                 || descriptor.TargetKind == SetValueTargetKind.Unknown
+                                 || descriptor.TargetKind == targetDescriptor.TargetKind)
+            .Select(descriptor => descriptor.TargetPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private bool IsCompatibleSetValueSourcePath(string? targetPath, string? sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            return false;
+        }
+
+        var targetDescriptor = GetSetValueTargetDescriptor(targetPath);
+        var sourceDescriptor = GetSetValueTargetDescriptor(sourcePath);
+        return targetDescriptor.TargetKind == SetValueTargetKind.Unknown
+               || sourceDescriptor.TargetKind == SetValueTargetKind.Unknown
+               || sourceDescriptor.TargetKind == targetDescriptor.TargetKind;
+    }
+
+    private bool TryResolveSetValueTargetDescriptor(string targetPath, out SetValueTargetDescriptor descriptor)
+    {
+        descriptor = new SetValueTargetDescriptor
+        {
+            TargetPath = targetPath,
+            TargetKind = SetValueTargetKind.Unknown,
+            IsWritable = true,
+            ValuePropertyName = string.Empty
+        };
+
+        if (!TryResolveInteractionTarget(targetPath, out var item) || item is null)
+        {
+            return false;
+        }
+
+        var writeParameter = ResolveInteractionWriteParameter(targetPath, item);
+        var readParameter = ResolveInteractionReadParameter(targetPath, item);
+        var declaredType = item.Properties.Has("type")
+            ? item.Properties["type"].Value?.ToString()
+            : null;
+        var targetValue = writeParameter?.Value ?? readParameter?.Value;
+        var targetType = writeParameter?.Value?.GetType() ?? readParameter?.Value?.GetType();
+        if (targetValue is null && TryResolveSetValueSiblingReadValue(targetPath, out var siblingReadValue))
+        {
+            targetValue = siblingReadValue;
+            targetType = siblingReadValue?.GetType();
+        }
+
+        descriptor = new SetValueTargetDescriptor
+        {
+            TargetPath = targetPath,
+            TargetKind = SetValueOperationCodec.ClassifyTargetKind(declaredType, targetType, targetValue),
+            IsWritable = writeParameter is not null,
+            ValuePropertyName = writeParameter?.Name ?? readParameter?.Name ?? string.Empty
+        };
+        return true;
+    }
+
+    private bool TryResolveInteractionTarget(string? targetPath, out Item? item)
+    {
+        if (string.IsNullOrWhiteSpace(targetPath) || string.Equals(targetPath, "this", StringComparison.OrdinalIgnoreCase))
+        {
+            item = _ownerItem.Target;
+            return item is not null;
+        }
+
+        foreach (var candidatePath in TargetPathHelper.EnumerateResolutionCandidates(targetPath, _ownerItem.FolderName))
+        {
+            if (HornetStudio.Host.HostRegistries.Data.TryResolve(candidatePath, out item) && item is not null)
+            {
+                return true;
+            }
+        }
+
+        foreach (var candidatePath in TargetPathHelper.EnumerateItemBrokerRuntimeCandidates(targetPath))
+        {
+            if (HornetStudio.Host.HostRegistries.Data.TryResolve(candidatePath, out item) && item is not null)
+            {
+                return true;
+            }
+        }
+
+        item = null;
+        return false;
+    }
+
+    private ItemProperty? ResolveInteractionReadParameter(string? targetPath, Item targetItem)
+    {
+        if ((string.IsNullOrWhiteSpace(targetPath) || string.Equals(targetPath, "this", StringComparison.OrdinalIgnoreCase))
+            && ReferenceEquals(targetItem, _ownerItem.Target))
+        {
+            return ResolveTargetProperty(_ownerItem.Target);
+        }
+
+        if (targetItem.Properties.Has("read"))
+        {
+            return targetItem.Properties["read"];
+        }
+
+        var firstParameter = targetItem.Properties.GetDictionary().Keys
+            .Where(HornetStudio.Host.HostRegistryPropertyPolicy.CanShowInUserPicker)
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        return firstParameter is null ? null : targetItem.Properties[firstParameter];
+    }
+
+    private static ItemProperty? ResolveTargetProperty(Item? target)
+    {
+        if (target is null)
+        {
+            return null;
+        }
+
+        return target.Properties.Has("read") ? target.Properties["read"] : null;
+    }
+
+    private ItemProperty? ResolveInteractionWriteParameter(string? targetPath, Item targetItem)
+    {
+        if ((string.IsNullOrWhiteSpace(targetPath) || string.Equals(targetPath, "this", StringComparison.OrdinalIgnoreCase))
+            && ReferenceEquals(targetItem, _ownerItem.Target))
+        {
+            return ResolveWriteParameter(_ownerItem.Target);
+        }
+
+        if (targetItem.Properties.Has("write"))
+        {
+            return targetItem.Properties["write"];
+        }
+
+        return ResolveInteractionReadParameter(targetPath, targetItem);
+    }
+
+    private static ItemProperty? ResolveWriteParameter(Item? target)
+    {
+        if (target is null)
+        {
+            return null;
+        }
+
+        if (target.Properties.Has("write"))
+        {
+            return target.Properties["write"];
+        }
+
+        return ResolveTargetProperty(target);
+    }
+
+    private bool TryResolveSetValueSiblingReadValue(string? targetPath, out object? value)
+    {
+        value = null;
+        var normalizedPath = TargetPathHelper.NormalizeConfiguredTargetPath(targetPath);
+        if (!normalizedPath.EndsWith(".set", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var readPath = normalizedPath[..^".set".Length] + ".read";
+        if (!TryResolveInteractionTarget(readPath, out var readItem) || readItem is null)
+        {
+            return false;
+        }
+
+        value = ResolveInteractionReadParameter(readPath, readItem)?.Value ?? readItem.Value;
+        return value is not null;
+    }
+
+    private static bool RowsContainSetValueValidationErrors(IEnumerable<FunctionStepEditorRow> rows)
+        => EnumerateRows(rows).Any(static row => row.HasSetValueValidationError);
+
+    private static IEnumerable<FunctionStepEditorRow> EnumerateRows(IEnumerable<FunctionStepEditorRow> rows)
+    {
+        foreach (var row in rows)
+        {
+            yield return row;
+
+            foreach (var nestedRow in EnumerateRows(row.ThenRows))
+            {
+                yield return nestedRow;
+            }
+
+            foreach (var nestedRow in EnumerateRows(row.ElseRows))
+            {
+                yield return nestedRow;
+            }
+
+            foreach (var nestedRow in EnumerateRows(row.WhileRows))
+            {
+                yield return nestedRow;
+            }
+        }
     }
 
     private string BuildTargetFilePath(out string errorMessage)
@@ -565,11 +953,6 @@ public partial class FunctionEditorDialogWindow : Window, INotifyPropertyChanged
             .Any(static candidate => candidate.StepType == FunctionStepType.Delay
                 && int.TryParse(candidate.MillisecondsText, out var milliseconds)
                 && milliseconds > 0);
-    }
-
-    private void RefreshRowState()
-    {
-        RaisePropertyChanged(nameof(HasNoRows));
     }
 
     private void FocusNewRow(FunctionStepEditorRow row)

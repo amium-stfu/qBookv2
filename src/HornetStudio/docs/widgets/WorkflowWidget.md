@@ -27,13 +27,15 @@ Discovers folder-local workflow YAML files below `Scripts/Workflows/`, validates
 - Widget header actions are `Add` and `Refresh`
 - Each discovered workflow row exposes `Edit` and `Delete`
 - `Log` requires `targetLog`, optional `level`, and `text`
-- `SetValue` requires `target` and either a literal `value` or a `valueFrom` source item path; when `valueFrom` is configured the current value of that item is read at runtime and written to the target
+- `SetValue` requires `target` and supports structured inline operations saved in `value`, including literal set, set-from-item, numeric increment/decrement, string append, and boolean true/false where the target type allows it
+- Legacy `SetValue.valueFrom` definitions remain loadable and execute as set-from-item operations for backward compatibility
 - `Delay` requires `milliseconds`
 - `IfThenElse` requires `condition` and `then`; `else` is optional and `variables` can define step-local condition sources
 - `While` requires `condition` and `steps`; `variables` are optional and each `While` body must contain at least one positive `Delay` step as a loop guard
 - `StopFunction` ends the current workflow execution with `Done`
 - The editor can add, reorder, and remove `Log`, `SetValue`, `Delay`, `IfThenElse`, `While`, and `StopFunction` steps
 - `IfThenElse` and `While` use the shared boolean condition editor with variable rows, source picking, token buttons, and live validation
+- The `SetValue` editor resolves the target type, limits the available inline operations to compatible ones, offers compatible source items for set-from-item, and blocks invalid structured operations before save
 
 ## Editor Notes
 
@@ -44,7 +46,7 @@ Discovers folder-local workflow YAML files below `Scripts/Workflows/`, validates
 
 ## Runtime Notes
 
-The current widget implementation discovers and validates workflow files, shows their ready or invalid state, and exposes nested declarative step editing including editable `IfThenElse` and `While` branches. `While` bodies require at least one positive `Delay` guard to avoid busy loops, and `StopFunction` completes the active workflow as `Done` even when triggered inside nested control-flow blocks. Workflow execution foundations are implemented in code, but full start and stop interactions are not yet exposed on the widget surface.
+The current widget implementation discovers and validates workflow files, shows their ready or invalid state, and exposes nested declarative step editing including editable `IfThenElse` and `While` branches. `SetValue` runtime execution now shares the same structured operation semantics as Interaction Rules, including typed item-copy, numeric delta, string append, and boolean operations while preserving legacy literal and `valueFrom` YAML compatibility. `While` bodies require at least one positive `Delay` guard to avoid busy loops, and `StopFunction` completes the active workflow as `Done` even when triggered inside nested control-flow blocks. Workflow execution foundations are implemented in code, but full start and stop interactions are not yet exposed on the widget surface.
 
 ## Source
 

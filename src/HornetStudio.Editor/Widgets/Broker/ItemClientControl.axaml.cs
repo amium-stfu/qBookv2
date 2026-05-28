@@ -1834,7 +1834,10 @@ public partial class ItemClientControl : EditorTemplateControl
                          && BrokerPublishedItemChangeMatcher.ShouldPublish(definition, e, ResolveLocalItem)))
             {
                 RecordLocalHostWriteState(definition, e);
-                PublishDefinitionIfAvailable(definition, PublishIntent.ChangeUpdate, e);
+                if (BrokerPublishedItemChangeMatcher.ShouldPublishDefinitionChange(definition, e, ResolveLocalItem))
+                {
+                    PublishDefinitionIfAvailable(definition, PublishIntent.ChangeUpdate, e);
+                }
             }
         }
 
@@ -1862,22 +1865,46 @@ public partial class ItemClientControl : EditorTemplateControl
 
             object? value;
             string targetPath;
+            var changedPath = TargetPathHelper.NormalizeConfiguredTargetPath(change.Key);
             if (change.ChangeKind == DataChangeKind.ValueUpdated)
             {
-                value = change.ItemModel.Value;
-                targetPath = HostItemBrokerWriteBackClient.ResolveValueWriteTargetPath(localItem, definition.LocalPath);
+                targetPath = HostItemBrokerWriteBackClient.ResolveValueWriteTargetPath(localItem, definition.LocalPath, ResolveLocalItem);
+                if (string.Equals(TargetPathHelper.NormalizeConfiguredTargetPath(targetPath), changedPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = ResolveLocalItem(change.Key)?.Value ?? change.ItemModel.Value;
+                }
+                else
+                {
+                    var targetItem = ResolveLocalItem(targetPath);
+                    value = targetItem?.Value ?? change.ItemModel.Value;
+                }
             }
             else
             {
-                if (!change.ItemModel.Properties.Has(parameterName))
+                targetPath = string.Equals(parameterName, "write", StringComparison.OrdinalIgnoreCase)
+                    ? HostItemBrokerWriteBackClient.ResolveWriteRequestTargetPath(localItem, definition.LocalPath, ResolveLocalItem)
+                    : localItem.Path ?? TargetPathHelper.NormalizeConfiguredTargetPath(definition.LocalPath);
+                ItemModel? valueSource;
+                if (string.Equals(TargetPathHelper.NormalizeConfiguredTargetPath(targetPath), changedPath, StringComparison.OrdinalIgnoreCase)
+                    && ResolveLocalItem(change.Key) is { } changedTargetItem
+                    && changedTargetItem.Properties.Has(parameterName))
+                {
+                    valueSource = changedTargetItem;
+                }
+                else
+                {
+                    var targetItem = ResolveLocalItem(targetPath);
+                    valueSource = string.Equals(parameterName, "write", StringComparison.OrdinalIgnoreCase)
+                        ? targetItem
+                        : localItem;
+                }
+
+                if (valueSource is null || !valueSource.Properties.Has(parameterName))
                 {
                     return;
                 }
 
-                value = change.ItemModel.Properties[parameterName].Value;
-                targetPath = string.Equals(parameterName, "write", StringComparison.OrdinalIgnoreCase)
-                    ? HostItemBrokerWriteBackClient.ResolveWriteRequestTargetPath(localItem, definition.LocalPath)
-                    : localItem.Path ?? TargetPathHelper.NormalizeConfiguredTargetPath(definition.LocalPath);
+                value = valueSource.Properties[parameterName].Value;
             }
 
             if (string.IsNullOrWhiteSpace(targetPath))
@@ -2446,6 +2473,57 @@ public partial class ItemClient : ItemClientControl
 public static class BrokerPublishedItemChangeMatcher
 {
     /// <summary>
+    /// Determines whether a registry change should be observed for a published definition.
+    /// </summary>
+    /// <param name="definition">The publish definition.</param>
+    /// <param name="change">The registry change.</param>
+    /// <param name="resolveLocalItem">The resolver used to inspect effective write targets.</param>
+    /// <returns><see langword="true"/> when the change belongs to the definition or its effective writable target.</returns>
+    public static bool ShouldObserveChange(
+        BrokerPublishedItemDefinition definition,
+        DataChangedEventArgs change,
+        Func<string, ItemModel?> resolveLocalItem)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(change);
+        ArgumentNullException.ThrowIfNull(resolveLocalItem);
+
+        var localPath = TargetPathHelper.NormalizeConfiguredTargetPath(definition.LocalPath);
+        var changedPath = TargetPathHelper.NormalizeConfiguredTargetPath(change.Key);
+        if (string.IsNullOrWhiteSpace(localPath) || string.IsNullOrWhiteSpace(changedPath))
+        {
+            return false;
+        }
+
+        if (string.Equals(localPath, changedPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!definition.Writable || change.ChangeKind is not (DataChangeKind.ValueUpdated or DataChangeKind.PropertyUpdated))
+        {
+            return false;
+        }
+
+        var localItem = resolveLocalItem(definition.LocalPath);
+        if (localItem is null)
+        {
+            return false;
+        }
+
+        var effectiveTargetPath = change.ChangeKind == DataChangeKind.ValueUpdated
+            ? HostItemBrokerWriteBackClient.ResolveValueWriteTargetPath(localItem, definition.LocalPath, resolveLocalItem)
+            : string.Equals(change.ParameterName?.Trim(), "write", StringComparison.OrdinalIgnoreCase)
+                ? HostItemBrokerWriteBackClient.ResolveWriteRequestTargetPath(localItem, definition.LocalPath, resolveLocalItem)
+                : localItem.Path ?? localPath;
+
+        return string.Equals(
+            TargetPathHelper.NormalizeConfiguredTargetPath(effectiveTargetPath),
+            changedPath,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Determines whether a registry change should publish the active definition item.
     /// </summary>
     /// <param name="definition">The publish definition.</param>
@@ -2453,6 +2531,19 @@ public static class BrokerPublishedItemChangeMatcher
     /// <param name="resolveLocalItem">A resolver retained for publish matcher compatibility.</param>
     /// <returns><see langword="true"/> when the definition should publish.</returns>
     public static bool ShouldPublish(
+        BrokerPublishedItemDefinition definition,
+        DataChangedEventArgs change,
+        Func<string, ItemModel?> resolveLocalItem)
+        => ShouldObserveChange(definition, change, resolveLocalItem);
+
+    /// <summary>
+    /// Determines whether a registry change should publish a direct change update for the definition path.
+    /// </summary>
+    /// <param name="definition">The publish definition.</param>
+    /// <param name="change">The registry change.</param>
+    /// <param name="resolveLocalItem">A resolver retained for matcher compatibility.</param>
+    /// <returns><see langword="true"/> when the change happened on the definition's local publish path.</returns>
+    public static bool ShouldPublishDefinitionChange(
         BrokerPublishedItemDefinition definition,
         DataChangedEventArgs change,
         Func<string, ItemModel?> resolveLocalItem)

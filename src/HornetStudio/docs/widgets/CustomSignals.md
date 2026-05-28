@@ -26,6 +26,7 @@ Provides a low-code way to define project-local signals without requiring Python
 
 Persisted target paths use dot notation and are stored relative to the current folder when possible.
 Published custom signals use the widget identity in their registry path: `studio.{FolderName}.{WidgetName}.{SignalName}`.
+Published custom signal items expose canonical registry `type` metadata so target selection and value editors can resolve `float`, `bool`, or `string` consistently from the configured signal data type.
 Input signals can advertise a separate direct or request-based write target so generic editors and interactions do not need to know the backend-specific path.
 
 ## Source

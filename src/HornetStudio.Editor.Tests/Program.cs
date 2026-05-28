@@ -10,6 +10,7 @@ using HornetStudio.Editor.Widgets;
 using HornetStudio.Editor.Widgets.Workflow;
 using HornetStudio.Host;
 using HornetStudio.Host.Python.Client;
+using System.Runtime.CompilerServices;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -23,6 +24,8 @@ var tests = new (string Name, Action Run)[]
     ("Custom signal editor defaults to snake_case name", CustomSignalEditorDefaultsToSnakeCaseName),
     ("Custom signal editor rejects uppercase name", CustomSignalEditorRejectsUppercaseName),
     ("Custom signal manual trigger path uses lowercase suffix", CustomSignalManualTriggerPathUsesLowercaseSuffix),
+    ("Custom signal publish snapshot adds type metadata", CustomSignalPublishSnapshotAddsTypeMetadata),
+    ("Custom signal manual trigger publishes bool type metadata", CustomSignalManualTriggerPublishesBoolTypeMetadata),
     ("Monitor codec preserves multiple actions per trigger", MonitorCodecPreservesMultipleActionsPerTrigger),
     ("Monitor codec preserves action specific fields", MonitorCodecPreservesActionSpecificFields),
     ("Monitor editor accepts multiple actions per trigger", MonitorEditorAcceptsMultipleActionsPerTrigger),
@@ -36,13 +39,36 @@ var tests = new (string Name, Action Run)[]
     ("Workflow codec rejects While without positive delay guard", WorkflowCodecRejectsWhileWithoutPositiveDelayGuard),
     ("Workflow codec parses SetValue valueFrom", WorkflowCodecParsesSetValueValueFrom),
     ("Workflow codec serializes SetValue valueFrom", WorkflowCodecSerializesSetValueValueFrom),
+    ("Workflow codec serializes structured SetValue value", WorkflowCodecSerializesStructuredSetValueValue),
     ("Workflow editor row roundtrips SetValue valueFrom", WorkflowEditorRowRoundtripsSetValueValueFrom),
+    ("Workflow editor row maps legacy valueFrom to structured SetFromItem", WorkflowEditorRowMapsLegacyValueFromToStructuredSetFromItem),
     ("Workflow editor creates While default delay guard", WorkflowEditorCreatesWhileDefaultDelayGuard),
     ("Workflow editor converter edits While steps", WorkflowEditorConverterEditsWhileSteps),
     ("Workflow executor SetValue resolves valueFrom", WorkflowExecutorSetValueResolvesValueFrom),
     ("Workflow executor SetValue fails unresolved valueFrom", WorkflowExecutorSetValueFailsUnresolvedValueFrom),
+    ("Workflow executor SetValue executes structured increment", WorkflowExecutorSetValueExecutesStructuredIncrement),
     ("Interaction rule codec roundtrip preserves RunFunction", InteractionRuleCodecRoundtripPreservesRunFunction),
     ("Interaction rule codec roundtrip preserves StopFunction", InteractionRuleCodecRoundtripPreservesStopFunction),
+    ("SetValue operation codec roundtrip preserves structured payload", SetValueOperationCodecRoundtripPreservesStructuredPayload),
+    ("SetValue operation codec keeps legacy literal fallback", SetValueOperationCodecKeepsLegacyLiteralFallback),
+    ("SetValue inline options match target kind", SetValueInlineOptionsMatchTargetKind),
+    ("SetValue inline editor maps parseable boolean literals", SetValueInlineEditorMapsParseableBooleanLiterals),
+    ("SetValue inline editor row serializes numeric delta", SetValueInlineEditorRowSerializesNumericDelta),
+    ("SetValue inline editor row serializes boolean true", SetValueInlineEditorRowSerializesBooleanTrue),
+    ("SetValue inline editor row preserves invalid legacy boolean literal", SetValueInlineEditorRowPreservesInvalidLegacyBooleanLiteral),
+    ("SetValue inline editor row serializes string append separator", SetValueInlineEditorRowSerializesStringAppendSeparator),
+    ("SetValue inline editor row reports invalid numeric literal", SetValueInlineEditorRowReportsInvalidNumericLiteral),
+    ("SetValue inline editor row loads legacy literal as equals", SetValueInlineEditorRowLoadsLegacyLiteralAsEquals),
+    ("SetValue inline editor row uses item source path", SetValueInlineEditorRowUsesItemSourcePath),
+    ("SetValue operation summary formats structured operations", SetValueOperationSummaryFormatsStructuredOperations),
+    ("SetValue runtime append inserts separator only when needed", SetValueRuntimeAppendInsertsSeparatorOnlyWhenNeeded),
+    ("SetValue operation validation rejects unsupported numeric operation", SetValueOperationValidationRejectsUnsupportedNumericOperation),
+    ("Target value type parser normalizes canonical values", TargetValueTypeParserNormalizesCanonicalValues),
+    ("SetValue target classification prefers explicit type over empty value", SetValueTargetClassificationPrefersExplicitTypeOverEmptyValue),
+    ("SetValue descriptor resolves numeric kind for row target path", SetValueDescriptorResolvesNumericKindForRowTargetPath),
+    ("SetValue descriptor preserves unresolved requested row target path", SetValueDescriptorPreservesUnresolvedRequestedRowTargetPath),
+    ("SetValue source options allow readonly compatible float source", SetValueSourceOptionsAllowReadonlyCompatibleFloatSource),
+    ("SetValue source validation resolves compatible float source directly", SetValueSourceValidationResolvesCompatibleFloatSourceDirectly),
     ("Function registry creates declarative entries", FunctionRegistryCreatesDeclarativeEntries),
     ("Function registry combines declarative and Python entries", FunctionRegistryCombinesDeclarativeAndPythonEntries),
     ("Function registry surfaces invalid declarative files", FunctionRegistrySurfacesInvalidDeclarativeFiles),
@@ -137,7 +163,9 @@ var tests = new (string Name, Action Run)[]
     ("UDL received rows stay visible when attached", UdlReceivedRowsStayVisibleWhenAttached),
     ("UDL attached items resolve via runtime registry", UdlAttachedItemsResolveViaRuntimeRegistry),
     ("UDL set-driven demo writes feedback to read only", UdlSetDrivenDemoWritesFeedbackToReadOnly),
+    ("UDL simulated demo publishes channel type metadata", UdlSimulatedDemoPublishesChannelTypeMetadata),
     ("UDL runtime channels include registry items", UdlRuntimeChannelsIncludeRegistryItems),
+    ("UDL module publishes channel type metadata", UdlModulePublishesChannelTypeMetadata),
     ("UDL runtime exposure bits use snake_case paths", UdlRuntimeExposureBitsUseSnakeCasePaths),
     ("Target path normalization uses Studio root", TargetPathNormalizationUsesStudioRoot),
     ("Broker published item codec migrates legacy paths", BrokerPublishedItemCodecMigratesLegacyPaths),
@@ -146,6 +174,7 @@ var tests = new (string Name, Action Run)[]
     ("Broker published item codec roundtrip", BrokerPublishedItemCodecRoundtrip),
     ("Broker published item codec filters active root definitions", BrokerPublishedItemCodecFiltersActiveRootDefinitions),
     ("Broker published item change matcher scopes changes", BrokerPublishedItemChangeMatcherScopesChanges),
+    ("Broker published item change matcher observes resolved writable targets", BrokerPublishedItemChangeMatcherObservesResolvedWritableTargets),
     ("Broker publisher sends value update for unregistered value change", BrokerPublisherSendsValueUpdateForUnregisteredValueChange),
     ("Broker publisher sends repeated write property command", BrokerPublisherSendsRepeatedWritePropertyCommand),
     ("Broker publisher records local host write state for writable value changes", BrokerPublisherRecordsLocalHostWriteStateForWritableValueChanges),
@@ -159,8 +188,10 @@ var tests = new (string Name, Action Run)[]
     ("Broker write-back notifies repeated write requests", BrokerWriteBackNotifiesRepeatedWriteRequests),
     ("Broker write-back ignores property-style write state", BrokerWriteBackIgnoresPropertyStyleWriteState),
     ("Broker write-back ignores stale read after recent local host write", BrokerWriteBackIgnoresStaleReadAfterRecentLocalHostWrite),
+    ("Broker write-back ignores stale read after recent local host write on resolved target", BrokerWriteBackIgnoresStaleReadAfterRecentLocalHostWriteOnResolvedTarget),
     ("Broker write-back applies uncached source write requests", BrokerWriteBackAppliesUncachedSourceWriteRequests),
     ("Broker write-back keeps external write requests enabled after recent local host write", BrokerWriteBackKeepsExternalWriteRequestsEnabledAfterRecentLocalHostWrite),
+    ("Broker write-back treats same-value resolved target echoes as non-conflicts", BrokerWriteBackTreatsSameValueResolvedTargetEchoesAsNonConflicts),
     ("Broker write-back normalizes legacy request mode", BrokerWriteBackNormalizesLegacyRequestMode),
     ("Broker write-back converts numeric value to local type", BrokerWriteBackConvertsNumericValueToLocalType),
     ("Broker write-back blocks protected properties", BrokerWriteBackBlocksProtectedProperties),
@@ -491,6 +522,204 @@ static void InteractionRuleCodecRoundtripPreservesStopFunction()
     AssertEqual(ItemInteractionAction.StopFunction, parsed[0].Action);
     AssertEqual("this", parsed[0].TargetPath);
     AssertEqual("declarative:loop_runner", parsed[0].FunctionName);
+}
+
+static void SetValueOperationCodecRoundtripPreservesStructuredPayload()
+{
+    var serialized = SetValueOperationCodec.Serialize(new SetValueOperation
+    {
+        Kind = SetValueOperationKind.AppendText,
+        LiteralValue = "tail",
+        Separator = ", "
+    });
+
+    AssertTrue(serialized.StartsWith(SetValueOperationCodec.StructuredPrefix, StringComparison.Ordinal));
+
+    var parsed = SetValueOperationCodec.Parse(serialized);
+    AssertTrue(parsed.IsValid);
+    AssertTrue(parsed.IsStructured);
+    AssertEqual(SetValueOperationKind.AppendText, parsed.Operation.Kind);
+    AssertEqual("tail", parsed.Operation.LiteralValue);
+    AssertEqual(", ", parsed.Operation.Separator);
+    AssertEqual(string.Empty, parsed.Operation.SourcePath);
+    AssertFalse(parsed.Operation.IsLegacyLiteral);
+}
+
+static void SetValueOperationCodecKeepsLegacyLiteralFallback()
+{
+    var parsed = SetValueOperationCodec.Parse("123");
+
+    AssertTrue(parsed.IsValid);
+    AssertFalse(parsed.IsStructured);
+    AssertEqual(SetValueOperationKind.SetLiteral, parsed.Operation.Kind);
+    AssertEqual("123", parsed.Operation.LiteralValue);
+    AssertTrue(parsed.Operation.IsLegacyLiteral);
+    AssertEqual("Legacy literal 123", SetValueOperationCodec.GetSummary("123", SetValueTargetKind.Numeric));
+}
+
+static void SetValueOperationSummaryFormatsStructuredOperations()
+{
+    var setFromItem = SetValueOperationCodec.Serialize(new SetValueOperation
+    {
+        Kind = SetValueOperationKind.SetFromItem,
+        SourcePath = "main/pump/value"
+    });
+    var appendText = SetValueOperationCodec.Serialize(new SetValueOperation
+    {
+        Kind = SetValueOperationKind.AppendText,
+        LiteralValue = "rpm",
+        Separator = " "
+    });
+
+    AssertEqual("Set from main.pump.value", SetValueOperationCodec.GetSummary(setFromItem, SetValueTargetKind.Numeric));
+    AssertEqual("Append \"rpm\" with separator \" \"", SetValueOperationCodec.GetSummary(appendText, SetValueTargetKind.String));
+}
+
+static void SetValueOperationValidationRejectsUnsupportedNumericOperation()
+{
+    var validation = SetValueOperationCodec.Validate(
+        new SetValueOperation
+        {
+            Kind = SetValueOperationKind.AppendText,
+            LiteralValue = "text"
+        },
+        SetValueTargetKind.Numeric);
+
+    AssertFalse(validation.IsValid);
+    AssertEqual("This operation is not available for numeric targets.", validation.ErrorMessage);
+}
+
+static void TargetValueTypeParserNormalizesCanonicalValues()
+{
+    AssertEqual(TargetValueType.Unknown, TargetValueTypes.Parse("unknown"));
+    AssertEqual(TargetValueType.String, TargetValueTypes.Parse("String"));
+    AssertEqual(TargetValueType.Bool, TargetValueTypes.Parse("boolean"));
+    AssertEqual(TargetValueType.Int, TargetValueTypes.Parse("int"));
+    AssertEqual(TargetValueType.Long, TargetValueTypes.Parse("long"));
+    AssertEqual(TargetValueType.Float, TargetValueTypes.Parse("single"));
+    AssertEqual(TargetValueType.Double, TargetValueTypes.Parse("double"));
+    AssertEqual(TargetValueType.Decimal, TargetValueTypes.Parse("decimal"));
+    AssertEqual(TargetValueType.Epoch, TargetValueTypes.Parse("epoch"));
+    AssertEqual(TargetValueType.Bits, TargetValueTypes.Parse("bitfield"));
+    AssertEqual(TargetValueType.Object, TargetValueTypes.Parse("object"));
+    AssertEqual(TargetValueType.Unknown, TargetValueTypes.Parse("unsupported"));
+
+    AssertEqual(SetValueTargetKind.Numeric, TargetValueTypes.ToSetValueTargetKind(TargetValueType.Int));
+    AssertEqual(SetValueTargetKind.Numeric, TargetValueTypes.ToSetValueTargetKind(TargetValueType.Epoch));
+    AssertEqual(SetValueTargetKind.Numeric, TargetValueTypes.ToSetValueTargetKind(TargetValueType.Bits));
+    AssertEqual(SetValueTargetKind.Boolean, TargetValueTypes.ToSetValueTargetKind(TargetValueType.Bool));
+    AssertEqual(SetValueTargetKind.String, TargetValueTypes.ToSetValueTargetKind(TargetValueType.String));
+    AssertEqual(SetValueTargetKind.Unknown, TargetValueTypes.ToSetValueTargetKind(TargetValueType.Object));
+}
+
+static void SetValueTargetClassificationPrefersExplicitTypeOverEmptyValue()
+{
+    AssertEqual(SetValueTargetKind.Numeric, SetValueOperationCodec.ClassifyTargetKind("float", targetType: null, sampleValue: null));
+    AssertEqual(SetValueTargetKind.Numeric, SetValueOperationCodec.ClassifyTargetKind("epoch", targetType: typeof(string), sampleValue: string.Empty));
+    AssertEqual(SetValueTargetKind.Numeric, SetValueOperationCodec.ClassifyTargetKind("bits", targetType: null, sampleValue: null));
+    AssertEqual(SetValueTargetKind.Boolean, SetValueOperationCodec.ClassifyTargetKind("bool", targetType: null, sampleValue: null));
+    AssertEqual(SetValueTargetKind.String, SetValueOperationCodec.ClassifyTargetKind("string", targetType: null, sampleValue: null));
+    AssertEqual(SetValueTargetKind.Unknown, SetValueOperationCodec.ClassifyTargetKind("object", targetType: null, sampleValue: null));
+    AssertEqual(SetValueTargetKind.Numeric, SetValueOperationCodec.ClassifyTargetKind(declaredType: null, targetType: typeof(double), sampleValue: null));
+}
+
+static void SetValueDescriptorResolvesNumericKindForRowTargetPath()
+{
+    const string targetPath = "udl1.m001.set";
+    var item = ItemExtension.CreateWithPath(targetPath, 1.25f);
+    item.Properties["write"].Value = 1.25f;
+    item.Properties["type"].Value = "float";
+    item.Properties["writable"].Value = true;
+    HostRegistries.Data.UpsertSnapshot(targetPath, item);
+
+    try
+    {
+        var field = CreateInteractionRuleField();
+
+        var descriptor = field.GetSetValueTargetDescriptor(targetPath);
+
+        AssertEqual(targetPath, descriptor.TargetPath);
+        AssertEqual(SetValueTargetKind.Numeric, descriptor.TargetKind);
+        AssertEqual(true, descriptor.IsWritable);
+        AssertEqual("write", descriptor.ValuePropertyName);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(targetPath);
+    }
+}
+
+static void SetValueDescriptorPreservesUnresolvedRequestedRowTargetPath()
+{
+    var field = CreateInteractionRuleField();
+
+    var descriptor = field.GetSetValueTargetDescriptor("udl1.m001.set");
+
+    AssertEqual("udl1.m001.set", descriptor.TargetPath);
+    AssertEqual(SetValueTargetKind.Unknown, descriptor.TargetKind);
+    AssertEqual(true, descriptor.IsWritable);
+}
+
+static void SetValueSourceOptionsAllowReadonlyCompatibleFloatSource()
+{
+    const string targetPath = "udl1.m001.set";
+    const string sourcePath = "custom_signals_1.input_1";
+    var targetItem = ItemExtension.CreateWithPath(targetPath, 0f);
+    targetItem.Properties["write"].Value = 0f;
+    targetItem.Properties["type"].Value = "float";
+    targetItem.Properties["writable"].Value = true;
+    var sourceItem = ItemExtension.CreateWithPath(sourcePath, 0f);
+    sourceItem.Properties["read"].Value = 0f;
+    sourceItem.Properties["type"].Value = "float";
+    sourceItem.Properties["writable"].Value = false;
+    HostRegistries.Data.UpsertSnapshot(targetPath, targetItem);
+    HostRegistries.Data.UpsertSnapshot(sourcePath, sourceItem);
+
+    try
+    {
+        var field = CreateInteractionRuleField();
+        field.InteractionTargetOptions.Add(targetPath);
+        field.InteractionTargetOptions.Add(sourcePath);
+
+        var sourceOptions = field.GetCompatibleSetValueSourceOptions(targetPath);
+
+        AssertTrue(sourceOptions.Contains(sourcePath, StringComparer.OrdinalIgnoreCase));
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(targetPath);
+        HostRegistries.Data.Remove(sourcePath);
+    }
+}
+
+static void SetValueSourceValidationResolvesCompatibleFloatSourceDirectly()
+{
+    const string targetPath = "udl1.m001.set";
+    const string sourcePath = "custom_signals_1.input_1";
+    var targetItem = ItemExtension.CreateWithPath(targetPath, 0f);
+    targetItem.Properties["write"].Value = 0f;
+    targetItem.Properties["type"].Value = "float";
+    targetItem.Properties["writable"].Value = true;
+    var sourceItem = ItemExtension.CreateWithPath(sourcePath, 0f);
+    sourceItem.Properties["read"].Value = 0f;
+    sourceItem.Properties["type"].Value = "float";
+    sourceItem.Properties["writable"].Value = true;
+    HostRegistries.Data.UpsertSnapshot(targetPath, targetItem);
+    HostRegistries.Data.UpsertSnapshot(sourcePath, sourceItem);
+
+    try
+    {
+        var field = CreateInteractionRuleField();
+
+        var isCompatible = field.IsCompatibleSetValueSourcePath(targetPath, sourcePath);
+
+        AssertTrue(isCompatible);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(targetPath);
+        HostRegistries.Data.Remove(sourcePath);
+    }
 }
 
 static void WorkflowExecutorResolvesStepLocalConditionVariables()
@@ -1571,6 +1800,38 @@ static void WorkflowCodecSerializesSetValueValueFrom()
     AssertEqual(string.Empty, roundtrippedStep.Value);
 }
 
+static void WorkflowCodecSerializesStructuredSetValueValue()
+{
+    var structuredValue = SetValueOperationCodec.Serialize(new SetValueOperation
+    {
+        Kind = SetValueOperationKind.IncrementBy,
+        LiteralValue = "2.5",
+        IsLegacyLiteral = false
+    });
+    var definition = new FunctionDefinition
+    {
+        Name = "increment_source",
+        Steps =
+        [
+            new FunctionSetValueStepDefinition
+            {
+                Target = "pump.speed",
+                Value = structuredValue
+            }
+        ]
+    };
+
+    var serialized = FunctionDefinitionCodec.Serialize(definition);
+
+    AssertTrue(serialized.Contains("value: sv1:", StringComparison.Ordinal));
+    AssertFalse(serialized.Contains("valueFrom:", StringComparison.Ordinal));
+    AssertTrue(FunctionDefinitionCodec.TryParse(serialized, "increment_source.yaml", out var roundtripped, out var validation));
+    AssertTrue(validation.IsValid);
+    var roundtrippedStep = (FunctionSetValueStepDefinition)roundtripped!.Steps.Single();
+    AssertEqual(structuredValue, roundtrippedStep.Value);
+    AssertEqual(string.Empty, roundtrippedStep.ValueFrom);
+}
+
 static void WorkflowEditorRowRoundtripsSetValueValueFrom()
 {
     var original = new FunctionSetValueStepDefinition
@@ -1589,8 +1850,30 @@ static void WorkflowEditorRowRoundtripsSetValueValueFrom()
     AssertTrue(string.IsNullOrEmpty(errorMessage));
     var built = (FunctionSetValueStepDefinition)definition!.Steps.Single();
     AssertEqual("pump.enable", built.Target);
-    AssertEqual("sensor.status", built.ValueFrom);
-    AssertEqual(string.Empty, built.Value);
+    AssertEqual(string.Empty, built.ValueFrom);
+    AssertTrue(SetValueOperationCodec.IsStructuredArgument(built.Value));
+
+    var parsed = SetValueOperationCodec.Parse(built.Value);
+    AssertTrue(parsed.IsValid);
+    AssertEqual(SetValueOperationKind.SetFromItem, parsed.Operation.Kind);
+    AssertEqual("sensor.status", parsed.Operation.SourcePath);
+}
+
+static void WorkflowEditorRowMapsLegacyValueFromToStructuredSetFromItem()
+{
+    var original = new FunctionSetValueStepDefinition
+    {
+        Target = "pump.enable",
+        ValueFrom = "sensor.status"
+    };
+
+    var row = FunctionStepEditorRow.FromStep(original);
+    row.SetValueTargetKind = SetValueTargetKind.Boolean;
+
+    AssertEqual(SetValueOperationKind.SetFromItem, row.SelectedSetValueOperation?.Kind);
+    AssertEqual("sensor.status", row.SetValueSourcePath);
+    AssertTrue(row.SetValueSummary.Contains("sensor.status", StringComparison.Ordinal));
+    AssertFalse(row.HasSetValueValidationError);
 }
 
 static void WorkflowExecutorSetValueResolvesValueFrom()
@@ -1686,6 +1969,64 @@ static void WorkflowExecutorSetValueFailsUnresolvedValueFrom()
     AssertTrue(result.ErrorMessage.Contains("sensor.missing", StringComparison.Ordinal));
 }
 
+static void WorkflowExecutorSetValueExecutesStructuredIncrement()
+{
+    const string targetPath = "studio.main.pump.speed";
+    var targetItem = ItemExtension.CreateWithPath(targetPath, 10d);
+    targetItem.Properties["write"].Value = 10d;
+    targetItem.Properties["read"].Value = 10d;
+    targetItem.Properties["type"].Value = "double";
+    targetItem.Properties["writable"].Value = true;
+    HostRegistries.Data.UpsertSnapshot(targetPath, targetItem);
+
+    try
+    {
+        var owner = new FolderItemModel
+        {
+            Kind = ControlKind.Button
+        };
+
+        var targetProperty = typeof(FolderItemModel).GetProperty("Target", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (targetProperty is null)
+        {
+            throw new InvalidOperationException("Target property was not found.");
+        }
+
+        targetProperty.SetValue(owner, targetItem);
+
+        var method = typeof(FolderItemModel).GetMethod(
+            "ExecuteRunFunctionSetValueAsync",
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            null,
+            [typeof(FunctionSetValueStepDefinition), typeof(CancellationToken)],
+            null);
+        if (method is null)
+        {
+            throw new InvalidOperationException("ExecuteRunFunctionSetValueAsync was not found.");
+        }
+
+        var step = new FunctionSetValueStepDefinition
+        {
+            Target = targetPath,
+            Value = SetValueOperationCodec.Serialize(new SetValueOperation
+            {
+                Kind = SetValueOperationKind.IncrementBy,
+                LiteralValue = "2.5",
+                IsLegacyLiteral = false
+            })
+        };
+
+        var task = (ValueTask)method.Invoke(owner, [step, CancellationToken.None])!;
+        task.AsTask().GetAwaiter().GetResult();
+
+        AssertEqual(12.5d, targetItem.Properties["write"].Value);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(targetPath);
+    }
+}
+
 static void CustomSignalEditorDefaultsToSnakeCaseName()
 {
     var ownerItem = new FolderItemModel
@@ -1722,6 +2063,117 @@ static void CustomSignalManualTriggerPathUsesLowercaseSuffix()
     }
 
     AssertEqual("studio.default_layout.custom_signals.signal_1.trigger", method.Invoke(null, ["studio.default_layout.custom_signals.signal_1"]));
+}
+
+static void CustomSignalPublishSnapshotAddsTypeMetadata()
+{
+    var ownerItem = CreateCustomSignalOwnerItem();
+    var definition = new CustomSignalDefinition
+    {
+        Name = "ready_text",
+        DataType = CustomSignalDataType.Text,
+        Mode = CustomSignalMode.Input
+    };
+    var registryPath = InvokeCustomSignalsStaticMethod<string>("BuildRegistryPath", ownerItem, definition);
+    HostRegistries.Data.Remove(registryPath);
+
+    try
+    {
+        var control = (CustomSignalsControl)RuntimeHelpers.GetUninitializedObject(typeof(CustomSignalsControl));
+        var method = typeof(CustomSignalsControl).GetMethod(
+            "PublishSignalSnapshot",
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(FolderItemModel), typeof(CustomSignalDefinition), typeof(string), typeof(object)],
+            modifiers: null);
+        if (method is null)
+        {
+            throw new InvalidOperationException("PublishSignalSnapshot was not found.");
+        }
+
+        method.Invoke(control, [ownerItem, definition, registryPath, "online"]);
+
+        AssertTrue(HostRegistries.Data.TryResolve(registryPath, out var published));
+        AssertEqual("string", published?.Properties["type"].Value);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(registryPath);
+    }
+}
+
+static void CustomSignalManualTriggerPublishesBoolTypeMetadata()
+{
+    var ownerItem = CreateCustomSignalOwnerItem();
+    var definition = new CustomSignalDefinition
+    {
+        Name = "refresh_value",
+        Mode = CustomSignalMode.Computed,
+        Trigger = CustomSignalComputationTrigger.Manual
+    };
+    var registryPath = InvokeCustomSignalsStaticMethod<string>("BuildRegistryPath", ownerItem, definition);
+    var triggerPath = InvokeCustomSignalsStaticMethod<string>("BuildManualTriggerPath", ownerItem, definition);
+    HostRegistries.Data.Remove(triggerPath);
+    HostRegistries.Data.Remove(registryPath);
+
+    try
+    {
+        var control = (CustomSignalsControl)RuntimeHelpers.GetUninitializedObject(typeof(CustomSignalsControl));
+        var method = typeof(CustomSignalsControl).GetMethod(
+            "PublishManualTriggerSnapshot",
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(FolderItemModel), typeof(CustomSignalDefinition), typeof(string)],
+            modifiers: null);
+        if (method is null)
+        {
+            throw new InvalidOperationException("PublishManualTriggerSnapshot was not found.");
+        }
+
+        method.Invoke(control, [ownerItem, definition, registryPath]);
+
+        AssertTrue(HostRegistries.Data.TryResolve(triggerPath, out var published));
+        AssertEqual("bool", published?.Properties["type"].Value);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(triggerPath);
+        HostRegistries.Data.Remove(registryPath);
+    }
+}
+
+static FolderItemModel CreateCustomSignalOwnerItem()
+{
+    var ownerItem = new FolderItemModel
+    {
+        Name = "custom_signals"
+    };
+    var property = typeof(FolderItemModel).GetProperty("FolderName", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+    var setter = property?.GetSetMethod(nonPublic: true);
+    if (setter is null)
+    {
+        throw new InvalidOperationException("FolderName setter was not found.");
+    }
+
+    setter.Invoke(ownerItem, ["default_layout"]);
+    return ownerItem;
+}
+
+static T InvokeCustomSignalsStaticMethod<T>(string methodName, params object?[] arguments)
+{
+    var parameterTypes = arguments.Select(static argument => argument?.GetType() ?? typeof(object)).ToArray();
+    var method = typeof(CustomSignalsControl).GetMethod(
+        methodName,
+        BindingFlags.Static | BindingFlags.NonPublic,
+        binder: null,
+        types: parameterTypes,
+        modifiers: null);
+    if (method is null)
+    {
+        throw new InvalidOperationException($"{methodName} was not found.");
+    }
+
+    return (T)method.Invoke(null, arguments)!;
 }
 
 static void MonitorCodecPreservesMultipleActionsPerTrigger()
@@ -2477,6 +2929,257 @@ static void OpenDialogPreservesDialogGridChildPlacement()
     AssertEqual(1, overlayDialog.Items[1].TableCellColumn);
     AssertEqual(1, overlayDialog.Items[1].TableCellRowSpan);
     AssertEqual(2, overlayDialog.Items[1].TableCellColumnSpan);
+}
+
+static void SetValueInlineOptionsMatchTargetKind()
+{
+    var numericOptions = SetValueOperationCodec.GetInlineOperationOptions(SetValueTargetKind.Numeric).ToArray();
+    AssertEqual(4, numericOptions.Length);
+    AssertEqual(SetValueOperationKind.SetLiteral, numericOptions[0].Kind);
+    AssertEqual("=", numericOptions[0].DisplayText);
+    AssertEqual(SetValueOperationKind.IncrementBy, numericOptions[1].Kind);
+    AssertEqual("+", numericOptions[1].DisplayText);
+    AssertEqual(SetValueOperationKind.DecrementBy, numericOptions[2].Kind);
+    AssertEqual("-", numericOptions[2].DisplayText);
+    AssertEqual(SetValueOperationKind.SetFromItem, numericOptions[3].Kind);
+    AssertEqual("Item", numericOptions[3].DisplayText);
+    AssertTrue(numericOptions[3].UsesSourceItem);
+
+    var booleanOptions = SetValueOperationCodec.GetInlineOperationOptions(SetValueTargetKind.Boolean).ToArray();
+    AssertEqual(3, booleanOptions.Length);
+    AssertEqual(SetValueOperationKind.SetTrue, booleanOptions[0].Kind);
+    AssertEqual("true", booleanOptions[0].DisplayText);
+    AssertEqual(SetValueOperationKind.SetFalse, booleanOptions[1].Kind);
+    AssertEqual("false", booleanOptions[1].DisplayText);
+    AssertEqual(SetValueOperationKind.SetFromItem, booleanOptions[2].Kind);
+    AssertEqual("Item", booleanOptions[2].DisplayText);
+    AssertTrue(booleanOptions[2].UsesSourceItem);
+
+    var stringOptions = SetValueOperationCodec.GetInlineOperationOptions(SetValueTargetKind.String).ToArray();
+    AssertEqual(3, stringOptions.Length);
+    AssertEqual(SetValueOperationKind.SetLiteral, stringOptions[0].Kind);
+    AssertEqual(SetValueOperationKind.AppendText, stringOptions[1].Kind);
+    AssertEqual("+", stringOptions[1].DisplayText);
+    AssertEqual(SetValueOperationKind.SetFromItem, stringOptions[2].Kind);
+}
+
+static void SetValueInlineEditorMapsParseableBooleanLiterals()
+{
+    var legacyTrue = SetValueOperationCodec.ToInlineEditorOperation(
+        new SetValueOperation
+        {
+            Kind = SetValueOperationKind.SetLiteral,
+            LiteralValue = "1",
+            IsLegacyLiteral = true
+        },
+        SetValueTargetKind.Boolean);
+    AssertEqual(SetValueOperationKind.SetTrue, legacyTrue.Kind);
+
+    var legacyFalse = SetValueOperationCodec.ToInlineEditorOperation(
+        new SetValueOperation
+        {
+            Kind = SetValueOperationKind.SetLiteral,
+            LiteralValue = "false",
+            IsLegacyLiteral = true
+        },
+        SetValueTargetKind.Boolean);
+    AssertEqual(SetValueOperationKind.SetFalse, legacyFalse.Kind);
+
+    var invalidLiteral = SetValueOperationCodec.ToInlineEditorOperation(
+        new SetValueOperation
+        {
+            Kind = SetValueOperationKind.SetLiteral,
+            LiteralValue = "maybe",
+            IsLegacyLiteral = true
+        },
+        SetValueTargetKind.Boolean);
+    AssertEqual(SetValueOperationKind.SetLiteral, invalidLiteral.Kind);
+    AssertEqual("maybe", invalidLiteral.LiteralValue);
+}
+
+static void SetValueInlineEditorRowSerializesNumericDelta()
+{
+    var row = new ItemInteractionEditorRow
+    {
+        ActionName = nameof(ItemInteractionAction.SetValue)
+    };
+
+    row.SetValueTargetKind = SetValueTargetKind.Numeric;
+    row.SelectedSetValueOperation = row.SetValueOperationOptions.Single(option => option.Kind == SetValueOperationKind.IncrementBy);
+    row.SetValueLiteralArgument = "18";
+
+    var parsed = SetValueOperationCodec.Parse(row.Argument);
+    AssertTrue(parsed.IsValid);
+    AssertEqual(SetValueOperationKind.IncrementBy, parsed.Operation.Kind);
+    AssertEqual("18", parsed.Operation.LiteralValue);
+}
+
+static void SetValueInlineEditorRowSerializesBooleanTrue()
+{
+    var row = new ItemInteractionEditorRow
+    {
+        ActionName = nameof(ItemInteractionAction.SetValue)
+    };
+
+    row.SetValueTargetKind = SetValueTargetKind.Boolean;
+    row.SelectedSetValueOperation = row.SetValueOperationOptions.Single(option => option.Kind == SetValueOperationKind.SetTrue);
+
+    var parsed = SetValueOperationCodec.Parse(row.Argument);
+    AssertTrue(parsed.IsValid);
+    AssertEqual(SetValueOperationKind.SetTrue, parsed.Operation.Kind);
+    AssertFalse(row.ShowsSetValueLiteralEditor);
+    AssertFalse(row.ShowsSetValueSourceEditor);
+}
+
+static void SetValueInlineEditorRowPreservesInvalidLegacyBooleanLiteral()
+{
+    var row = new ItemInteractionEditorRow
+    {
+        ActionName = nameof(ItemInteractionAction.SetValue),
+        Argument = "maybe"
+    };
+
+    row.SetValueTargetKind = SetValueTargetKind.Boolean;
+
+    AssertTrue(row.SelectedSetValueOperation is not null);
+    AssertEqual(SetValueOperationKind.SetTrue, row.SelectedSetValueOperation!.Kind);
+    AssertEqual("maybe", row.SetValueLiteralArgument);
+    AssertFalse(row.ShowsSetValueLiteralEditor);
+}
+
+static void SetValueInlineEditorRowSerializesStringAppendSeparator()
+{
+    var row = new ItemInteractionEditorRow
+    {
+        ActionName = nameof(ItemInteractionAction.SetValue)
+    };
+
+    row.SetValueTargetKind = SetValueTargetKind.String;
+    row.SelectedSetValueOperation = row.SetValueOperationOptions.Single(option => option.Kind == SetValueOperationKind.AppendText);
+    row.SetValueLiteralArgument = "B";
+    row.SetValueSeparator = ", ";
+
+    var parsed = SetValueOperationCodec.Parse(row.Argument);
+    AssertTrue(parsed.IsValid);
+    AssertEqual(SetValueOperationKind.AppendText, parsed.Operation.Kind);
+    AssertEqual("B", parsed.Operation.LiteralValue);
+    AssertEqual(", ", parsed.Operation.Separator);
+    AssertTrue(row.ShowsSetValueLiteralEditor);
+    AssertTrue(row.ShowsSetValueSeparatorEditor);
+}
+
+static void SetValueInlineEditorRowReportsInvalidNumericLiteral()
+{
+    const string targetPath = "udl1.m001.set";
+    var item = ItemExtension.CreateWithPath(targetPath, 1.25f);
+    item.Properties["write"].Value = 1.25f;
+    item.Properties["type"].Value = "float";
+    HostRegistries.Data.UpsertSnapshot(targetPath, item);
+
+    try
+    {
+        var field = CreateInteractionRuleField();
+        var row = new ItemInteractionEditorRow
+        {
+            ActionName = nameof(ItemInteractionAction.SetValue),
+            TargetPath = targetPath
+        };
+
+        row.SetValueTargetKind = SetValueTargetKind.Numeric;
+        row.SelectedSetValueOperation = row.SetValueOperationOptions.Single(option => option.Kind == SetValueOperationKind.IncrementBy);
+        row.SetValueLiteralArgument = "abc";
+
+        field.RefreshSetValueMetadata(row);
+
+        AssertTrue(row.HasSetValueValidationError);
+        AssertEqual("Enter a valid numeric delta using invariant format, for example 1 or 0.5.", row.SetValueValidationMessage);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(targetPath);
+    }
+}
+
+static void SetValueInlineEditorRowLoadsLegacyLiteralAsEquals()
+{
+    var row = new ItemInteractionEditorRow
+    {
+        ActionName = nameof(ItemInteractionAction.SetValue),
+        Argument = "hello"
+    };
+
+    row.SetValueTargetKind = SetValueTargetKind.String;
+
+    AssertTrue(row.SelectedSetValueOperation is not null);
+    AssertEqual(SetValueOperationKind.SetLiteral, row.SelectedSetValueOperation!.Kind);
+    AssertEqual("hello", row.SetValueLiteralArgument);
+    AssertTrue(row.ShowsSetValueLiteralEditor);
+}
+
+static void SetValueInlineEditorRowUsesItemSourcePath()
+{
+    var row = new ItemInteractionEditorRow
+    {
+        ActionName = nameof(ItemInteractionAction.SetValue)
+    };
+
+    row.SetValueTargetKind = SetValueTargetKind.Numeric;
+    row.SetSetValueSourceOptions(["studio.main.source.read"]);
+    row.SelectedSetValueOperation = row.SetValueOperationOptions.Single(option => option.Kind == SetValueOperationKind.SetFromItem);
+    row.SetValueSourcePath = "studio.main.source.read";
+
+    var parsed = SetValueOperationCodec.Parse(row.Argument);
+    AssertTrue(parsed.IsValid);
+    AssertEqual(SetValueOperationKind.SetFromItem, parsed.Operation.Kind);
+    AssertEqual("studio.main.source.read", parsed.Operation.SourcePath);
+    AssertTrue(row.ShowsSetValueSourceEditor);
+}
+
+static void SetValueRuntimeAppendInsertsSeparatorOnlyWhenNeeded()
+{
+    const string targetPath = "studio.main.output.text";
+    var targetItem = ItemExtension.CreateWithPath(targetPath, "A");
+    targetItem.Properties["write"].Value = "A";
+    targetItem.Properties["type"].Value = "string";
+
+    var model = new FolderItemModel();
+    var method = typeof(FolderItemModel).GetMethod(
+        "TryResolveSetValueOperationValue",
+        BindingFlags.Instance | BindingFlags.NonPublic,
+        binder: null,
+        types: [typeof(SetValueOperation), typeof(string), typeof(ItemModel), typeof(object).MakeByRefType(), typeof(string).MakeByRefType()],
+        modifiers: null);
+    if (method is null)
+    {
+        throw new InvalidOperationException("TryResolveSetValueOperationValue was not found.");
+    }
+
+    var appendWithSeparator = new SetValueOperation
+    {
+        Kind = SetValueOperationKind.AppendText,
+        LiteralValue = "B",
+        Separator = ", "
+    };
+    var arguments = new object?[] { appendWithSeparator, targetPath, targetItem, null, null };
+    AssertEqual(true, method.Invoke(model, arguments));
+    AssertEqual("A, B", arguments[3]);
+    AssertEqual(string.Empty, arguments[4]);
+
+    targetItem.Properties["write"].Value = string.Empty;
+    arguments = [appendWithSeparator, targetPath, targetItem, null, null];
+    AssertEqual(true, method.Invoke(model, arguments));
+    AssertEqual("B", arguments[3]);
+
+    targetItem.Properties["write"].Value = "A";
+    var appendEmpty = new SetValueOperation
+    {
+        Kind = SetValueOperationKind.AppendText,
+        LiteralValue = string.Empty,
+        Separator = ", "
+    };
+    arguments = [appendEmpty, targetPath, targetItem, null, null];
+    AssertEqual(true, method.Invoke(model, arguments));
+    AssertEqual("A", arguments[3]);
 }
 
 static void ProjectUiYamlLoaderImportsVisualRules()
@@ -4063,6 +4766,38 @@ static void UdlSetDrivenDemoWritesFeedbackToReadOnly()
     }
 }
 
+static void UdlSimulatedDemoPublishesChannelTypeMetadata()
+{
+    var definition = new UdlDemoModuleDefinition
+    {
+        Name = "m001",
+        Kind = UdlDemoModuleKind.SetDriven,
+        InitialValue = 0
+    };
+
+    using var client = new SimulatedHostUdlClient(
+        name: "udl_client_control",
+        host: "demo",
+        port: 9001,
+        definitions: [definition]);
+
+    client.ConnectAsync().GetAwaiter().GetResult();
+    try
+    {
+        var module = client.Items["m001"];
+
+        AssertEqual("float", module["read"].Properties["type"].Value);
+        AssertEqual("float", module["set"].Properties["type"].Value);
+        AssertEqual("float", module["out"].Properties["type"].Value);
+        AssertEqual("int", module["state"].Properties["type"].Value);
+        AssertEqual("int", module["alert"].Properties["type"].Value);
+    }
+    finally
+    {
+        client.DisconnectAsync().GetAwaiter().GetResult();
+    }
+}
+
 static void UdlRuntimeChannelsIncludeRegistryItems()
 {
     var method = typeof(UdlClientControl).GetMethod("BuildRuntimeChannelDescriptors", BindingFlags.NonPublic | BindingFlags.Static);
@@ -4097,6 +4832,36 @@ static void UdlRuntimeChannelsIncludeRegistryItems()
     {
         HostRegistries.Data.Remove("runtime.udl_client.udl_client_control.m310");
     }
+}
+
+static void UdlModulePublishesChannelTypeMetadata()
+{
+    var udlModuleType = typeof(SimulatedHostUdlClient).Assembly.GetType("HornetStudio.Host.UdlModule")
+        ?? throw new InvalidOperationException("UdlModule type was not found.");
+    var module = (ItemModel?)Activator.CreateInstance(udlModuleType, ["m001", "runtime.udl_client.udl_client_control"])
+        ?? throw new InvalidOperationException("UdlModule instance could not be created.");
+    var ensureWriteMetadata = udlModuleType.GetMethod("EnsureWriteMetadata", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("UdlModule.EnsureWriteMetadata was not found.");
+
+    AssertEqual("float", module["read"].Properties["type"].Value);
+    AssertEqual("float", module["set"].Properties["type"].Value);
+    AssertEqual("float", module["out"].Properties["type"].Value);
+    AssertEqual("int", module["state"].Properties["type"].Value);
+    AssertEqual("int", module["alert"].Properties["type"].Value);
+
+    module["read"].Properties.Remove("type");
+    module["set"].Properties.Remove("type");
+    module["out"].Properties.Remove("type");
+    module["state"].Properties.Remove("type");
+    module["alert"].Properties.Remove("type");
+
+    ensureWriteMetadata.Invoke(module, []);
+
+    AssertEqual("float", module["read"].Properties["type"].Value);
+    AssertEqual("float", module["set"].Properties["type"].Value);
+    AssertEqual("float", module["out"].Properties["type"].Value);
+    AssertEqual("int", module["state"].Properties["type"].Value);
+    AssertEqual("int", module["alert"].Properties["type"].Value);
 }
 
 static void UdlRuntimeExposureBitsUseSnakeCasePaths()
@@ -4364,6 +5129,51 @@ static void BrokerPublishedItemChangeMatcherScopesChanges()
         Resolve));
 }
 
+static void BrokerPublishedItemChangeMatcherObservesResolvedWritableTargets()
+{
+    const string localPath = "studio.default_layout.edm1.command";
+    const string writeTargetPath = "studio.default_layout.udl1.setpoint";
+
+    var definition = new BrokerPublishedItemDefinition
+    {
+        LocalPath = localPath,
+        BrokerPath = "studio.default_layout.edm1.command",
+        Active = true,
+        Writable = true,
+        PublishMode = BrokerPublishedItemPublishModes.OnChanged,
+    };
+
+    var commandItem = ItemExtension.CreateWithPath(localPath, 1d);
+    commandItem.Properties["write_path"].Value = writeTargetPath;
+    var writeTargetRoot = ItemExtension.CreateWithPath("studio.default_layout.udl1");
+    writeTargetRoot["setpoint"].Value = 21d;
+    writeTargetRoot["setpoint"].Properties["write"].Value = 21d;
+
+    ItemModel? Resolve(string path)
+    {
+        if (string.Equals(path, localPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return commandItem;
+        }
+
+        if (string.Equals(path, writeTargetPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return writeTargetRoot["setpoint"];
+        }
+
+        return null;
+    }
+
+    AssertTrue(BrokerPublishedItemChangeMatcher.ShouldObserveChange(
+        definition,
+        new DataChangedEventArgs(writeTargetPath, writeTargetRoot["setpoint"], DataChangeKind.ValueUpdated),
+        Resolve));
+    AssertFalse(BrokerPublishedItemChangeMatcher.ShouldPublishDefinitionChange(
+        definition,
+        new DataChangedEventArgs(writeTargetPath, writeTargetRoot["setpoint"], DataChangeKind.ValueUpdated),
+        Resolve));
+}
+
 static void BrokerPublisherSendsValueUpdateForUnregisteredValueChange()
 {
     var localPath = "runtime.broker_publisher.set.request";
@@ -4496,6 +5306,84 @@ static void BrokerPublisherRecordsLocalHostWriteStateForWritableValueChanges()
     finally
     {
         HostRegistries.Data.Remove(localPath);
+    }
+}
+
+static void BrokerWriteBackIgnoresStaleReadAfterRecentLocalHostWriteOnResolvedTarget()
+{
+    var localPath = "runtime.broker_write_back.host_priority_source";
+    var writeTargetPath = "runtime.broker_write_back.host_priority_target";
+    var brokerPath = "studio.runtime.broker_write_back.host_priority_source";
+    var source = ItemExtension.CreateWithPath(localPath, 0d);
+    source.Properties["write_path"].Value = writeTargetPath;
+    var target = ItemExtension.CreateWithPath(writeTargetPath, 42d);
+    target.Properties["write"].Value = 42d;
+    HostRegistries.Data.UpsertSnapshot(localPath, source);
+    HostRegistries.Data.UpsertSnapshot(writeTargetPath, target);
+
+    try
+    {
+        var tracker = CreateLocalHostWriteTracker();
+        RecordLocalHostWrite(tracker, writeTargetPath, "read", 42d);
+
+        var client = new FakeHostItemBrokerClient();
+        using var writeBack = CreateWriteBackClient(
+            client,
+            localPath,
+            brokerPath,
+            active: true,
+            writable: true,
+            hasRecentLocalHostWriteConflict: (targetPath, parameterName, value) => HasRecentLocalHostWriteConflict(tracker, targetPath, parameterName, value));
+        writeBack.StartAsync().GetAwaiter().GetResult();
+
+        client.PublishToSubscription(new ItemValueChangedMessage(brokerPath, 5d, "external-client", null, DateTimeOffset.UtcNow));
+
+        AssertTrue(HostRegistries.Data.TryResolve(writeTargetPath, out var resolved));
+        AssertEqual(42d, resolved?.Value);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(localPath);
+        HostRegistries.Data.Remove(writeTargetPath);
+    }
+}
+
+static void BrokerWriteBackTreatsSameValueResolvedTargetEchoesAsNonConflicts()
+{
+    var localPath = "runtime.broker_write_back.same_value_source";
+    var writeTargetPath = "runtime.broker_write_back.same_value_target";
+    var brokerPath = "studio.runtime.broker_write_back.same_value_source";
+    var source = ItemExtension.CreateWithPath(localPath, 0d);
+    source.Properties["write_path"].Value = writeTargetPath;
+    var target = ItemExtension.CreateWithPath(writeTargetPath, 42d);
+    target.Properties["write"].Value = 42d;
+    HostRegistries.Data.UpsertSnapshot(localPath, source);
+    HostRegistries.Data.UpsertSnapshot(writeTargetPath, target);
+
+    try
+    {
+        var tracker = CreateLocalHostWriteTracker();
+        RecordLocalHostWrite(tracker, writeTargetPath, "read", 42d);
+
+        var client = new FakeHostItemBrokerClient();
+        using var writeBack = CreateWriteBackClient(
+            client,
+            localPath,
+            brokerPath,
+            active: true,
+            writable: true,
+            hasRecentLocalHostWriteConflict: (targetPath, parameterName, value) => HasRecentLocalHostWriteConflict(tracker, targetPath, parameterName, value));
+        writeBack.StartAsync().GetAwaiter().GetResult();
+
+        client.PublishToSubscription(new ItemValueChangedMessage(brokerPath, 42d, "external-client", null, DateTimeOffset.UtcNow));
+
+        AssertTrue(HostRegistries.Data.TryResolve(writeTargetPath, out var resolved));
+        AssertEqual(42d, resolved?.Value);
+    }
+    finally
+    {
+        HostRegistries.Data.Remove(localPath);
+        HostRegistries.Data.Remove(writeTargetPath);
     }
 }
 
@@ -5233,6 +6121,21 @@ static void AssertEqual(object? expected, object? actual)
     {
         throw new InvalidOperationException($"Expected '{expected}', actual '{actual}'.");
     }
+}
+
+static EditorDialogField CreateInteractionRuleField()
+{
+    var definition = new EditorDialogBindingDefinition(
+        "InteractionRules",
+        "Interaction Rules",
+        EditorPropertyType.InteractionRuleList,
+        static _ => string.Empty);
+    var item = new FolderItemModel
+    {
+        Kind = ControlKind.Button
+    };
+
+    return definition.CreateField(item);
 }
 
 static string? GetPrivateConstString(Type type, string fieldName)

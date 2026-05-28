@@ -32,6 +32,7 @@ The widget parses stored definitions and creates runtime rows for them.
 
 The widget publishes input, constant, and computed values into the registry.
 Published custom signal paths follow the widget-aware format `studio.{FolderName}.{WidgetName}.{SignalName}`.
+Published custom signal items also expose canonical registry `type` metadata based on the configured data type so generic target pickers and value editors can distinguish numeric, boolean, and text values reliably.
 
 ### Write routing
 

@@ -61,8 +61,10 @@ The widget resolves that location relative to the folder that contains `Folder.y
 
 - `type: SetValue`
 - `target`: required target item path
-- `value`: optional literal scalar value written to the target
-- `valueFrom`: optional source item path; when configured, the current value of that item is read at runtime and written to the target instead of `value`
+- `value`: optional persisted SetValue payload; this can be a legacy literal scalar value or a structured `sv1:` operation payload written by the editor
+- `valueFrom`: optional legacy source item path; when configured, the current value of that item is read at runtime and written to the target instead of `value`
+- Structured `value` payloads are used for typed editor operations such as literal set, set-from-item, numeric increment/decrement, string append, and boolean true/false
+- Existing `valueFrom` YAML remains valid and is mapped to the structured set-from-item editor state when opened
 - When both `value` and `valueFrom` are absent, an empty string is written
 
 #### Delay
@@ -94,7 +96,8 @@ The widget resolves that location relative to the folder that contains `Folder.y
 ## Editor Scope
 
 - The editor can add, remove, and reorder `Log`, `SetValue`, `Delay`, `IfThenElse`, `While`, and `StopFunction` steps.
-- The editor uses target browsing for `SetValue.target` and source item browsing for `SetValue.valueFrom`.
+- The editor uses target browsing for `SetValue.target`, detects the target type, and shows only the inline SetValue operations that match that target.
+- The editor offers compatible source items for set-from-item operations and shows clear validation text before save when a structured SetValue operation is invalid.
 - The editor uses discovered process log targets for `Log.targetLog`.
 - `IfThenElse` and `While` use the shared boolean condition editor with variable rows, source picking, token buttons, and live validation.
 - Each `IfThenElse` branch can contain nested declarative steps.
@@ -115,7 +118,7 @@ The widget resolves that location relative to the folder that contains `Folder.y
 
 ## Execution Foundation
 
-The repository already contains a workflow executor with sequential step handling, cancellation, condition branching, loops, and clear `Done`, `Failed`, and `Canceled` outcomes. `While` conditions are evaluated before every iteration, each loop body must contain a positive `Delay` guard, and `StopFunction` exits the active workflow as `Done` even from nested control-flow blocks. The current widget surface does not yet expose start or stop actions, so execution remains an internal foundation for the next implementation step.
+The repository already contains a workflow executor with sequential step handling, cancellation, condition branching, loops, and clear `Done`, `Failed`, and `Canceled` outcomes. Functions `SetValue` steps now use the same structured operation semantics as Interaction Rules, so typed set-from-item, numeric delta, string append, and boolean operations resolve consistently at runtime while legacy literal and `valueFrom` YAML stays compatible. `While` conditions are evaluated before every iteration, each loop body must contain a positive `Delay` guard, and `StopFunction` exits the active workflow as `Done` even from nested control-flow blocks. The current widget surface does not yet expose start or stop actions, so execution remains an internal foundation for the next implementation step.
 
 ## Example YAML
 

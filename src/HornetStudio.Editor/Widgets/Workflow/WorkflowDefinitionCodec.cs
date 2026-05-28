@@ -361,11 +361,13 @@ public static class FunctionDefinitionCodec
             ["target"] = setValue.Target
         };
 
-        if (!string.IsNullOrWhiteSpace(setValue.ValueFrom))
+        if (!string.IsNullOrWhiteSpace(setValue.ValueFrom)
+            && !SetValueOperationCodec.IsStructuredArgument(setValue.Value))
         {
             result["valueFrom"] = setValue.ValueFrom;
         }
-        else
+
+        if (!string.IsNullOrEmpty(setValue.Value) || !result.ContainsKey("valueFrom"))
         {
             result["value"] = setValue.Value;
         }

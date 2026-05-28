@@ -34,6 +34,12 @@ public sealed class ItemInteractionRule
     public string FunctionName { get; init; } = string.Empty;
 
     public string Argument { get; init; } = string.Empty;
+
+    public SetValueOperationParseResult GetSetValueOperation()
+        => SetValueOperationCodec.Parse(Argument);
+
+    public string GetSetValueSummary(SetValueTargetKind targetKind)
+        => SetValueOperationCodec.GetSummary(Argument, targetKind: targetKind);
 }
 
 public static class ItemInteractionRuleCodec
